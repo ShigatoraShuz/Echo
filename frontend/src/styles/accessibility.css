@@ -1,120 +1,100 @@
-@layer base {
-  :focus-visible {
-    outline: 2px solid hsl(var(--focus-ring));
-    outline-offset: 2px;
-  }
-
-  :focus:not(:focus-visible) {
-    outline: none;
-  }
+:focus-visible {
+  outline: 2px solid hsl(var(--focus-ring));
+  outline-offset: 2px;
 }
 
-@layer utilities {
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-
-  .not-sr-only {
-    position: static;
-    width: auto;
-    height: auto;
-    padding: 0;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-  }
-
-  .skip-to-content {
-    position: absolute;
-    top: -100%;
-    left: 1rem;
-    z-index: var(--z-toast, 500);
-    padding: 0.75rem 1.5rem;
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    font-size: 0.875rem;
-    font-weight: 600;
-    border-radius: var(--radius-md, 0.625rem);
-    text-decoration: none;
-    transition: top 0.2s;
-  }
-
-  .skip-to-content:focus {
-    top: 1rem;
-  }
-
-  .touch-target {
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .scroll-margin-top {
-    scroll-margin-top: calc(var(--topbar-height, 64px) + 1rem);
-  }
-
-  .motion-safe {
-    @media (prefers-reduced-motion: no-preference) {
-      transition-duration: var(--duration-normal, 300ms);
-    }
-  }
-
-  .motion-reduce {
-    @media (prefers-reduced-motion: reduce) {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
-@layer components {
-  .echo-focus-ring {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    transition: outline-color 0.15s;
-  }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
-  .echo-focus-ring:focus-visible {
-    outline-color: hsl(var(--focus-ring));
-  }
+.not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
 
-  .echo-disabled {
-    opacity: var(--disabled-opacity, 0.5);
-    pointer-events: none;
-  }
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: var(--z-toast, 500);
+  padding: 0.75rem 1.5rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 0.625rem);
+  text-decoration: none;
+  transition: top 0.2s;
+}
 
-  .echo-form-error {
-    border-color: hsl(var(--danger));
-  }
+.skip-to-content:focus {
+  top: 1rem;
+}
 
-  .echo-form-error:focus {
-    border-color: hsl(var(--danger));
-    box-shadow: 0 0 0 3px hsl(var(--danger) / 0.15);
-  }
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  .echo-form-error-message {
-    color: hsl(var(--danger));
-    font-size: 0.75rem;
-    font-weight: 500;
-    margin-top: 0.25rem;
-  }
+.scroll-margin-top {
+  scroll-margin-top: calc(var(--topbar-height, 64px) + 1rem);
+}
 
-  .echo-required-indicator {
-    color: hsl(var(--danger));
-    margin-left: 0.125rem;
-  }
+.echo-focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.15s;
+}
+
+.echo-focus-ring:focus-visible {
+  outline-color: hsl(var(--focus-ring));
+}
+
+.echo-disabled {
+  opacity: var(--disabled-opacity, 0.5);
+  pointer-events: none;
+}
+
+.echo-form-error {
+  border-color: hsl(var(--danger));
+}
+
+.echo-form-error:focus {
+  border-color: hsl(var(--danger));
+  box-shadow: 0 0 0 3px hsl(var(--danger) / 0.15);
+}
+
+.echo-form-error-message {
+  color: hsl(var(--danger));
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+.echo-required-indicator {
+  color: hsl(var(--danger));
+  margin-left: 0.125rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -128,5 +108,11 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion-safe {
+    transition-duration: 300ms;
   }
 }

@@ -1,66 +1,80 @@
-@layer utilities {
-  .motion-fade-in {
-    opacity: 0;
-    animation: echo-fade-in 0.3s ease-out forwards;
-  }
+.motion-fade-in {
+  opacity: 0;
+  animation: echo-fade-in 0.3s ease-out forwards;
+}
 
-  .motion-fade-out {
-    opacity: 1;
-    animation: echo-fade-out 0.2s ease-in forwards;
-  }
+.motion-fade-out {
+  opacity: 1;
+  animation: echo-fade-out 0.2s ease-in forwards;
+}
 
-  .motion-slide-up {
-    opacity: 0;
-    transform: translateY(20px);
-    animation: echo-slide-up 0.3s ease-out forwards;
-  }
+.motion-slide-up {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: echo-slide-up 0.3s ease-out forwards;
+}
 
-  .motion-slide-down {
-    opacity: 0;
-    transform: translateY(-10px);
-    animation: echo-slide-down 0.2s ease-out forwards;
-  }
+.motion-slide-down {
+  opacity: 0;
+  transform: translateY(-10px);
+  animation: echo-slide-down 0.2s ease-out forwards;
+}
 
-  .motion-scale-in {
-    opacity: 0;
-    transform: scale(0.95);
-    animation: echo-scale-in 0.2s ease-out forwards;
-  }
+.motion-scale-in {
+  opacity: 0;
+  transform: scale(0.95);
+  animation: echo-scale-in 0.2s ease-out forwards;
+}
 
-  .motion-progress {
-    animation: echo-progress 2s ease-in-out infinite;
-    transform-origin: left;
-  }
+.motion-progress {
+  animation: echo-progress 2s ease-in-out infinite;
+  transform-origin: left;
+}
 
-  .motion-skeleton-pulse {
-    animation: echo-skeleton-pulse 1.5s ease-in-out infinite;
-  }
+.motion-skeleton-pulse {
+  animation: echo-skeleton-pulse 1.5s ease-in-out infinite;
+}
 
-  .motion-enter-modal {
-    animation: echo-scale-in 0.2s ease-out forwards, echo-fade-in 0.15s ease-out forwards;
-  }
+.motion-enter-modal {
+  animation: echo-scale-in 0.2s ease-out forwards, echo-fade-in 0.15s ease-out forwards;
+}
 
-  .motion-enter-sheet {
-    animation: echo-slide-in-right 0.25s ease-out forwards;
-  }
+.motion-enter-sheet {
+  animation: echo-slide-in-right 0.25s ease-out forwards;
+}
 
-  .motion-enter-toast {
-    animation: echo-slide-up 0.2s ease-out forwards;
-  }
+.motion-enter-toast {
+  animation: echo-slide-up 0.2s ease-out forwards;
+}
 
-  .motion-stagger > * {
-    opacity: 0;
-    animation: echo-fade-in 0.3s ease-out forwards;
-  }
+.motion-stagger > * {
+  opacity: 0;
+  animation: echo-fade-in 0.3s ease-out forwards;
+}
 
-  .motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .motion-stagger > *:nth-child(2) { animation-delay: 30ms; }
-  .motion-stagger > *:nth-child(3) { animation-delay: 60ms; }
-  .motion-stagger > *:nth-child(4) { animation-delay: 90ms; }
-  .motion-stagger > *:nth-child(5) { animation-delay: 120ms; }
-  .motion-stagger > *:nth-child(6) { animation-delay: 150ms; }
-  .motion-stagger > *:nth-child(7) { animation-delay: 180ms; }
-  .motion-stagger > *:nth-child(8) { animation-delay: 210ms; }
+.motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 120ms; }
+.motion-stagger > *:nth-child(6) { animation-delay: 150ms; }
+.motion-stagger > *:nth-child(7) { animation-delay: 180ms; }
+.motion-stagger > *:nth-child(8) { animation-delay: 210ms; }
+
+.motion-slide-from-right {
+  animation: echo-slide-in-right 0.25s ease-out forwards;
+}
+
+.motion-slide-from-left {
+  animation: echo-slide-in-left 0.25s ease-out forwards;
+}
+
+.motion-duration-150 {
+  animation-duration: 150ms;
+}
+
+.motion-duration-300 {
+  animation-duration: 300ms;
 }
 
 @keyframes echo-fade-in {
@@ -93,6 +107,11 @@
   to { transform: translateX(0); }
 }
 
+@keyframes echo-slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 @keyframes echo-progress {
   0% { transform: scaleX(0); }
   50% { transform: scaleX(0.5); }
@@ -112,7 +131,9 @@
   .motion-scale-in,
   .motion-enter-modal,
   .motion-enter-sheet,
-  .motion-enter-toast {
+  .motion-enter-toast,
+  .motion-slide-from-right,
+  .motion-slide-from-left {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
