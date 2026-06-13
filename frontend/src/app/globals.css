@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "../styles/tokens.css" layer(base);
+@import "../styles/accessibility.css" layer(base);
+@import "../styles/motion.css" layer(utilities);
+
 :root,
 :root[data-echo-theme="echo-calm"] {
   --background: 42 45% 96%;

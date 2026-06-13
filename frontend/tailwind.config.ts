@@ -5,6 +5,8 @@ const config: Config = {
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/shared/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/config/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
@@ -82,6 +84,27 @@ const config: Config = {
           3: "hsl(var(--chart-3) / <alpha-value>)",
           4: "hsl(var(--chart-4) / <alpha-value>)",
           5: "hsl(var(--chart-5) / <alpha-value>)",
+        },
+        surface: {
+          DEFAULT: "hsl(var(--surface) / <alpha-value>)",
+          raised: "hsl(var(--surface-raised) / <alpha-value>)",
+          muted: "hsl(var(--surface-muted) / <alpha-value>)",
+          subtle: "hsl(var(--surface-subtle) / <alpha-value>)",
+        },
+        overlay: "hsl(var(--overlay))",
+        emotion: {
+          anger: "hsl(var(--emotion-anger) / <alpha-value>)",
+          anticipation: "hsl(var(--emotion-anticipation) / <alpha-value>)",
+          disgust: "hsl(var(--emotion-disgust) / <alpha-value>)",
+          fear: "hsl(var(--emotion-fear) / <alpha-value>)",
+          joy: "hsl(var(--emotion-joy) / <alpha-value>)",
+          sadness: "hsl(var(--emotion-sadness) / <alpha-value>)",
+          surprise: "hsl(var(--emotion-surprise) / <alpha-value>)",
+          trust: "hsl(var(--emotion-trust) / <alpha-value>)",
+        },
+        info: {
+          DEFAULT: "hsl(var(--information) / <alpha-value>)",
+          surface: "hsl(var(--information-surface) / <alpha-value>)",
         },
       },
       borderRadius: {
