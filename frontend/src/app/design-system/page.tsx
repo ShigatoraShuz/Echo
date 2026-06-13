@@ -1,28 +1,36 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  AlertTriangle,
   ArrowRight,
-  Bot,
   CheckCircle2,
-  HeartPulse,
-  Loader2,
-  MessageCircle,
   Moon,
   PenLine,
-  Send,
   Shield,
   Sparkles,
 } from "lucide-react";
 import { ThemeControls } from "@/components/echo/theme-controls";
 import {
   echoChartTokens,
-  moodDotStyles,
   moodNames,
   moodStyles,
-  riskBandNames,
-  riskBandStyles,
 } from "@/lib/theme";
+import { EchoButton } from "@/shared/components/ui/echo-button";
+import { EchoCard } from "@/shared/components/ui/echo-card";
+import { EchoBadge } from "@/shared/components/ui/echo-badge";
+import { EchoDivider } from "@/shared/components/ui/echo-divider";
+import { EchoProgress } from "@/shared/components/ui/echo-progress";
+import { EchoStatCard } from "@/shared/components/data-display/echo-stat-card";
+import { EchoMoodIndicator } from "@/shared/components/data-display/echo-mood-indicator";
+import { EchoRiskIndicator } from "@/shared/components/data-display/echo-risk-indicator";
+import { EchoPageHeading } from "@/shared/components/data-display/echo-page-heading";
+import { EchoEmptyState } from "@/shared/components/feedback/echo-empty-state";
+import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
+import { EchoLoadingState } from "@/shared/components/feedback/echo-loading-state";
+import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
+import { EchoStatusBanner } from "@/shared/components/feedback/echo-status-banner";
+import { EchoInput } from "@/shared/components/ui/echo-input";
+import { EchoSwitch } from "@/shared/components/ui/echo-switch";
+import { EchoCrisisBanner } from "@/shared/components/crisis/echo-crisis-banner";
 
 const colorTokens = [
   "background",
@@ -56,69 +64,21 @@ const chartBars = [
   { label: "Fri", value: "50%", token: "var(--chart-5)" },
 ];
 
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
+function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-card sm:p-6 lg:p-7">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
-          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
-        </div>
-      </div>
-
-      <div className="space-y-4">{children}</div>
-    </section>
+    <EchoCard title={title} description={description}>
+      {children}
+    </EchoCard>
   );
 }
 
 function TokenSwatch({ token }: { token: string }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-background p-3">
-      <div
-        className="h-16 rounded-xl border border-border/70"
-        style={{ background: `hsl(var(--${token}))` }}
-      />
+      <div className="h-16 rounded-xl border border-border/70" style={{ background: `hsl(var(--${token}))` }} />
       <div className="mt-3">
         <p className="text-sm font-semibold text-foreground">{token}</p>
         <p className="text-xs text-muted-foreground">{`hsl(var(--${token}))`}</p>
-      </div>
-    </div>
-  );
-}
-
-function MiniChart() {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background p-4">
-      <div className="chart-card-grid flex h-56 items-end gap-3 rounded-xl border border-border/70 bg-card/70 p-4">
-        {chartBars.map((bar) => (
-          <div key={bar.label} className="flex flex-1 flex-col items-center gap-2">
-            <div
-              className="w-full rounded-t-xl shadow-subtle"
-              style={{ height: bar.value, background: `hsl(${bar.token})` }}
-            />
-            <span className="text-xs font-medium text-muted-foreground">{bar.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {echoChartTokens.map((token, index) => (
-          <span key={token} className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: token }}
-              aria-hidden="true"
-            />
-            Chart {index + 1}
-          </span>
-        ))}
       </div>
     </div>
   );
@@ -128,29 +88,26 @@ export default function DesignSystemPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 xl:px-10">
-        <header className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-primary">ECHO Design System</p>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-              Theme consistency preview
-            </h1>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-              Token-driven surfaces for mood tracking, risk bands, journaling, Buddy Chat, and crisis support.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-subtle lg:w-[420px]">
-            <ThemeControls compact />
-            <div className="flex flex-wrap gap-2">
-              <Link href="/settings/profile" className="echo-button-secondary h-10 px-4">
-                Profile
-              </Link>
-              <Link href="/settings/privacy" className="echo-button-secondary h-10 px-4">
-                Privacy
-              </Link>
+        <EchoPageHeading
+          title="Theme consistency preview"
+          description="Token-driven surfaces for mood tracking, risk bands, journaling, Buddy Chat, and crisis support."
+          badge={<span className="text-xs font-medium text-primary">ECHO Design System</span>}
+          action={
+            <div className="flex w-full flex-col gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-subtle lg:w-[420px]">
+              <ThemeControls compact />
+              <div className="flex flex-wrap gap-2">
+                <Link href="/settings/profile" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-subtle transition hover:bg-muted">
+                  Profile
+                </Link>
+                <Link href="/settings/privacy" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-subtle transition hover:bg-muted">
+                  Privacy
+                </Link>
+              </div>
             </div>
-          </div>
-        </header>
+          }
+        />
+
+        <EchoDivider className="my-8" />
 
         <div className="space-y-6">
           <Section title="Color Tokens" description="Every visible color is read from CSS variables and Tailwind semantic tokens.">
@@ -186,181 +143,182 @@ export default function DesignSystemPage() {
 
             <Section title="Buttons" description="Primary, secondary, and quiet actions share one shape and focus treatment.">
               <div className="flex flex-wrap gap-3">
-                <button className="echo-button-primary">
-                  <Sparkles className="h-4 w-4" />
+                <EchoButton variant="primary" size="medium">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
                   New reflection
-                </button>
-                <button className="echo-button-secondary">
-                  <Moon className="h-4 w-4" />
+                </EchoButton>
+                <EchoButton variant="secondary" size="medium">
+                  <Moon className="h-4 w-4" aria-hidden="true" />
                   Night check-in
-                </button>
-                <button className="echo-button-ghost">
-                  <ArrowRight className="h-4 w-4" />
+                </EchoButton>
+                <EchoButton variant="ghost" size="medium">
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   Continue
-                </button>
+                </EchoButton>
+              </div>
+              <EchoDivider label="Loading state" />
+              <EchoButton variant="primary" size="medium" isLoading loadingText="Saving...">
+                Save
+              </EchoButton>
+              <EchoDivider label="Sizes" />
+              <div className="flex flex-wrap items-center gap-3">
+                <EchoButton variant="primary" size="small">Small</EchoButton>
+                <EchoButton variant="primary" size="medium">Medium</EchoButton>
+                <EchoButton variant="primary" size="large">Large</EchoButton>
+                <EchoButton variant="outline" size="small">Outline</EchoButton>
+                <EchoButton variant="soft" size="small">Soft</EchoButton>
+                <EchoButton variant="danger" size="small">Danger</EchoButton>
+                <EchoButton variant="link" size="small">Link</EchoButton>
               </div>
             </Section>
           </section>
 
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-            <Section title="Mood Badges" description="Mood states are reusable classes mapped in src/lib/theme.ts.">
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <Section title="Badges" description="EchoBadge supports default, success, warning, danger, info, and neutral variants.">
               <div className="flex flex-wrap gap-2">
-                {moodNames.map((mood) => (
-                  <span key={mood} className={moodStyles[mood]}>
-                    {mood}
-                  </span>
-                ))}
+                <EchoBadge variant="default">Default</EchoBadge>
+                <EchoBadge variant="success">Success</EchoBadge>
+                <EchoBadge variant="warning">Warning</EchoBadge>
+                <EchoBadge variant="danger">Danger</EchoBadge>
+                <EchoBadge variant="info">Info</EchoBadge>
+                <EchoBadge variant="neutral">Neutral</EchoBadge>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {moodNames.map((mood) => (
-                  <div key={mood} className="flex items-center gap-3 rounded-xl border border-border/70 bg-background p-3">
-                    <span className={`h-3 w-3 rounded-full ${moodDotStyles[mood]}`} />
-                    <span className="text-sm font-medium capitalize text-foreground">{mood}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">mood.{mood}</span>
-                  </div>
-                ))}
+              <EchoDivider label="Sizes" />
+              <div className="flex flex-wrap items-center gap-2">
+                <EchoBadge variant="default" size="small">Small</EchoBadge>
+                <EchoBadge variant="default" size="medium">Medium</EchoBadge>
               </div>
             </Section>
 
-            <Section title="Risk Badges" description="Risk bands use dedicated low, mild, moderate, high, and severe styles.">
-              <div className="flex flex-wrap gap-2">
-                {riskBandNames.map((risk) => (
-                  <span key={risk} className={riskBandStyles[risk]}>
-                    {risk}
-                  </span>
-                ))}
+            <Section title="Progress" description="EchoProgress with percentage display and semantic variants.">
+              <EchoProgress value={75} label="Emotional awareness" showValue variant="default" />
+              <EchoProgress value={45} label="Journal entries" showValue variant="warning" />
+              <EchoProgress value={90} label="Check-in streak" showValue variant="success" />
+              <EchoProgress value={30} size="small" label="Small variant" />
+            </Section>
+          </section>
+
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <Section title="Mood & Risk Indicators" description="Visual mood and risk signals using EchoMoodIndicator and EchoRiskIndicator.">
+              <div className="space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Moods</p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <EchoMoodIndicator mood="great" size="large" showLabel />
+                  <EchoMoodIndicator mood="good" size="large" showLabel />
+                  <EchoMoodIndicator mood="okay" size="large" showLabel />
+                  <EchoMoodIndicator mood="bad" size="large" showLabel />
+                  <EchoMoodIndicator mood="awful" size="large" showLabel />
+                  <EchoMoodIndicator mood="unknown" size="large" showLabel />
+                </div>
+                <EchoDivider />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Risk bands</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <EchoRiskIndicator level="low" />
+                  <EchoRiskIndicator level="medium" />
+                  <EchoRiskIndicator level="high" />
+                  <EchoRiskIndicator level="critical" />
+                </div>
+                <EchoDivider />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Legacy Mood Badges</p>
+                <div className="flex flex-wrap gap-2">
+                  {moodNames.map((mood) => (
+                    <span key={mood} className={moodStyles[mood]}>{mood}</span>
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-5">
-                {riskBandNames.map((risk) => (
-                  <div key={risk} className={`risk-card risk-card-${risk}`}>
-                    <p className="text-sm font-semibold capitalize">{risk}</p>
-                    <p className="mt-1 text-xs leading-5">Reusable band surface</p>
-                  </div>
-                ))}
+            </Section>
+
+            <Section title="Stat Cards" description="EchoStatCard for metric display with trend indicators.">
+              <div className="grid grid-cols-2 gap-4">
+                <EchoStatCard label="Entries" value="24" trend="up" trendLabel="+3 this week" />
+                <EchoStatCard label="Avg. Mood" value="3.8" trend="up" trendLabel="Stable" />
+                <EchoStatCard label="Buddy replies" value="12" trend="down" trendLabel="-2 today" />
+                <EchoStatCard label="Streak" value="7 days" />
               </div>
             </Section>
           </section>
 
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-            <Section title="Forms" description="Inputs and textareas use bg-background, border-input, and focus:ring tokens.">
-              <form className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Reflection title</label>
-                  <input className="echo-input" placeholder="Evening check-in" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Journal note</label>
-                  <textarea className="echo-textarea" placeholder="A few calm sentences..." />
-                </div>
-                <button className="echo-button-primary" type="button">
-                  <PenLine className="h-4 w-4" />
-                  Save entry
-                </button>
-              </form>
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+            <Section title="Forms" description="Inputs and form elements using EchoInput, EchoTextarea, EchoSelect, EchoCheckbox, and EchoSwitch.">
+              <EchoInput label="Reflection title" placeholder="Evening check-in" required />
+              <EchoInput label="Email" type="email" placeholder="you@example.com" description="We'll never share your email." />
+              <EchoInput label="Error example" error="This field is required" />
+              <EchoSwitch label="Dark mode" description="Apply the Night theme automatically" />
+              <EchoDivider />
+              <EchoButton variant="primary" size="medium">
+                <PenLine className="h-4 w-4" aria-hidden="true" />
+                Save entry
+              </EchoButton>
             </Section>
 
             <Section title="Charts" description="Chart fills and legends reference --chart-* theme variables.">
-              <MiniChart />
+              <div className="rounded-2xl border border-border/70 bg-background p-4">
+                <div className="chart-card-grid flex h-56 items-end gap-3 rounded-xl border border-border/70 bg-card/70 p-4">
+                  {chartBars.map((bar) => (
+                    <div key={bar.label} className="flex flex-1 flex-col items-center gap-2">
+                      <div
+                        className="w-full rounded-t-xl shadow-subtle"
+                        style={{ height: bar.value, background: `hsl(${bar.token})` }}
+                      />
+                      <span className="text-xs font-medium text-muted-foreground">{bar.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {echoChartTokens.map((token, index) => (
+                    <span key={token} className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: token }} aria-hidden="true" />
+                      Chart {index + 1}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </Section>
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <Section title="Crisis Alert Card" description="Crisis UI is stronger but still uses ECHO crisis and danger tokens.">
-              <div className="rounded-2xl border border-danger/30 bg-crisis-soft p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-crisis text-danger-foreground">
-                    <AlertTriangle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">Immediate support is available</h3>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Reach a trusted person or emergency service if you may be in danger.
-                    </p>
-                  </div>
-                </div>
-                <button className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-crisis px-5 text-sm font-semibold text-danger-foreground shadow-subtle">
-                  Get crisis resources
-                </button>
-              </div>
+            <Section title="Feedback States" description="EchoEmptyState, EchoErrorState, EchoLoadingState, EchoInlineMessage, EchoStatusBanner.">
+              <EchoEmptyState title="No entries yet" description="Start with a short note whenever you are ready." />
+              <EchoErrorState title="Could not sync" message="Your local journal content remains available." compact />
+              <EchoLoadingState variant="spinner" label="Preparing the weekly pattern summary..." />
+              <EchoDivider />
+              <EchoInlineMessage variant="info" message="Your data is stored locally." />
+              <EchoInlineMessage variant="success" message="Entry saved successfully." />
+              <EchoInlineMessage variant="warning" message="Storage is reaching its limit." />
+              <EchoInlineMessage variant="error" message="Could not connect to the server." />
             </Section>
 
-            <Section title="Journal Card" description="Journal entries keep soft elevation, mood context, and roomy text.">
-              <article className="rounded-2xl border border-border/70 bg-background p-5 shadow-subtle">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Today, 8:42 PM</p>
-                    <h3 className="mt-1 text-lg font-semibold text-foreground">A slower evening</h3>
-                  </div>
-                  <span className={moodStyles.calm}>calm</span>
-                </div>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  The walk helped me reset. I noticed my shoulders soften after a few minutes outside.
-                </p>
-              </article>
+            <Section title="Crisis UI" description="EchoCrisisBanner — always accessible, never behind a feature flag.">
+              <EchoCrisisBanner />
+              <EchoDivider label="Compact variant" />
+              <EchoCrisisBanner compact />
             </Section>
 
-            <Section title="Chat Bubble" description="Buddy Chat uses card, background, secondary, and border tokens.">
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  <div className="max-w-[70%] rounded-2xl rounded-tl-md border border-border/70 bg-background px-4 py-3 text-sm leading-6 shadow-subtle">
-                    Want to name one thing that felt lighter today?
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <div className="max-w-[70%] rounded-2xl rounded-tr-md bg-secondary px-4 py-3 text-sm leading-6 text-secondary-foreground">
-                    I made tea and sat near the window for a while.
-                  </div>
-                </div>
-                <div className="flex items-end gap-3 rounded-2xl border border-border bg-background p-3">
-                  <textarea className="min-h-11 flex-1 resize-none bg-transparent text-sm leading-6 outline-none" />
-                  <button className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+            <Section title="Status Banner" description="EchoStatusBanner for page-level notifications.">
+              <EchoStatusBanner variant="info" title="New feature available" description="Try the improved check-in flow." dismissible />
+              <EchoStatusBanner variant="success" title="Backup complete" />
+              <EchoStatusBanner variant="warning" title="Storage warning" description="You're using 85% of your available space." dismissible />
+              <EchoStatusBanner variant="error" title="Sync failed" description="Check your connection and try again." />
             </Section>
           </section>
 
-          <Section title="Loading, Empty, Error" description="Operational states use the same panel rhythm and semantic status colors.">
+          <Section title="Cards" description="EchoCard with header, footer, and body spacing.">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <div className="rounded-2xl border border-border/70 bg-background p-5">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <h3 className="mt-4 text-sm font-semibold text-foreground">Loading insight</h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Preparing the weekly pattern summary.</p>
-              </div>
-              <div className="rounded-2xl border border-border/70 bg-background p-5">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                <h3 className="mt-4 text-sm font-semibold text-foreground">No entries yet</h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Start with a short note whenever you are ready.</p>
-              </div>
-              <div className="rounded-2xl border border-danger/30 bg-crisis-soft p-5">
-                <HeartPulse className="h-5 w-5 text-danger" />
-                <h3 className="mt-4 text-sm font-semibold text-foreground">Could not sync</h3>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Your local journal content remains available.</p>
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Cards" description="The default ECHO card structure keeps headers, body spacing, borders, and shadows consistent.">
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              <article className="echo-compact-card">
+              <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
                 <CheckCircle2 className="h-5 w-5 text-success" />
                 <h3 className="mt-4 text-sm font-semibold text-foreground">Privacy-first</h3>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Sensitive UI stays quiet and readable.</p>
-              </article>
-              <article className="echo-compact-card">
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
                 <Shield className="h-5 w-5 text-primary" />
                 <h3 className="mt-4 text-sm font-semibold text-foreground">Consistent shells</h3>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Pages share the same outer structure.</p>
-              </article>
-              <article className="echo-compact-card">
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
                 <Sparkles className="h-5 w-5 text-accent-foreground" />
                 <h3 className="mt-4 text-sm font-semibold text-foreground">Soft by default</h3>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">Alerts can rise without breaking the palette.</p>
-              </article>
+              </div>
             </div>
           </Section>
         </div>

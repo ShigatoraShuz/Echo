@@ -276,5 +276,68 @@ The following shared foundation has been implemented:
 
 **Not yet implemented:** Shared UI components, route groups, application shells, domain services, React Bits wrappers, form/validation libraries.
 
-**Overall:** 40 ✅ complete, 32 📐 static-ui, 63 ❌ missing  
+## 14. Phase 3 — Design System & Shared Components
+
+The following design foundation and reusable component library has been implemented:
+
+**Style Foundation:**
+- Semantic CSS custom properties (`tokens.css`) for surfaces, emotions, typography, spacing, shape, elevation, z-index across 4 theme variants + dark mode
+- Motion utilities (`motion.css`) with fade, slide, scale, progress, skeleton, stagger animations and `prefers-reduced-motion` fallback
+- Accessibility utilities (`accessibility.css`) including skip-to-content, focus-visible rings, sr-only, touch targets, form error states
+- Tailwind config updated with shared/config content paths and semantic color mappings (surface, overlay, emotion, info)
+
+**UI Primitives (`shared/components/ui/`):**
+- `EchoButton` — 7 variants, 4 sizes, loading state with spinner
+- `EchoIconButton` — icon-only ghost/primary/secondary/soft variants
+- `EchoInput` — label, description, error, leading/trailing icons, ARIA
+- `EchoTextarea` — label, description, error, character count
+- `EchoSelect` — label, description, error, placeholder, custom arrow
+- `EchoCheckbox` — label, description, error, custom check mark
+- `EchoRadioGroup` — fieldset/legend, options with descriptions
+- `EchoSwitch` — label, description, role="switch"
+- `EchoLabel` — optional required indicator
+- `EchoCard` — title, description, action, compact variant
+- `EchoBadge` — 6 color variants, 2 sizes
+- `EchoAvatar` — image, initials, or fallback icon
+- `EchoDivider` — optional label
+- `EchoProgress` — label, percentage, 3 semantic variants, 2 sizes
+- `EchoTabs` — accessible tablist with active state
+- `EchoDialog` — modal with overlay, Escape, focus trap
+- `EchoSheet` — slide-in panel from left/right
+- `EchoSkeleton` — text, circular, rectangular; group variant
+- `EchoTooltip` — hover/focus reveal on 4 sides
+
+**Feedback Components (`shared/components/feedback/`):**
+- `EchoEmptyState` — icon, title, description, optional action button
+- `EchoErrorState` — full and compact variants with retry
+- `EchoLoadingState` — spinner and skeleton variants
+- `EchoInlineMessage` — info/success/warning/error with icons
+- `EchoStatusBanner` — dismissible page-level alerts in 4 variants
+
+**Data Display (`shared/components/data-display/`):**
+- `EchoStatCard` — metric display with trend arrow
+- `EchoSectionHeading` — title, description, action slot
+- `EchoPageHeading` — page-level title with badge and action
+- `EchoMoodIndicator` — 6 mood levels with icons and labels
+- `EchoRiskIndicator` — 4 risk levels with dot indicator
+
+**Crisis (`shared/components/crisis/`):**
+- `EchoCrisisBanner` — always accessible (never behind FF), full and compact variants
+
+**Navigation (`shared/components/navigation/`):**
+- `EchoPublicNavbar` — public site header
+- `EchoPublicFooter` — public site footer
+- `EchoSidebar` — app sidebar with nav links, sync status, crisis badge
+
+**Layout Shells (`shared/components/layout/`):**
+- `EchoPublicShell` — public page wrapper
+- `EchoAppShell` — authenticated app wrapper
+- `EchoSettingsShell` — settings page wrapper with subnav
+
+**Legacy Decomposition:**
+- `CrisisHelpCard` and `PrivacyNotice` extracted to dedicated files
+- Legacy `shared.tsx`, `shells.tsx`, `public-pages.tsx` preserved with backward-compatible exports
+- Design system preview page (`/design-system`) updated to use all new components
+
+**Overall:** 55 ✅ complete, 32 📐 static-ui, 63 ❌ missing  
 **Bulk of work needed:** Buddy interactions, form validation, journal CRUD, settings interactivity, landing page redesign.
