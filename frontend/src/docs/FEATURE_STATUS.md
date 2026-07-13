@@ -426,4 +426,22 @@ The Journal feature has been fully migrated to MVVM architecture:
 - Forgot password: `meditationRoomPlant`
 - Reset password: `plantDeskWarmLight`
 
-**Bulk of work needed:** Buddy interactions, form validation, settings interactivity, landing page redesign, backend integration.
+## 18. Phase 6 — Auth Frontend Handlers
+
+**`AuthPage` functional client component:**
+- `"use client"` directive with full form state management
+- Form inputs via `EchoInput` with `onChange`/`value` binding, `aria-invalid` for errors
+- Form submission via `AuthService` interface (mock adapter)
+- Loading state on submit button via `EchoButton` `isLoading`/`loadingText`
+- General error display via `EchoInlineMessage variant="error"`
+- Field-level errors from `AuthServiceError.fieldErrors`
+- Success message display for forgot-password flow
+- **Login:** email, password, "Remember session" checkbox
+- **Signup:** name, email, password, confirm password, terms acceptance, privacy acknowledgement
+- **Forgot password:** email input, success message on submit
+- **Reset password:** password, confirm password, token from URL params
+- On success: redirects to `/dashboard` (except forgot-password which stays with message)
+- No fake auth, no direct Supabase, no route middleware
+- All auth pages retain their thin route-page structure
+
+**Bulk of work needed:** Buddy interactions, settings interactivity, landing page redesign, backend integration.
