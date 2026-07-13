@@ -340,4 +340,69 @@ The following design foundation and reusable component library has been implemen
 - Design system preview page (`/design-system`) updated to use all new components
 
 **Overall:** 55 ✅ complete, 32 📐 static-ui, 63 ❌ missing  
-**Bulk of work needed:** Buddy interactions, form validation, journal CRUD, settings interactivity, landing page redesign.
+## 15. Phase 4 — Journal MVVM
+
+The Journal feature has been fully migrated to MVVM architecture:
+
+**Model Layer:**
+- Interfaces: `JournalEntry`, `JournalEntryDraft`, `JournalFilter`, `JournalSortOption`, `JournalAnalysis`
+- DTOs with Zod schemas for runtime validation
+- Mappers for client ↔ DTO conversion
+- Constants for moods, emotion tags, sort options, page sizes
+
+**Services:**
+- `JournalService` interface with CRUD + filter/sort + analysis + autosave operations
+- `JournalMockAdapter` — in-memory store with realistic delays, search, mood filtering, date range
+- `JournalHttpAdapter` — placeholder for future backend connection
+- Factory with environment-driven mock/real selection
+
+**ViewModels (3):**
+- `useJournalListViewModel` — entries, filters, sorting, pagination, loading/error states
+- `useJournalEditorViewModel` — draft management, autosave, validation, mood/emotion selection
+- `useJournalDetailViewModel` — single entry display, delete confirmation, analysis panel
+
+**Components (7):**
+- `JournalCard` — entry card with risk indicator, mood, emoji, date, actions
+- `JournalFilters` — search, mood, sort, date range controls
+- `JournalEmptyState` — contextual empty/error/loading states
+- `JournalDeleteDialog` — confirmation with danger button
+- `JournalAutosaveStatus` — saving/saved/error indicator
+- `JournalMoodSelector` — mood grid with active highlight
+- `JournalAnalysisPanel` — sentiment summary display
+
+**Views (3):**
+- `JournalListView` — orchestrates list, filters, empty state
+- `JournalEditorView` — orchestrates editor, mood selector, autosave
+- `JournalDetailView` — orchestrates detail, analysis, delete dialog
+
+**Route pages:**
+- Thin pages with no mock-data imports, no filtering/CRUD logic
+- `generateStaticParams` restored for static export compatibility
+
+## 16. Phase 5 — React Bits Wrappers & Unsplash Catalog
+
+**React Bits Animation Wrappers (`shared/components/react-bits/`):**
+- `EchoReveal` — fade + slide on scroll into view (up/down/left/right/none)
+- `EchoFade` — simple opacity toggle
+- `EchoBlurText` — blur-to-clear entrance animation
+- `EchoCountUp` — number count animation triggered on scroll
+- `EchoSpotlightCard` — card hover spotlight effect
+- `EchoAnimatedList` — staggered list entrance
+- `EchoStepTransition` — fade + slide for step/stepper transitions
+- `EchoTextTransition` — cycling text with cross-fade
+- `EchoBreathingVisual` — breathing circle display
+- All wrappers respect `prefers-reduced-motion`
+
+**Unsplash Catalog:**
+- Centralized in `lib/unsplash-images.ts` with typed `EchoImageAsset` interface
+- Responsive `sizes` attribute, `priority` flag
+- Meaningful alt text, no fabricated testimonials
+- Used via `EchoImage` component (not raw `<img>` or `<Image>`)
+
+**Auth Service Interface (Phase 6 foundation):**
+- `AuthService` interface with login, signup, forgot/reset password, session management
+- `AuthMockAdapter` — functional mock with validation, field errors, realistic delays
+- `AuthHttpAdapter` — placeholder for future backend
+- Factory with environment-driven selection
+
+**Bulk of work needed:** Buddy interactions, form validation, settings interactivity, landing page redesign, backend integration.
