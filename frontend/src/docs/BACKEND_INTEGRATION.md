@@ -60,6 +60,7 @@ Browser                          FastAPI                          Supabase
 ## 3. Planned Database Schema (ERD)
 
 > This ERD is a **planned architecture document**. No database tables exist yet.
+> Contains 13 entities. `user_sessions` is not included — session management is handled by Supabase Auth.
 
 ```mermaid
 erDiagram

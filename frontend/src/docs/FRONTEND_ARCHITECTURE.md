@@ -339,7 +339,47 @@ export const journalService: JournalService = USE_MOCK_ADAPTER
 
 ---
 
-## 10. Accessibility Requirements
+## 10. Phase 2 Implementation Status
+
+The following shared foundation has been implemented:
+
+### Configuration (`src/config/`)
+- `environment.ts` — Typed `EnvironmentConfig` with validated `NEXT_PUBLIC_*` variables, boolean parsing, and adapter validation
+- `routes.config.ts` — All 30+ route constants with a `detail(id)` helper for journal entries
+- `navigation.config.ts` — Typed `NavigationEntry` arrays for public, app, settings, mobile, and crisis-action navigation; `findActiveNavigation` helper
+- `motion.config.ts` — Centralized duration, easing, stagger, and reveal-distance tokens for future animation
+- `feature-flags.config.ts` — Typed `FeatureFlags` object derived from environment, with `isFeatureEnabled` helper
+
+### Shared Error Model (`src/shared/errors/`)
+- `error-codes.ts` — 10 error codes as const array and type
+- `app-error.ts` — `AppError` class with `code`, `userMessage`, `developerMessage`, `statusCode`, `fieldErrors`, `retryable`, `cause`, `requestId`, `metadata`
+- `error-messages.ts` — User-safe default messages for every error code
+- `normalize-error.ts` — Normalizer handling AppError, AbortError, TimeoutError, NetworkError, HTTP errors, validation errors, unknown errors, strings, and non-Error thrown values
+
+### Shared Types (`src/shared/types/`)
+- `async-state.ts` — Discriminated union `AsyncState<T>` covering idle, loading, loading-more, success, empty, error
+- `pagination.ts` — `PaginationState` with `calculatePagination` and `calculateOffset` helpers
+- `identifiers.ts` — `EntityId`, `Slug`, and `isEntityId` guard
+
+### Shared Services (`src/shared/services/`)
+- `service-result.ts` — Discriminated union `ServiceResult<T>` with `successResult` and `failureResult` helpers
+- `auth-token-provider.ts` — `AuthTokenProvider` interface with `getAccessToken`, `refreshAccessToken`, `clearSession`; `nullTokenProvider` for public/mock requests
+- `api-client.ts` — Framework-independent typed API client with GET, POST, PATCH, PUT, DELETE; configurable base URL, token injection, AbortSignal, timeout, error normalization, query-parameter support, request IDs
+- `service-adapter.ts` — `ServiceAdapter` interface with `isMockAdapter` and `isHttpAdapter` helpers
+
+### Shared Utilities (`src/shared/utils/`)
+- `abort-signal.ts` — `composeSignal` combining external AbortSignal with timeout, with proper cleanup
+- `boolean.ts` — `parseBooleanStrict` and `isTruthy` helpers
+
+### Not Yet Implemented (deferred to later phases)
+- Shared UI components — Phase 3
+- React Bits wrappers — Phase 4
+- Domain-specific services (Journal, Buddy, etc.) — Phase 3+
+- Route groups — Phase 2+
+- Application shells — Phase 3
+- Form validation library — Phase 3+
+
+## 11. Accessibility Requirements
 
 - WCAG-compliant focus states with custom focus-ring tokens
 - Skip-to-content link at top of every shell

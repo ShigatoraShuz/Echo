@@ -258,5 +258,23 @@
 | Grounding | 10 | 2 | 4 | 4 |
 | Crisis | 8 | 7 | 1 | 0 |
 
+## 13. Phase 2 Implementation
+
+The following shared foundation has been implemented:
+- Typed environment configuration with validation
+- Centralized route constants for all 30+ routes
+- Typed navigation configuration (public, app, settings, mobile, crisis)
+- Motion tokens for future animation
+- Feature flags with environment-driven values
+- `AppError` model with 10 error codes and user-safe messages
+- Error normalizer (AbortError, TimeoutError, NetworkError, HTTP errors, unknown)
+- Discriminated union types: `AsyncState<T>`, `ServiceResult<T>`, `PaginationState`
+- `AuthTokenProvider` interface with null provider for mock/public mode
+- Typed API client with GET, POST, PATCH, PUT, DELETE, token injection, abort, timeout
+- Abort-signal composition utility
+- Service adapter foundation (mock vs HTTP selection)
+
+**Not yet implemented:** Shared UI components, route groups, application shells, domain services, React Bits wrappers, form/validation libraries.
+
 **Overall:** 40 ✅ complete, 32 📐 static-ui, 63 ❌ missing  
 **Bulk of work needed:** Buddy interactions, form validation, journal CRUD, settings interactivity, landing page redesign.
