@@ -405,4 +405,25 @@ The Journal feature has been fully migrated to MVVM architecture:
 - `AuthHttpAdapter` — placeholder for future backend
 - Factory with environment-driven selection
 
+## 17. Phase 5b — In-Page React Bits & Unsplash Integration
+
+**React Bits in public pages:**
+- `PublicTextPage` — `EchoReveal` on hero content and card section
+- `AuthPage` — `EchoReveal` on left content section (staggered delay on form card), per-mode feature cards hidden on reset-password
+- `HomePage` — `EchoReveal` on hero, image section, 3 feature cards (staggered), `EchoCountUp` on stats
+
+**React Bits in dashboard (restrained, safety-aware):**
+- Stat cards: staggered `EchoReveal` (0/100/200ms)
+- Mood trends + risk ring: `EchoReveal` delayed 100ms
+- Recent entries: `EchoReveal` delayed 150ms
+- Weekly digest: `EchoReveal` delayed 150ms
+- Quick actions: `EchoReveal` delayed 200ms
+- No animations on: risk history, privacy disclaimer, CrisisHelpCard
+
+**Unsplash per-mode auth imagery:**
+- Login: `cozyChairWindow`
+- Signup: `calmChairPlant`
+- Forgot password: `meditationRoomPlant`
+- Reset password: `plantDeskWarmLight`
+
 **Bulk of work needed:** Buddy interactions, form validation, settings interactivity, landing page redesign, backend integration.
