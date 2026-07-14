@@ -29,7 +29,7 @@
 | Route integration | `src/app/journal/*/page.tsx` | ✅ COMPLETE | Thin pages (10-15 lines) |
 | Functional parity | — | ✅ VERIFIED | Full CRUD, search, filter, sort, pagination, delete, export |
 | Legacy cleanup | — | ✅ COMPLETE | Journal pages no longer import mock-data |
-| Tests | — | ❌ MISSING | No test files exist |
+| Tests | `src/features/journal/` | ✅ COMPLETE | Schema (7), mock adapter (12), list ViewModel (10) |
 
 **Migration status: MVVM MIGRATED**
 
@@ -39,25 +39,32 @@
 
 | Layer | Path | Status | Notes |
 |-------|------|--------|-------|
-| Legacy implementation | `src/components/echo/public-pages.tsx` (AuthPage) | LEGACY RETAINED | 344-line component |
+| Legacy implementation | `src/components/echo/shared.tsx` (barrel) | ✅ DECOMPOSED | 367-line barrel split into 12 feature-adjacent files |
+| Legacy implementation | `src/components/echo/public-pages.tsx` (AuthPage) | ✅ REMOVED | Page routes use feature Views directly |
 | Model | `src/features/authentication/model/auth.model.ts` | ✅ COMPLETE | Input types, session, error types |
-| DTO | — | ❌ MISSING | No DTO layer defined |
-| Mapper | — | ❌ MISSING | No mapper layer defined |
-| Schema | — | ❌ MISSING | No schema/validation model |
-| Constants | — | ❌ MISSING | No constants file |
+| DTO | `src/features/authentication/model/auth.dto.ts` | ✅ COMPLETE | Request/response DTOs |
+| Mapper | `src/features/authentication/model/auth.mapper.ts` | ✅ COMPLETE | DTO ↔ Domain mapping |
+| Schema | `src/features/authentication/model/auth.schema.ts` | ✅ COMPLETE | Zod validation schemas |
+| Constants | `src/features/authentication/model/auth.constants.ts` | ✅ COMPLETE | Error messages map |
 | Service interface | `src/features/authentication/services/auth.service.ts` | ✅ COMPLETE | Typed interface |
-| Mock adapter | `src/features/authentication/services/auth.mock-adapter.ts` | ✅ COMPLETE | Validation, delays |
+| Mock adapter | `src/features/authentication/services/auth.mock-adapter.ts` | ✅ COMPLETE | Per-instance state encapsulation |
 | HTTP adapter | `src/features/authentication/services/auth.http-adapter.ts` | ✅ COMPLETE | Placeholder |
 | Factory | `src/features/authentication/services/auth-service.factory.ts` | ✅ COMPLETE | Env-driven selection |
-| ViewModel | — | ❌ MISSING | All state in AuthPage component |
-| View | — | ❌ MISSING | No separated View layer |
-| Components | — | ❌ MISSING | No feature-specific components |
-| Route integration | `src/app/{login,signup,forgot-password,reset-password}/page.tsx` | ✅ COMPLETE | Thin pages |
+| ViewModel (login) | `src/features/authentication/view-model/use-login-view-model.ts` | ✅ COMPLETE | useReducer, validation, submit, reset |
+| ViewModel (signup) | `src/features/authentication/view-model/use-signup-view-model.ts` | ✅ COMPLETE | useReducer, password strength, validation |
+| ViewModel (forgot) | `src/features/authentication/view-model/use-forgot-password-view-model.ts` | ✅ COMPLETE | useReducer, validation, success message |
+| ViewModel (reset) | `src/features/authentication/view-model/use-reset-password-view-model.ts` | ✅ COMPLETE | useReducer, token extraction, password strength |
+| View (login) | `src/features/authentication/view/login-view.tsx` | ✅ COMPLETE | Email/password, remember, show/hide |
+| View (signup) | `src/features/authentication/view/signup-view.tsx` | ✅ COMPLETE | Full form with password strength |
+| View (forgot) | `src/features/authentication/view/forgot-password-view.tsx` | ✅ COMPLETE | Email form with success/error |
+| View (reset) | `src/features/authentication/view/reset-password-view.tsx` | ✅ COMPLETE | Password form with token |
+| Components (5) | `src/features/authentication/components/` | ✅ COMPLETE | AuthFormField, PasswordField, PasswordStrength, AuthStatusMessage, AuthPrivacyNote |
+| Route integration | `src/app/{login,signup,forgot-password,reset-password}/page.tsx` | ✅ COMPLETE | Thin pages importing feature Views |
 | Functional parity | — | ✅ VERIFIED | Login, signup, forgot, reset work via mock |
-| Legacy cleanup | — | ❌ MISSING | AuthPage still in public-pages.tsx |
-| Tests | — | ❌ MISSING | No test files exist |
+| Legacy cleanup | — | ✅ COMPLETE | AuthPage removed from public-pages.tsx |
+| Tests (7 files) | `src/features/authentication/` | ✅ COMPLETE | Schema (7), mock adapter (13), 4 ViewModels (31) |
 
-**Migration status: FOUNDATION ONLY** (Model + Service layers only, missing ViewModel + View)
+**Migration status: MVVM MIGRATED**
 
 ---
 

@@ -26,21 +26,21 @@
 
 ---
 
-## 2. Authentication
+## 2. Authentication (MVVM Migrated — Phase 6.5)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Login (email, password) | 📐 | Static form — no validation, no submit handler |
-| Show/hide password | ❌ | Not implemented |
-| Remember session | ❌ | Not implemented |
+| Login (email, password) | ✅ | MVVM with Zod validation, service integration |
+| Show/hide password | ✅ | Toggle visibility in PasswordField component |
+| Remember session | ✅ | Checkbox with state in ViewModel |
 | Forgot-password link | ✅ | Present |
 | Signup link | ✅ | Present |
-| Signup (name, email, password, confirm) | 📐 | Static form |
-| Password-strength feedback | ❌ | Not implemented |
-| Terms acceptance | ❌ | Not implemented |
-| Privacy acknowledgement | ❌ | Not implemented |
-| Forgot password form | 📐 | Static form |
-| Reset password form | 📐 | Static form |
+| Signup (name, email, password, confirm) | ✅ | MVVM with Zod validation, password strength |
+| Password-strength feedback | ✅ | Visual indicator in PasswordStrength component |
+| Terms acceptance | ✅ | Checkbox with ViewModel state |
+| Privacy acknowledgement | ✅ | Checkbox with ViewModel state |
+| Forgot password form | ✅ | MVVM with success/error states, resend support |
+| Reset password form | ✅ | MVVM with token extraction, password strength |
 
 ---
 
@@ -336,7 +336,9 @@ The following design foundation and reusable component library has been implemen
 
 **Legacy Decomposition:**
 - `CrisisHelpCard` and `PrivacyNotice` extracted to dedicated files
-- Legacy `shared.tsx`, `shells.tsx`, `public-pages.tsx` preserved with backward-compatible exports
+- `shared.tsx` decomposed into 12 feature-adjacent files under `shared/` (Phase 6.5), barrel preserves backward-compatible exports
+- `shells.tsx` now includes skip-to-content links and active-route navigation (Phase 6.5)
+- `public-pages.tsx` AuthPage removed (Phase 6.5), routes use feature Views directly
 - Design system preview page (`/design-system`) updated to use all new components
 
 **Overall:** 55 ✅ complete, 32 📐 static-ui, 63 ❌ missing  

@@ -58,7 +58,7 @@
 | 3.11 | React Bits wrappers | COMPLETE | 10 wrappers in `shared/components/react-bits/` | — | — | Retain |
 | 3.12 | Unsplash catalog | COMPLETE | `src/lib/unsplash-images.ts` with 8 typed images | — | — | Retain |
 | 3.13 | Design-system preview | COMPLETE | `/design-system` route with component showcase | — | — | Retain |
-| 3.14 | Legacy decomposition | PARTIAL | `CrisisHelpCard` and `PrivacyNotice` extracted; `shared.tsx` (367 lines) remains | `shared.tsx` still contains 18 unrelated components | MEDIUM | Split shared.tsx into individual files |
+| 3.14 | Legacy decomposition | COMPLETE | `shared.tsx` decomposed into 12 feature-adjacent files under `shared/`, barrel preserves imports | — | — | Retain |
 
 ## Phase 4 — Journal MVVM Reference Feature
 
@@ -77,7 +77,7 @@
 | 4.11 | Components | COMPLETE | 7 components: card, filters, empty, delete, autosave, mood, analysis | — | — | Retain |
 | 4.12 | Thin route integration | COMPLETE | All 3 journal routes are thin (10-15 lines each) | — | — | Retain |
 | 4.13 | Legacy cleanup | COMPLETE | Journal pages no longer import mock-data | — | — | Retain |
-| 4.14 | Search | PARTIAL | Search UI present, debounce implemented (1500ms), mock adapter supports search | Search debounce only updates local state, no AbortSignal cancellation | MEDIUM | Add AbortSignal, reduce debounce to 300ms |
+| 4.14 | Search | COMPLETE | Search with 300ms debounce, AbortSignal cancellation, stale request rejection | — | — | Retain |
 | 4.15 | Filtering | COMPLETE | Mood filtering, sort filtering implemented | — | — | Retain |
 | 4.16 | Sorting | COMPLETE | 4 sort options implemented | — | — | Retain |
 | 4.17 | Pagination | COMPLETE | Paginated list with page navigation | — | — | Retain |
@@ -134,8 +134,9 @@
 | Phase 1 | 4 | 4 | 0 | 0 | 0 |
 | Phase 2 | 12 | 12 | 0 | 0 | 0 |
 | Phase 3 | 14 | 13 | 1 | 0 | 0 |
-| Phase 4 | 23 | 16 | 5 | 2 | 0 |
+| Phase 4 | 23 | 19 | 4 | 0 | 0 |
 | Phase 5 | 7 | 7 | 0 | 0 | 0 |
 | Phase 5b | 3 | 3 | 0 | 0 | 0 |
-| Phase 6 | 13 | 10 | 0 | 3 | 0 |
-| **Total** | **81** | **70** | **6** | **5** | **0** |
+| Phase 6 | 13 | 13 | 0 | 0 | 0 |
+| Phase 6.5 | 10 | 9 | 1 | 0 | 0 |
+| **Total** | **91** | **85** | **6** | **0** | **0** |

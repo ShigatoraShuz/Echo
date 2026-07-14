@@ -32,7 +32,7 @@
 | M001 | MEDIUM | Non-functional buttons | Multiple pages | 13+ buttons have no onClick handler | Users cannot interact with core features | Add event handlers via ViewModels | 7 |
 | M002 | MEDIUM | Search/filter non-functional | `/journal`, `/buddy/history`, `/support/find-help` | Search inputs, mood/sort dropdowns have no state | Users cannot search or filter | Implement search/filter state in ViewModels | 7 |
 | M003 | MEDIUM | Skip-to-content missing | All shells | No skip-to-content link in any shell layout | Keyboard users cannot skip navigation | Add skip-to-content link to PublicShell, AppShell, SettingsShell | 3 |
-| M004 | MEDIUM | Oversized component | `src/components/echo/shared.tsx` | 367 lines, 18 unrelated components | Poor maintainability, mixed responsibilities | Split into individual files under shared/components/ | 4 |
+| M004 | ✅ RESOLVED | Oversized component | `src/components/echo/shared.tsx` | Was 367 lines, 18 unrelated components | Poor maintainability, mixed responsibilities | Decomposed into 12 files under `shared/`, barrel preserves imports | 6.5 |
 | M005 | MEDIUM | AuthPage component too large | `src/components/echo/public-pages.tsx` | 344 lines, handles 4 auth modes | Hard to maintain and test | Split into per-mode views with AuthViewModel | 6 |
 | M006 | MEDIUM | No Schema library | `src/features/journal/model/journal.schema.ts` | Uses manual validation instead of Zod | Manual validation is error-prone and verbose | Install zod and migrate schemas | 7 |
 | M007 | MEDIUM | No loading.tsx per route | `src/app/` | Only global loading.tsx exists | No granular loading skeletons for route transitions | Add loading.tsx for data-fetching routes | 7 |
