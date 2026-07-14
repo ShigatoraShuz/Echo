@@ -1,15 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Bot, LineChart, Lock, PenLine, ShieldCheck, Sparkles } from "lucide-react";
 import { EchoCard, EchoImage, FeatureCard, PrivacyNotice } from "@/components/echo/shared";
-import { PublicShell } from "@/components/echo/shells";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoCountUp } from "@/shared/components/react-bits/echo-count-up";
 
 export default function HomePage() {
   return (
-    <PublicShell>
-      <main>
-        <section className="mx-auto grid max-w-[1440px] gap-8 px-4 py-10 sm:px-6 lg:min-h-[calc(100vh-5rem)] lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:py-14 xl:px-10">
+    <>
+    <section className="mx-auto grid max-w-[1440px] gap-8 px-4 py-10 sm:px-6 lg:min-h-[calc(100vh-5rem)] lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8 lg:py-14 xl:px-10">
           <EchoReveal direction="up" className="space-y-6">
             <div className="space-y-4">
               <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
@@ -102,7 +100,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      </main>
-    </PublicShell>
+    </>
   );
 }

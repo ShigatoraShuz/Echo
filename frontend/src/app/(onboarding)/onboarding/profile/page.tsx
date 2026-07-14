@@ -2,12 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Bell, UserRound } from "lucide-react";
 import { EchoCard, PageHeader, PrivacyNotice } from "@/components/echo/shared";
 import { MoodSelector } from "@/components/echo/mood-selector";
-import { PublicShell } from "@/components/echo/shells";
 
 export default function ProfileOnboardingPage() {
   return (
-    <PublicShell>
-      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
+    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
         <PageHeader
           label="Onboarding"
           title="Set up your check-in profile"
@@ -53,7 +51,6 @@ export default function ProfileOnboardingPage() {
             <PrivacyNotice />
           </div>
         </div>
-      </main>
-    </PublicShell>
+    </div>
   );
 }

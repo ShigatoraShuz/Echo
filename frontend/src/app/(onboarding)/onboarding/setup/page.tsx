@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, Camera, CheckCircle2, Smartphone } from "lucide-react";
 import { EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { PublicShell } from "@/components/echo/shells";
 
 export default function SetupOnboardingPage() {
   return (
-    <PublicShell>
-      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
+    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
         <PageHeader
           label="Onboarding"
           title="Finish setup"
@@ -57,7 +55,6 @@ export default function SetupOnboardingPage() {
             </div>
           </EchoCard>
         </div>
-      </main>
-    </PublicShell>
+    </div>
   );
 }

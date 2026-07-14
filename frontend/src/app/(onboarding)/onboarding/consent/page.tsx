@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ConsentCard, EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { PublicShell } from "@/components/echo/shells";
 
 export default function ConsentOnboardingPage() {
   return (
-    <PublicShell>
-      <main className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
+    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <section className="space-y-6">
             <PageHeader
@@ -30,7 +28,6 @@ export default function ConsentOnboardingPage() {
             </div>
           </EchoCard>
         </div>
-      </main>
-    </PublicShell>
+    </div>
   );
 }
