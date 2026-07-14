@@ -1,3 +1,5 @@
+export { ThemeProvider, useEchoTheme } from "./theme-provider";
+export { ThemeControls, ThemeVariantSelect, ThemeModeSelect, ThemeSelector } from "./theme-controls";
 export {
   ECHO_THEME_STORAGE_KEY,
   echoThemeVariants,
@@ -15,7 +17,7 @@ export {
   isEchoThemeVariant,
   isEchoThemeMode,
   normalizeThemePreferences,
-} from "@/shared/theme";
+} from "./theme";
 
 export type {
   EchoThemeVariant,
@@ -23,4 +25,4 @@ export type {
   EchoThemePreferences,
   EchoMood,
   EchoRiskBand,
-} from "@/shared/theme";
+} from "./theme";
