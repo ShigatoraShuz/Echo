@@ -64,24 +64,24 @@
 
 ---
 
-## 4. Dashboard
+## 4. Dashboard (MVVM Migrated)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Greeting with name | ✅ | Static from mock data |
+| Greeting with name | ✅ | From ViewModel via mock adapter |
 | Current date | ❌ | Not shown |
 | Mood check-in | ❌ | Missing widget |
 | Quick journal action | ✅ | Link to `/journal/new` |
 | Talk to Buddy action | ✅ | Link to `/buddy` |
-| Recent journal entries | ✅ | Static cards from mock data |
-| Mood trend summary | ✅ | Static chart, from mock data |
+| Recent journal entries | ✅ | From ViewModel via mock adapter |
+| Mood trend summary | ✅ | DataChartCard from ViewModel |
 | Emotion summary | ✅ | Present |
 | Recent grounding activity | ❌ | Missing |
 | Privacy/sync status | ✅ | Present in sidebar |
 | Crisis-help shortcut | ✅ | CrisisHelpCard component |
-| Loading skeleton | ❌ | Missing |
-| Empty state | ❌ | Missing |
-| Error state | ❌ | Missing |
+| Loading skeleton | ✅ | LoadingState with "Loading dashboard..." |
+| Empty state | ✅ | No-data handling (no entries message) |
+| Error state | ✅ | ErrorState with retry capability |
 
 ---
 

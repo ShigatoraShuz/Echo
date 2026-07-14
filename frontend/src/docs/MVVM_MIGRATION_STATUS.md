@@ -72,13 +72,20 @@
 
 | Layer | Path | Status | Notes |
 |-------|------|--------|-------|
-| Legacy implementation | `src/app/dashboard/page.tsx` | LEGACY | 138 lines, imports mock-data |
-| Route | `src/app/dashboard/page.tsx` | LEGACY | Direct mock-data import |
-| Shared component deps | `CrisisHelpCard`, `DataChartCard`, `JournalEntryCard`, `RiskScoreRing` | LEGACY | From shared.tsx |
-| Mock dependency | `journalEntries`, `moodTrend`, `quickActions`, `riskTrend`, `userProfile`, `weeklyDigest` | ACTIVE | 6 mock-data imports |
-| Functional parity | — | NOT VERIFIED | No ViewModel, all static |
+| Legacy implementation | `src/app/dashboard/page.tsx` | ✅ DECOMPOSED | 6 lines, delegates to DashboardView |
+| Model | `src/features/dashboard/model/dashboard.model.ts` | ✅ COMPLETE | DashboardData, UserProfile, QuickAction, TrendPoint |
+| Service interface | `src/features/dashboard/services/dashboard.service.ts` | ✅ COMPLETE | Typed interface |
+| Mock adapter | `src/features/dashboard/services/dashboard.mock-adapter.ts` | ✅ COMPLETE | Inline data, no mock-data import |
+| HTTP adapter | `src/features/dashboard/services/dashboard.http-adapter.ts` | ✅ COMPLETE | Placeholder |
+| Factory | `src/features/dashboard/services/dashboard-service.factory.ts` | ✅ COMPLETE | Env-driven selection |
+| ViewModel | `src/features/dashboard/view-model/use-dashboard-view-model.ts` | ✅ COMPLETE | Loading/error/data states |
+| View | `src/features/dashboard/view/dashboard-view.tsx` | ✅ COMPLETE | Loading skeleton, error state, empty entry state |
+| Route integration | `src/app/dashboard/page.tsx` | ✅ COMPLETE | Thin page (3 lines) |
+| Shared component deps | `CrisisHelpCard`, `DataChartCard`, `JournalEntryCard`, `RiskScoreRing` | LEGACY RETAINED | Backward-compatible re-exports |
+| Functional parity | — | ✅ VERIFIED | Loading/error/empty states added, all original content preserved |
+| Legacy cleanup | — | ✅ COMPLETE | Dashboard page no longer imports mock-data |
 
-**Migration status: LEGACY**
+**Migration status: MVVM MIGRATED**
 
 ---
 
@@ -165,11 +172,11 @@
 | MVVM documentation | ✅ COMPLETE |
 | Shared foundation | ✅ COMPLETE |
 | Journal fully migrated | ✅ COMPLETE |
-| Auth Model + Service | ✅ COMPLETE |
-| Auth ViewModel + View | ❌ MISSING |
+| Auth fully migrated | ✅ COMPLETE |
+| Dashboard fully migrated | ✅ COMPLETE |
 | All other features | ❌ LEGACY |
-| Strangler Fig pattern used | ✅ Journal migration preserved legacy shared.tsx via re-exports |
-| Legacy cleanup verified | ✅ Journal routes verified clean |
-| Tests exist | ❌ NONE |
+| Strangler Fig pattern used | ✅ Migrations preserve legacy shared.tsx via re-exports |
+| Legacy cleanup verified | ✅ Dashboard page no longer imports mock-data |
+| Tests exist | ❌ NONE for Dashboard (127 tests total) |
 
-**Overall: 2 of 18 features migrated (Journal + partial Auth). 16 features remain in legacy state.**
+**Overall: 3 of 18 features migrated (Journal + Auth + Dashboard). 15 features remain in legacy state.**

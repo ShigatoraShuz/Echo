@@ -118,13 +118,26 @@
 | 6.4 | Mock adapter | COMPLETE | `features/authentication/services/auth.mock-adapter.ts` with validation | — | — | Retain |
 | 6.5 | HTTP adapter | COMPLETE | `features/authentication/services/auth.http-adapter.ts` (placeholder) | — | — | Retain |
 | 6.6 | Factory | COMPLETE | `features/authentication/services/auth-service.factory.ts` | — | — | Retain |
-| 6.7 | Auth ViewModels | MISSING | No view-model/ directory in authentication feature | ViewModel layer not extracted | HIGH | Create Auth ViewModel |
-| 6.8 | Auth Views | MISSING | No view/ directory in authentication feature | View layer not extracted | HIGH | Create Auth Views |
+| 6.7 | Auth ViewModels | COMPLETE | 4 ViewModels in `features/authentication/view-model/` | — | — | Retain |
+| 6.8 | Auth Views | COMPLETE | 4 Views in `features/authentication/view/` | — | — | Retain |
 | 6.9 | Validation | COMPLETE | Client-side validation with field errors in mock adapter | — | — | Retain |
 | 6.10 | Functional form handlers | COMPLETE | onSubmit handlers for login, signup, forgot, reset | — | — | Retain |
 | 6.11 | Loading states | COMPLETE | Loading spinners on submit buttons | — | — | Retain |
 | 6.12 | Error states | COMPLETE | General + field-level error display | — | — | Retain |
 | 6.13 | No fake auth claims | COMPLETE | `isMockSession: true` in all mock sessions | — | — | Retain |
+
+## Phase 7 — Dashboard MVVM Migration
+
+| # | Requirement | Status | Evidence | Missing Work | Severity | Recommended Action |
+|---|-------------|--------|----------|-------------|----------|-------------------|
+| 7.1 | Dashboard Model | COMPLETE | `features/dashboard/model/dashboard.model.ts` with DashboardData, UserProfile, QuickAction, TrendPoint | — | — | Retain |
+| 7.2 | Service interface | COMPLETE | `features/dashboard/services/dashboard.service.ts` | — | — | Retain |
+| 7.3 | Mock adapter | COMPLETE | `features/dashboard/services/dashboard.mock-adapter.ts` with inline data | — | — | Retain |
+| 7.4 | HTTP adapter | COMPLETE | `features/dashboard/services/dashboard.http-adapter.ts` (placeholder) | — | — | Retain |
+| 7.5 | Factory | COMPLETE | `features/dashboard/services/dashboard-service.factory.ts` with env-driven selection | — | — | Retain |
+| 7.6 | ViewModel | COMPLETE | `features/dashboard/view-model/use-dashboard-view-model.ts` with loading/error/data states | — | — | Retain |
+| 7.7 | View | COMPLETE | `features/dashboard/view/dashboard-view.tsx` with loading skeleton, error state, empty entry state | — | — | Retain |
+| 7.8 | Thin route integration | COMPLETE | `src/app/dashboard/page.tsx` reduced to 3 lines, no mock-data import | — | — | Retain |
 
 ## Summary
 
@@ -139,4 +152,5 @@
 | Phase 5b | 3 | 3 | 0 | 0 | 0 |
 | Phase 6 | 13 | 13 | 0 | 0 | 0 |
 | Phase 6.5 | 10 | 9 | 1 | 0 | 0 |
-| **Total** | **91** | **85** | **6** | **0** | **0** |
+| Phase 7 | 8 | 8 | 0 | 0 | 0 |
+| **Total** | **99** | **93** | **6** | **0** | **0** |
