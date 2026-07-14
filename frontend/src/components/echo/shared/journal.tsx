@@ -1,14 +1,15 @@
 import Link from "next/link";
-import type { JournalEntry } from "@/types";
+import type { JournalEntry } from "@/features/journal/model/journal.model";
 import { MoodBadge } from "@/components/echo/shared/indicators";
 import { RiskBadge } from "@/components/echo/shared/indicators";
 
 export function JournalEntryCard({ entry }: { entry: JournalEntry }) {
+  const displayDate = entry.createdAt ?? entry.updatedAt;
   return (
     <article className="min-w-0 rounded-2xl border border-border/70 bg-background p-5 shadow-subtle">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">{entry.date}</p>
+          <p className="text-xs font-medium text-muted-foreground">{displayDate}</p>
           <h2 className="mt-1 truncate text-lg font-semibold tracking-tight text-foreground">{entry.title}</h2>
         </div>
         <MoodBadge mood={entry.mood} />
