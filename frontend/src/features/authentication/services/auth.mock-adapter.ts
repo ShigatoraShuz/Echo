@@ -1,13 +1,13 @@
 import type { AuthService } from "./auth.service";
 import type { AuthSession } from "../model/auth.model";
 
-async function delay(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-let currentSession: AuthSession | null = null;
-
 export function createAuthMockAdapter(): AuthService {
+  let currentSession: AuthSession | null = null;
+
+  async function delay(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
   return {
     async login(input) {
       await delay(500 + Math.random() * 500);
