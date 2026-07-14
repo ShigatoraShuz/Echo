@@ -7,10 +7,11 @@ import type {
 } from "../model/journal.model";
 import type { JournalService } from "./journal.service";
 
-// ─── In-memory store ─────────────────────────────────
+// ─── In-memory store factory ─────────────────────────
 
-let nextId = 100;
-const entries: JournalEntry[] = [
+function createStore() {
+  let nextId = 100;
+  const entries: JournalEntry[] = [
   {
     id: "morning-static",
     title: "Morning static",
@@ -64,7 +65,15 @@ const entries: JournalEntry[] = [
   },
 ];
 
-let drafts: JournalDraft[] = [];
+  const drafts: JournalDraft[] = [];
+
+  return { entries, drafts, nextId: () => nextId++ };
+}
+
+const store = createStore();
+const entries = store.entries;
+const drafts = store.drafts;
+const getNextId = store.nextId;
 
 const moodEmotionMap: Record<JournalMood, string[]> = {
   calm: ["peaceful", "content", "rested"],
@@ -178,7 +187,7 @@ export function createJournalMockAdapter(): JournalService {
 
     async createEntry(input) {
       await delay(200 + Math.random() * 200);
-      const id = `entry-${nextId++}`;
+      const id = `entry-${getNextId()}`;
       const score = calculateRiskScore(input.mood);
       const now = new Date().toISOString().split("T")[0];
       const entry: JournalEntry = {
@@ -250,7 +259,8 @@ export function createJournalMockAdapter(): JournalService {
 
     async deleteDraft(id) {
       await delay(30);
-      drafts = drafts.filter((d) => d.id !== id);
+      const idx = drafts.findIndex((d) => d.id === id);
+      if (idx >= 0) drafts.splice(idx, 1);
       return { success: true, data: undefined };
     },
 
