@@ -430,6 +430,18 @@
     }
   }
 
+  .echo-feature-icon {
+    @apply mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .echo-compact-card:hover .echo-feature-icon {
+      transform: scale(1.1);
+      background-color: hsl(var(--primary) / 0.1);
+    }
+  }
+
   .echo-button-primary {
     @apply echo-button bg-primary text-primary-foreground shadow-subtle hover:bg-primary/90;
   }
