@@ -18,6 +18,7 @@ import {
 import { findActiveNavigation, appNavigation } from "@/config/navigation.config";
 import { SyncStatus } from "@/components/echo/sync-status";
 import { PrivacyNotice } from "@/components/echo/shared";
+import { EchoMarketingFooter } from "@/components/ui/footer";
 
 const publicLinks = [
   { href: "/about", label: "About" },
@@ -34,14 +35,6 @@ const appLinks = [
   { href: "/support/find-help", label: "Find help", icon: HeartHandshake },
   { href: "/settings/profile", label: "Settings", icon: Settings },
 ];
-
-function SkipLink() {
-  return (
-    <a href="#main-content" className="skip-to-content">
-      Skip to content
-    </a>
-  );
-}
 
 export function PublicNavbar() {
   return (
@@ -76,36 +69,12 @@ export function PublicNavbar() {
 }
 
 export function PublicFooter() {
-  return (
-    <footer className="border-t border-border/70 bg-secondary/20">
-      <div className="mx-auto grid max-w-[1440px] gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8 xl:px-10">
-        <div className="space-y-3">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
-              E
-            </span>
-            <span className="text-sm font-semibold text-foreground">ECHO</span>
-          </Link>
-          <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-            Private journaling, reflective Buddy support, and wellbeing signals. ECHO is not a diagnostic tool.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {[...publicLinks, { href: "/terms", label: "Terms" }].map((item) => (
-            <Link key={item.href} href={item.href} className="rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </footer>
-  );
+  return <EchoMarketingFooter />;
 }
 
 export function PublicShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SkipLink />
       <PublicNavbar />
       <main id="main-content">{children}</main>
       <PublicFooter />
@@ -178,7 +147,6 @@ export function AppSidebar() {
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SkipLink />
       <div className="mx-auto grid min-w-0 max-w-[1440px] grid-cols-1 lg:grid-cols-[280px_1fr]">
         <AppSidebar />
         <main id="main-content" className="min-w-0 min-h-screen border-l border-border/70 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -213,7 +181,6 @@ export function FloatingActionButton({ href, label }: { href: string; label: str
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SkipLink />
       <main id="main-content" className="mx-auto max-w-md px-4 py-12 sm:py-16">
         {children}
       </main>
@@ -224,7 +191,6 @@ export function AuthShell({ children }: { children: ReactNode }) {
 export function OnboardingShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SkipLink />
       <main id="main-content" className="mx-auto max-w-2xl px-4 py-10 sm:py-14">
         {children}
       </main>
