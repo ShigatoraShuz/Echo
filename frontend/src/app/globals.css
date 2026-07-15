@@ -587,3 +587,17 @@
     animation: none;
   }
 }
+
+@media (min-width: 1280px) {
+  .echo-dashboard-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  }
+
+  .echo-dashboard-span-3 {
+    grid-column: span 3 / span 3 !important;
+  }
+
+  .echo-dashboard-span-6 {
+    grid-column: span 6 / span 6 !important;
+  }
+}
