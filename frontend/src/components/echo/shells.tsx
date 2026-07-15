@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   BarChart3,
   BookOpen,
@@ -10,14 +10,17 @@ import {
   ChevronRight,
   HeartHandshake,
   Home,
+  Leaf,
+  PanelLeftClose,
+  PanelLeftOpen,
   PenLine,
   Settings,
   ShieldAlert,
+  UserRound,
   Wind,
 } from "lucide-react";
 import { findActiveNavigation, appNavigation } from "@/config/navigation.config";
 import { SyncStatus } from "@/components/echo/sync-status";
-import { PrivacyNotice } from "@/components/echo/shared";
 import { EchoMarketingFooter } from "@/components/ui/footer";
 
 const publicLinks = [
@@ -82,25 +85,37 @@ export function PublicShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppSidebar() {
+const SIDEBAR_STORAGE_KEY = "echo-sidebar-collapsed";
+
+export function AppSidebar({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const pathname = usePathname();
   const activeId = findActiveNavigation(appNavigation, pathname);
+  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
+  const [isFocusExpanded, setIsFocusExpanded] = useState(false);
+  const isVisuallyCollapsed = collapsed && !isHoverExpanded && !isFocusExpanded;
 
   return (
-    <aside className="min-w-0 border-b border-border/70 bg-secondary/20 px-4 py-4 sm:px-6 lg:min-h-screen lg:border-b-0 lg:px-5 lg:py-8">
-      <div className="min-w-0 lg:sticky lg:top-8">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-subtle">
-              E
-            </span>
-            <span>
-              <span className="block text-sm font-semibold text-foreground">ECHO</span>
-              <span className="block text-xs text-muted-foreground">Private app</span>
-            </span>
-          </Link>
-          <SyncStatus />
-        </div>
+    <>
+      <aside className="min-w-0 border-b border-border/70 bg-secondary/20 px-4 py-4 sm:px-6 lg:hidden">
+        <div className="min-w-0">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <Link href="/dashboard" className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-subtle">
+                E
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-foreground">ECHO</span>
+                <span className="block text-xs text-muted-foreground">Private app</span>
+              </span>
+            </Link>
+            <SyncStatus />
+          </div>
 
         <div className="max-w-full min-w-0 pb-2 lg:pb-0">
           <nav className="grid grid-cols-3 gap-2 lg:grid-cols-1">
@@ -129,27 +144,144 @@ export function AppSidebar() {
           </nav>
         </div>
 
-        <div className="mt-5 hidden lg:block">
-          <Link href="/crisis" className="flex items-center gap-3 rounded-2xl border border-danger/30 bg-crisis-soft p-4 text-sm font-semibold text-foreground">
-            <ShieldAlert className="h-5 w-5 text-danger" aria-hidden="true" />
-            Crisis support
+        </div>
+      </aside>
+
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-emerald-200/10 bg-[#071611] text-white shadow-[12px_0_40px_rgba(5,28,21,0.12)] [transition-property:width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] lg:flex motion-reduce:transition-none ${
+          isVisuallyCollapsed ? "w-[84px]" : "w-[264px]"
+        }`}
+        data-sidebar-state={isVisuallyCollapsed ? "collapsed" : "expanded"}
+        onMouseEnter={() => {
+          if (collapsed) setIsHoverExpanded(true);
+        }}
+        onMouseLeave={() => setIsHoverExpanded(false)}
+        onFocusCapture={() => {
+          if (collapsed) setIsFocusExpanded(true);
+        }}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIsFocusExpanded(false);
+          }
+        }}
+      >
+        <div className="relative flex h-[132px] shrink-0 items-start bg-[radial-gradient(circle_at_18%_0%,rgba(91,193,145,0.38),transparent_62%),linear-gradient(180deg,#174c38_0%,#0b2119_100%)] px-5 pt-7">
+          <Link
+            href="/dashboard"
+            className="flex min-w-0 items-center gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/80"
+            aria-label="ECHO dashboard"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-emerald-50 shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-sm">
+              <Leaf className="h-6 w-6" strokeWidth={2.2} aria-hidden="true" />
+            </span>
+            <span
+              className={`whitespace-nowrap text-xl font-semibold tracking-[-0.03em] text-white transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+                isVisuallyCollapsed ? "pointer-events-none -translate-x-2 opacity-0" : "translate-x-0 opacity-100"
+              }`}
+            >
+              ECHO
+            </span>
           </Link>
+
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`absolute top-8 flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-emerald-50 outline-none transition-[background-color,border-color] duration-150 hover:border-white/30 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-emerald-200/80 ${
+              isVisuallyCollapsed ? "right-[23px] top-[82px]" : "right-4"
+            }`}
+            aria-label={collapsed ? (isVisuallyCollapsed ? "Expand sidebar" : "Keep sidebar expanded") : "Collapse sidebar"}
+            aria-expanded={!isVisuallyCollapsed}
+            title={collapsed ? (isVisuallyCollapsed ? "Expand sidebar" : "Keep sidebar expanded") : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" aria-hidden="true" /> : <PanelLeftClose className="h-[18px] w-[18px]" aria-hidden="true" />}
+          </button>
         </div>
 
-        <div className="mt-5 hidden lg:block">
-          <PrivacyNotice compact />
+        <nav className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 py-7" aria-label="Primary navigation">
+          {appLinks.map((item) => {
+            const Icon = item.icon;
+            const itemId = item.label.toLowerCase().replace(/\s+/g, "-");
+            const isActive = activeId === itemId || activeId === item.href.split("/").filter(Boolean)[0];
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`group relative flex h-12 items-center rounded-xl outline-none transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-emerald-300/70 ${
+                  isVisuallyCollapsed ? "justify-center px-0" : "gap-3 px-4"
+                } ${
+                  isActive
+                    ? "bg-emerald-300/14 text-emerald-100"
+                    : "text-emerald-50/58 hover:bg-white/[0.06] hover:text-emerald-50"
+                }`}
+                aria-current={isActive ? "page" : undefined}
+                title={isVisuallyCollapsed ? item.label : undefined}
+              >
+                {isActive ? <span className="absolute left-0 h-6 w-0.5 rounded-full bg-emerald-300" aria-hidden="true" /> : null}
+                <Icon className="h-[21px] w-[21px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <span
+                  className={`whitespace-nowrap text-[15px] font-medium transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+                    isVisuallyCollapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"
+                  }`}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="shrink-0 px-3 pb-4">
+          <div className="mb-3 border-t border-white/10" />
+          <Link
+            href="/crisis"
+            className={`mb-2 flex h-11 items-center rounded-xl text-rose-200/80 outline-none transition-[background-color,color] duration-150 hover:bg-rose-300/10 hover:text-rose-100 focus-visible:ring-2 focus-visible:ring-rose-200/70 ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-4"}`}
+            title={isVisuallyCollapsed ? "Crisis support" : undefined}
+          >
+            <ShieldAlert className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+            <span className={`whitespace-nowrap text-sm font-medium transition-opacity duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute opacity-0" : "opacity-100"}`}>
+              Crisis support
+            </span>
+          </Link>
+          <Link
+            href="/settings/profile"
+            className={`flex h-14 items-center rounded-xl border border-white/10 bg-white/[0.035] text-emerald-50 outline-none transition-[background-color,border-color] duration-150 hover:border-white/20 hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-emerald-300/70 ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-3"}`}
+            title={isVisuallyCollapsed ? "Your profile" : undefined}
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-[#0b2b20]">
+              <UserRound className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden="true" />
+            </span>
+            <span className={`min-w-0 transition-[opacity,transform] duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"}`}>
+              <span className="block truncate text-sm font-semibold">Your profile</span>
+              <span className="block truncate text-[11px] text-emerald-50/45">Private space</span>
+            </span>
+          </Link>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    setIsSidebarCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid min-w-0 max-w-[1440px] grid-cols-1 lg:grid-cols-[280px_1fr]">
-        <AppSidebar />
-        <main id="main-content" className="min-w-0 min-h-screen border-l border-border/70 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="flex min-w-0 flex-col lg:flex-row">
+        <AppSidebar collapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+        <main id="main-content" className="min-h-screen min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto min-w-0 max-w-6xl space-y-6">{children}</div>
         </main>
       </div>
