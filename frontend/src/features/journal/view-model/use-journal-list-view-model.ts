@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JournalEntry, JournalSearchFilters, JournalPagination, JournalMood, JournalSortOption } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
 import { JOURNAL_PAGE_SIZE } from "../model/journal.constants";
@@ -60,11 +60,19 @@ const initialState: ListState = {
 export function useJournalListViewModel() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getJournalService();
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadEntries = useCallback(
     async (filters: JournalSearchFilters, page: number) => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       dispatch({ type: "LOAD_START" });
-      const result = await service.listEntries(filters, page, JOURNAL_PAGE_SIZE);
+      const result = await service.listEntries(filters, page, JOURNAL_PAGE_SIZE, controller.signal);
+      if (controller.signal.aborted) return;
       if (result.success) {
         dispatch({ type: "LOAD_SUCCESS", entries: result.data.entries, pagination: result.data.pagination });
       } else {
@@ -77,6 +85,14 @@ export function useJournalListViewModel() {
   useEffect(() => {
     loadEntries(state.filters, state.pagination.page);
   }, [state.filters, state.pagination.page, loadEntries]);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const setFilters = useCallback(
     (partial: Partial<JournalSearchFilters>) => {

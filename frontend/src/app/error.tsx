@@ -5,7 +5,11 @@ import { ErrorState } from "@/components/echo/shared";
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        `[GlobalError] code=${error.name} digest=${error.digest ?? "unknown"}`
+      );
+    }
   }, [error]);
 
   return (

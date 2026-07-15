@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -10,11 +13,12 @@ import {
   PenLine,
   Settings,
   ShieldAlert,
-  Sparkles,
   Wind,
 } from "lucide-react";
+import { findActiveNavigation, appNavigation } from "@/config/navigation.config";
 import { SyncStatus } from "@/components/echo/sync-status";
 import { PrivacyNotice } from "@/components/echo/shared";
+import { EchoMarketingFooter } from "@/components/ui/footer";
 
 const publicLinks = [
   { href: "/about", label: "About" },
@@ -65,43 +69,23 @@ export function PublicNavbar() {
 }
 
 export function PublicFooter() {
-  return (
-    <footer className="border-t border-border/70 bg-secondary/20">
-      <div className="mx-auto grid max-w-[1440px] gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8 xl:px-10">
-        <div className="space-y-3">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">
-              E
-            </span>
-            <span className="text-sm font-semibold text-foreground">ECHO</span>
-          </Link>
-          <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-            Private journaling, reflective Buddy support, and wellbeing signals. ECHO is not a diagnostic tool.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {[...publicLinks, { href: "/terms", label: "Terms" }].map((item) => (
-            <Link key={item.href} href={item.href} className="rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </footer>
-  );
+  return <EchoMarketingFooter />;
 }
 
 export function PublicShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PublicNavbar />
-      {children}
+      <main id="main-content">{children}</main>
       <PublicFooter />
     </div>
   );
 }
 
 export function AppSidebar() {
+  const pathname = usePathname();
+  const activeId = findActiveNavigation(appNavigation, pathname);
+
   return (
     <aside className="min-w-0 border-b border-border/70 bg-secondary/20 px-4 py-4 sm:px-6 lg:min-h-screen lg:border-b-0 lg:px-5 lg:py-8">
       <div className="min-w-0 lg:sticky lg:top-8">
@@ -122,12 +106,19 @@ export function AppSidebar() {
           <nav className="grid grid-cols-3 gap-2 lg:grid-cols-1">
             {appLinks.map((item) => {
               const Icon = item.icon;
+              const isActive = activeId === item.label.toLowerCase().replace(/\s+/g, "-") ||
+                activeId === item.href.split("/").filter(Boolean)[0];
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex min-w-0 items-center gap-1.5 rounded-xl border border-border/70 bg-card px-2 py-3 text-xs font-medium text-foreground shadow-subtle transition hover:bg-muted sm:text-sm lg:gap-3 lg:px-4"
+                  className={`flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-medium shadow-subtle transition hover:bg-muted sm:text-sm lg:gap-3 lg:px-4 ${
+                    isActive
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border/70 bg-card text-foreground"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
                 >
                   <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
@@ -158,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto grid min-w-0 max-w-[1440px] grid-cols-1 lg:grid-cols-[280px_1fr]">
         <AppSidebar />
-        <main className="min-w-0 min-h-screen border-l border-border/70 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main id="main-content" className="min-w-0 min-h-screen border-l border-border/70 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto min-w-0 max-w-6xl space-y-6">{children}</div>
         </main>
       </div>
@@ -173,7 +164,7 @@ export function AuthLinkCard({ href, title, description }: { href: string; title
         <span className="block font-semibold text-foreground">{title}</span>
         <span className="mt-1 block text-muted-foreground">{description}</span>
       </span>
-      <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+      <PenLine className="h-4 w-4 text-primary" aria-hidden="true" />
     </Link>
   );
 }
@@ -184,5 +175,25 @@ export function FloatingActionButton({ href, label }: { href: string; label: str
       <PenLine className="h-4 w-4" aria-hidden="true" />
       {label}
     </Link>
+  );
+}
+
+export function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <main id="main-content" className="mx-auto max-w-md px-4 py-12 sm:py-16">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+export function OnboardingShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <main id="main-content" className="mx-auto max-w-2xl px-4 py-10 sm:py-14">
+        {children}
+      </main>
+    </div>
   );
 }

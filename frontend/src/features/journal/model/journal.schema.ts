@@ -1,4 +1,30 @@
+import { z } from "zod";
 import type { JournalMood, JournalPrivacyStatus, JournalSortOption } from "./journal.model";
+import { JOURNAL_MAX_TITLE_LENGTH, JOURNAL_MAX_BODY_LENGTH, JOURNAL_MAX_TAGS } from "./journal.constants";
+
+export const journalMoodSchema = z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]);
+
+export const journalPrivacyStatusSchema = z.enum(["private", "shared"]);
+
+export const journalSortOptionSchema = z.enum(["newest", "oldest", "highest-risk", "lowest-risk"]);
+
+export const createJournalSchema = z.object({
+  title: z
+    .string()
+    .min(1, "Title is required")
+    .max(JOURNAL_MAX_TITLE_LENGTH, `Title must be ${JOURNAL_MAX_TITLE_LENGTH} characters or less`),
+  body: z
+    .string()
+    .min(1, "Body is required")
+    .max(JOURNAL_MAX_BODY_LENGTH, `Body must be ${JOURNAL_MAX_BODY_LENGTH} characters or less`),
+  mood: journalMoodSchema,
+  emotions: z.array(z.string()).default([]),
+  tags: z.array(z.string()).max(JOURNAL_MAX_TAGS, `Maximum ${JOURNAL_MAX_TAGS} tags allowed`).default([]),
+  privacyStatus: journalPrivacyStatusSchema,
+  analysisConsent: z.boolean().default(false),
+});
+
+export const updateJournalSchema = createJournalSchema.partial();
 
 const MOODS: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
 const PRIVACY_STATUSES: JournalPrivacyStatus[] = ["private", "shared"];
@@ -22,31 +48,17 @@ export interface ValidationResult {
 }
 
 export function validateCreateJournalInput(input: Record<string, unknown>): ValidationResult {
+  const result = createJournalSchema.safeParse(input);
+  if (result.success) {
+    return { valid: true, errors: {} };
+  }
   const errors: Record<string, string[]> = {};
-
-  if (!input.title || typeof input.title !== "string" || input.title.trim().length === 0) {
-    errors.title = ["Title is required"];
-  } else if (input.title.length > 200) {
-    errors.title = ["Title must be 200 characters or less"];
+  for (const issue of result.error.issues) {
+    const field = issue.path.join(".");
+    if (!errors[field]) errors[field] = [];
+    errors[field].push(issue.message);
   }
-
-  if (!input.body || typeof input.body !== "string" || input.body.trim().length === 0) {
-    errors.body = ["Body is required"];
-  }
-
-  if (!input.mood || !isValidMood(String(input.mood))) {
-    errors.mood = ["Invalid mood value"];
-  }
-
-  if (input.privacyStatus && !isValidPrivacyStatus(String(input.privacyStatus))) {
-    errors.privacyStatus = ["Invalid privacy status"];
-  }
-
-  if (input.title && typeof input.title === "string" && input.title.trim().length > 0 && !errors.title) {
-    // valid title
-  }
-
-  return { valid: Object.keys(errors).length === 0, errors };
+  return { valid: false, errors };
 }
 
 export const MOOD_LABELS: Record<JournalMood, string> = {

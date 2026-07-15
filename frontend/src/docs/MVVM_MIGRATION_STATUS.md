@@ -29,7 +29,7 @@
 | Route integration | `src/app/journal/*/page.tsx` | ✅ COMPLETE | Thin pages (10-15 lines) |
 | Functional parity | — | ✅ VERIFIED | Full CRUD, search, filter, sort, pagination, delete, export |
 | Legacy cleanup | — | ✅ COMPLETE | Journal pages no longer import mock-data |
-| Tests | — | ❌ MISSING | No test files exist |
+| Tests | `src/features/journal/` | ✅ COMPLETE | Schema (7), mock adapter (12), list ViewModel (10) |
 
 **Migration status: MVVM MIGRATED**
 
@@ -39,25 +39,32 @@
 
 | Layer | Path | Status | Notes |
 |-------|------|--------|-------|
-| Legacy implementation | `src/components/echo/public-pages.tsx` (AuthPage) | LEGACY RETAINED | 344-line component |
+| Legacy implementation | `src/components/echo/shared.tsx` (barrel) | ✅ DECOMPOSED | 367-line barrel split into 12 feature-adjacent files |
+| Legacy implementation | `src/components/echo/public-pages.tsx` (AuthPage) | ✅ REMOVED | Page routes use feature Views directly |
 | Model | `src/features/authentication/model/auth.model.ts` | ✅ COMPLETE | Input types, session, error types |
-| DTO | — | ❌ MISSING | No DTO layer defined |
-| Mapper | — | ❌ MISSING | No mapper layer defined |
-| Schema | — | ❌ MISSING | No schema/validation model |
-| Constants | — | ❌ MISSING | No constants file |
+| DTO | `src/features/authentication/model/auth.dto.ts` | ✅ COMPLETE | Request/response DTOs |
+| Mapper | `src/features/authentication/model/auth.mapper.ts` | ✅ COMPLETE | DTO ↔ Domain mapping |
+| Schema | `src/features/authentication/model/auth.schema.ts` | ✅ COMPLETE | Zod validation schemas |
+| Constants | `src/features/authentication/model/auth.constants.ts` | ✅ COMPLETE | Error messages map |
 | Service interface | `src/features/authentication/services/auth.service.ts` | ✅ COMPLETE | Typed interface |
-| Mock adapter | `src/features/authentication/services/auth.mock-adapter.ts` | ✅ COMPLETE | Validation, delays |
+| Mock adapter | `src/features/authentication/services/auth.mock-adapter.ts` | ✅ COMPLETE | Per-instance state encapsulation |
 | HTTP adapter | `src/features/authentication/services/auth.http-adapter.ts` | ✅ COMPLETE | Placeholder |
 | Factory | `src/features/authentication/services/auth-service.factory.ts` | ✅ COMPLETE | Env-driven selection |
-| ViewModel | — | ❌ MISSING | All state in AuthPage component |
-| View | — | ❌ MISSING | No separated View layer |
-| Components | — | ❌ MISSING | No feature-specific components |
-| Route integration | `src/app/{login,signup,forgot-password,reset-password}/page.tsx` | ✅ COMPLETE | Thin pages |
+| ViewModel (login) | `src/features/authentication/view-model/use-login-view-model.ts` | ✅ COMPLETE | useReducer, validation, submit, reset |
+| ViewModel (signup) | `src/features/authentication/view-model/use-signup-view-model.ts` | ✅ COMPLETE | useReducer, password strength, validation |
+| ViewModel (forgot) | `src/features/authentication/view-model/use-forgot-password-view-model.ts` | ✅ COMPLETE | useReducer, validation, success message |
+| ViewModel (reset) | `src/features/authentication/view-model/use-reset-password-view-model.ts` | ✅ COMPLETE | useReducer, token extraction, password strength |
+| View (login) | `src/features/authentication/view/login-view.tsx` | ✅ COMPLETE | Email/password, remember, show/hide |
+| View (signup) | `src/features/authentication/view/signup-view.tsx` | ✅ COMPLETE | Full form with password strength |
+| View (forgot) | `src/features/authentication/view/forgot-password-view.tsx` | ✅ COMPLETE | Email form with success/error |
+| View (reset) | `src/features/authentication/view/reset-password-view.tsx` | ✅ COMPLETE | Password form with token |
+| Components (5) | `src/features/authentication/components/` | ✅ COMPLETE | AuthFormField, PasswordField, PasswordStrength, AuthStatusMessage, AuthPrivacyNote |
+| Route integration | `src/app/{login,signup,forgot-password,reset-password}/page.tsx` | ✅ COMPLETE | Thin pages importing feature Views |
 | Functional parity | — | ✅ VERIFIED | Login, signup, forgot, reset work via mock |
-| Legacy cleanup | — | ❌ MISSING | AuthPage still in public-pages.tsx |
-| Tests | — | ❌ MISSING | No test files exist |
+| Legacy cleanup | — | ✅ COMPLETE | AuthPage removed from public-pages.tsx |
+| Tests (7 files) | `src/features/authentication/` | ✅ COMPLETE | Schema (7), mock adapter (13), 4 ViewModels (31) |
 
-**Migration status: FOUNDATION ONLY** (Model + Service layers only, missing ViewModel + View)
+**Migration status: MVVM MIGRATED**
 
 ---
 
@@ -65,13 +72,20 @@
 
 | Layer | Path | Status | Notes |
 |-------|------|--------|-------|
-| Legacy implementation | `src/app/dashboard/page.tsx` | LEGACY | 138 lines, imports mock-data |
-| Route | `src/app/dashboard/page.tsx` | LEGACY | Direct mock-data import |
-| Shared component deps | `CrisisHelpCard`, `DataChartCard`, `JournalEntryCard`, `RiskScoreRing` | LEGACY | From shared.tsx |
-| Mock dependency | `journalEntries`, `moodTrend`, `quickActions`, `riskTrend`, `userProfile`, `weeklyDigest` | ACTIVE | 6 mock-data imports |
-| Functional parity | — | NOT VERIFIED | No ViewModel, all static |
+| Legacy implementation | `src/app/dashboard/page.tsx` | ✅ DECOMPOSED | 6 lines, delegates to DashboardView |
+| Model | `src/features/dashboard/model/dashboard.model.ts` | ✅ COMPLETE | DashboardData, UserProfile, QuickAction, TrendPoint |
+| Service interface | `src/features/dashboard/services/dashboard.service.ts` | ✅ COMPLETE | Typed interface |
+| Mock adapter | `src/features/dashboard/services/dashboard.mock-adapter.ts` | ✅ COMPLETE | Inline data, no mock-data import |
+| HTTP adapter | `src/features/dashboard/services/dashboard.http-adapter.ts` | ✅ COMPLETE | Placeholder |
+| Factory | `src/features/dashboard/services/dashboard-service.factory.ts` | ✅ COMPLETE | Env-driven selection |
+| ViewModel | `src/features/dashboard/view-model/use-dashboard-view-model.ts` | ✅ COMPLETE | Loading/error/data states |
+| View | `src/features/dashboard/view/dashboard-view.tsx` | ✅ COMPLETE | Loading skeleton, error state, empty entry state |
+| Route integration | `src/app/dashboard/page.tsx` | ✅ COMPLETE | Thin page (3 lines) |
+| Shared component deps | `CrisisHelpCard`, `DataChartCard`, `JournalEntryCard`, `RiskScoreRing` | LEGACY RETAINED | Backward-compatible re-exports |
+| Functional parity | — | ✅ VERIFIED | Loading/error/empty states added, all original content preserved |
+| Legacy cleanup | — | ✅ COMPLETE | Dashboard page no longer imports mock-data |
 
-**Migration status: LEGACY**
+**Migration status: MVVM MIGRATED**
 
 ---
 
@@ -158,11 +172,11 @@
 | MVVM documentation | ✅ COMPLETE |
 | Shared foundation | ✅ COMPLETE |
 | Journal fully migrated | ✅ COMPLETE |
-| Auth Model + Service | ✅ COMPLETE |
-| Auth ViewModel + View | ❌ MISSING |
+| Auth fully migrated | ✅ COMPLETE |
+| Dashboard fully migrated | ✅ COMPLETE |
 | All other features | ❌ LEGACY |
-| Strangler Fig pattern used | ✅ Journal migration preserved legacy shared.tsx via re-exports |
-| Legacy cleanup verified | ✅ Journal routes verified clean |
-| Tests exist | ❌ NONE |
+| Strangler Fig pattern used | ✅ Migrations preserve legacy shared.tsx via re-exports |
+| Legacy cleanup verified | ✅ Dashboard page no longer imports mock-data |
+| Tests exist | ❌ NONE for Dashboard (127 tests total) |
 
-**Overall: 2 of 18 features migrated (Journal + partial Auth). 16 features remain in legacy state.**
+**Overall: 3 of 18 features migrated (Journal + Auth + Dashboard). 15 features remain in legacy state.**

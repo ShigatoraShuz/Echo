@@ -16,7 +16,7 @@ export function JournalEditorView() {
   const router = useRouter();
   const {
     title, body, mood, tags, analysisConsent,
-    wordCount, charCount, isSaving, isAutosaving, error, fieldErrors,
+    wordCount, charCount, isSaving, autosaveStatus, error, fieldErrors,
     savedEntry,
     setTitle, setBody, setMood, setTags, setAnalysisConsent,
     save, reset,
@@ -105,7 +105,7 @@ export function JournalEditorView() {
             </label>
 
             <div className="flex items-center justify-between gap-3">
-              <JournalAutosaveStatus isSaving={isSaving} isAutosaving={isAutosaving} hasSaved={!!savedEntry} />
+              <JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} />
               <div className="flex gap-3">
                 <EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={save}>
                   <Save className="h-4 w-4" aria-hidden="true" />

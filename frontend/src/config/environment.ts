@@ -25,9 +25,11 @@ function validateAdapter(value: string | undefined): DataAdapter {
   if (VALID_ADAPTER_VALUES.includes(lower as DataAdapter)) {
     return lower as DataAdapter;
   }
-  console.error(
-    `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "mock".`
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.warn(
+      `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "mock".`
+    );
+  }
   return "mock";
 }
 
