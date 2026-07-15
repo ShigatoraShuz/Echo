@@ -388,10 +388,27 @@
 
   .echo-card {
     @apply rounded-2xl border border-border/70 bg-card p-5 text-card-foreground shadow-card sm:p-6 lg:p-7;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease;
+    will-change: transform;
   }
 
   .echo-compact-card {
     @apply rounded-2xl border border-border/70 bg-card p-4 text-card-foreground shadow-subtle sm:p-5;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease;
+    will-change: transform;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .echo-card:hover,
+    .echo-compact-card:hover {
+      transform: scale(1.02);
+      box-shadow: hsl(var(--shadow-soft));
+    }
+
+    .echo-card:active,
+    .echo-compact-card:active {
+      transform: scale(0.98);
+    }
   }
 
   .echo-input {
