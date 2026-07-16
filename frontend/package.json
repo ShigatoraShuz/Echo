@@ -13,30 +13,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@paper-design/shaders-react": "^0.0.77",
-    "@radix-ui/react-slot": "^1.3.0",
-    "class-variance-authority": "^0.7.1",
     "framer-motion": "^12.42.2",
+    "lenis": "^1.3.25",
     "lucide-react": "^0.468.0",
     "next": "^15.1.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^22.10.5",
-    "@types/react": "^19.0.4",
-    "@types/react-dom": "^19.0.2",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.17.0",
-    "eslint-config-next": "^15.1.4",
-    "jsdom": "^29.1.1",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "vitest": "^4.1.10"
-  }
-}
