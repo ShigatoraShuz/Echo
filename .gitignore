@@ -17,3 +17,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 **/*.log
+**/*.tsbuildinfo
+frontend/.codex-qa/
+frontend/.next-corrupt-*/
+*-design-qa-comparison.png
+*-implementation*.png
+frontend/*-reference.png
+frontend/landing-*.png
+frontend/hero-*.png
+frontend/work/*
+!frontend/work/.gitkeep
+frontend/outputs/*
+!frontend/outputs/.gitkeep
