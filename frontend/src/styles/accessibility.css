@@ -118,3 +118,17 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  html,
+  body {
+    scroll-padding-top: 7rem;
+  }
+
+  html:not(.lenis),
+  html:not(.lenis) body {
+    scroll-behavior: smooth;
+  }
+
+  .motion-safe {
+    transition-duration: 300ms;
+  }
+}
