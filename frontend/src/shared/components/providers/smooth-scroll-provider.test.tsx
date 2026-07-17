@@ -23,3 +23,38 @@ vi.mock("@/shared/hooks/use-prefers-reduced-motion", () => ({
 describe("SmoothScrollProvider", () => {
   beforeEach(() => {
     renderLenis.mockClear();
+    useReducedMotion.mockReturnValue(false);
+  });
+
+  it("enables a global Lenis instance with smooth anchors", () => {
+    render(
+      <SmoothScrollProvider>
+        <main>Page content</main>
+      </SmoothScrollProvider>,
+    );
+
+    expect(screen.getByTestId("lenis-root")).toBeInTheDocument();
+    expect(renderLenis).toHaveBeenCalledWith({
+      root: true,
+      options: expect.objectContaining({
+        anchors: true,
+        autoRaf: true,
+        smoothWheel: true,
+        stopInertiaOnNavigate: true,
+      }),
+    });
+  });
+
+  it("uses native scrolling when reduced motion is requested", () => {
+    useReducedMotion.mockReturnValue(true);
+
+    render(
+      <SmoothScrollProvider>
+        <main>Page content</main>
+      </SmoothScrollProvider>,
+    );
+
+    expect(screen.queryByTestId("lenis-root")).not.toBeInTheDocument();
+    expect(screen.getByText("Page content")).toBeVisible();
+  });
+});
