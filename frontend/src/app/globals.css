@@ -48,3 +48,585 @@
 
   --primary: 160 43% 24%;
   --primary-foreground: 42 45% 98%;
+
+  --secondary: 154 23% 88%;
+  --secondary-foreground: 160 43% 20%;
+
+  --muted: 40 28% 91%;
+  --muted-foreground: 165 12% 42%;
+
+  --accent: 191 28% 72%;
+  --accent-foreground: 165 28% 13%;
+
+  --success: 148 32% 45%;
+  --success-foreground: 42 45% 98%;
+
+  --warning: 39 85% 64%;
+  --warning-foreground: 32 45% 18%;
+
+  --danger: 9 82% 64%;
+  --danger-foreground: 42 45% 98%;
+
+  --crisis: 9 82% 64%;
+  --crisis-soft: 12 88% 94%;
+
+  --calm: 153 28% 68%;
+  --happy: 78 35% 66%;
+  --neutral: 40 34% 72%;
+  --sad: 213 35% 74%;
+  --anxious: 15 75% 72%;
+  --angry: 5 72% 64%;
+
+  --risk-low: 148 32% 45%;
+  --risk-low-soft: 151 32% 91%;
+  --risk-low-foreground: 160 43% 20%;
+  --risk-mild: 78 35% 52%;
+  --risk-mild-soft: 78 38% 89%;
+  --risk-mild-foreground: 75 42% 20%;
+  --risk-moderate: 39 85% 64%;
+  --risk-moderate-soft: 39 88% 91%;
+  --risk-moderate-foreground: 32 45% 18%;
+  --risk-high: 15 75% 72%;
+  --risk-high-soft: 15 80% 92%;
+  --risk-high-foreground: 12 52% 22%;
+  --risk-severe: 9 82% 64%;
+  --risk-severe-soft: 12 88% 94%;
+  --risk-severe-foreground: 8 58% 24%;
+
+  --chart-1: var(--primary);
+  --chart-2: var(--accent);
+  --chart-3: var(--happy);
+  --chart-4: var(--anxious);
+  --chart-5: var(--sad);
+
+  --border: 40 24% 86%;
+  --input: 40 24% 88%;
+  --ring: 160 43% 28%;
+
+  --radius: 1rem;
+
+  --shadow-soft: 0 18px 50px rgba(20, 45, 40, 0.08);
+  --shadow-card: 0 8px 30px rgba(20, 45, 40, 0.07);
+  --shadow-subtle: 0 2px 12px rgba(20, 45, 40, 0.05);
+
+  color-scheme: light;
+}
+
+:root.dark[data-echo-theme="echo-calm"],
+:root.dark:not([data-echo-theme]),
+:root[data-echo-theme="echo-night"] {
+  --background: 165 24% 10%;
+  --foreground: 42 38% 92%;
+
+  --card: 164 22% 14%;
+  --card-foreground: 42 38% 92%;
+
+  --popover: 164 22% 14%;
+  --popover-foreground: 42 38% 92%;
+
+  --primary: 154 27% 67%;
+  --primary-foreground: 164 30% 12%;
+
+  --secondary: 162 16% 22%;
+  --secondary-foreground: 42 34% 88%;
+
+  --muted: 163 16% 18%;
+  --muted-foreground: 42 16% 71%;
+
+  --accent: 190 22% 48%;
+  --accent-foreground: 42 35% 93%;
+
+  --success: 146 28% 50%;
+  --success-foreground: 42 38% 94%;
+
+  --warning: 39 62% 58%;
+  --warning-foreground: 36 42% 13%;
+
+  --danger: 9 58% 58%;
+  --danger-foreground: 42 38% 94%;
+
+  --crisis: 9 58% 58%;
+  --crisis-soft: 10 24% 22%;
+
+  --calm: 153 22% 56%;
+  --happy: 78 25% 54%;
+  --neutral: 40 19% 50%;
+  --sad: 213 26% 59%;
+  --anxious: 15 45% 58%;
+  --angry: 5 50% 56%;
+
+  --risk-low: 148 28% 50%;
+  --risk-low-soft: 151 18% 22%;
+  --risk-low-foreground: 142 42% 86%;
+  --risk-mild: 78 25% 54%;
+  --risk-mild-soft: 78 18% 22%;
+  --risk-mild-foreground: 78 42% 86%;
+  --risk-moderate: 39 62% 58%;
+  --risk-moderate-soft: 36 28% 22%;
+  --risk-moderate-foreground: 40 80% 86%;
+  --risk-high: 15 45% 58%;
+  --risk-high-soft: 13 24% 23%;
+  --risk-high-foreground: 15 74% 88%;
+  --risk-severe: 9 58% 58%;
+  --risk-severe-soft: 8 28% 22%;
+  --risk-severe-foreground: 9 76% 89%;
+
+  --chart-1: 154 27% 67%;
+  --chart-2: 190 22% 48%;
+  --chart-3: 78 25% 54%;
+  --chart-4: 15 45% 58%;
+  --chart-5: 213 26% 59%;
+
+  --border: 162 15% 25%;
+  --input: 162 15% 25%;
+  --ring: 154 27% 67%;
+
+  --shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.22);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.2);
+  --shadow-subtle: 0 2px 12px rgba(0, 0, 0, 0.18);
+
+  color-scheme: dark;
+}
+
+:root[data-echo-theme="echo-soft"] {
+  --background: 39 52% 97%;
+  --foreground: 158 24% 17%;
+
+  --card: 42 58% 99%;
+  --card-foreground: 158 24% 17%;
+
+  --popover: 42 58% 99%;
+  --popover-foreground: 158 24% 17%;
+
+  --primary: 151 32% 33%;
+  --primary-foreground: 42 58% 99%;
+
+  --secondary: 88 28% 90%;
+  --secondary-foreground: 151 35% 23%;
+
+  --muted: 38 36% 92%;
+  --muted-foreground: 158 10% 44%;
+
+  --accent: 204 38% 82%;
+  --accent-foreground: 158 24% 17%;
+
+  --success: 142 27% 49%;
+  --success-foreground: 42 58% 99%;
+
+  --warning: 38 82% 70%;
+  --warning-foreground: 32 42% 20%;
+
+  --danger: 8 72% 68%;
+  --danger-foreground: 42 58% 99%;
+
+  --crisis: 8 72% 68%;
+  --crisis-soft: 12 90% 95%;
+
+  --calm: 142 26% 74%;
+  --happy: 78 38% 74%;
+  --neutral: 38 40% 78%;
+  --sad: 210 40% 82%;
+  --anxious: 19 72% 79%;
+  --angry: 5 62% 70%;
+
+  --risk-low: 142 27% 49%;
+  --risk-low-soft: 142 34% 93%;
+  --risk-low-foreground: 151 35% 23%;
+  --risk-mild: 78 38% 56%;
+  --risk-mild-soft: 78 48% 91%;
+  --risk-mild-foreground: 75 42% 23%;
+  --risk-moderate: 38 82% 70%;
+  --risk-moderate-soft: 38 88% 93%;
+  --risk-moderate-foreground: 32 42% 20%;
+  --risk-high: 19 72% 79%;
+  --risk-high-soft: 19 86% 94%;
+  --risk-high-foreground: 12 48% 24%;
+  --risk-severe: 8 72% 68%;
+  --risk-severe-soft: 12 90% 95%;
+  --risk-severe-foreground: 8 55% 24%;
+
+  --chart-1: var(--primary);
+  --chart-2: 204 38% 72%;
+  --chart-3: var(--happy);
+  --chart-4: var(--anxious);
+  --chart-5: var(--sad);
+
+  --border: 40 28% 88%;
+  --input: 40 28% 90%;
+  --ring: 151 32% 35%;
+
+  --shadow-soft: 0 18px 50px rgba(36, 62, 52, 0.07);
+  --shadow-card: 0 8px 30px rgba(36, 62, 52, 0.06);
+  --shadow-subtle: 0 2px 12px rgba(36, 62, 52, 0.045);
+
+  color-scheme: light;
+}
+
+:root.dark[data-echo-theme="echo-soft"] {
+  --background: 157 20% 12%;
+  --foreground: 42 44% 93%;
+  --card: 157 18% 16%;
+  --card-foreground: 42 44% 93%;
+  --popover: 157 18% 16%;
+  --popover-foreground: 42 44% 93%;
+  --primary: 142 26% 68%;
+  --primary-foreground: 157 24% 12%;
+  --secondary: 88 16% 23%;
+  --secondary-foreground: 42 34% 90%;
+  --muted: 157 14% 19%;
+  --muted-foreground: 42 18% 72%;
+  --accent: 204 27% 56%;
+  --accent-foreground: 42 42% 94%;
+  --border: 157 14% 26%;
+  --input: 157 14% 26%;
+  --ring: 142 26% 68%;
+  color-scheme: dark;
+}
+
+:root[data-echo-theme="echo-focus"] {
+  --background: 43 33% 95%;
+  --foreground: 164 33% 11%;
+
+  --card: 42 42% 99%;
+  --card-foreground: 164 33% 11%;
+
+  --popover: 42 42% 99%;
+  --popover-foreground: 164 33% 11%;
+
+  --primary: 160 48% 21%;
+  --primary-foreground: 42 42% 99%;
+
+  --secondary: 153 21% 84%;
+  --secondary-foreground: 160 47% 18%;
+
+  --muted: 40 22% 88%;
+  --muted-foreground: 164 12% 35%;
+
+  --accent: 191 32% 64%;
+  --accent-foreground: 164 33% 11%;
+
+  --success: 148 36% 39%;
+  --success-foreground: 42 42% 99%;
+
+  --warning: 39 88% 58%;
+  --warning-foreground: 32 49% 16%;
+
+  --danger: 9 76% 59%;
+  --danger-foreground: 42 42% 99%;
+
+  --crisis: 9 76% 59%;
+  --crisis-soft: 12 76% 93%;
+
+  --calm: 153 30% 61%;
+  --happy: 78 36% 60%;
+  --neutral: 40 30% 66%;
+  --sad: 213 35% 68%;
+  --anxious: 15 70% 66%;
+  --angry: 5 68% 58%;
+
+  --risk-low: 148 36% 39%;
+  --risk-low-soft: 151 28% 88%;
+  --risk-low-foreground: 160 47% 18%;
+  --risk-mild: 78 36% 45%;
+  --risk-mild-soft: 78 34% 86%;
+  --risk-mild-foreground: 75 45% 17%;
+  --risk-moderate: 39 88% 58%;
+  --risk-moderate-soft: 39 82% 88%;
+  --risk-moderate-foreground: 32 49% 16%;
+  --risk-high: 15 70% 66%;
+  --risk-high-soft: 15 72% 90%;
+  --risk-high-foreground: 12 56% 20%;
+  --risk-severe: 9 76% 59%;
+  --risk-severe-soft: 12 76% 93%;
+  --risk-severe-foreground: 8 60% 22%;
+
+  --chart-1: var(--primary);
+  --chart-2: var(--accent);
+  --chart-3: var(--success);
+  --chart-4: var(--warning);
+  --chart-5: var(--sad);
+
+  --border: 40 20% 82%;
+  --input: 40 20% 85%;
+  --ring: 160 48% 25%;
+
+  --shadow-soft: 0 18px 50px rgba(16, 42, 36, 0.09);
+  --shadow-card: 0 8px 30px rgba(16, 42, 36, 0.08);
+  --shadow-subtle: 0 2px 12px rgba(16, 42, 36, 0.055);
+
+  color-scheme: light;
+}
+
+:root.dark[data-echo-theme="echo-focus"] {
+  --background: 164 28% 9%;
+  --foreground: 42 38% 94%;
+  --card: 164 24% 13%;
+  --card-foreground: 42 38% 94%;
+  --popover: 164 24% 13%;
+  --popover-foreground: 42 38% 94%;
+  --primary: 153 29% 64%;
+  --primary-foreground: 164 30% 10%;
+  --secondary: 162 18% 20%;
+  --secondary-foreground: 42 36% 91%;
+  --muted: 163 16% 16%;
+  --muted-foreground: 42 15% 73%;
+  --accent: 191 26% 51%;
+  --accent-foreground: 42 38% 94%;
+  --border: 162 16% 23%;
+  --input: 162 16% 23%;
+  --ring: 153 29% 64%;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    min-height: 100%;
+    background: hsl(var(--background));
+  }
+
+  body {
+    min-height: 100%;
+    background:
+      radial-gradient(circle at top left, hsl(var(--secondary) / 0.5), transparent 32rem),
+      hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--accent) / 0.5);
+    color: hsl(var(--accent-foreground));
+  }
+}
+
+@layer components {
+  .echo-page-shell {
+    @apply min-h-screen bg-background text-foreground;
+  }
+
+  .echo-page-board {
+    @apply mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 xl:px-10;
+  }
+
+  .echo-card {
+    @apply rounded-2xl border border-border/70 bg-card p-5 text-card-foreground shadow-card sm:p-6 lg:p-7;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease;
+    will-change: transform;
+  }
+
+  .echo-compact-card {
+    @apply rounded-2xl border border-border/70 bg-card p-4 text-card-foreground shadow-subtle sm:p-5;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 200ms ease;
+    will-change: transform;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .echo-card:hover,
+    .echo-compact-card:hover {
+      transform: scale(1.02);
+      box-shadow: hsl(var(--shadow-soft));
+    }
+
+    .echo-card:active,
+    .echo-compact-card:active {
+      transform: scale(0.98);
+    }
+  }
+
+  .echo-input {
+    @apply h-11 w-full rounded-xl border border-input bg-background px-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/10;
+  }
+
+  .echo-textarea {
+    @apply min-h-28 w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm leading-6 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/10;
+  }
+
+  .echo-button {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:opacity-50;
+    transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .echo-button:active {
+      transform: scale(0.97);
+    }
+  }
+
+  .echo-feature-icon {
+    @apply mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .echo-compact-card:hover .echo-feature-icon {
+      transform: scale(1.1);
+      background-color: hsl(var(--primary) / 0.1);
+    }
+  }
+
+  .echo-button-primary {
+    @apply echo-button bg-primary text-primary-foreground shadow-subtle hover:bg-primary/90;
+  }
+
+  .echo-button-secondary {
+    @apply echo-button border border-border/70 bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+
+  .echo-button-ghost {
+    @apply echo-button text-foreground hover:bg-muted;
+  }
+
+  .mood-badge,
+  .risk-badge {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold capitalize;
+  }
+
+  .mood-badge-calm {
+    background: hsl(var(--calm) / 0.24);
+    border-color: hsl(var(--calm) / 0.52);
+    color: hsl(var(--foreground));
+  }
+
+  .mood-badge-happy {
+    background: hsl(var(--happy) / 0.24);
+    border-color: hsl(var(--happy) / 0.54);
+    color: hsl(var(--foreground));
+  }
+
+  .mood-badge-neutral {
+    background: hsl(var(--neutral) / 0.25);
+    border-color: hsl(var(--neutral) / 0.56);
+    color: hsl(var(--foreground));
+  }
+
+  .mood-badge-sad {
+    background: hsl(var(--sad) / 0.26);
+    border-color: hsl(var(--sad) / 0.55);
+    color: hsl(var(--foreground));
+  }
+
+  .mood-badge-anxious {
+    background: hsl(var(--anxious) / 0.22);
+    border-color: hsl(var(--anxious) / 0.5);
+    color: hsl(var(--foreground));
+  }
+
+  .mood-badge-angry {
+    background: hsl(var(--angry) / 0.2);
+    border-color: hsl(var(--angry) / 0.48);
+    color: hsl(var(--foreground));
+  }
+
+  .risk-badge-low {
+    background: hsl(var(--risk-low-soft));
+    border-color: hsl(var(--risk-low) / 0.42);
+    color: hsl(var(--risk-low-foreground));
+  }
+
+  .risk-badge-mild {
+    background: hsl(var(--risk-mild-soft));
+    border-color: hsl(var(--risk-mild) / 0.42);
+    color: hsl(var(--risk-mild-foreground));
+  }
+
+  .risk-badge-moderate {
+    background: hsl(var(--risk-moderate-soft));
+    border-color: hsl(var(--risk-moderate) / 0.46);
+    color: hsl(var(--risk-moderate-foreground));
+  }
+
+  .risk-badge-high {
+    background: hsl(var(--risk-high-soft));
+    border-color: hsl(var(--risk-high) / 0.46);
+    color: hsl(var(--risk-high-foreground));
+  }
+
+  .risk-badge-severe {
+    background: hsl(var(--risk-severe-soft));
+    border-color: hsl(var(--risk-severe) / 0.48);
+    color: hsl(var(--risk-severe-foreground));
+  }
+
+  .risk-card {
+    @apply rounded-2xl border p-4;
+  }
+
+  .risk-card-low {
+    background: hsl(var(--risk-low-soft));
+    border-color: hsl(var(--risk-low) / 0.35);
+    color: hsl(var(--risk-low-foreground));
+  }
+
+  .risk-card-mild {
+    background: hsl(var(--risk-mild-soft));
+    border-color: hsl(var(--risk-mild) / 0.35);
+    color: hsl(var(--risk-mild-foreground));
+  }
+
+  .risk-card-moderate {
+    background: hsl(var(--risk-moderate-soft));
+    border-color: hsl(var(--risk-moderate) / 0.38);
+    color: hsl(var(--risk-moderate-foreground));
+  }
+
+  .risk-card-high {
+    background: hsl(var(--risk-high-soft));
+    border-color: hsl(var(--risk-high) / 0.4);
+    color: hsl(var(--risk-high-foreground));
+  }
+
+  .risk-card-severe {
+    background: hsl(var(--risk-severe-soft));
+    border-color: hsl(var(--risk-severe) / 0.42);
+    color: hsl(var(--risk-severe-foreground));
+  }
+
+  .chart-card-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.56) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.56) 1px, transparent 1px);
+    background-size: 100% 25%, 12.5% 100%;
+  }
+
+  .echo-breathing-circle {
+    animation: echo-breathe 7s ease-in-out infinite;
+  }
+}
+
+@keyframes echo-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-breathing-circle {
+    animation: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .echo-dashboard-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  }
+
+  .echo-dashboard-span-3 {
+    grid-column: span 3 / span 3 !important;
+  }
+
+  .echo-dashboard-span-6 {
+    grid-column: span 6 / span 6 !important;
+  }
+}
