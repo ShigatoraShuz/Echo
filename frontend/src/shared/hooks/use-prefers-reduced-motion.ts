@@ -6,6 +6,11 @@ export function usePrefersReducedMotion() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      setPrefersReducedMotion(false);
+      return;
+    }
+
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const updatePreference = () => setPrefersReducedMotion(media.matches);
 
