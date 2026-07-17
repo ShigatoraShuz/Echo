@@ -63,3 +63,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className={`${echoSans.variable} ${echoDisplay.variable}`} suppressHydrationWarning>
+        <SmoothScrollProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </SmoothScrollProvider>
+      </body>
+    </html>
+  );
+}
