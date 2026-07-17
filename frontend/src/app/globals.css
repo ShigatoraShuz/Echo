@@ -33,3 +33,18 @@
   --landing-inverse-80: rgba(255, 250, 240, 0.8);
   --landing-inverse-85: rgba(255, 250, 240, 0.85);
   --landing-inverse-90: rgba(255, 250, 240, 0.9);
+  --landing-card-radius: 2.25rem;
+  --landing-media-radius: 1.75rem;
+  --landing-panel-radius: 1.5rem;
+
+  --background: 42 45% 96%;
+  --foreground: 165 28% 13%;
+
+  --card: 42 45% 98%;
+  --card-foreground: 165 28% 13%;
+
+  --popover: 42 45% 98%;
+  --popover-foreground: 165 28% 13%;
+
+  --primary: 160 43% 24%;
+  --primary-foreground: 42 45% 98%;
