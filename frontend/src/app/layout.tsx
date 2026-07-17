@@ -18,3 +18,18 @@ const echoSans = Manrope({
   subsets: ["latin"],
   variable: "--font-echo-sans",
   display: "swap",
+});
+
+const echoDisplay = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-echo-display",
+  display: "swap",
+});
+
+const themeInitScript = `
+(function() {
+  try {
+    var key = ${JSON.stringify(ECHO_THEME_STORAGE_KEY)};
+    var stored = window.localStorage.getItem(key);
+    var parsed = stored ? JSON.parse(stored) : {};
