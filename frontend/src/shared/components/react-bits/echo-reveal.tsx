@@ -10,6 +10,7 @@ interface EchoRevealProps {
   delay?: number;
   duration?: number;
   once?: boolean;
+  variant?: "text" | "media" | "card";
 }
 
 export function EchoReveal({
@@ -17,8 +18,9 @@ export function EchoReveal({
   className,
   direction = "up",
   delay = 0,
-  duration = 500,
+  duration,
   once = true,
+  variant = "text",
 }: EchoRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -36,7 +38,7 @@ export function EchoReveal({
           setVisible(false);
         }
       },
-      { threshold: 0.1 }
+      { rootMargin: "0px 0px -6% 0px", threshold: 0.08 }
     );
 
     observer.observe(el);
@@ -44,27 +46,31 @@ export function EchoReveal({
   }, [once]);
 
   const directionStyles = {
-    up: "translate-y-6",
-    down: "-translate-y-6",
-    left: "translate-x-6",
-    right: "-translate-x-6",
+    up: variant === "text" ? "translate-y-6" : "translate-y-8",
+    down: variant === "text" ? "-translate-y-6" : "-translate-y-8",
+    left: variant === "text" ? "translate-x-6" : "translate-x-8",
+    right: variant === "text" ? "-translate-x-6" : "-translate-x-8",
     none: "",
   };
+  const resolvedDuration = duration ?? (variant === "text" ? 560 : 680);
+  const hiddenScale = variant === "text" ? "" : "scale-[0.975]";
 
   return (
     <div
       ref={ref}
+      data-echo-reveal={variant}
+      data-reveal-visible={visible ? "true" : "false"}
       className={cn(
-        "transition-all motion-reduce:opacity-100 motion-reduce:translate-x-0 motion-reduce:translate-y-0",
+        "echo-scroll-reveal transition-[opacity,transform]",
         visible
-          ? "opacity-100 translate-x-0 translate-y-0"
-          : `opacity-0 ${directionStyles[direction]}`,
+          ? "scale-100 opacity-100 translate-x-0 translate-y-0"
+          : `will-change-[opacity,transform] opacity-0 ${directionStyles[direction]} ${hiddenScale}`,
         className
       )}
       style={{
-        transitionDuration: `${duration}ms`,
+        transitionDuration: `${resolvedDuration}ms`,
         transitionDelay: `${delay}ms`,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+        transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
       }}
     >
       {children}
