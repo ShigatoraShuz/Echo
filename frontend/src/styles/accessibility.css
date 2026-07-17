@@ -98,21 +98,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
+  html:not([data-echo-motion="full"]) {
     scroll-behavior: auto;
   }
 
-  *,
-  *::before,
-  *::after {
+  html:not([data-echo-motion="full"]) *,
+  html:not([data-echo-motion="full"]) *::before,
+  html:not([data-echo-motion="full"]) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  html:not([data-echo-motion="full"]) .echo-scroll-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .motion-safe {
-    transition-duration: 300ms;
-  }
-}
