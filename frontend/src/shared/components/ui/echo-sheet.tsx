@@ -77,7 +77,7 @@ export function EchoSheet({ open, onClose, title, description, children, side = 
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div data-lenis-prevent className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>
   );
