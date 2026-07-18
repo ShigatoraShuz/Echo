@@ -12,3 +12,12 @@ export interface LandingStat {
   value: string;
   label: string;
   icon: LandingStatIcon;
+}
+
+export interface LandingHeroContent {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  actions: LandingAction[];
+  stats: LandingStat[];
+}
