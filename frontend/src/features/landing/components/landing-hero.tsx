@@ -40,3 +40,17 @@ const itemVariants: Variants = {
 
 const titleVariants: Variants = {
   hidden: { opacity: 0, transform: "translateY(105%)" },
+  visible: {
+    opacity: 1,
+    transform: "translateY(0%)",
+    transition: { duration: 0.72, ease: [0.23, 1, 0.32, 1] },
+  },
+};
+
+export function LandingHero({
+  content: { eyebrow, title, subtitle, actions, stats },
+  className,
+}: LandingHeroProps) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  return (
