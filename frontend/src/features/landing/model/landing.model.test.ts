@@ -9,3 +9,12 @@ describe("landing content model", () => {
     expect(LANDING_HERO_CONTENT.stats.map((stat) => stat.icon)).toEqual([
       "privacy",
       "moods",
+      "grounding",
+    ]);
+  });
+
+  it("keeps page metadata aligned with the ECHO landing experience", () => {
+    expect(LANDING_PAGE_METADATA.title).toContain("ECHO");
+    expect(LANDING_PAGE_METADATA.description).toContain("Private journaling");
+  });
+});
