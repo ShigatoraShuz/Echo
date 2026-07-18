@@ -90,3 +90,29 @@ export function LandingHero({
             <motion.h1
               className="mx-auto max-w-[1220px] text-[clamp(3.5rem,8vw,8.4rem)] font-medium leading-[0.84] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance]"
               variants={titleVariants}
+            >
+              {title}
+            </motion.h1>
+          </motion.div>
+
+          <motion.p
+            className="mt-5 max-w-2xl text-sm font-medium leading-6 text-[var(--landing-ink)] sm:text-[15px] sm:leading-6"
+            variants={itemVariants}
+          >
+            {subtitle}
+          </motion.p>
+
+          <motion.div className="mt-7 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row" variants={itemVariants}>
+            {actions.map((action) => {
+              const primary = action.variant === "primary";
+
+              return (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={cn(
+                    "inline-flex min-h-12 min-w-48 items-center justify-center rounded-full px-6 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97]",
+                    primary
+                      ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
+                      : "border border-[var(--landing-primary-45)] bg-[var(--landing-cream-35)] text-[var(--landing-primary)] backdrop-blur-sm hover:bg-[var(--landing-cream-65)]",
+                  )}
