@@ -26,3 +26,17 @@ const containerVariants: Variants = {
   visible: {
     opacity: 1,
     transition: { delayChildren: 0.08, staggerChildren: 0.08 },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { opacity: 0, transform: "translateY(12px)" },
+  visible: {
+    opacity: 1,
+    transform: "translateY(0px)",
+    transition: { duration: 0.45, ease: [0.23, 1, 0.32, 1] },
+  },
+};
+
+const titleVariants: Variants = {
+  hidden: { opacity: 0, transform: "translateY(105%)" },
