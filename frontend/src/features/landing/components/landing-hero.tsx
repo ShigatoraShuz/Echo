@@ -14,3 +14,15 @@ interface LandingHeroProps {
   content: LandingHeroContent;
   className?: string;
 }
+
+const statIcons: Record<LandingStatIcon, LucideIcon> = {
+  privacy: ShieldCheck,
+  moods: Sparkles,
+  grounding: Wind,
+};
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { delayChildren: 0.08, staggerChildren: 0.08 },
