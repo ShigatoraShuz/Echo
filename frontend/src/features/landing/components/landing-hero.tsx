@@ -70,3 +70,23 @@ export function LandingHero({
           sizes="100vw"
           className="pointer-events-none object-cover object-center"
         />
+
+        <motion.div
+          className="relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col items-center px-5 pb-8 pt-36 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pt-40 lg:px-12 lg:pt-[12.5rem]"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {eyebrow ? (
+            <motion.p
+              className="inline-flex rounded-full bg-[var(--landing-primary)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-inverse)] shadow-sm sm:text-xs"
+              variants={itemVariants}
+            >
+              {eyebrow}
+            </motion.p>
+          ) : null}
+
+          <motion.div className="mt-2 w-full overflow-hidden pb-2" variants={itemVariants}>
+            <motion.h1
+              className="mx-auto max-w-[1220px] text-[clamp(3.5rem,8vw,8.4rem)] font-medium leading-[0.84] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance]"
+              variants={titleVariants}
