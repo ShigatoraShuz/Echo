@@ -54,3 +54,19 @@ export function LandingHero({
   const prefersReducedMotion = usePrefersReducedMotion();
 
   return (
+    <MotionConfig reducedMotion={prefersReducedMotion ? "always" : "never"}>
+      <section
+        className={cn(
+          "relative flex h-svh min-h-[760px] w-full overflow-hidden bg-[var(--landing-mist)] text-[var(--landing-ink)]",
+          className,
+        )}
+      >
+        <Image
+          src={heroBackground}
+          alt=""
+          fill
+          priority
+          aria-hidden="true"
+          sizes="100vw"
+          className="pointer-events-none object-cover object-center"
+        />
