@@ -116,3 +116,40 @@ export function LandingHero({
                       ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
                       : "border border-[var(--landing-primary-45)] bg-[var(--landing-cream-35)] text-[var(--landing-primary)] backdrop-blur-sm hover:bg-[var(--landing-cream-65)]",
                   )}
+                >
+                  {action.text}
+                </Link>
+              );
+            })}
+          </motion.div>
+
+          <motion.div className="mt-11 w-full max-w-xl text-left" variants={itemVariants}>
+            <p className="inline-flex rounded-full bg-[var(--landing-inverse-85)] px-3 py-1.5 text-xs font-bold text-[var(--landing-ink)] shadow-sm backdrop-blur-sm">
+              What makes ECHO different?
+            </p>
+            <div
+              data-testid="hero-stats-panel"
+              className="mt-3 grid gap-2.5 rounded-[var(--landing-panel-radius)] border border-white/35 bg-[#f8f2e6]/90 p-3 shadow-[0_12px_36px_rgba(41,49,27,0.14)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4"
+            >
+              {stats.map((stat) => {
+                const Icon = statIcons[stat.icon];
+
+                return (
+                  <div key={stat.label} className="flex items-center gap-2.5 text-[var(--landing-ink)]">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--landing-inverse)] text-[var(--landing-primary)] shadow-sm [&_svg]:h-4 [&_svg]:w-4">
+                      <Icon aria-hidden="true" />
+                    </span>
+                    <span>
+                      <span className="block text-xs font-extrabold leading-4">{stat.value}</span>
+                      <span className="block text-[10px] font-semibold leading-4 text-[var(--landing-ink-80)]">{stat.label}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        </motion.div>
+      </section>
+    </MotionConfig>
+  );
+}
