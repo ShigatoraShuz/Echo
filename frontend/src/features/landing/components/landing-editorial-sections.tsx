@@ -148,3 +148,11 @@ function FlipMediaCard({
   if (href) {
     return (
       <Link
+        href={href}
+        aria-label={`${backTitle}. ${actionLabel}`}
+        className={cn(
+          "echo-flip-card group block rounded-[var(--landing-card-radius)] outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)]",
+          className,
+        )}
+      >
+        {content}
