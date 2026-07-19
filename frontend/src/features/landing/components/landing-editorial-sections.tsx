@@ -163,3 +163,10 @@ function FlipMediaCard({
   return (
     <article
       tabIndex={0}
+      aria-label={backTitle}
+      className={cn(
+        "echo-flip-card group rounded-[var(--landing-card-radius)] outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)]",
+        className,
+      )}
+    >
+      {content}

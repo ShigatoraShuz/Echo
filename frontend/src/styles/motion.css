@@ -77,6 +77,53 @@
   animation-duration: 300ms;
 }
 
+.echo-growth-drift {
+  animation: echo-growth-drift 16s cubic-bezier(0.45, 0, 0.2, 1) infinite alternate;
+  transform-origin: 72% 72%;
+  will-change: transform;
+}
+
+.echo-flip-card {
+  border-radius: var(--landing-card-radius);
+  isolation: isolate;
+  perspective: 1400px;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.echo-flip-card:active {
+  transform: scale(0.985);
+}
+
+.echo-flip-card__inner {
+  position: relative;
+  border-radius: inherit;
+  transform-style: preserve-3d;
+  transition: transform 280ms cubic-bezier(0.77, 0, 0.175, 1);
+  will-change: transform;
+}
+
+.echo-flip-card__face {
+  border-radius: inherit;
+  background-clip: padding-box;
+  backface-visibility: hidden;
+  clip-path: inset(0 round var(--landing-card-radius));
+  -webkit-backface-visibility: hidden;
+}
+
+.echo-flip-card__back {
+  transform: rotateY(180deg);
+}
+
+.echo-flip-card:focus-visible .echo-flip-card__inner {
+  transform: rotateY(180deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .echo-flip-card:hover .echo-flip-card__inner {
+    transform: rotateY(180deg);
+  }
+}
+
 @keyframes echo-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -123,6 +170,11 @@
   50% { opacity: 0.8; }
 }
 
+@keyframes echo-growth-drift {
+  from { transform: scale(1.01) translate3d(0, 0, 0); }
+  to { transform: scale(1.045) translate3d(-0.35%, -0.65%, 0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-fade-in,
   .motion-fade-out,
@@ -151,5 +203,42 @@
   .motion-stagger > * {
     animation: none !important;
     opacity: 1 !important;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-growth-drift {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card__inner {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card__face {
+    transition: opacity 160ms ease;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card__back {
+    opacity: 0;
+    transform: none;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card:focus-visible .echo-flip-card__face:first-child {
+    opacity: 0;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card:focus-visible .echo-flip-card__back {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  html:not([data-echo-motion="full"]) .echo-flip-card:hover .echo-flip-card__face:first-child {
+    opacity: 0;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-flip-card:hover .echo-flip-card__back {
+    opacity: 1;
   }
 }
