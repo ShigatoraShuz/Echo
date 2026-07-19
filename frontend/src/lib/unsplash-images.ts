@@ -77,9 +77,9 @@ export const echoImages = {
   },
   counselingRoomWarm: {
     key: "counselingRoomWarm",
-    category: "counseling room warm",
+    category: "supportive connection handshake",
     src: "https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=1400&q=80",
-    alt: "Warm counseling room with seats arranged for supportive conversation.",
+    alt: "Two people shaking hands in a bright professional setting.",
     credit: "Unsplash",
     width: 1400,
     height: 1050,
