@@ -123,3 +123,18 @@ function FlipMediaCard({
         )}
       >
         <div className="flex items-center justify-between gap-4">
+          <span className={cn("font-extrabold uppercase tracking-[0.14em] text-white/70", compact ? "text-[10px]" : "text-xs")}>{backLabel}</span>
+          <span className={cn("grid shrink-0 place-items-center rounded-full bg-white/[0.12] text-white", compact ? "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4" : "h-11 w-11 [&_svg]:h-5 [&_svg]:w-5")}>
+            {backIcon}
+          </span>
+        </div>
+
+        <div>
+          <h3 className={cn("max-w-sm font-medium leading-[0.94] tracking-[-0.045em] [font-family:var(--font-echo-display)]", compact ? "text-[clamp(1.5rem,2.2vw,2.25rem)]" : "text-[clamp(2rem,3.2vw,3.5rem)]")}>
+            {backTitle}
+          </h3>
+          <p className={cn("max-w-sm font-medium text-white/75", compact ? "mt-2 text-xs leading-5" : "mt-4 text-sm leading-6")}>{backDescription}</p>
+          {href ? (
+            <span className={cn("inline-flex items-center gap-2 rounded-full bg-[var(--landing-inverse)] text-xs font-extrabold text-[var(--landing-primary)]", compact ? "mt-3 px-3 py-2" : "mt-6 px-4 py-2.5")}>
+              {actionLabel}
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
