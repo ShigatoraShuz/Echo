@@ -108,3 +108,18 @@ function FlipMediaCard({
   priority?: boolean;
   compact?: boolean;
   className?: string;
+}) {
+  const content = (
+    <div className="echo-flip-card__inner h-full w-full">
+      <div className="echo-flip-card__face relative h-full w-full overflow-hidden bg-[#d7dfd9]">
+        <Image src={image.src} alt={image.alt} fill priority={priority} className="object-cover" sizes={sizes} />
+        {frontContent}
+      </div>
+
+      <div
+        className={cn(
+          "echo-flip-card__face echo-flip-card__back absolute inset-0 flex h-full w-full flex-col justify-between overflow-hidden bg-[var(--landing-primary)] text-[var(--landing-inverse)]",
+          compact ? "p-5" : "p-6 sm:p-7",
+        )}
+      >
+        <div className="flex items-center justify-between gap-4">
