@@ -138,3 +138,13 @@ function FlipMediaCard({
             <span className={cn("inline-flex items-center gap-2 rounded-full bg-[var(--landing-inverse)] text-xs font-extrabold text-[var(--landing-primary)]", compact ? "mt-3 px-3 py-2" : "mt-6 px-4 py-2.5")}>
               {actionLabel}
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <Link
