@@ -48,3 +48,18 @@ const portraitImages = [
   {
     src: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=500&q=85",
     alt: "A person in a calm indoor setting.",
+  },
+];
+
+const portraitPositions = [
+  "left-[2%] top-[15%] h-40 w-28",
+  "left-[13%] top-[3%] h-44 w-32",
+  "left-[24%] top-[16%] h-36 w-28",
+  "left-[35%] top-[4%] h-40 w-28",
+  "right-[35%] top-[5%] h-40 w-28",
+  "right-[24%] top-[17%] h-36 w-28",
+  "right-[13%] top-[3%] h-44 w-32",
+  "right-[2%] top-[15%] h-40 w-28",
+];
+
+function revealDelay(index: number) {
