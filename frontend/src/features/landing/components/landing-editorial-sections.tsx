@@ -63,3 +63,18 @@ const portraitPositions = [
 ];
 
 function revealDelay(index: number) {
+  return Math.min(index * 60, 240);
+}
+
+function PillLink({ href, children, filled = false }: { href: string; children: React.ReactNode; filled?: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] ${
+        filled
+          ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
+          : "border border-[var(--landing-primary-25)] bg-[var(--landing-inverse-80)] text-[var(--landing-primary)] hover:bg-[var(--landing-inverse)]"
+      }`}
+    >
+      {children}
+      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
