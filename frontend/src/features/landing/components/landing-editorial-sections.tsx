@@ -93,3 +93,18 @@ function FlipMediaCard({
   href,
   actionLabel = "Explore",
   priority = false,
+  compact = false,
+  className,
+}: {
+  image: { src: string; alt: string };
+  sizes: string;
+  frontContent: React.ReactNode;
+  backLabel: string;
+  backTitle: string;
+  backDescription: string;
+  backIcon: React.ReactNode;
+  href?: string;
+  actionLabel?: string;
+  priority?: boolean;
+  compact?: boolean;
+  className?: string;
