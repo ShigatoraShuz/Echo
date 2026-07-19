@@ -156,3 +156,10 @@ function FlipMediaCard({
         )}
       >
         {content}
+      </Link>
+    );
+  }
+
+  return (
+    <article
+      tabIndex={0}
