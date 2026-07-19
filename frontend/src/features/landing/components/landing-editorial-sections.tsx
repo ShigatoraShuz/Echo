@@ -78,3 +78,18 @@ function PillLink({ href, children, filled = false }: { href: string; children: 
     >
       {children}
       <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+    </Link>
+  );
+}
+
+function FlipMediaCard({
+  image,
+  sizes,
+  frontContent,
+  backLabel,
+  backTitle,
+  backDescription,
+  backIcon,
+  href,
+  actionLabel = "Explore",
+  priority = false,
