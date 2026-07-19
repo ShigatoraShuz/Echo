@@ -170,3 +170,6 @@ function FlipMediaCard({
       )}
     >
       {content}
+    </article>
+  );
+}
