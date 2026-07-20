@@ -228,3 +228,23 @@ export function MindfulnessOfferingsSection() {
                 <span className="absolute right-5 top-5 rounded-full bg-[var(--landing-ink-80)] px-3 py-1.5 text-xs font-bold text-[var(--landing-inverse)] backdrop-blur-sm">Private by design</span>
 
                 <div className="absolute bottom-5 left-5 right-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="max-w-[290px] rounded-[var(--landing-panel-radius)] bg-[var(--landing-ink-80)] p-5 text-[var(--landing-inverse)] backdrop-blur-md">
+                    <p className="text-4xl font-medium tracking-[-0.05em]">6 moods</p>
+                    <p className="mt-1 text-sm text-white/85">for quick, personal check-ins</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">Paced breathing</span>
+                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">5-4-3-2-1</span>
+                  </div>
+                </div>
+              </>
+            )}
+          />
+        </EchoReveal>
+
+        <div className="grid gap-5 lg:col-span-3 lg:grid-rows-[auto_1fr]">
+          <EchoReveal variant="card" delay={120}>
+            <div className="rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Explore ECHO</p>
+              <h3 className="mt-3 text-[clamp(2.25rem,3vw,3rem)] font-medium leading-[0.98] tracking-[-0.045em]">Tools that stay close</h3>
+              <p className="mt-5 max-w-sm text-base leading-7 text-[var(--landing-muted)]">
