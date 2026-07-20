@@ -393,3 +393,11 @@ export function ReflectiveBuddySection() {
                 <div className="grid min-h-24 place-items-center rounded-[var(--landing-card-radius)] bg-[var(--landing-primary)] text-[var(--landing-inverse)]">
                   <HeartHandshake className="h-7 w-7" aria-hidden="true" />
                 </div>
+              </EchoReveal>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
