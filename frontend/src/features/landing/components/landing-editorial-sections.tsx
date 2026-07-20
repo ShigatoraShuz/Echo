@@ -458,3 +458,18 @@ export function CommunityStoriesSection() {
             <Image src={image.src} alt="" fill className="object-cover" sizes="128px" />
           </EchoReveal>
         ))}
+      </div>
+
+      <div className="mx-auto grid max-w-[1440px] grid-cols-4 gap-3 lg:hidden">
+        {portraitImages.slice(0, 4).map((image, index) => (
+          <EchoReveal key={image.src} variant="media" delay={revealDelay(index)} className="relative aspect-[0.78] overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)]">
+            <Image src={image.src} alt={image.alt} fill className="object-cover" sizes="25vw" />
+          </EchoReveal>
+        ))}
+      </div>
+
+      <EchoReveal variant="text" className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center lg:pt-[330px]">
+        <p className="mt-12 inline-flex rounded-full bg-[var(--landing-mist)] px-3 py-1.5 text-xs font-bold lg:mt-0">Private by design</p>
+        <h2 className="mt-5 text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
+          One space for
+          <span className="block text-[var(--landing-muted)]">everyday reflection</span>
