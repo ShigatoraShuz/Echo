@@ -281,3 +281,35 @@ export function MindfulnessOfferingsSection() {
     </section>
   );
 }
+
+export function ReflectiveBuddySection() {
+  const cards = [
+    {
+      image: echoImages.plantDeskWarmLight,
+      label: "Name what is present",
+      detail: "Start with a simple prompt that helps you put the moment into your own words.",
+      icon: MessageCircle,
+    },
+    {
+      image: echoImages.calmChairPlant,
+      label: "Reflect without judgment",
+      detail: "Explore a thought at your pace, with room for uncertainty and no pressure to solve it.",
+      icon: Brain,
+    },
+    {
+      image: echoImages.wellnessInteriorPlantsChair,
+      label: "Choose a next step",
+      detail: "Turn reflection into one small, realistic action you can carry into the rest of your day.",
+      icon: BookOpen,
+    },
+  ];
+
+  return (
+    <section id="buddy-experience" className="bg-[var(--landing-mist)] px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto grid min-h-[720px] max-w-[1440px] overflow-hidden rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] lg:grid-cols-[0.9fr_1.1fr]">
+        <EchoReveal variant="text" className="flex flex-col justify-center p-7 sm:p-12 lg:p-16 xl:p-20">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Reflective support</p>
+          <h2 className="mt-5 max-w-xl text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] text-[var(--landing-ink)] [text-wrap:balance]">
+            Build a clearer connection with yourself
+          </h2>
+          <p className="mt-7 max-w-lg text-base leading-7 text-[var(--landing-muted)]">
