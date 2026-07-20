@@ -313,3 +313,38 @@ export function ReflectiveBuddySection() {
             Build a clearer connection with yourself
           </h2>
           <p className="mt-7 max-w-lg text-base leading-7 text-[var(--landing-muted)]">
+            Reflective Buddy offers guided prompts that help you name what is present, explore a thought, and choose a gentle next step.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <PillLink href="/buddy" filled>Try Buddy</PillLink>
+            <PillLink href="/about">Learn more</PillLink>
+          </div>
+
+          <div className="mt-14 flex flex-wrap gap-2 text-xs font-semibold text-[var(--landing-muted)]">
+            {["Private", "At your pace", "Always optional"].map((item) => (
+              <span key={item} className="rounded-full border border-[var(--landing-primary-20)] px-3 py-1.5">{item}</span>
+            ))}
+          </div>
+        </EchoReveal>
+
+        <div className="relative min-h-[620px] overflow-hidden bg-[#e8eeeb] p-5 sm:p-8 lg:min-h-[720px]">
+          <div className="grid h-full grid-cols-2 gap-4 sm:gap-5">
+            <div className="flex flex-col justify-center gap-5 pt-14">
+              {cards.slice(0, 2).map(({ image, label, detail, icon: Icon }, index) => (
+                <EchoReveal
+                  key={label}
+                  variant="card"
+                  delay={revealDelay(index)}
+                  className={index === 0 ? "h-[250px]" : "h-[330px]"}
+                >
+                  <FlipMediaCard
+                    image={image}
+                    sizes="(min-width: 1024px) 28vw, 50vw"
+                    href="/buddy"
+                    backLabel="Reflective Buddy"
+                    backTitle={label}
+                    backDescription={detail}
+                    backIcon={<Icon aria-hidden="true" />}
+                    actionLabel="Open Buddy"
+                    compact
+                    className="h-full bg-[var(--landing-inverse)] shadow-[0_18px_55px_rgba(41,49,27,0.12)]"
