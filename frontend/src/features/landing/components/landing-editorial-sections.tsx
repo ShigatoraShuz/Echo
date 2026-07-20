@@ -438,3 +438,8 @@ export function GrowthInvitationSection() {
           >
             Begin a check-in
           </Link>
+        </EchoReveal>
+      </div>
+    </section>
+  );
+}
