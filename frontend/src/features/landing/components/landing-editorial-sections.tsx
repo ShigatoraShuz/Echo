@@ -193,3 +193,18 @@ export function MindfulnessOfferingsSection() {
 
             <div className="mt-12">
               <div className="flex gap-3">
+                {[Brain, Wind, Sparkles].map((Icon, index) => (
+                  <span key={index} className="grid h-12 w-12 place-items-center rounded-full bg-[var(--landing-inverse)] text-[var(--landing-primary)] shadow-sm">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                ))}
+              </div>
+              <p className="mt-7 max-w-sm border-t border-[var(--landing-primary-15)] pt-5 text-base leading-7 text-[var(--landing-muted)]">
+                Try paced breathing, a 5-4-3-2-1 grounding exercise, or one of six mood check-ins whenever you want a clearer next step.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <PillLink href="/signup" filled>Get started</PillLink>
+                <PillLink href="/tools/grounding">Explore</PillLink>
+              </div>
+            </div>
+          </div>
