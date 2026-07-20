@@ -208,3 +208,23 @@ export function MindfulnessOfferingsSection() {
               </div>
             </div>
           </div>
+        </EchoReveal>
+
+        <EchoReveal variant="media" delay={60} className="h-full lg:col-span-6">
+          <FlipMediaCard
+            image={echoImages.meditationRoomPlant}
+            sizes="(min-width: 1024px) 50vw, 100vw"
+            href="/tools/grounding"
+            priority
+            backLabel="Grounding practice"
+            backTitle="Reset in the moment"
+            backDescription="Choose paced breathing, a sensory reset, or a quick mood check-in whenever you need steadier ground."
+            backIcon={<Wind aria-hidden="true" />}
+            actionLabel="Explore grounding"
+            className="h-full min-h-[560px] bg-[#d6dfd8] lg:min-h-[690px]"
+            frontContent={(
+              <>
+                <span className="absolute left-5 top-5 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold backdrop-blur-sm">Grounding practice</span>
+                <span className="absolute right-5 top-5 rounded-full bg-[var(--landing-ink-80)] px-3 py-1.5 text-xs font-bold text-[var(--landing-inverse)] backdrop-blur-sm">Private by design</span>
+
+                <div className="absolute bottom-5 left-5 right-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
