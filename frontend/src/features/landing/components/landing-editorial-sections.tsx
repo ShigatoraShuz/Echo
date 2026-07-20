@@ -401,3 +401,20 @@ export function ReflectiveBuddySection() {
     </section>
   );
 }
+
+export function GrowthInvitationSection() {
+  return (
+    <section
+      id="growth"
+      data-testid="growth-section"
+      aria-labelledby="growth-heading"
+      className="relative isolate flex min-h-[680px] overflow-hidden bg-[#f8f7f3] text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:min-h-[720px] md:min-h-[620px] lg:min-h-[780px] xl:min-h-[820px]"
+    >
+      <div
+        data-testid="growth-background"
+        className="echo-growth-drift absolute inset-0 -z-10 bg-no-repeat [background-position:55%_bottom] [background-size:auto_70%] sm:[background-position:60%_bottom] sm:[background-size:auto_85%] md:[background-position:center_center] md:[background-size:cover]"
+        style={{ backgroundImage: `url(${growthBackground.src})` }}
+        aria-hidden="true"
+      />
+
+      <div className="mx-auto flex w-full max-w-[1440px] items-start px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:px-14 lg:py-24 xl:px-20">
