@@ -373,3 +373,23 @@ export function ReflectiveBuddySection() {
                     sizes="(min-width: 1024px) 28vw, 50vw"
                     href="/buddy"
                     priority
+                    backLabel="Reflective Buddy"
+                    backTitle={label}
+                    backDescription={detail}
+                    backIcon={<Icon aria-hidden="true" />}
+                    actionLabel="Open Buddy"
+                    compact
+                    className="h-full bg-[var(--landing-inverse)] shadow-[0_18px_55px_rgba(41,49,27,0.12)]"
+                    frontContent={(
+                      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-full bg-[var(--landing-inverse-90)] px-4 py-3 text-xs font-bold text-[var(--landing-ink)] backdrop-blur-md">
+                        {label}
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </div>
+                    )}
+                  />
+                </EchoReveal>
+              ))}
+              <EchoReveal variant="card" delay={240}>
+                <div className="grid min-h-24 place-items-center rounded-[var(--landing-card-radius)] bg-[var(--landing-primary)] text-[var(--landing-inverse)]">
+                  <HeartHandshake className="h-7 w-7" aria-hidden="true" />
+                </div>
