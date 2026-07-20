@@ -173,3 +173,23 @@ function FlipMediaCard({
     </article>
   );
 }
+
+export function MindfulnessOfferingsSection() {
+  return (
+    <section
+      id="features"
+      className="bg-[var(--landing-mist)] px-4 py-16 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:px-8"
+    >
+      <div className="mx-auto grid max-w-[1440px] gap-5 lg:grid-cols-12 lg:items-stretch">
+        <EchoReveal variant="card" className="h-full lg:col-span-3">
+          <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8 lg:min-h-[690px]">
+            <div>
+              <p className="inline-flex rounded-full bg-[var(--landing-inverse)] px-3 py-1.5 text-xs font-bold shadow-sm">Grounding tools</p>
+              <h2 className="mt-8 text-[clamp(2.75rem,3.8vw,4rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
+                A calmer way to
+                <span className="block text-[var(--landing-primary)]">pause and reset</span>
+              </h2>
+            </div>
+
+            <div className="mt-12">
+              <div className="flex gap-3">
