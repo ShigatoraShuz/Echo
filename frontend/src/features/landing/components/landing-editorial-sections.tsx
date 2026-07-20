@@ -448,3 +448,13 @@ export function CommunityStoriesSection() {
   return (
     <section className="relative overflow-hidden bg-[var(--landing-cream)] px-4 py-20 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:min-h-[780px] lg:px-8 lg:py-0">
       <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[390px] lg:block" aria-hidden="true">
+        {portraitImages.map((image, index) => (
+          <EchoReveal
+            key={image.src}
+            variant="media"
+            delay={revealDelay(index)}
+            className={`absolute overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)] shadow-[0_14px_35px_rgba(41,49,27,0.1)] ${portraitPositions[index]}`}
+          >
+            <Image src={image.src} alt="" fill className="object-cover" sizes="128px" />
+          </EchoReveal>
+        ))}
