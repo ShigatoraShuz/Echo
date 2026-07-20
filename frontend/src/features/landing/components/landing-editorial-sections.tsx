@@ -248,3 +248,36 @@ export function MindfulnessOfferingsSection() {
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Explore ECHO</p>
               <h3 className="mt-3 text-[clamp(2.25rem,3vw,3rem)] font-medium leading-[0.98] tracking-[-0.045em]">Tools that stay close</h3>
               <p className="mt-5 max-w-sm text-base leading-7 text-[var(--landing-muted)]">
+                Move naturally between writing, guided reflection, mood patterns, and grounding without losing your place.
+              </p>
+            </div>
+          </EchoReveal>
+
+          <EchoReveal variant="media" delay={180} className="h-full">
+            <FlipMediaCard
+              image={echoImages.cozyChairWindow}
+              sizes="(min-width: 1024px) 25vw, 100vw"
+              href="/buddy"
+              priority
+              backLabel="Reflective Buddy"
+              backTitle="Talk it through gently"
+              backDescription="Follow a calm prompt, explore what is present, and choose one next step without pressure or judgment."
+              backIcon={<MessageCircle aria-hidden="true" />}
+              actionLabel="Try Buddy"
+              className="h-full min-h-[360px] bg-[#d7dfd9]"
+              frontContent={(
+                <>
+                  <span className="absolute left-4 top-4 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold">Reflective Buddy</span>
+                  <div className="absolute inset-x-4 bottom-4 rounded-[var(--landing-panel-radius)] bg-[var(--landing-ink-82)] p-4 text-[var(--landing-inverse)] backdrop-blur-md">
+                    <p className="text-3xl font-medium tracking-[-0.04em]">One gentle step</p>
+                    <p className="mt-1 text-sm text-white/85">Guided prompts, at your pace.</p>
+                  </div>
+                </>
+              )}
+            />
+          </EchoReveal>
+        </div>
+      </div>
+    </section>
+  );
+}
