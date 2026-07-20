@@ -418,3 +418,23 @@ export function GrowthInvitationSection() {
       />
 
       <div className="mx-auto flex w-full max-w-[1440px] items-start px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:px-14 lg:py-24 xl:px-20">
+        <EchoReveal variant="text" direction="right" className="max-w-[35rem]">
+          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">
+            A gentle beginning
+          </p>
+          <h2
+            id="growth-heading"
+            className="mt-5 max-w-[20rem] text-[clamp(3.375rem,7vw,6.75rem)] font-medium leading-[0.84] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance] md:max-w-none"
+          >
+            Room to grow,
+            <span className="block">at your pace</span>
+          </h2>
+          <p className="mt-7 max-w-[20rem] text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:max-w-[27rem] sm:text-base sm:leading-7">
+            Notice what you feel, put it into words, and let ECHO help you find one gentle next step-privately, whenever you&apos;re ready.
+          </p>
+          <Link
+            href="/signup"
+            className="mt-7 inline-flex min-h-12 min-w-44 items-center justify-center rounded-full bg-[var(--landing-ink)] px-6 text-sm font-bold text-[var(--landing-inverse)] outline-none transition-[transform,background-color] duration-150 ease-out hover:bg-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97]"
+          >
+            Begin a check-in
+          </Link>
