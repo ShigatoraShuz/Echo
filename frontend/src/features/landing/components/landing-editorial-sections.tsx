@@ -443,3 +443,8 @@ export function GrowthInvitationSection() {
     </section>
   );
 }
+
+export function CommunityStoriesSection() {
+  return (
+    <section className="relative overflow-hidden bg-[var(--landing-cream)] px-4 py-20 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:min-h-[780px] lg:px-8 lg:py-0">
+      <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[390px] lg:block" aria-hidden="true">
