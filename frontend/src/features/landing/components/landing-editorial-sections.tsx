@@ -348,3 +348,28 @@ export function ReflectiveBuddySection() {
                     actionLabel="Open Buddy"
                     compact
                     className="h-full bg-[var(--landing-inverse)] shadow-[0_18px_55px_rgba(41,49,27,0.12)]"
+                    frontContent={(
+                      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-full bg-[var(--landing-inverse-90)] px-4 py-3 text-xs font-bold text-[var(--landing-ink)] backdrop-blur-md">
+                        {label}
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </div>
+                    )}
+                  />
+                </EchoReveal>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-5">
+              <EchoReveal variant="card" delay={120}>
+                <div className="rounded-[var(--landing-card-radius)] bg-[#dce9b7] p-5 text-[var(--landing-ink)]">
+                  <ShieldCheck className="h-6 w-6" aria-hidden="true" />
+                  <p className="mt-8 text-2xl font-medium leading-tight tracking-[-0.04em]">Your words stay yours.</p>
+                </div>
+              </EchoReveal>
+              {cards.slice(2).map(({ image, label, detail, icon: Icon }) => (
+                <EchoReveal key={label} variant="card" delay={180} className="h-[390px]">
+                  <FlipMediaCard
+                    image={image}
+                    sizes="(min-width: 1024px) 28vw, 50vw"
+                    href="/buddy"
+                    priority
