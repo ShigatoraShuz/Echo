@@ -430,7 +430,7 @@ export function GrowthInvitationSection() {
             <span className="block">at your pace</span>
           </h2>
           <p className="mt-7 max-w-[20rem] text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:max-w-[27rem] sm:text-base sm:leading-7">
-            Notice what you feel, put it into words, and let ECHO help you find one gentle next step-privately, whenever you&apos;re ready.
+            Notice what you feel, put it into words, and let ECHO help you find one gentle next step—privately, whenever you&apos;re ready.
           </p>
           <Link
             href="/signup"
@@ -473,3 +473,25 @@ export function CommunityStoriesSection() {
         <h2 className="mt-5 text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
           One space for
           <span className="block text-[var(--landing-muted)]">everyday reflection</span>
+        </h2>
+        <p className="mt-7 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
+          Write privately, check in with your mood, revisit emotional patterns, and reach for guided prompts or grounding tools whenever you choose.
+        </p>
+        <div className="mt-8">
+          <PillLink href="/signup" filled>Start privately</PillLink>
+        </div>
+      </EchoReveal>
+    </section>
+  );
+}
+
+export function LandingEditorialSections() {
+  return (
+    <>
+      <MindfulnessOfferingsSection />
+      <ReflectiveBuddySection />
+      <GrowthInvitationSection />
+      <CommunityStoriesSection />
+    </>
+  );
+}
