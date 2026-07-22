@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Camera, CheckCircle2, Smartphone } from "lucide-react";
-import { EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/components/echo/shared";
+import { EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
 
 export default function SetupOnboardingPage() {
   return (

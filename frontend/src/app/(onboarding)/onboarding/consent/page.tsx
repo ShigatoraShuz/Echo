@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { ConsentCard, EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/components/echo/shared";
+import { ConsentCard, EchoCard, EchoImage, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
 
 export default function ConsentOnboardingPage() {
   return (

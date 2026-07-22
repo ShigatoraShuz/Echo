@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Bell, UserRound } from "lucide-react";
-import { EchoCard, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { MoodSelector } from "@/components/echo/mood-selector";
+import { EchoCard, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
+import { MoodSelector } from "@/features/onboarding";
 
 export default function ProfileOnboardingPage() {
   return (
