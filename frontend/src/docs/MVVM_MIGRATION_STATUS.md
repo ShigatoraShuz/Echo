@@ -5,6 +5,21 @@
 
 ---
 
+## Landing
+
+| Layer | Path | Status | Notes |
+|-------|------|--------|-------|
+| Model | `src/features/landing/model/landing.model.ts` | ✅ COMPLETE | Typed metadata, hero actions, and proof points; no JSX |
+| View | `src/features/landing/view/landing-view.tsx` | ✅ COMPLETE | Composes the hero and editorial sections |
+| Components | `src/features/landing/components/` | ✅ COMPLETE | Landing-owned hero and editorial sections |
+| ViewModel / Service | — | NOT REQUIRED | Static marketing content has no data workflow |
+| Route integration | `src/app/(public)/page.tsx` | ✅ COMPLETE | Thin route importing `LandingView` |
+| Tests | `src/features/landing/model/landing.model.test.ts` | ✅ COMPLETE | Content-contract coverage |
+
+**Migration status: MVVM-ALIGNED STATIC FEATURE**
+
+---
+
 ## Journal
 
 | Layer | Path | Status | Notes |
@@ -171,12 +186,13 @@
 |-----------|--------|
 | MVVM documentation | ✅ COMPLETE |
 | Shared foundation | ✅ COMPLETE |
+| Landing MVVM-aligned | ✅ COMPLETE |
 | Journal fully migrated | ✅ COMPLETE |
 | Auth fully migrated | ✅ COMPLETE |
 | Dashboard fully migrated | ✅ COMPLETE |
 | All other features | ❌ LEGACY |
 | Strangler Fig pattern used | ✅ Migrations preserve legacy shared.tsx via re-exports |
 | Legacy cleanup verified | ✅ Dashboard page no longer imports mock-data |
-| Tests exist | ❌ NONE for Dashboard (127 tests total) |
+| Tests exist | ✅ 17 test files across shared and migrated features |
 
-**Overall: 3 of 18 features migrated (Journal + Auth + Dashboard). 15 features remain in legacy state.**
+**Overall: 4 of 19 features are MVVM-aligned (Landing + Journal + Auth + Dashboard). 15 features remain in legacy state.**
