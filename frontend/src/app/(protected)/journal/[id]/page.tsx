@@ -1,5 +1,5 @@
 import { JournalDetailView } from "@/features/journal/view/journal-detail-view";
-import { AppShell } from "@/components/echo/shells";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 
 export function generateStaticParams() {
   return [{ id: "morning-static" }, { id: "meeting-aftercare" }, { id: "evening-window" }];

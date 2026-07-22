@@ -1,5 +1,5 @@
 import { JournalListView } from "@/features/journal/view/journal-list-view";
-import { AppShell } from "@/components/echo/shells";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 
 export default function JournalPage() {
   return (
