@@ -8,7 +8,7 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
-import { ThemeControls } from "@/components/echo/theme-controls";
+import { ThemeControls } from "@/shared/theme";
 import {
   echoChartTokens,
   moodNames,
