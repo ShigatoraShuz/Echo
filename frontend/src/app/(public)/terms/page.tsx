@@ -1,4 +1,4 @@
-import { PolicyBlock, PublicTextPage } from "@/components/echo/public-pages";
+import { PolicyBlock, PublicTextPage } from "@/features/public-content";
 
 export default function TermsPage() {
   return (
