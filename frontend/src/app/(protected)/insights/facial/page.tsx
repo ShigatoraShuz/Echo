@@ -1,6 +1,6 @@
 import { Camera, EyeOff, Shield } from "lucide-react";
-import { DataChartCard, EchoCard, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { DataChartCard, EchoCard, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { facialTrend } from "@/lib/mock-data";
 
 const aggregates = [

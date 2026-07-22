@@ -1,6 +1,6 @@
 import { AlertTriangle, ListChecks, ShieldCheck } from "lucide-react";
-import { DataChartCard, EchoCard, PageHeader, RiskBadge, RiskScoreRing } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { DataChartCard, EchoCard, PageHeader, RiskBadge, RiskScoreRing } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { riskTrend } from "@/lib/mock-data";
 
 const signals = [

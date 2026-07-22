@@ -1,6 +1,6 @@
 import { Scale } from "lucide-react";
-import { DataChartCard, EchoCard, MoodBadge, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { DataChartCard, EchoCard, MoodBadge, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { emotionWheel, moodTrend } from "@/lib/mock-data";
 import { moodDotStyles } from "@/lib/theme";
 
