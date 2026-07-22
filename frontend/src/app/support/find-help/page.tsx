@@ -1,6 +1,6 @@
 import { Filter, Search } from "lucide-react";
-import { EchoCard, PageHeader, ProviderCard, PrivacyNotice } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { EchoCard, PageHeader, ProviderCard, PrivacyNotice } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { clinics, hotlines, providers } from "@/lib/mock-data";
 
 export default function FindHelpPage() {

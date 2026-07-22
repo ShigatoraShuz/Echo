@@ -1,6 +1,6 @@
 import { PhoneCall, MessageSquareText, ShieldAlert } from "lucide-react";
-import { CrisisHelpCard, EchoCard, EchoImage, FeatureCard } from "@/components/echo/shared";
-import { PublicShell } from "@/components/echo/shells";
+import { CrisisHelpCard, EchoCard, EchoImage, FeatureCard } from "@/shared/components/legacy";
+import { PublicShell } from "@/shared/components/layout/echo-shells";
 import { hotlines } from "@/lib/mock-data";
 
 export default function CrisisHelpPage() {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Clock, Flame, HandHeart, Leaf, ShieldAlert, Wind } from "lucide-react";
-import { BreathingCircle, CrisisHelpCard, EchoCard, FeatureCard, PageHeader } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { BreathingCircle, CrisisHelpCard, EchoCard, FeatureCard, PageHeader } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { userProfile } from "@/lib/mock-data";
 
 const groundingCards = [
