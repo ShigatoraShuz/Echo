@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { History, Send, ShieldAlert, Wind } from "lucide-react";
-import { ChatBubble, CrisisHelpCard, EchoCard, MoodBadge, PageHeader, PrivacyNotice } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { ChatBubble, CrisisHelpCard, EchoCard, MoodBadge, PageHeader, PrivacyNotice } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { buddyMessages, promptChips } from "@/lib/mock-data";
 
 export default function BuddyPage() {

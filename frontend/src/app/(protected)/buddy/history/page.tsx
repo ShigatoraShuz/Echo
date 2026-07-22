@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bot, Search } from "lucide-react";
-import { ChatBubble, EchoCard, PageHeader } from "@/components/echo/shared";
-import { AppShell } from "@/components/echo/shells";
+import { ChatBubble, EchoCard, PageHeader } from "@/shared/components/legacy";
+import { AppShell } from "@/shared/components/layout/echo-shells";
 import { buddyMessages } from "@/lib/mock-data";
 
 const sessions = [
