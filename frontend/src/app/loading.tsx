@@ -1,4 +1,4 @@
-import { LoadingState } from "@/components/echo/shared";
+import { LoadingState } from "@/shared/components/legacy";
 
 export default function Loading() {
   return (

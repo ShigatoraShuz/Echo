@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/echo/shared";
+import { EmptyState } from "@/shared/components/legacy";
 
 export default function NotFound() {
   return (
