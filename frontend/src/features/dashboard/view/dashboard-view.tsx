@@ -14,7 +14,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
-import { ErrorState, LoadingState } from "@/components/echo/shared";
+import { ErrorState, LoadingState } from "@/shared/components/legacy";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 
