@@ -1,4 +1,4 @@
-import { SettingsHeader, SettingsRow, SettingsSection, SettingsShell } from "@/components/echo/settings-shell";
+import { SettingsHeader, SettingsRow, SettingsSection, SettingsShell } from "@/features/settings";
 
 export default function ExportSettingsPage() {
   return (
