@@ -1,0 +1,1 @@
+export { useBuddyViewModel } from "./use-buddy-view-model";
