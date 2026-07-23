@@ -12,5 +12,5 @@ export { BuddyErrorState } from "./components/buddy-error-state";
 export { BuddyGroundingCard } from "./components/buddy-grounding-card";
 export { BuddyCrisisCard } from "./components/buddy-crisis-card";
 export { BuddyErrorBadge } from "./components/buddy-error-badge";
-export { BuddyCopyButton } from "./components/buddy-copy-button";
+export { BuddyCopyButton, useCopyToClipboard } from "./components/buddy-copy-button";
 export { BuddyFeedbackButtons } from "./components/buddy-feedback-buttons";
