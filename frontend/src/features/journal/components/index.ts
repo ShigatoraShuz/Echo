@@ -1,7 +1,12 @@
-export { JournalCard } from "./journal-card";
-export { JournalFilters } from "./journal-filters";
-export { JournalEmptyState } from "./journal-empty-state";
+export { JournalSearch } from "./journal-search";
+export { JournalMoodFilter } from "./journal-mood-filter";
+export { JournalDateRange } from "./journal-date-range";
+export { JournalSortSelect } from "./journal-sort-select";
+export { JournalPaginationControls, JournalLoadMore } from "./journal-pagination";
+export { JournalDraftManager } from "./journal-draft-manager";
+export { JournalEditForm } from "./journal-edit-form";
 export { JournalDeleteDialog } from "./journal-delete-dialog";
-export { JournalAutosaveStatus } from "./journal-autosave-status";
-export { JournalMoodSelector } from "./journal-mood-selector";
-export { JournalAnalysisPanel } from "./journal-analysis-panel";
+export { JournalAutosaveIndicator, useAutosave } from "./journal-autosave";
+export { JournalWordCount } from "./journal-word-count";
+export { JournalEmotionTags } from "./journal-emotion-tags";
+export { JournalPrivacyBadge } from "./journal-privacy-badge";
