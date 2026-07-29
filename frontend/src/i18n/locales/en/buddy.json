@@ -1,0 +1,15 @@
+{
+  "conversation": {
+    "title": "Buddy Chat",
+    "newConversation": "New Conversation",
+    "sendMessage": "Send message",
+    "inputPlaceholder": "Type your message...",
+    "emptyState": "Start a conversation with your Echo Buddy",
+    "deleteConfirm": "Are you sure you want to delete this conversation?"
+  },
+  "status": {
+    "typing": "Buddy is typing...",
+    "online": "Online",
+    "offline": "Offline"
+  }
+}

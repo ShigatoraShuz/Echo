@@ -1,0 +1,33 @@
+{
+  "profile": {
+    "title": "Profile Settings",
+    "displayName": "Display Name",
+    "timezone": "Timezone",
+    "saveSuccess": "Profile updated successfully"
+  },
+  "notifications": {
+    "title": "Notification Preferences",
+    "dailyReminder": "Daily check-in reminder",
+    "weeklyReport": "Weekly emotion report",
+    "buddyMessages": "Buddy message alerts",
+    "crisisAlert": "Crisis support alerts",
+    "quietHours": "Quiet hours"
+  },
+  "privacy": {
+    "title": "Privacy Controls",
+    "facialAnalysis": "Facial analysis consent",
+    "dataProcessing": "Data processing consent",
+    "crisisSupportVisibility": "Show crisis support resources"
+  },
+  "contacts": {
+    "title": "Trusted Contacts",
+    "addContact": "Add Contact",
+    "noContacts": "No trusted contacts yet"
+  },
+  "data": {
+    "exportTitle": "Export Your Data",
+    "exportButton": "Request Export",
+    "deletionTitle": "Delete Account",
+    "deletionWarning": "This action cannot be undone. Your data will be permanently deleted after 30 days."
+  }
+}
