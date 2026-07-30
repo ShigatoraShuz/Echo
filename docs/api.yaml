@@ -1,0 +1,95 @@
+openapi: "3.0.3"
+info:
+  title: Echo API
+  description: Backend API for the Echo mental wellness platform
+  version: 1.0.0
+  contact:
+    name: Echo Team
+servers:
+  - url: https://api.echo-app.dev/api/v1
+    description: Production server
+  - url: http://localhost:4000/api/v1
+    description: Development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+paths:
+  /buddy/conversations:
+    get:
+      summary: List all conversations for the authenticated user
+      responses:
+        '200':
+          description: List of conversations
+    post:
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                mood:
+                  type: string
+      responses:
+        '201':
+          description: Created conversation
+
+  /journal:
+    get:
+      summary: List journal entries with search and filters
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: mood
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        '200':
+          description: Paginated journal entries
+    post:
+      summary: Create a journal entry
+      responses:
+        '201':
+          description: Created journal entry
+
+  /grounding/sessions:
+    post:
+      summary: Record a grounding session
+      responses:
+        '201':
+          description: Session recorded
+
+  /settings/profile:
+    get:
+      summary: Get user profile
+      responses:
+        '200':
+          description: User profile
+    patch:
+      summary: Update user profile
+      responses:
+        '200':
+          description: Updated profile
+
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
