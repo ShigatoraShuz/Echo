@@ -29,3 +29,40 @@ frontend/work/*
 !frontend/work/.gitkeep
 frontend/outputs/*
 !frontend/outputs/.gitkeep
+
+# Workspace service artefacts and local credentials
+!.env.example
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+logs/
+tmp/
+
+# Protected ML data and model artefacts
+ml/datasets/raw/*
+!ml/datasets/raw/.gitkeep
+ml/datasets/processed/*
+!ml/datasets/processed/.gitkeep
+ml/outputs/*
+!ml/outputs/.gitkeep
+ai-service/model-artifacts/*
+!ai-service/model-artifacts/.gitkeep
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Local tooling and QA artefacts
+.playwright-mcp/
+.understand-anything/
+settings-audit/
+design-qa-assets/
+design-qa.md
+echo-landing-seamless-sections.png
+*.egg-info/
+frontend/assets/auth-celestial-background.png
+frontend/assets/auth-grid-background.png
+frontend/assets/e2d821df-*.png

@@ -13,6 +13,10 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\"",
     "release": "bash scripts/release.sh"
   },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "prettier": "^3.3.0",
