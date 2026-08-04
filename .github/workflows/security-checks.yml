@@ -1,0 +1,25 @@
+name: Security checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Write production dependency audit
+        run: npm audit --omit=dev --json > npm-audit.json || true
+      - name: Fail on critical production vulnerabilities
+        run: node -e "const a=require('./npm-audit.json'); if ((a.metadata?.vulnerabilities?.critical ?? 0) > 0) process.exit(1)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit
+          path: npm-audit.json
