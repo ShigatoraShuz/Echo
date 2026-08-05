@@ -373,14 +373,14 @@ List endpoints accept optional query parameters for filtering:
 
 # Application
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 
-# Mock adapter toggle
-NEXT_PUBLIC_USE_MOCK=true
+# Data adapter (mock | http); drives auth selection too
+NEXT_PUBLIC_DATA_ADAPTER=mock
 
-# Supabase (browser-safe anon key only)
+# Supabase (browser-safe publishable key only)
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 
 # Feature flags
 NEXT_PUBLIC_ENABLE_BUDDY=true
@@ -414,8 +414,8 @@ NEXT_PUBLIC_EMERGENCY_NUMBER=911
 
 ### Phase 4 — Live backend
 - Backend deployed
-- `NEXT_PUBLIC_USE_MOCK=false`
-- HTTP adapters connect to real FastAPI
+- `NEXT_PUBLIC_DATA_ADAPTER=http`
+- HTTP adapters connect to the real backend
 - Mock adapters retained for development and testing
 
 ---

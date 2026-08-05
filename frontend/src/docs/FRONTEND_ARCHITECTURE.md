@@ -313,16 +313,14 @@ View renders error state with retry option
 
 ```typescript
 // config/environment.ts
-export const USE_MOCK_ADAPTER = process.env.NEXT_PUBLIC_USE_MOCK === "true";
+export const dataAdapter = process.env.NEXT_PUBLIC_DATA_ADAPTER === "http" ? "http" : "mock";
 
-// features/journal/services/journal.service.ts
-import { USE_MOCK_ADAPTER } from "@/config/environment";
-import { journalMockAdapter } from "./journal.mock-adapter";
-import { journalHttpAdapter } from "./journal.http-adapter";
-
-export const journalService: JournalService = USE_MOCK_ADAPTER
-  ? journalMockAdapter
-  : journalHttpAdapter;
+// features/journal/services/journal-service.factory.ts
+export function createJournalService(): JournalService {
+  return env.dataAdapter === "http"
+    ? createJournalHttpAdapter()
+    : createJournalMockAdapter();
+}
 ```
 
 ---
