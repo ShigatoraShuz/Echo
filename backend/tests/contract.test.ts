@@ -1,0 +1,137 @@
+import request from "supertest";
+import { describe, expect, it, vi } from "vitest";
+import { createApp } from "../src/app.js";
+import type { ExperienceService } from "../src/features/experience/experience.service.js";
+import type { VerificationService } from "../src/features/verification/verification.service.js";
+
+function createHarness() {
+  const service = {
+    dashboard: vi.fn().mockResolvedValue({ journalEntries: [], moodToday: null }),
+    buddySession: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
+    sendBuddyMessage: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
+    buddyHistory: vi.fn().mockResolvedValue([]),
+    emotionInsights: vi.fn().mockResolvedValue({ emotionWheel: [], moodTrend: [], summary: "No entries." }),
+    completeGrounding: vi.fn().mockResolvedValue({
+      id: "session-1",
+      completedAt: "2026-07-25T00:00:00.000Z",
+      completedSessions: 1,
+    }),
+    supportResources: vi.fn().mockResolvedValue([{ id: "resource-1", name: "Verified support" }]),
+  };
+  const verifier = {
+    getUser: vi.fn(async (token: string) =>
+      token === "valid-token" ? { id: "user-1", email: "user@example.com" } : null,
+    ),
+  };
+  const app = createApp({
+    v1: {
+      experience: {
+        service: service as unknown as ExperienceService,
+        verifier,
+        verificationService: {
+          assertAiAccess: vi.fn().mockResolvedValue(undefined),
+        } as unknown as VerificationService,
+      },
+    },
+  });
+  return { app };
+}
+
+describe("API envelope contract (ECHO-009)", () => {
+  it("returns a success envelope with data and meta.requestId on 200", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app)
+      .get("/api/v1/dashboard")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      data: { journalEntries: [], moodToday: null },
+      meta: { requestId: expect.any(String) },
+    });
+    expect(response.headers["content-type"]).toMatch(/application\/json/);
+  });
+
+  it("returns an error envelope with code, message, and meta.requestId on 401", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app).get("/api/v1/dashboard");
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: "AUTHENTICATION_REQUIRED",
+        message: "Authentication is required.",
+      },
+      meta: { requestId: expect.any(String) },
+    });
+  });
+
+  it("returns a validation envelope with code VALIDATION_ERROR on 400", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app)
+      .post("/api/v1/buddy/messages")
+      .set("Authorization", "Bearer valid-token")
+      .send({ content: "   " });
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(response.body.error.message).toBe("The request is invalid.");
+    expect(typeof response.body.meta.requestId).toBe("string");
+  });
+
+  it("uses a distinct requestId per request", async () => {
+    const { app } = createHarness();
+
+    const first = await request(app).get("/api/v1/dashboard").set("Authorization", "Bearer valid-token");
+    const second = await request(app).get("/api/v1/dashboard").set("Authorization", "Bearer valid-token");
+
+    expect(first.body.meta.requestId).not.toBe(second.body.meta.requestId);
+  });
+
+  it("never leaks internal error details or stack traces", async () => {
+    const { app } = createHarness();
+
+    const boom = { ...app, _router: app._router };
+    void boom;
+
+    const response = await request(app)
+      .get("/api/v1/support-resources?q=crisis&type=all")
+      .expect(200);
+
+    const raw = JSON.stringify(response.body);
+    expect(raw).not.toContain("Error:");
+    expect(raw).not.toContain("at ");
+    expect(raw).not.toContain("stack");
+  });
+
+  it("includes only known error fields (no detail key when absent)", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app).get("/api/v1/dashboard");
+
+    expect(Object.keys(response.body.error).sort()).toEqual(["code", "message"]);
+    expect(response.body.error.detail).toBeUndefined();
+  });
+
+  it("rejects unknown routes with the envelope format", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app).get("/api/v1/does-not-exist");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        code: "NOT_FOUND",
+        message: "No route matches GET /api/v1/does-not-exist.",
+      },
+      meta: { requestId: expect.any(String) },
+    });
+  });
+});

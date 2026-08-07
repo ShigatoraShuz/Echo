@@ -13,7 +13,7 @@ router.get("/", async (req, res) => {
     .from("journals")
     .select("*", { count: "exact" })
     .eq("user_id", userId);
-  if (search) query = query.ilike("content", %%);
+  if (search) query = query.ilike("content", `%${search}%`);
   if (mood) query = query.eq("mood", mood);
   if (startDate) query = query.gte("created_at", startDate);
   if (endDate) query = query.lte("created_at", endDate);

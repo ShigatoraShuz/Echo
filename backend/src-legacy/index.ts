@@ -33,7 +33,7 @@ app.get("/health", (_req, res) => {
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(Echo API server running on port );
+  console.log(`Echo API server running on port ${PORT}`);
 });
 
 export default app;
