@@ -43,8 +43,11 @@ describe("AuthMockAdapter", () => {
         email: "mira@example.com",
         password: "StrongP@ss1",
         confirmPassword: "StrongP@ss1",
-        termsAccepted: true,
-        privacyAcknowledged: true,
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
       });
       expect(result.success).toBe(true);
       if (result.success) {
@@ -59,8 +62,11 @@ describe("AuthMockAdapter", () => {
         email: "bad",
         password: "short",
         confirmPassword: "mismatch",
-        termsAccepted: false,
-        privacyAcknowledged: false,
+      termsAccepted: false,
+      privacyAcknowledged: false,
+      dataProcessingAcknowledged: false,
+      aiFeatureAcknowledged: false,
+      journalAnalysisConsent: false,
       });
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -97,7 +103,6 @@ describe("AuthMockAdapter", () => {
   describe("resetPassword", () => {
     it("returns session for valid input", async () => {
       const result = await adapter.resetPassword({
-        token: "valid-token",
         password: "NewStr0ng!",
         confirmPassword: "NewStr0ng!",
       });
@@ -109,7 +114,6 @@ describe("AuthMockAdapter", () => {
 
     it("returns WEAK_PASSWORD for short password", async () => {
       const result = await adapter.resetPassword({
-        token: "token",
         password: "short",
         confirmPassword: "short",
       });
@@ -121,7 +125,6 @@ describe("AuthMockAdapter", () => {
 
     it("returns VALIDATION for mismatched passwords", async () => {
       const result = await adapter.resetPassword({
-        token: "token",
         password: "NewStr0ng!",
         confirmPassword: "Different!",
       });

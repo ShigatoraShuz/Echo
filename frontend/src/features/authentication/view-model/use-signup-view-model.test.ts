@@ -36,6 +36,9 @@ describe("useSignupViewModel", () => {
     expect(result.current.confirmPassword).toBe("");
     expect(result.current.termsAccepted).toBe(false);
     expect(result.current.privacyAcknowledged).toBe(false);
+    expect(result.current.dataProcessingAcknowledged).toBe(false);
+    expect(result.current.aiFeatureAcknowledged).toBe(false);
+    expect(result.current.journalAnalysisConsent).toBe(false);
     expect(result.current.showPassword).toBe(false);
     expect(result.current.status).toBe("idle");
     expect(result.current.error).toBeNull();
@@ -54,6 +57,9 @@ describe("useSignupViewModel", () => {
     act(() => result.current.setConfirmPassword("StrongP@ss1"));
     act(() => result.current.setTermsAccepted(true));
     act(() => result.current.setPrivacyAcknowledged(true));
+    act(() => result.current.setDataProcessingAcknowledged(true));
+    act(() => result.current.setAiFeatureAcknowledged(true));
+    act(() => result.current.setJournalAnalysisConsent(true));
 
     expect(result.current.name).toBe("Mira");
     expect(result.current.email).toBe("mira@test.com");
@@ -61,6 +67,9 @@ describe("useSignupViewModel", () => {
     expect(result.current.confirmPassword).toBe("StrongP@ss1");
     expect(result.current.termsAccepted).toBe(true);
     expect(result.current.privacyAcknowledged).toBe(true);
+    expect(result.current.dataProcessingAcknowledged).toBe(true);
+    expect(result.current.aiFeatureAcknowledged).toBe(true);
+    expect(result.current.journalAnalysisConsent).toBe(true);
   });
 
   it("computes password strength", () => {
@@ -110,6 +119,8 @@ describe("useSignupViewModel", () => {
     act(() => result.current.setConfirmPassword("StrongP@ss1"));
     act(() => result.current.setTermsAccepted(true));
     act(() => result.current.setPrivacyAcknowledged(true));
+    act(() => result.current.setDataProcessingAcknowledged(true));
+    act(() => result.current.setAiFeatureAcknowledged(true));
 
     let returned: unknown;
     await act(async () => {
@@ -135,6 +146,8 @@ describe("useSignupViewModel", () => {
     act(() => result.current.setConfirmPassword("StrongP@ss1"));
     act(() => result.current.setTermsAccepted(true));
     act(() => result.current.setPrivacyAcknowledged(true));
+    act(() => result.current.setDataProcessingAcknowledged(true));
+    act(() => result.current.setAiFeatureAcknowledged(true));
 
     await act(async () => {
       await result.current.submit();

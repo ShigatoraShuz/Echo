@@ -26,8 +26,8 @@ export function AuthFormField({
   const errorId = error ? `${label.toLowerCase().replace(/\s+/g, "-")}-error` : undefined;
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-sm font-medium text-foreground">
+    <div className="space-y-1.5">
+      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-medium text-foreground">
         {label}
         {required && <span className="text-danger ml-0.5">*</span>}
       </label>
@@ -47,7 +47,7 @@ export function AuthFormField({
           required={required}
           aria-invalid={!!error}
           aria-describedby={errorId}
-          className={`h-11 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background pl-${leadingIcon ? "10" : "4"} pr-4 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          className={`h-10 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background ${leadingIcon ? "pl-10" : "pl-4"} pr-4 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
         />
       </div>
       {error ? (

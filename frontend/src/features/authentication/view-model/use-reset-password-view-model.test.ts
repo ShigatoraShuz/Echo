@@ -30,7 +30,6 @@ describe("useResetPasswordViewModel", () => {
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    expect(result.current.token).toBe("");
     expect(result.current.password).toBe("");
     expect(result.current.confirmPassword).toBe("");
     expect(result.current.showPassword).toBe(false);
@@ -45,11 +44,9 @@ describe("useResetPasswordViewModel", () => {
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    act(() => result.current.setToken("test-token-123"));
     act(() => result.current.setPassword("NewStr0ng!"));
     act(() => result.current.setConfirmPassword("NewStr0ng!"));
 
-    expect(result.current.token).toBe("test-token-123");
     expect(result.current.password).toBe("NewStr0ng!");
     expect(result.current.confirmPassword).toBe("NewStr0ng!");
   });
@@ -77,20 +74,20 @@ describe("useResetPasswordViewModel", () => {
     expect(result.current.passwordStrength.label).toBe("Moderate");
   });
 
-  it("sets field errors on invalid submission (no token)", async () => {
+  it("sets field errors on invalid submission", async () => {
     const mockService = createMockService();
     vi.mocked(getAuthService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    act(() => result.current.setPassword("NewStr0ng!"));
-    act(() => result.current.setConfirmPassword("NewStr0ng!"));
+    act(() => result.current.setPassword("short"));
+    act(() => result.current.setConfirmPassword("short"));
 
     await act(async () => {
       await result.current.submit();
     });
 
-    expect(result.current.fieldErrors.token).toBeDefined();
+    expect(result.current.fieldErrors.password).toBeDefined();
     expect(mockService.resetPassword).not.toHaveBeenCalled();
   });
 
@@ -102,7 +99,6 @@ describe("useResetPasswordViewModel", () => {
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    act(() => result.current.setToken("valid-token"));
     act(() => result.current.setPassword("NewStr0ng!"));
     act(() => result.current.setConfirmPassword("NewStr0ng!"));
 
@@ -124,7 +120,6 @@ describe("useResetPasswordViewModel", () => {
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    act(() => result.current.setToken("valid-token"));
     act(() => result.current.setPassword("NewStr0ng!"));
     act(() => result.current.setConfirmPassword("NewStr0ng!"));
 
@@ -142,11 +137,9 @@ describe("useResetPasswordViewModel", () => {
 
     const { result } = renderHook(() => useResetPasswordViewModel());
 
-    act(() => result.current.setToken("valid-token"));
     act(() => result.current.setPassword("NewStr0ng!"));
     act(() => result.current.reset());
 
-    expect(result.current.token).toBe("");
     expect(result.current.password).toBe("");
     expect(result.current.confirmPassword).toBe("");
     expect(result.current.status).toBe("idle");

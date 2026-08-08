@@ -46,6 +46,9 @@ describe("validateSignupInput", () => {
       confirmPassword: "StrongP@ss1",
       termsAccepted: true,
       privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(true);
   });
@@ -58,6 +61,9 @@ describe("validateSignupInput", () => {
       confirmPassword: "StrongP@ss1",
       termsAccepted: true,
       privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.name).toBeDefined();
@@ -71,6 +77,9 @@ describe("validateSignupInput", () => {
       confirmPassword: "Short1",
       termsAccepted: true,
       privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.password).toBeDefined();
@@ -84,6 +93,9 @@ describe("validateSignupInput", () => {
       confirmPassword: "DifferentP@ss1",
       termsAccepted: true,
       privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.confirmPassword).toBeDefined();
@@ -97,6 +109,9 @@ describe("validateSignupInput", () => {
       confirmPassword: "StrongP@ss1",
       termsAccepted: false,
       privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.termsAccepted).toBeDefined();
@@ -110,9 +125,29 @@ describe("validateSignupInput", () => {
       confirmPassword: "StrongP@ss1",
       termsAccepted: true,
       privacyAcknowledged: false,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
     });
     expect(result.valid).toBe(false);
     expect(result.errors.privacyAcknowledged).toBeDefined();
+  });
+
+  it("requires the data and AI feature disclosures but keeps journal analysis optional", () => {
+    const result = validateSignupInput({
+      name: "Mira",
+      email: "mira@example.com",
+      password: "StrongP@ss1",
+      confirmPassword: "StrongP@ss1",
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: false,
+      aiFeatureAcknowledged: false,
+      journalAnalysisConsent: false,
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.dataProcessingAcknowledged).toBeDefined();
+    expect(result.errors.aiFeatureAcknowledged).toBeDefined();
   });
 });
 
@@ -138,26 +173,14 @@ describe("validateForgotPasswordInput", () => {
 describe("validateResetPasswordInput", () => {
   it("accepts valid input", () => {
     const result = validateResetPasswordInput({
-      token: "reset-token-123",
       password: "NewStr0ng!",
       confirmPassword: "NewStr0ng!",
     });
     expect(result.valid).toBe(true);
   });
 
-  it("rejects empty token", () => {
-    const result = validateResetPasswordInput({
-      token: "",
-      password: "NewStr0ng!",
-      confirmPassword: "NewStr0ng!",
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.token).toBeDefined();
-  });
-
   it("rejects short password", () => {
     const result = validateResetPasswordInput({
-      token: "token-123",
       password: "Short1",
       confirmPassword: "Short1",
     });
@@ -167,7 +190,6 @@ describe("validateResetPasswordInput", () => {
 
   it("rejects mismatched passwords", () => {
     const result = validateResetPasswordInput({
-      token: "token-123",
       password: "NewStr0ng!",
       confirmPassword: "Different!",
     });

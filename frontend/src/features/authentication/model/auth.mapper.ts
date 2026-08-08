@@ -28,7 +28,6 @@ export function mapForgotPasswordInputToDTO(input: ForgotPasswordInput): ForgotP
 
 export function mapResetPasswordInputToDTO(input: ResetPasswordInput): ResetPasswordRequestDTO {
   return {
-    token: input.token,
     password: input.password,
     confirm_password: input.confirmPassword,
   };

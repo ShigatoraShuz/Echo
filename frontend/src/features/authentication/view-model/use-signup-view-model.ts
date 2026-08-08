@@ -14,6 +14,9 @@ interface SignupState {
   confirmPassword: string;
   termsAccepted: boolean;
   privacyAcknowledged: boolean;
+  dataProcessingAcknowledged: boolean;
+  aiFeatureAcknowledged: boolean;
+  journalAnalysisConsent: boolean;
   showPassword: boolean;
   status: FormStatus;
   error: AuthServiceError | null;
@@ -27,6 +30,9 @@ type SignupAction =
   | { type: "SET_CONFIRM_PASSWORD"; confirmPassword: string }
   | { type: "SET_TERMS_ACCEPTED"; termsAccepted: boolean }
   | { type: "SET_PRIVACY_ACKNOWLEDGED"; privacyAcknowledged: boolean }
+  | { type: "SET_DATA_PROCESSING_ACKNOWLEDGED"; dataProcessingAcknowledged: boolean }
+  | { type: "SET_AI_FEATURE_ACKNOWLEDGED"; aiFeatureAcknowledged: boolean }
+  | { type: "SET_JOURNAL_ANALYSIS_CONSENT"; journalAnalysisConsent: boolean }
   | { type: "TOGGLE_PASSWORD_VISIBILITY" }
   | { type: "SUBMIT_START" }
   | { type: "SUBMIT_SUCCESS" }
@@ -42,6 +48,9 @@ function signupReducer(state: SignupState, action: SignupAction): SignupState {
     case "SET_CONFIRM_PASSWORD": return { ...state, confirmPassword: action.confirmPassword, error: null, fieldErrors: {} };
     case "SET_TERMS_ACCEPTED": return { ...state, termsAccepted: action.termsAccepted, error: null, fieldErrors: {} };
     case "SET_PRIVACY_ACKNOWLEDGED": return { ...state, privacyAcknowledged: action.privacyAcknowledged, error: null, fieldErrors: {} };
+    case "SET_DATA_PROCESSING_ACKNOWLEDGED": return { ...state, dataProcessingAcknowledged: action.dataProcessingAcknowledged, error: null, fieldErrors: {} };
+    case "SET_AI_FEATURE_ACKNOWLEDGED": return { ...state, aiFeatureAcknowledged: action.aiFeatureAcknowledged, error: null, fieldErrors: {} };
+    case "SET_JOURNAL_ANALYSIS_CONSENT": return { ...state, journalAnalysisConsent: action.journalAnalysisConsent, error: null, fieldErrors: {} };
     case "TOGGLE_PASSWORD_VISIBILITY": return { ...state, showPassword: !state.showPassword };
     case "SUBMIT_START": return { ...state, status: "submitting", error: null, fieldErrors: {} };
     case "SUBMIT_SUCCESS": return { ...state, status: "success" };
@@ -59,6 +68,9 @@ const initialSignupState: SignupState = {
   confirmPassword: "",
   termsAccepted: false,
   privacyAcknowledged: false,
+  dataProcessingAcknowledged: false,
+  aiFeatureAcknowledged: false,
+  journalAnalysisConsent: false,
   showPassword: false,
   status: "idle",
   error: null,
@@ -89,6 +101,9 @@ export function useSignupViewModel() {
   const setConfirmPassword = useCallback((confirmPassword: string) => dispatch({ type: "SET_CONFIRM_PASSWORD", confirmPassword }), []);
   const setTermsAccepted = useCallback((termsAccepted: boolean) => dispatch({ type: "SET_TERMS_ACCEPTED", termsAccepted }), []);
   const setPrivacyAcknowledged = useCallback((privacyAcknowledged: boolean) => dispatch({ type: "SET_PRIVACY_ACKNOWLEDGED", privacyAcknowledged }), []);
+  const setDataProcessingAcknowledged = useCallback((dataProcessingAcknowledged: boolean) => dispatch({ type: "SET_DATA_PROCESSING_ACKNOWLEDGED", dataProcessingAcknowledged }), []);
+  const setAiFeatureAcknowledged = useCallback((aiFeatureAcknowledged: boolean) => dispatch({ type: "SET_AI_FEATURE_ACKNOWLEDGED", aiFeatureAcknowledged }), []);
+  const setJournalAnalysisConsent = useCallback((journalAnalysisConsent: boolean) => dispatch({ type: "SET_JOURNAL_ANALYSIS_CONSENT", journalAnalysisConsent }), []);
   const togglePasswordVisibility = useCallback(() => dispatch({ type: "TOGGLE_PASSWORD_VISIBILITY" }), []);
 
   const submit = useCallback(async () => {
@@ -99,6 +114,9 @@ export function useSignupViewModel() {
       confirmPassword: state.confirmPassword,
       termsAccepted: state.termsAccepted,
       privacyAcknowledged: state.privacyAcknowledged,
+      dataProcessingAcknowledged: state.dataProcessingAcknowledged,
+      aiFeatureAcknowledged: state.aiFeatureAcknowledged,
+      journalAnalysisConsent: state.journalAnalysisConsent,
     });
     if (!validation.valid) {
       dispatch({ type: "SET_FIELD_ERRORS", fieldErrors: validation.errors });
@@ -113,6 +131,9 @@ export function useSignupViewModel() {
       confirmPassword: state.confirmPassword,
       termsAccepted: state.termsAccepted,
       privacyAcknowledged: state.privacyAcknowledged,
+      dataProcessingAcknowledged: state.dataProcessingAcknowledged,
+      aiFeatureAcknowledged: state.aiFeatureAcknowledged,
+      journalAnalysisConsent: state.journalAnalysisConsent,
     });
     if (result.success) {
       dispatch({ type: "SUBMIT_SUCCESS" });
@@ -120,7 +141,7 @@ export function useSignupViewModel() {
     }
     dispatch({ type: "SUBMIT_ERROR", error: result.error });
     return null;
-  }, [state.name, state.email, state.password, state.confirmPassword, state.termsAccepted, state.privacyAcknowledged, authService]);
+  }, [state.name, state.email, state.password, state.confirmPassword, state.termsAccepted, state.privacyAcknowledged, state.dataProcessingAcknowledged, state.aiFeatureAcknowledged, state.journalAnalysisConsent, authService]);
 
   const reset = useCallback(() => dispatch({ type: "RESET" }), []);
 
@@ -131,6 +152,9 @@ export function useSignupViewModel() {
     confirmPassword: state.confirmPassword,
     termsAccepted: state.termsAccepted,
     privacyAcknowledged: state.privacyAcknowledged,
+    dataProcessingAcknowledged: state.dataProcessingAcknowledged,
+    aiFeatureAcknowledged: state.aiFeatureAcknowledged,
+    journalAnalysisConsent: state.journalAnalysisConsent,
     showPassword: state.showPassword,
     passwordStrength,
     status: state.status,
@@ -142,6 +166,9 @@ export function useSignupViewModel() {
     setConfirmPassword,
     setTermsAccepted,
     setPrivacyAcknowledged,
+    setDataProcessingAcknowledged,
+    setAiFeatureAcknowledged,
+    setJournalAnalysisConsent,
     togglePasswordVisibility,
     submit,
     reset,

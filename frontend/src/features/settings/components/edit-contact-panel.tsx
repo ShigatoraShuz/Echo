@@ -12,9 +12,9 @@ interface EditContactPanelProps {
 }
 
 export function EditContactPanel({ contact, onUpdate, onRemove, isSaving, onClose }: EditContactPanelProps) {
-  const [name, setName] = useState(contact.contactName);
-  const [email, setEmail] = useState(contact.contactEmail);
-  const [phone, setPhone] = useState(contact.contactPhone);
+const [name, setName] = useState(contact.contactName);
+  const [email, setEmail] = useState(contact.contactEmail ?? "");
+  const [phone, setPhone] = useState(contact.contactPhone ?? "");
   const [relationship, setRelationship] = useState(contact.relationship);
 
   async function handleSave() {

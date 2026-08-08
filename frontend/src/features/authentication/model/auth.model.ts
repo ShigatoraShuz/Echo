@@ -19,6 +19,9 @@ export interface SignupInput {
   confirmPassword: string;
   termsAccepted: boolean;
   privacyAcknowledged: boolean;
+  dataProcessingAcknowledged: boolean;
+  aiFeatureAcknowledged: boolean;
+  journalAnalysisConsent: boolean;
 }
 
 export interface ForgotPasswordInput {
@@ -26,7 +29,6 @@ export interface ForgotPasswordInput {
 }
 
 export interface ResetPasswordInput {
-  token: string;
   password: string;
   confirmPassword: string;
 }

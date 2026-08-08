@@ -30,8 +30,8 @@ export function NotificationToggles({ email, push, journal, insights, onToggle }
                 <p className="text-xs text-muted-foreground">{item.description}</p>
               </div>
             </div>
-            <button type="button" role="switch" aria-checked={item.enabled} onClick={() => onToggle(item.key, !item.enabled)} className={elative h-6 w-11 rounded-full transition-colors }>
-              <span className={bsolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform } />
+            <button type="button" role="switch" aria-checked={item.enabled} onClick={() => onToggle(item.key, !item.enabled)} className={`relative h-6 w-11 rounded-full transition-colors ${item.enabled ? "bg-primary" : "bg-secondary/40"}`}>
+              <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${item.enabled ? "translate-x-5" : ""}`} />
             </button>
           </div>
         );

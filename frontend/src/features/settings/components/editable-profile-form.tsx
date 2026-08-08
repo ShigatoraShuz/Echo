@@ -25,12 +25,12 @@ export function EditableProfileForm({ profile, onSave, isSaving }: EditableProfi
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="text-sm font-medium text-foreground">Display name</label>
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+        <label htmlFor="profile-display-name" className="text-sm font-medium text-foreground">Display name</label>
+        <input id="profile-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
       </div>
       <div>
-        <label className="text-sm font-medium text-foreground">Timezone</label>
-        <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
+        <label htmlFor="profile-timezone" className="text-sm font-medium text-foreground">Timezone</label>
+        <select id="profile-timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20">
           {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
         </select>
       </div>

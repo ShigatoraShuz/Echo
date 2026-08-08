@@ -18,7 +18,6 @@ export interface ForgotPasswordRequestDTO {
 }
 
 export interface ResetPasswordRequestDTO {
-  token: string;
   password: string;
   confirm_password: string;
 }

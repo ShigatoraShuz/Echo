@@ -13,17 +13,22 @@ export const signupSchema = z.object({
   confirmPassword: z.string().min(1, "Please confirm your password"),
   termsAccepted: z.boolean().refine((val) => val === true, "You must accept the terms of use"),
   privacyAcknowledged: z.boolean().refine((val) => val === true, "You must acknowledge the privacy policy"),
+  dataProcessingAcknowledged: z.boolean().refine((val) => val === true, "Please acknowledge how ECHO uses the information you provide"),
+  aiFeatureAcknowledged: z.boolean().refine((val) => val === true, "Please acknowledge the AI feature information"),
+  journalAnalysisConsent: z.boolean().default(false),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
 });
+
+/** Versions are stored with each consent so policy updates remain auditable. */
+export const SIGNUP_CONSENT_VERSION = "2026-07-25";
 
 export const forgotPasswordSchema = z.object({
   email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Reset token is required"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {

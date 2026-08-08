@@ -51,6 +51,12 @@ export function createAuthMockAdapter(): AuthService {
       if (!input.privacyAcknowledged) {
         fieldErrors.privacyAcknowledged = ["You must acknowledge the privacy policy."];
       }
+      if (!input.dataProcessingAcknowledged) {
+        fieldErrors.dataProcessingAcknowledged = ["Please acknowledge how ECHO uses the information you provide."];
+      }
+      if (!input.aiFeatureAcknowledged) {
+        fieldErrors.aiFeatureAcknowledged = ["Please acknowledge the AI feature information."];
+      }
 
       if (Object.keys(fieldErrors).length > 0) {
         return { success: false, error: { code: "VALIDATION", message: "Please check the form for errors.", fieldErrors } };

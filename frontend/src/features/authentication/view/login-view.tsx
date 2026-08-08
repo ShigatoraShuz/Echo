@@ -1,17 +1,18 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Mail } from "lucide-react";
-import { useLoginViewModel } from "../view-model/use-login-view-model";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
+
 import { AuthFormField } from "../components/auth-form-field";
-import { PasswordField } from "../components/password-field";
 import { AuthStatusMessage } from "../components/auth-status-message";
-import { AuthPrivacyNote } from "../components/auth-privacy-note";
+import { AuthDivider, GoogleAuthButton } from "../components/google-auth-button";
+import { PasswordField } from "../components/password-field";
+import { useLoginViewModel } from "../view-model/use-login-view-model";
+import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoCheckbox } from "@/shared/components/ui/echo-checkbox";
-import { EchoCard } from "@/shared/components/ui/echo-card";
-import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 interface LoginViewProps {
   title: string;
@@ -27,67 +28,88 @@ export function LoginView({ title, description }: LoginViewProps) {
     submit,
   } = useLoginViewModel();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (status === "submitting") return;
+
     const session = await submit();
     if (session) {
-      router.push("/dashboard");
+      const next =
+        typeof window === "undefined"
+          ? "/dashboard"
+          : safeRedirectPath(new URLSearchParams(window.location.search).get("next"));
+      router.replace(next);
+      router.refresh();
     }
   };
 
+  const googleNext =
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next");
+
   return (
-    <>
-      <EchoReveal direction="up" className="space-y-6">
-        <section className="space-y-6">
-          <div className="space-y-3">
-            <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+    <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
+      <EchoReveal direction="up">
+        <section className="rounded-[1.75rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-5 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.16)] backdrop-blur-md sm:px-6 sm:py-6 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
+          <header className="text-center">
+            <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] shadow-[0_10px_24px_rgba(41,49,27,0.1)]">
+              <Leaf className="h-5 w-5" strokeWidth={2.1} aria-hidden="true" />
+            </div>
+            <h1 className="mt-3 text-[clamp(1.75rem,6vw,2.2rem)] font-medium leading-none tracking-[-0.045em] [font-family:var(--font-echo-display)]">
               {title}
             </h1>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground">{description}</p>
-          </div>
-        </section>
-      </EchoReveal>
+            <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-[var(--landing-muted)]">{description}</p>
+          </header>
 
-      <EchoReveal direction="up" delay={150}>
-        <EchoCard className="lg:mx-auto lg:w-full lg:max-w-md">
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <div className="mt-4 space-y-2">
+            <GoogleAuthButton intent="login" next={googleNext} />
+            <AuthDivider />
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
             <AuthStatusMessage status={status} error={error} />
 
             <AuthFormField
-              label="Email"
+              label="Email address"
               type="email"
               placeholder="you@example.com"
-              leadingIcon={<Mail className="h-4 w-4" aria-hidden="true" />}
+              leadingIcon={<Mail className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               error={fieldErrors.email?.[0]}
+              autoComplete="email"
               required
             />
 
             <PasswordField
               label="Password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               showPassword={showPassword}
               onToggleVisibility={togglePasswordVisibility}
               error={fieldErrors.password?.[0]}
               required
             />
 
-            <EchoCheckbox
-              label="Remember this session"
-              description="Stay logged in on this device"
-              checked={rememberSession}
-              onChange={(e) => setRememberSession(e.target.checked)}
-            />
+            <div className="flex items-center justify-between gap-4 pt-0.5">
+              <EchoCheckbox
+                label="Remember me on this device"
+                checked={rememberSession}
+                onChange={(event) => setRememberSession(event.target.checked)}
+              />
+              <Link href="/forgot-password" className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+                Forgot password?
+              </Link>
+            </div>
+            <p className="text-[11px] leading-4 text-[var(--landing-muted)]">
+              Unchecked means the session ends when you close this tab.
+            </p>
 
             <EchoButton
               type="submit"
               variant="primary"
-              size="large"
-              className="w-full"
+              size="medium"
+              className="h-10 w-full rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] shadow-[0_12px_24px_rgba(83,103,51,0.24)] hover:bg-[var(--landing-primary-hover)]"
               isLoading={status === "submitting"}
               loadingText="Logging in..."
               disabled={status === "success"}
@@ -97,16 +119,25 @@ export function LoginView({ title, description }: LoginViewProps) {
             </EchoButton>
           </form>
 
-          <AuthPrivacyNote />
-
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <Link href="/forgot-password" className="font-semibold text-primary">Forgot password?</Link>
-            <p>
-              New to ECHO? <Link href="/signup" className="font-semibold text-primary">Create an account</Link>
+          <footer className="mt-3 border-t border-[rgba(83,103,51,0.14)] pt-3 text-center">
+            <div className="inline-flex items-center gap-2 text-[11px] leading-4 text-[var(--landing-muted)]">
+              <ShieldCheck className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />
+              Private by design. Not a diagnostic tool.
+            </div>
+            <p className="mt-2 text-xs text-[var(--landing-muted)]">
+              New to ECHO?{" "}
+              <Link href="/signup" className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+                Create an account
+              </Link>
             </p>
-          </div>
-        </EchoCard>
+          </footer>
+        </section>
       </EchoReveal>
-    </>
+
+      <Link href="/" className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Return home
+      </Link>
+    </div>
   );
 }

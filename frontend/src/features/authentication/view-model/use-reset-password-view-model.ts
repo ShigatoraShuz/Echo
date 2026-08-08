@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useReducer, useEffect, useMemo } from "react";
+import { useCallback, useReducer, useMemo } from "react";
 import type { AuthServiceError } from "../model/auth.model";
 import { validateResetPasswordInput } from "../model/auth.schema";
 import { getAuthService } from "../services/auth-service.factory";
@@ -8,7 +8,6 @@ import { getAuthService } from "../services/auth-service.factory";
 export type FormStatus = "idle" | "submitting" | "success" | "error";
 
 interface ResetPasswordState {
-  token: string;
   password: string;
   confirmPassword: string;
   showPassword: boolean;
@@ -18,7 +17,6 @@ interface ResetPasswordState {
 }
 
 type ResetPasswordAction =
-  | { type: "SET_TOKEN"; token: string }
   | { type: "SET_PASSWORD"; password: string }
   | { type: "SET_CONFIRM_PASSWORD"; confirmPassword: string }
   | { type: "TOGGLE_PASSWORD_VISIBILITY" }
@@ -30,7 +28,6 @@ type ResetPasswordAction =
 
 function reducer(state: ResetPasswordState, action: ResetPasswordAction): ResetPasswordState {
   switch (action.type) {
-    case "SET_TOKEN": return { ...state, token: action.token };
     case "SET_PASSWORD": return { ...state, password: action.password, error: null, fieldErrors: {} };
     case "SET_CONFIRM_PASSWORD": return { ...state, confirmPassword: action.confirmPassword, error: null, fieldErrors: {} };
     case "TOGGLE_PASSWORD_VISIBILITY": return { ...state, showPassword: !state.showPassword };
@@ -44,7 +41,6 @@ function reducer(state: ResetPasswordState, action: ResetPasswordAction): ResetP
 }
 
 const initialState: ResetPasswordState = {
-  token: "",
   password: "",
   confirmPassword: "",
   showPassword: false,
@@ -71,24 +67,12 @@ export function useResetPasswordViewModel() {
     return { score, label };
   }, [state.password]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && !state.token) {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get("token") ?? "";
-      if (token) {
-        dispatch({ type: "SET_TOKEN", token });
-      }
-    }
-  }, [state.token]);
-
-  const setToken = useCallback((token: string) => dispatch({ type: "SET_TOKEN", token }), []);
   const setPassword = useCallback((password: string) => dispatch({ type: "SET_PASSWORD", password }), []);
   const setConfirmPassword = useCallback((confirmPassword: string) => dispatch({ type: "SET_CONFIRM_PASSWORD", confirmPassword }), []);
   const togglePasswordVisibility = useCallback(() => dispatch({ type: "TOGGLE_PASSWORD_VISIBILITY" }), []);
 
   const submit = useCallback(async () => {
     const validation = validateResetPasswordInput({
-      token: state.token,
       password: state.password,
       confirmPassword: state.confirmPassword,
     });
@@ -99,7 +83,6 @@ export function useResetPasswordViewModel() {
 
     dispatch({ type: "SUBMIT_START" });
     const result = await authService.resetPassword({
-      token: state.token,
       password: state.password,
       confirmPassword: state.confirmPassword,
     });
@@ -109,12 +92,11 @@ export function useResetPasswordViewModel() {
     }
     dispatch({ type: "SUBMIT_ERROR", error: result.error });
     return null;
-  }, [state.token, state.password, state.confirmPassword, authService]);
+  }, [state.password, state.confirmPassword, authService]);
 
   const reset = useCallback(() => dispatch({ type: "RESET" }), []);
 
   return {
-    token: state.token,
     password: state.password,
     confirmPassword: state.confirmPassword,
     showPassword: state.showPassword,
@@ -125,7 +107,6 @@ export function useResetPasswordViewModel() {
     setPassword,
     setConfirmPassword,
     togglePasswordVisibility,
-    setToken,
     submit,
     reset,
   };

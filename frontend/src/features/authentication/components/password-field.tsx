@@ -10,6 +10,7 @@ interface PasswordFieldProps {
   onToggleVisibility: () => void;
   error?: string;
   required?: boolean;
+  autoComplete?: string;
 }
 
 export function PasswordField({
@@ -21,12 +22,13 @@ export function PasswordField({
   onToggleVisibility,
   error,
   required = false,
+  autoComplete,
 }: PasswordFieldProps) {
   const errorId = error ? `${label.toLowerCase().replace(/\s+/g, "-")}-error` : undefined;
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-sm font-medium text-foreground">
+    <div className="space-y-1.5">
+      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-medium text-foreground">
         {label}
         {required && <span className="text-danger ml-0.5">*</span>}
       </label>
@@ -43,8 +45,8 @@ export function PasswordField({
           required={required}
           aria-invalid={!!error}
           aria-describedby={errorId}
-          autoComplete={label.toLowerCase().includes("confirm") ? "new-password" : "current-password"}
-          className={`h-11 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background pl-10 pr-10 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          autoComplete={autoComplete ?? (label.toLowerCase().includes("confirm") ? "new-password" : "current-password")}
+          className={`h-10 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background pl-10 pr-10 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
         />
         <button
           type="button"
