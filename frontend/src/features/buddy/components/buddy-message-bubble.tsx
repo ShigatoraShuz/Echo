@@ -46,10 +46,10 @@ export function BuddyMessageBubble({ message, onRetry, onCopy, onFeedback }: Mes
               )}
               {onFeedback && (
                 <>
-                  <button type="button" onClick={() => onFeedback(message.id, "positive")} className={ounded-full p-1  hover:bg-secondary/60} aria-label="Helpful">
+<button type="button" onClick={() => onFeedback(message.id, "positive")} className={`rounded-full p-1 transition-colors ${message.feedback === "positive" ? "bg-primary text-primary-foreground" : ""} hover:bg-secondary/60`} aria-label="Helpful">
                     <ThumbsUp className="h-3.5 w-3.5" />
                   </button>
-                  <button type="button" onClick={() => onFeedback(message.id, "negative")} className={ounded-full p-1  hover:bg-secondary/60} aria-label="Not helpful">
+<button type="button" onClick={() => onFeedback(message.id, "negative")} className={`rounded-full p-1 transition-colors ${message.feedback === "negative" ? "bg-primary text-primary-foreground" : ""} hover:bg-secondary/60`} aria-label="Not helpful">
                     <ThumbsDown className="h-3.5 w-3.5" />
                   </button>
                 </>

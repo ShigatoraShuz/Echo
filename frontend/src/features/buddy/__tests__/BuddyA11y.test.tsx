@@ -1,14 +1,15 @@
 import { render } from "../../../test-utils/test-utils";
 import { axe } from "jest-axe";
-import { ConversationList } from "../components/ConversationList";
+import { BuddyConversationList } from "../components/buddy-conversation-list";
+import type { BuddyConversation } from "../model/buddy.model";
 
-const mockConversations = [
-  { id: "1", title: "Test Chat", lastMessage: "Hello", updatedAt: new Date() },
+const mockConversations: BuddyConversation[] = [
+  { id: "1", title: "Test Chat", lastMessage: "Hello", lastMessageAt: "Today", messageCount: 3, mood: "calm", createdAt: "2026-07-12" },
 ];
 
-describe("ConversationList accessibility", () => {
+describe("BuddyConversationList accessibility", () => {
   it("has no violations", async () => {
-    const { container } = render(<ConversationList conversations={mockConversations} onSelect={() => {}} />);
+    const { container } = render(<BuddyConversationList conversations={mockConversations} isLoading={false} onSelect={() => {}} />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

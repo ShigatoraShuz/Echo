@@ -27,7 +27,7 @@ export function JournalSourceBreakdownChart({ sources }: SourceBreakdownProps) {
             <div className="h-2.5 rounded-full bg-secondary/50 overflow-hidden">
               <div
                 className="h-full rounded-full bg-primary transition-all"
-                style={{ width: ${source.percentage}% }}
+                style={{ width: `${source.percentage}%` }}
               />
             </div>
           </div>

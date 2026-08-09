@@ -7,9 +7,10 @@ export const TIME_RANGE_LABELS: Record<string, string> = {
 
 export const RISK_COLORS: Record<string, string> = {
   low: "hsl(var(--success))",
-  medium: "hsl(var(--warning))",
+  mild: "hsl(var(--warning))",
+  moderate: "hsl(var(--warning))",
   high: "hsl(var(--danger))",
-  critical: "hsl(var(--critical))",
+  severe: "hsl(var(--critical))",
 };
 
 export const MOOD_COLORS: Record<string, string> = {

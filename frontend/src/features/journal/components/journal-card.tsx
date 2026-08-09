@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { JournalEntry } from "../model/journal.model";
 import { MOOD_LABELS } from "../model/journal.schema";
 import { EchoBadge } from "@/shared/components/ui/echo-badge";
+import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 
 interface JournalCardProps {
   entry: JournalEntry;
@@ -9,7 +10,7 @@ interface JournalCardProps {
 
 export function JournalCard({ entry }: JournalCardProps) {
   return (
-    <article className="min-w-0 rounded-2xl border border-border/70 bg-background p-5 shadow-subtle">
+    <EchoMotionSurface as="article" className="min-w-0 rounded-2xl border border-border/70 bg-background p-5 shadow-subtle">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">{entry.createdAt}</p>
@@ -31,6 +32,6 @@ export function JournalCard({ entry }: JournalCardProps) {
       <Link href={`/journal/${entry.id}`} className="mt-5 inline-flex text-sm font-semibold text-primary">
         Read reflection
       </Link>
-    </article>
+    </EchoMotionSurface>
   );
 }

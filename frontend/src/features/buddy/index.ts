@@ -1,14 +1,13 @@
-export { useBuddyViewModel } from "./view-model/use-buddy-view-model";
-export { BuddyView } from "./view/buddy-view";
-export { BuddyHistoryView } from "./view/buddy-history-view";
+export { useBuddyViewModel } from "./view-model";
+export { BuddyView, BuddyHistoryView } from "./view";
 export {
   BuddyConversationList, BuddyMessageBubble, BuddyInput, BuddyTypingIndicator,
   BuddyMessageContainer, BuddyNewConversationDialog, BuddyRenameDialog,
   BuddyDeleteDialog, BuddySearchFilter, BuddyEmptyState, BuddyErrorState,
   BuddyGroundingCard, BuddyCrisisCard, BuddyErrorBadge, BuddyCopyButton,
-  useCopyToClipboard, BuddyFeedbackButtons,
+  useCopyToClipboard, BuddyFeedbackButtons, BuddyChatBubble,
 } from "./components";
-export { createBuddyMockAdapter, getBuddyService, resetBuddyService } from "./services";
+export { getBuddyService, resetBuddyService, createBuddyMockAdapter } from "./services";
 export type { BuddyService, BuddyServiceResult } from "./services";
 export type {
   BuddyMood, BuddyConversation, BuddyMessage, BuddySession,

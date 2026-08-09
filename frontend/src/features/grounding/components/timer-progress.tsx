@@ -15,7 +15,7 @@ export function TimerProgress({ elapsed, total, state }: TimerProgressProps) {
     const sec = Math.ceil(ms / 1000);
     const min = Math.floor(sec / 60);
     const s = sec % 60;
-    return ${min}:;
+    return `${min}:${s.toString().padStart(2, "0")}`;
   }
 
   if (state === "idle") return null;
@@ -29,7 +29,7 @@ export function TimerProgress({ elapsed, total, state }: TimerProgressProps) {
       <div className="h-2.5 rounded-full bg-secondary/50 overflow-hidden">
         <div
           className="h-full rounded-full bg-primary transition-all duration-200"
-          style={{ width: ${progress}% }}
+          style={{ width: `${progress}%` }}
         />
       </div>
     </div>

@@ -13,7 +13,7 @@ export function BuddyErrorState({ title, message, isOffline, onRetry }: BuddyErr
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center" role="alert">
-      <span className={grid h-16 w-16 place-items-center rounded-full }>
+      <span className="grid h-16 w-16 place-items-center rounded-full">
         <Icon className="h-7 w-7" aria-hidden="true" />
       </span>
       <h2 className="mt-4 text-lg font-semibold text-foreground">{title ?? (isOffline ? "You are offline" : "Something went wrong")}</h2>

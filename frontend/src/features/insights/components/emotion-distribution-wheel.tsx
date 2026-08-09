@@ -11,11 +11,11 @@ export function EmotionDistributionWheel({ distributions, size = 180 }: EmotionW
   const segments = distributions.map((d) => {
     const start = cursor;
     cursor += d.value * 3.6;
-    return ${d.color} deg deg;
+    return `${d.color} ${start}deg ${cursor}deg`;
   });
 
-  const background = segments.length > 0
-    ? conic-gradient()
+const background = segments.length > 0
+    ? `conic-gradient(${segments.join(", ")})`
     : "conic-gradient(hsl(var(--secondary)) 0deg 360deg)";
 
   return (

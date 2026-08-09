@@ -1,5 +1,5 @@
 "use client";
-import type { BuddyConversation } from "../../model/buddy.model";
+import type { BuddyConversation } from "../model/buddy.model";
 
 interface ConversationListProps {
   conversations: BuddyConversation[];
@@ -26,11 +26,11 @@ export function BuddyConversationList({ conversations, isLoading, selectedId, on
           key={conv.id}
           type="button"
           onClick={() => onSelect(conv.id)}
-          className={w-full rounded-xl p-3 text-left transition-colors hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-primary }
+          className={`w-full rounded-xl p-3 text-left transition-colors hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-primary ${selectedId === conv.id ? "border-2 border-primary/60" : ""}`}
         >
           <p className="truncate text-sm font-semibold text-foreground">{conv.title}</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">{conv.lastMessage}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground/70">{conv.lastMessageAt} · {conv.messageCount} messages</p>
+          <p className="mt-1 text-[10px] text-muted-foreground/70">{conv.lastMessageAt} â€¢ {conv.messageCount} messages</p>
         </button>
       ))}
     </div>

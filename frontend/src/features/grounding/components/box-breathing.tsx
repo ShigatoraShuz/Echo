@@ -55,7 +55,7 @@ export function BoxBreathing({ pace = "medium", onComplete }: BoxBreathingProps)
       <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">Box breathing</p>
       <div className="mx-auto mt-6 grid h-48 w-48 place-items-center">
         <div className="relative h-40 w-40">
-          <div className="absolute inset-0 rounded-lg border-2 border-primary/30 transition-all" style={{ transform: scale(), opacity: phase === "rest" ? 0.5 : 1 }} />
+          <div className="absolute inset-0 rounded-lg border-2 border-primary/30 transition-all" style={{ transform: `scale(${pct / 100})`, opacity: phase === "rest" ? 0.5 : 1 }} />
           <div className="absolute inset-0 grid place-items-center">
             <span className="text-lg font-semibold text-foreground">{PHASE_LABELS[phase]}</span>
           </div>

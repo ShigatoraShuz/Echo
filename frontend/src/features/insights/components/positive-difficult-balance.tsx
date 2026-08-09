@@ -15,8 +15,8 @@ export function PositiveDifficultBalance({ positive, difficult }: BalanceProps) 
     <EchoCard title="Positive vs. difficult" description="Balance of emotional experiences">
       <div className="space-y-4">
         <div className="flex h-6 rounded-full overflow-hidden bg-secondary/50">
-          <div className="bg-success/70 transition-all" style={{ width: ${positivePct}% }} />
-          <div className="bg-danger/50 transition-all" style={{ width: ${difficultPct}% }} />
+<div className="bg-success/70 transition-all" style={{ width: `${positivePct}%` }} />
+          <div className="bg-danger/50 transition-all" style={{ width: `${difficultPct}%` }} />
         </div>
         <div className="flex justify-between text-sm">
           <div className="flex items-center gap-2">

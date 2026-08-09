@@ -1,64 +1,84 @@
 "use client";
-import { useState, useMemo } from "react";
-import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
-import { BuddyConversationList } from "../components/buddy-conversation-list";
-import { BuddyMessageContainer } from "../components/buddy-message-container";
-import { BuddySearchFilter } from "../components/buddy-search-filter";
-import { BuddyErrorState } from "../components/buddy-error-state";
-import { BuddyEmptyState } from "../components/buddy-empty-state";
-import { AppShell } from "@/shared/components/layout/echo-shells";
-import { EchoPageHeading } from "@/shared/components/data-display/echo-page-heading";
-import { Bot } from "lucide-react";
 import Link from "next/link";
+import { BadgeCheck, Bot, LockKeyhole, Search } from "lucide-react";
+import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
+import { BuddyChatBubble } from "../components/buddy-chat-bubble";
+import { EchoCard, PageHeader } from "@/shared/components/layout";
 
 export function BuddyHistoryView() {
   const vm = useBuddyViewModel();
-  const [filteredIds, setFilteredIds] = useState<string[] | null>(null);
 
-  const filteredConversations = useMemo(() => {
-    if (!filteredIds) return vm.conversations;
-    return vm.conversations.filter((c) => filteredIds.includes(c.id));
-  }, [vm.conversations, filteredIds]);
+  if (vm.accessStatus === "loading") {
+    return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70" />;
+  }
 
-  if (vm.error && vm.conversations.length === 0) {
-    return <BuddyErrorState message={vm.error} onRetry={() => vm.loadConversations()} />;
+  if (vm.accessStatus === "blocked") {
+    return (
+      <div className="mx-auto max-w-2xl rounded-[2rem] border border-border bg-card p-8 text-center shadow-card">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground">
+          <LockKeyhole className="h-6 w-6" />
+        </span>
+        <h1 className="mt-5 font-serif text-3xl">Verification is required</h1>
+        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">Buddy conversation history becomes available after an administrator approves your identity and age verification.</p>
+        <Link href="/settings/verification" className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground">
+          <BadgeCheck className="h-4 w-4" /> Open verification
+        </Link>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <EchoPageHeading
+      <PageHeader
+        label="Buddy"
         title="Chat history"
         description="Review past Buddy conversations as private reflective records. They are not diagnostic assessments."
-        badge="Buddy"
-        action={<Link href="/buddy" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90"><Bot className="h-4 w-4" /> Open Buddy</Link>}
+        action={<Link href="/buddy" className="echo-button-primary"><Bot className="h-4 w-4" aria-hidden="true" />Open Buddy</Link>}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-3">
-          <BuddySearchFilter conversations={vm.conversations} onFilteredResults={(ids) => setFilteredIds(ids)} />
-          <BuddyConversationList
-            conversations={filteredConversations}
-            isLoading={vm.isLoadingList}
-            selectedId={vm.activeConversationId ?? undefined}
-            onSelect={(id) => vm.selectConversation(id)}
-          />
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+        <EchoCard title="Filters" description="Static filter controls for future search.">
+          <div className="space-y-3">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" aria-hidden="true" />
+              <input className="echo-input pl-10" placeholder="Search conversations" />
+            </label>
+            <select className="echo-input">
+              <option>All moods</option>
+              <option>Calm</option>
+              <option>Anxious</option>
+            </select>
+            <select className="echo-input">
+              <option>Newest first</option>
+              <option>Most messages</option>
+            </select>
+          </div>
+        </EchoCard>
 
-        <div>
-          {!vm.activeConversationId ? (
-            <BuddyEmptyState />
-          ) : (
-            <div className="rounded-[2rem] border border-border bg-card p-5 shadow-subtle sm:p-7">
-              <BuddyMessageContainer
-                messages={vm.messages}
-                isStreaming={vm.isStreaming}
-                streamingContent={vm.streamingContent}
-                onRetry={() => vm.activeConversationId && vm.retryMessage(vm.activeConversationId)}
-                onCopy={(id, content) => navigator.clipboard.writeText(content)}
-                onFeedback={(id, fb) => vm.sendFeedback(id, fb)}
-              />
+        <div className="space-y-5">
+          <EchoCard title="Sessions" description="Conversation summaries and message counts.">
+            <div className="grid gap-3">
+              {vm.conversations.map((conversation) => (
+                <div key={conversation.id} className="rounded-2xl border border-border/70 bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{conversation.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{conversation.lastMessageAt} · {conversation.messageCount} messages · {conversation.mood}</p>
+                    </div>
+                    <Link href="/buddy" className="text-sm font-semibold text-primary">Open</Link>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </EchoCard>
+
+          <EchoCard title="Latest preview" description="Recent messages from the current sample conversation.">
+            <div className="space-y-4">
+              {vm.messages.map((message) => (
+                <BuddyChatBubble key={message.id} message={message} />
+              ))}
+            </div>
+          </EchoCard>
         </div>
       </div>
     </div>

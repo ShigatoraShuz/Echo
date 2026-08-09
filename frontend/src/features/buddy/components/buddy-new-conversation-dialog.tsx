@@ -20,7 +20,7 @@ export function BuddyNewConversationDialog({ isOpen, onClose, onCreate, isCreati
   function handleSubmit() {
     const result = createConversationSchema.safeParse({ title, initialMood: mood || undefined });
     if (!result.success) {
-      setError(result.error.errors[0].message);
+      setError(result.error.issues[0].message);
       return;
     }
     setError(null);

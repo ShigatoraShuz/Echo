@@ -1,5 +1,7 @@
+import type { EchoRiskBand } from "@/shared/theme";
+
 export type InsightTimeRange = "7d" | "30d" | "90d" | "custom";
-export type RiskBand = "low" | "medium" | "high" | "critical";
+export type RiskBand = EchoRiskBand;
 export type MoodLevel = "awful" | "bad" | "okay" | "good" | "great" | "unknown";
 
 export interface EmotionDistribution {
@@ -35,6 +37,11 @@ export interface RiskSignal {
   label: string;
   history: Array<{ date: string; score: number; band: RiskBand }>;
   supportingFactors: string[];
+}
+
+export interface FacialTrendPoint {
+  label: string;
+  value: number;
 }
 
 export interface CameraSettings {

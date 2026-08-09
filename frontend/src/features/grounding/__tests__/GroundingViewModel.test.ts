@@ -1,48 +1,91 @@
-import { GroundingViewModel } from "../view-model/GroundingViewModel";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { useGroundingViewModel } from "../view-model/use-grounding-view-model";
+import { getGroundingService } from "../services/grounding-service.factory";
 
-const mockService = {
-  recordSession: jest.fn(),
-  getHistory: jest.fn(),
-};
+vi.mock("../services/grounding-service.factory", () => ({
+  getGroundingService: vi.fn(),
+  resetGroundingService: vi.fn(),
+}));
 
-describe("GroundingViewModel", () => {
-  let vm: GroundingViewModel;
+function createMockService() {
+  return {
+    saveSession: vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: "gs-1", type: "box-breathing", duration: 120, pace: "slow", completedAt: "2026-07-12T00:00:00Z", progress: 100, state: "completed" },
+    }),
+    getHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  };
+}
 
+describe("useGroundingViewModel", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    vm = new GroundingViewModel(mockService as any);
+    vi.clearAllMocks();
   });
 
-  it("initializes with empty history", () => {
-    expect(vm.history()).toEqual([]);
-    expect(vm.isActive()).toBe(false);
+  it("initializes with the default technique and duration", () => {
+    const mockService = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useGroundingViewModel());
+    expect(result.current.technique).toBe("box-breathing");
+    expect(result.current.durationMinutes).toBe(2);
+    expect(result.current.remainingSeconds).toBe(120);
+    expect(result.current.isRunning).toBe(false);
   });
 
-  it("loads session history", async () => {
-    const mockHistory = [{ id: "1", exerciseType: "box_breathing", durationSeconds: 120, createdAt: new Date() }];
-    mockService.getHistory.mockResolvedValue(mockHistory);
-    await vm.loadHistory();
-    expect(vm.history()).toEqual(mockHistory);
+  it("toggles the running state", () => {
+    const mockService = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useGroundingViewModel());
+    act(() => {
+      result.current.toggleRunning();
+    });
+    expect(result.current.isRunning).toBe(true);
+    act(() => {
+      result.current.toggleRunning();
+    });
+    expect(result.current.isRunning).toBe(false);
   });
 
-  it("records a session", async () => {
-    mockService.recordSession.mockResolvedValue({ id: "s1", exerciseType: "sensory", durationSeconds: 60 });
-    const result = await vm.completeSession("sensory", 60);
-    expect(mockService.recordSession).toHaveBeenCalledWith("sensory", 60);
-    expect(result?.id).toBe("s1");
+  it("changes technique and resets the timer", () => {
+    const mockService = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useGroundingViewModel());
+    act(() => {
+      result.current.selectTechnique("5-4-3-2-1");
+    });
+    expect(result.current.technique).toBe("5-4-3-2-1");
+    expect(result.current.remainingSeconds).toBe(120);
+    expect(result.current.isRunning).toBe(false);
   });
 
-  it("tracks active state during session", () => {
-    expect(vm.isActive()).toBe(false);
-    vm.startSession();
-    expect(vm.isActive()).toBe(true);
-    vm.endSession();
-    expect(vm.isActive()).toBe(false);
+  it("changes duration and resets the timer", () => {
+    const mockService = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useGroundingViewModel());
+    act(() => {
+      result.current.selectDuration(5);
+    });
+    expect(result.current.durationMinutes).toBe(5);
+    expect(result.current.remainingSeconds).toBe(300);
   });
 
-  it("handles load error gracefully", async () => {
-    mockService.getHistory.mockRejectedValue(new Error("Offline"));
-    await vm.loadHistory();
-    expect(vm.error()).toBe("Offline");
+  it("resets the timer to the selected duration", () => {
+    const mockService = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useGroundingViewModel());
+    act(() => {
+      result.current.selectDuration(10);
+    });
+    act(() => {
+      result.current.reset();
+    });
+    expect(result.current.remainingSeconds).toBe(600);
+    expect(result.current.isRunning).toBe(false);
   });
 });

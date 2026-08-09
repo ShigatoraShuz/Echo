@@ -128,14 +128,14 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
       </div>
 
       <JournalDeleteDialog
-        open={showDeleteDialog}
+        isOpen={showDeleteDialog}
         isDeleting={isDeleting}
-        title={entry.title}
-        onConfirm={async () => {
+        entryTitle={entry.title}
+        onDelete={async () => {
           await deleteEntry();
           if (!isDeleting) router.push("/journal");
         }}
-        onCancel={() => setShowDeleteDialog(false)}
+        onClose={() => setShowDeleteDialog(false)}
       />
     </div>
   );

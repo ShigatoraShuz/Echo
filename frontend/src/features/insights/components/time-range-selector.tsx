@@ -19,7 +19,7 @@ export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
           role="radio"
           aria-checked={value === range}
           onClick={() => onChange(range)}
-          className={ounded-full px-4 py-2 text-sm font-semibold transition-colors }
+          className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${value === range ? "bg-primary text-primary-foreground" : ""}`}
         >
           {TIME_RANGE_LABELS[range]}
         </button>

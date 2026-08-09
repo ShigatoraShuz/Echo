@@ -19,10 +19,10 @@ export function RiskCurrentSignal({ score, band, label }: RiskCurrentSignalProps
         <div
           className="h-24 w-24 shrink-0 rounded-full"
           style={{
-            background: conic-gradient( deg, hsl(var(--secondary)) 0deg),
+            background: `conic-gradient(${color} ${score * 3.6}deg, hsl(var(--secondary)) 0deg)`,
           }}
           role="img"
-          aria-label={Risk score  out of 100,  risk}
+          aria-label={`Risk score ${score} out of 100, ${label} risk`}
         />
         <div>
           <p className="text-3xl font-bold text-foreground">{score}</p>

@@ -1,3 +1,5 @@
-export { DashboardView } from "./view/dashboard-view";
-export { useDashboardViewModel } from "./view-model/use-dashboard-view-model";
-export type { DashboardData, UserProfile, QuickAction } from "./model/dashboard.model";
+export { DashboardView } from "./view";
+export { useDashboardViewModel } from "./view-model";
+export type { DashboardService } from "./services";
+export { getDashboardService } from "./services";
+export type { DashboardData, UserProfile, QuickAction, TrendPoint } from "./model";

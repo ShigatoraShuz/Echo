@@ -22,7 +22,7 @@ const seedMessages: Record<string, BuddyMessage[]> = {
 };
 
 function generateId(prefix: string): string {
-  return ${prefix}--;
+  return `${prefix}-${Date.now().toString(36)}`;
 }
 
 function toServiceError(code: BuddyServiceError["code"], message: string): BuddyServiceResult<never> {
@@ -35,7 +35,13 @@ export function createBuddyMockAdapter(): BuddyService {
   Object.entries(seedMessages).forEach(([key, value]) => { messages[key] = [...value]; });
   let nextConvId = 4;
 
-  const service: BuddyService = {
+const service: BuddyService = {
+    async getAccessStatus(signal) {
+      await delay(80 + Math.random() * 80);
+      if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
+      return { success: true, data: { canAccessAi: true } };
+    },
+
     async listConversations(page, pageSize, signal) {
       await delay(150 + Math.random() * 150);
       if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
@@ -65,7 +71,7 @@ export function createBuddyMockAdapter(): BuddyService {
     async createConversation(input) {
       await delay(200 + Math.random() * 200);
       const conversation: BuddyConversation = {
-        id: conv-,
+        id: `conv-${nextConvId++}`,
         title: input.title,
         lastMessage: "",
         lastMessageAt: "Just now",

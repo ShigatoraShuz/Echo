@@ -20,7 +20,7 @@ export function DurationSelector({ value, onChange, disabled }: DurationSelector
             aria-checked={value === opt.value}
             disabled={disabled}
             onClick={() => onChange(opt.value)}
-            className={ounded-full px-4 py-2 text-sm font-semibold transition-colors  disabled:opacity-50}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${value === opt.value ? "bg-primary text-primary-foreground" : "bg-secondary/50 text-muted-foreground"} disabled:opacity-50`}
           >
             {opt.label}
           </button>

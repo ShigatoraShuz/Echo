@@ -1,6 +1,6 @@
 import { render } from "../../../test-utils/test-utils";
 import { axe } from "jest-axe";
-import { MoodCheckIn } from "../components/MoodCheckIn";
+import { MoodCheckIn } from "../components/mood-checkin";
 
 describe("MoodCheckIn accessibility", () => {
   it("has no violations", async () => {

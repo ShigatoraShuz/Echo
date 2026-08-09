@@ -1,4 +1,4 @@
-import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange } from "../model/insights.model";
+import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "../model/insights.model";
 
 export type InsightsServiceResult<T> =
   | { success: true; data: T }
@@ -9,5 +9,6 @@ export interface InsightsService {
   getMoodTrend(timeRange: InsightTimeRange, signal?: AbortSignal): Promise<InsightsServiceResult<{ points: EmotionInsightSummary["moodTrend"] }>>;
   getJournalBreakdown(timeRange: InsightTimeRange, signal?: AbortSignal): Promise<InsightsServiceResult<JournalSourceBreakdown[]>>;
   getRiskSignal(signal?: AbortSignal): Promise<InsightsServiceResult<RiskSignal>>;
+  getFacialTrend(signal?: AbortSignal): Promise<InsightsServiceResult<{ points: FacialTrendPoint[] }>>;
   getCameraSettings(): Promise<InsightsServiceResult<{ isAvailable: boolean; hasPermission: boolean }>>;
 }

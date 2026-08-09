@@ -1,5 +1,4 @@
 "use client";
-import { MOOD_LABELS } from "../model/journal.constants";
 import type { JournalMood } from "../model/journal.model";
 
 interface JournalMoodFilterProps {
@@ -19,9 +18,9 @@ const MOODS: Array<{ value: JournalMood; label: string }> = [
 export function JournalMoodFilter({ value, onChange }: JournalMoodFilterProps) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      <button type="button" onClick={() => onChange(null)} className={ounded-full px-3 py-1.5 text-xs font-semibold transition-colors }>All</button>
+      <button type="button" onClick={() => onChange(null)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${value === null ? "bg-primary text-primary-foreground" : "bg-secondary/40 text-muted-foreground"}`}>All</button>
       {MOODS.map((mood) => (
-        <button key={mood.value} type="button" onClick={() => onChange(mood.value)} className={ounded-full px-3 py-1.5 text-xs font-semibold transition-colors }>{mood.label}</button>
+        <button key={mood.value} type="button" onClick={() => onChange(mood.value)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${value === mood.value ? "bg-primary text-primary-foreground" : "bg-secondary/40 text-muted-foreground"}`}>{mood.label}</button>
       ))}
     </div>
   );

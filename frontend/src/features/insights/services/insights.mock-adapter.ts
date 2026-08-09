@@ -1,5 +1,5 @@
 import type { InsightsService, InsightsServiceResult } from "./insights.service";
-import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange } from "../model/insights.model";
+import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "../model/insights.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,6 +71,24 @@ export function createInsightsMockAdapter(): InsightsService {
             { date: "Jul 23", score: 22, band: "low" },
           ],
           supportingFactors: ["Consistent journaling practice", "Regular mood tracking", "Positive emotion identification", "Engagement with grounding tools"],
+        },
+      };
+    },
+    async getFacialTrend(signal) {
+      await delay(150);
+      if (signal?.aborted) return makeError("NETWORK", "Request cancelled");
+      return {
+        success: true,
+        data: {
+          points: [
+            { label: "Mon", value: 35 },
+            { label: "Tue", value: 48 },
+            { label: "Wed", value: 42 },
+            { label: "Thu", value: 60 },
+            { label: "Fri", value: 55 },
+            { label: "Sat", value: 72 },
+            { label: "Sun", value: 68 },
+          ],
         },
       };
     },

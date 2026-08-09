@@ -13,6 +13,7 @@ export type BuddyServiceResult<T> =
   | { success: false; error: BuddyServiceError };
 
 export interface BuddyService {
+  getAccessStatus(signal?: AbortSignal): Promise<BuddyServiceResult<{ canAccessAi: boolean }>>;
   listConversations(page: number, pageSize: number, signal?: AbortSignal): Promise<BuddyServiceResult<{ conversations: BuddyConversation[]; pagination: BuddyPagination }>>;
   searchConversations(query: string, signal?: AbortSignal): Promise<BuddyServiceResult<BuddyConversation[]>>;
   getConversation(id: string, signal?: AbortSignal): Promise<BuddyServiceResult<BuddySession>>;

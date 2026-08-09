@@ -7,10 +7,10 @@ interface EmotionOverviewCardProps {
 }
 
 export function EmotionOverviewCard({ summary }: EmotionOverviewCardProps) {
-  const cursor = 0;
+const cursor = 0;
   const segments = summary.emotionWheel.map((emotion) => {
     const degrees = emotion.value * 3.6;
-    return ${emotion.color} deg deg;
+    return `${emotion.color} ${cursor}deg ${cursor + degrees}deg`;
   }).join(", ");
 
   return (
@@ -18,7 +18,7 @@ export function EmotionOverviewCard({ summary }: EmotionOverviewCardProps) {
       <div className="flex flex-col items-center gap-6 sm:flex-row">
         <div
           className="h-36 w-36 shrink-0 rounded-full shadow-subtle"
-          style={{ background: conic-gradient() }}
+          style={{ background: `conic-gradient(${segments})` }}
           role="img"
           aria-label="Emotion distribution chart"
         />

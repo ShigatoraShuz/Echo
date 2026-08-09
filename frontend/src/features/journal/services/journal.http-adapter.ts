@@ -11,7 +11,7 @@ export function createJournalHttpAdapter(): JournalService {
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         params.set("sort", filters.sort);
-        const res = await fetch(/api/v1/journals?, { signal });
+        const res = await fetch(`/api/v1/journals?${params.toString()}`, { signal });
         if (!res.ok) return { success: false, error: { code: "NETWORK", message: "Failed to fetch entries" } };
         const data = await res.json();
         return { success: true, data: { entries: data.data.entries, pagination: data.data.pagination } };
@@ -21,7 +21,7 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async getEntry(id, signal) {
       try {
-        const res = await fetch(/api/v1/journals/, { signal });
+        const res = await fetch(`/api/v1/journals/${id}`, { signal });
         if (!res.ok) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
         return { success: true, data: await res.json() };
       } catch (err) {
@@ -39,7 +39,7 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async updateEntry(id, input) {
       try {
-        const res = await fetch(/api/v1/journals/, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+        const res = await fetch(`/api/v1/journals/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
         if (!res.ok) return { success: false, error: { code: "VALIDATION", message: "Failed to update entry" } };
         return { success: true, data: await res.json() };
       } catch (err) {
@@ -48,7 +48,7 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async deleteEntry(id) {
       try {
-        const res = await fetch(/api/v1/journals/, { method: "DELETE" });
+        const res = await fetch(`/api/v1/journals/${id}`, { method: "DELETE" });
         if (!res.ok) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
         return { success: true, data: undefined as unknown as void };
       } catch (err) {
