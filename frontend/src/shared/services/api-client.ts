@@ -25,6 +25,29 @@ interface ApiErrorResponse {
   };
 }
 
+interface EnvelopeLike {
+  success?: unknown;
+  error?: unknown;
+}
+
+function isEnvelopeWithFailure(body: unknown): body is ApiErrorResponse & { success: false } {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as EnvelopeLike).success === false &&
+    typeof (body as ApiErrorResponse).error === "object"
+  );
+}
+
+function isMalformedEnvelope(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as EnvelopeLike).success !== undefined &&
+    (body as EnvelopeLike).success !== true
+  );
+}
+
 let requestCounter = 0;
 
 function generateRequestId(): string {
@@ -143,6 +166,7 @@ export function createApiClient(options: ApiClientOptions) {
     const combinedSignal = composeSignal(opts?.signal, timeoutMs);
 
     const headers: Record<string, string> = {
+      "X-Request-Id": requestId,
       ...opts?.headers,
     };
 
@@ -196,6 +220,33 @@ export function createApiClient(options: ApiClientOptions) {
         }
 
         throw parsedError;
+      }
+
+      const failedEnvelope = isEnvelopeWithFailure(responseBody);
+      if (failedEnvelope) {
+        const parsedError =
+          parseAppErrorResponse(responseBody, response.status) ??
+          new AppError({
+            code: "CONTRACT_ERROR",
+            userMessage: "Something went wrong. Please try again later.",
+            developerMessage: "Server returned success:false on a 2xx status.",
+            statusCode: response.status,
+            retryable: false,
+          });
+        if (!parsedError.requestId) {
+          (parsedError as { requestId?: string }).requestId = requestId;
+        }
+        throw parsedError;
+      }
+
+      if (isMalformedEnvelope(responseBody)) {
+        throw new AppError({
+          code: "CONTRACT_ERROR",
+          userMessage: "Something went wrong. Please try again later.",
+          developerMessage: "Response envelope is malformed (success flag is neither true nor false).",
+          statusCode: response.status,
+          retryable: false,
+        });
       }
 
       return responseBody as TResponse;

@@ -1,5 +1,5 @@
 import type { TrendPoint } from "@/types";
-import { EchoCard } from "./card";
+import { EchoCard } from "../layout/echo-card";
 
 export function DataChartCard({
   title,

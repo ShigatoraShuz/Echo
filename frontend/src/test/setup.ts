@@ -1,4 +1,7 @@
 import "@testing-library/jest-dom/vitest";
+import { toHaveNoViolations } from "jest-axe";
+
+expect.extend(toHaveNoViolations);
 
 class MockIntersectionObserver implements IntersectionObserver {
   readonly root = null;

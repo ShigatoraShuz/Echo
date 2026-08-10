@@ -166,4 +166,63 @@ describe("createApiClient", () => {
       expect(appErr.userMessage).toBe("Server error");
     }
   });
+
+  describe("envelope contract parsing (ECHO-009)", () => {
+    it("returns the canonical success envelope body for adapters to unwrap", async () => {
+      mockFetch(200, { success: true, data: { id: "1" }, meta: { requestId: "req_1" } });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      const result = await client.get<{ success: true; data: { id: string }; meta: { requestId: string } }>(
+        "/api/test"
+      );
+      expect(result).toEqual({
+        success: true,
+        data: { id: "1" },
+        meta: { requestId: "req_1" },
+      });
+    });
+
+    it("accepts bare JSON bodies for non-envelope endpoints", async () => {
+      mockFetch(200, { id: "1" });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      const result = await client.get<{ id: string }>("/api/test");
+      expect(result).toEqual({ id: "1" });
+    });
+
+    it("fails safely when a 2xx response carries success:false with an error", async () => {
+      mockFetch(200, {
+        success: false,
+        error: { code: "AUTHENTICATION_REQUIRED", message: "Session required." },
+        meta: { requestId: "req_2" },
+      });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      await expect(client.get("/api/test")).rejects.toMatchObject({
+        code: "AUTHENTICATION_REQUIRED",
+        userMessage: "Session required.",
+      });
+    });
+
+    it("fails safely when a 2xx response carries success:false without an error", async () => {
+      mockFetch(200, { success: false, meta: { requestId: "req_3" } });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      await expect(client.get("/api/test")).rejects.toMatchObject({
+        code: "CONTRACT_ERROR",
+      });
+    });
+
+    it("fails safely when the success flag is a non-boolean value", async () => {
+      mockFetch(200, { success: "yes", data: {} });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      await expect(client.get("/api/test")).rejects.toMatchObject({
+        code: "CONTRACT_ERROR",
+      });
+    });
+
+    it("fails safely on malformed error bodies from non-2xx responses", async () => {
+      mockFetch(500, { nonsense: true });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      await expect(client.get("/api/test")).rejects.toMatchObject({
+        code: "SERVER_ERROR",
+      });
+    });
+  });
 });

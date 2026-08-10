@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
+import { riskBandNames, type EchoRiskBand } from "@/shared/theme";
 
-type RiskLevel = "low" | "medium" | "high" | "critical";
+type RiskLevel = EchoRiskBand;
 
 interface EchoRiskIndicatorProps {
   level: RiskLevel;
@@ -11,9 +12,10 @@ interface EchoRiskIndicatorProps {
 
 const config: Record<RiskLevel, { dot: string; bg: string; text: string }> = {
   low: { dot: "bg-success", bg: "bg-success/10", text: "text-success" },
-  medium: { dot: "bg-warning", bg: "bg-warning/10", text: "text-warning" },
+  mild: { dot: "bg-warning", bg: "bg-warning/10", text: "text-warning" },
+  moderate: { dot: "bg-warning", bg: "bg-warning/15", text: "text-warning" },
   high: { dot: "bg-danger", bg: "bg-danger/10", text: "text-danger" },
-  critical: { dot: "bg-danger", bg: "bg-danger/15", text: "text-danger" },
+  severe: { dot: "bg-danger", bg: "bg-danger/15", text: "text-danger" },
 };
 
 export function EchoRiskIndicator({ level, label, showDot = true, className }: EchoRiskIndicatorProps) {
@@ -26,3 +28,5 @@ export function EchoRiskIndicator({ level, label, showDot = true, className }: E
     </span>
   );
 }
+
+export { riskBandNames };

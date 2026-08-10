@@ -2,6 +2,7 @@ export const ERROR_CODES = [
   "VALIDATION_ERROR",
   "AUTHENTICATION_ERROR",
   "AUTHORIZATION_ERROR",
+  "VERIFICATION_REQUIRED",
   "NOT_FOUND",
   "CONFLICT",
   "RATE_LIMITED",
@@ -9,6 +10,7 @@ export const ERROR_CODES = [
   "TIMEOUT",
   "SERVER_ERROR",
   "UNKNOWN_ERROR",
+  "CONTRACT_ERROR",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

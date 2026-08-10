@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -8,7 +9,6 @@ import {
   BookOpen,
   Bot,
   ChevronDown,
-  ChevronRight,
   HeartHandshake,
   Home,
   Leaf,
@@ -17,12 +17,14 @@ import {
   PenLine,
   Settings,
   ShieldAlert,
-  UserRound,
   Wind,
 } from "lucide-react";
 import { findActiveNavigation, appNavigation } from "@/config/navigation.config";
-import { SyncStatus } from "@/shared/components/feedback/echo-sync-status";
 import { EchoMarketingFooter } from "@/shared/components/navigation/echo-marketing-footer";
+import { AppTopbar } from "@/shared/components/navigation/app-topbar";
+import { RadialBackground } from "@/shared/components/ui/light-theme-tailwind-css-background-snippet";
+import { ReflectionCalendarModal } from "@/features/journal/components/reflection-calendar-modal";
+import authMountainLandscape from "../../../../assets/65d9d1e4-d8ca-4f30-9136-adc6924b5d82.png";
 
 const publicLinks = [
   { href: "/journal", label: "Journal" },
@@ -50,7 +52,7 @@ export function PublicNavbar() {
     <header
       className={
         overlaysHero
-          ? "pointer-events-none absolute inset-x-0 top-0 z-50 px-4 pt-5 sm:px-8 sm:pt-8"
+          ? "pointer-events-none fixed inset-x-0 top-0 z-[60] px-4 pt-5 sm:px-8 sm:pt-8"
           : "relative z-50 border-b border-border/60 bg-background px-4 py-4 sm:px-8"
       }
     >
@@ -80,10 +82,10 @@ export function PublicNavbar() {
 
         <div className="flex shrink-0 items-center gap-2">
           <Link
-            href="/support/find-help"
+            href="/signup"
             className="hidden min-h-10 items-center justify-center rounded-full border border-[var(--landing-primary-40)] px-5 text-xs font-bold text-[var(--landing-primary)] outline-none transition-[transform,background-color] duration-150 ease-out hover:bg-[var(--landing-primary-10)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] sm:inline-flex"
           >
-            Find support
+            Create account
           </Link>
           <Link
             href="/signup"
@@ -115,7 +117,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
   );
 }
 
-const SIDEBAR_STORAGE_KEY = "echo-sidebar-collapsed";
+const SIDEBAR_STORAGE_KEY = "echo-sidebar-collapsed-v2";
 
 export function AppSidebar({
   collapsed,
@@ -126,86 +128,25 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const activeId = findActiveNavigation(appNavigation, pathname);
-  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
-  const [isFocusExpanded, setIsFocusExpanded] = useState(false);
-  const isVisuallyCollapsed = collapsed && !isHoverExpanded && !isFocusExpanded;
+  const isVisuallyCollapsed = collapsed;
 
   return (
-    <>
-      <aside className="min-w-0 border-b border-border/70 bg-secondary/20 px-4 py-4 sm:px-6 lg:hidden">
-        <div className="min-w-0">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-subtle">
-                E
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-foreground">ECHO</span>
-                <span className="block text-xs text-muted-foreground">Private app</span>
-              </span>
-            </Link>
-            <SyncStatus />
-          </div>
-
-        <div className="max-w-full min-w-0 pb-2 lg:pb-0">
-          <nav className="grid grid-cols-3 gap-2 lg:grid-cols-1">
-            {appLinks.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeId === item.label.toLowerCase().replace(/\s+/g, "-") ||
-                activeId === item.href.split("/").filter(Boolean)[0];
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-3 text-xs font-medium shadow-subtle transition hover:bg-muted sm:text-sm lg:gap-3 lg:px-4 ${
-                    isActive
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border/70 bg-card text-foreground"
-                  }`}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span className="truncate">{item.label}</span>
-                  <ChevronRight className="ml-auto hidden h-4 w-4 text-muted-foreground lg:block" aria-hidden="true" />
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        </div>
-      </aside>
-
+    <div className="echo-app-sidebar-shell">
       <aside
-        className={`sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-emerald-200/10 bg-[#071611] text-white shadow-[12px_0_40px_rgba(5,28,21,0.12)] [transition-property:width] duration-200 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] lg:flex motion-reduce:transition-none ${
-          isVisuallyCollapsed ? "w-[84px]" : "w-[264px]"
-        }`}
+        className={`echo-app-sidebar ${isVisuallyCollapsed ? "echo-app-sidebar--collapsed" : ""}`}
         data-sidebar-state={isVisuallyCollapsed ? "collapsed" : "expanded"}
-        onMouseEnter={() => {
-          if (collapsed) setIsHoverExpanded(true);
-        }}
-        onMouseLeave={() => setIsHoverExpanded(false)}
-        onFocusCapture={() => {
-          if (collapsed) setIsFocusExpanded(true);
-        }}
-        onBlurCapture={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            setIsFocusExpanded(false);
-          }
-        }}
       >
-        <div className="relative flex h-[132px] shrink-0 items-start bg-[radial-gradient(circle_at_18%_0%,rgba(91,193,145,0.38),transparent_62%),linear-gradient(180deg,#174c38_0%,#0b2119_100%)] px-5 pt-7">
+        <div className="relative flex h-[112px] shrink-0 items-start border-b border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.07),transparent)] px-4 pt-6">
           <Link
             href="/dashboard"
-            className="flex min-w-0 items-center gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/80"
+            className="flex min-w-0 items-center gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20"
             aria-label="ECHO dashboard"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-emerald-50 shadow-[0_10px_28px_rgba(0,0,0,0.16)] backdrop-blur-sm">
-              <Leaf className="h-6 w-6" strokeWidth={2.2} aria-hidden="true" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#8fc89a] text-[var(--landing-footer)] shadow-subtle">
+              <Leaf className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />
             </span>
             <span
-              className={`whitespace-nowrap text-xl font-semibold tracking-[-0.03em] text-white transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+              className={`echo-app-sidebar__brand-label whitespace-nowrap text-lg font-bold tracking-[-0.04em] text-[var(--landing-inverse)] transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
                 isVisuallyCollapsed ? "pointer-events-none -translate-x-2 opacity-0" : "translate-x-0 opacity-100"
               }`}
             >
@@ -216,18 +157,18 @@ export function AppSidebar({
           <button
             type="button"
             onClick={onToggle}
-            className={`absolute top-8 flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-black/15 text-emerald-50 outline-none transition-[background-color,border-color] duration-150 hover:border-white/30 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-emerald-200/80 ${
-              isVisuallyCollapsed ? "right-[23px] top-[82px]" : "right-4"
+            className={`echo-app-sidebar__toggle absolute top-7 flex h-8 w-8 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-[var(--landing-inverse)] outline-none transition-[background-color,border-color,transform] duration-150 ease-out hover:border-white/25 hover:bg-white/15 focus-visible:ring-4 focus-visible:ring-white/25 active:scale-[0.97] ${
+              isVisuallyCollapsed ? "right-[22px] top-[70px]" : "right-3"
             }`}
-            aria-label={collapsed ? (isVisuallyCollapsed ? "Expand sidebar" : "Keep sidebar expanded") : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!isVisuallyCollapsed}
-            title={collapsed ? (isVisuallyCollapsed ? "Expand sidebar" : "Keep sidebar expanded") : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" aria-hidden="true" /> : <PanelLeftClose className="h-[18px] w-[18px]" aria-hidden="true" />}
           </button>
         </div>
 
-        <nav className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 py-7" aria-label="Primary navigation">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 py-5" aria-label="Primary navigation">
           {appLinks.map((item) => {
             const Icon = item.icon;
             const itemId = item.label.toLowerCase().replace(/\s+/g, "-");
@@ -237,20 +178,20 @@ export function AppSidebar({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group relative flex h-12 items-center rounded-xl outline-none transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-emerald-300/70 ${
+                className={`echo-app-sidebar__nav-link group relative flex h-11 items-center rounded-xl outline-none transition-[background-color,color,transform] duration-150 ease-out hover:translate-x-0.5 focus-visible:ring-4 focus-visible:ring-ring/20 ${
                   isVisuallyCollapsed ? "justify-center px-0" : "gap-3 px-4"
                 } ${
                   isActive
-                    ? "bg-emerald-300/14 text-emerald-100"
-                    : "text-emerald-50/58 hover:bg-white/[0.06] hover:text-emerald-50"
+                    ? "bg-[#8fc89a] text-[var(--landing-footer)]"
+                    : "text-[var(--landing-inverse-80)] hover:bg-white/10 hover:text-[var(--landing-inverse)]"
                 }`}
                 aria-current={isActive ? "page" : undefined}
                 title={isVisuallyCollapsed ? item.label : undefined}
               >
-                {isActive ? <span className="absolute left-0 h-6 w-0.5 rounded-full bg-emerald-300" aria-hidden="true" /> : null}
-                <Icon className="h-[21px] w-[21px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                {isActive ? <span className="absolute left-0 h-6 w-0.5 rounded-full bg-[var(--landing-inverse)]" aria-hidden="true" /> : null}
+                <Icon className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
                 <span
-                  className={`whitespace-nowrap text-[15px] font-medium transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
+                  className={`echo-app-sidebar__nav-label whitespace-nowrap text-sm font-medium transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
                     isVisuallyCollapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"
                   }`}
                 >
@@ -259,61 +200,75 @@ export function AppSidebar({
               </Link>
             );
           })}
+          <ReflectionCalendarModal collapsed={isVisuallyCollapsed} />
         </nav>
 
         <div className="shrink-0 px-3 pb-4">
           <div className="mb-3 border-t border-white/10" />
           <Link
             href="/crisis"
-            className={`mb-2 flex h-11 items-center rounded-xl text-rose-200/80 outline-none transition-[background-color,color] duration-150 hover:bg-rose-300/10 hover:text-rose-100 focus-visible:ring-2 focus-visible:ring-rose-200/70 ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-4"}`}
+            className={`echo-app-sidebar__footer-link mb-2 flex h-10 items-center rounded-xl text-[#ff9b8d] outline-none transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/10 hover:text-[#ffb4a8] focus-visible:ring-4 focus-visible:ring-[#ff9b8d]/25 active:scale-[0.97] ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-4"}`}
             title={isVisuallyCollapsed ? "Crisis support" : undefined}
           >
             <ShieldAlert className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-            <span className={`whitespace-nowrap text-sm font-medium transition-opacity duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute opacity-0" : "opacity-100"}`}>
+            <span className={`echo-app-sidebar__footer-label whitespace-nowrap text-sm font-medium transition-opacity duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute opacity-0" : "opacity-100"}`}>
               Crisis support
             </span>
           </Link>
           <Link
-            href="/settings/profile"
-            className={`flex h-14 items-center rounded-xl border border-white/10 bg-white/[0.035] text-emerald-50 outline-none transition-[background-color,border-color] duration-150 hover:border-white/20 hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-emerald-300/70 ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-3"}`}
-            title={isVisuallyCollapsed ? "Your profile" : undefined}
+            href="/settings/privacy"
+            className={`echo-app-sidebar__footer-link flex h-12 items-center rounded-xl border border-white/10 bg-white/10 text-[var(--landing-inverse)] outline-none transition-[background-color,border-color,transform] duration-150 ease-out hover:border-white/20 hover:bg-white/15 focus-visible:ring-4 focus-visible:ring-white/25 active:scale-[0.97] ${isVisuallyCollapsed ? "justify-center" : "gap-3 px-3"}`}
+            title={isVisuallyCollapsed ? "Private by design" : undefined}
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-[#0b2b20]">
-              <UserRound className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden="true" />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--landing-cream)] text-[var(--landing-footer)] shadow-subtle">
+              <ShieldAlert className="h-[17px] w-[17px]" strokeWidth={1.8} aria-hidden="true" />
             </span>
-            <span className={`min-w-0 transition-[opacity,transform] duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"}`}>
-              <span className="block truncate text-sm font-semibold">Your profile</span>
-              <span className="block truncate text-[11px] text-emerald-50/45">Private space</span>
+            <span className={`echo-app-sidebar__footer-label min-w-0 transition-[opacity,transform] duration-150 ${isVisuallyCollapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"}`}>
+              <span className="block truncate text-sm font-semibold">Private by design</span>
+              <span className="block truncate text-[11px] text-[var(--landing-inverse-80)]">Your words stay yours</span>
             </span>
           </Link>
         </div>
       </aside>
-    </>
+    </div>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   useEffect(() => {
-    setIsSidebarCollapsed(window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true");
+    try {
+      const savedState = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      setIsSidebarCollapsed(savedState === null ? true : savedState === "true");
+    } catch {
+      setIsSidebarCollapsed(true);
+    }
   }, []);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed((current) => {
       const next = !current;
-      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {
+        // The sidebar still works when storage is unavailable.
+      }
       return next;
     });
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex min-w-0 flex-col lg:flex-row">
+    <div className="echo-app-canvas relative isolate min-h-screen overflow-x-clip text-foreground [font-family:var(--font-echo-sans)]">
+      <RadialBackground />
+      <div className="flex min-w-0">
         <AppSidebar collapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
-        <main id="main-content" className="min-h-screen min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <div className="mx-auto min-w-0 max-w-6xl space-y-6">{children}</div>
-        </main>
+        <div className="min-w-0 flex-1">
+          <AppTopbar />
+          <main id="main-content" className="echo-app-main min-w-0 px-4 py-5 sm:px-6 sm:py-7 lg:px-7 lg:py-8 xl:px-8">
+            <div className="mx-auto min-w-0 max-w-[1440px]">{children}</div>
+          </main>
+        </div>
       </div>
     </div>
   );
@@ -341,6 +296,59 @@ export function FloatingActionButton({ href, label }: { href: string; label: str
 }
 
 export function AuthShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const usesImmersiveAuthLayout = pathname === "/login" || pathname === "/signup";
+
+  if (usesImmersiveAuthLayout) {
+    return (
+      <div className="min-h-screen overflow-hidden bg-[var(--landing-cream)] text-[var(--landing-ink)] lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+        <aside className="relative hidden min-h-screen overflow-hidden lg:block" aria-label="ECHO welcome">
+          <Image
+            src={authMountainLandscape}
+            alt="A quiet mountain valley and evergreen forest"
+            fill
+            priority
+            sizes="(min-width: 1024px) 58vw, 0px"
+            className="object-cover object-center"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(13,39,51,0.18)_0%,rgba(13,39,51,0.04)_38%,rgba(13,39,51,0.42)_100%)]" aria-hidden="true" />
+
+          <div className="relative z-10 flex min-h-screen flex-col justify-between p-10 xl:p-14 [font-family:var(--font-echo-sans)]">
+            <Link href="/" className="inline-flex w-fit items-center gap-2 rounded-full bg-[rgba(255,253,247,0.92)] px-4 py-2.5 text-[var(--landing-primary)] shadow-[0_12px_30px_rgba(15,41,49,0.14)] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-white/70">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)]">
+                <Leaf className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-lg font-extrabold tracking-[-0.04em]">ECHO</span>
+            </Link>
+
+            <div className="max-w-md text-[var(--landing-inverse)] [text-shadow:0_2px_18px_rgba(8,30,44,0.36)]">
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-white/80">A gentle beginning</p>
+              <p className="mt-3 text-4xl font-medium leading-[0.98] tracking-[-0.045em] [font-family:var(--font-echo-display)] xl:text-5xl">
+                Take one quiet step toward yourself.
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <div className="relative flex min-h-screen min-w-0 items-center justify-center overflow-hidden bg-[#fbf8f1] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-0 xl:px-12">
+          <Image
+            src={authMountainLandscape}
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 1023px) 100vw, 0px"
+            className="pointer-events-none object-cover object-[center_52%] lg:hidden"
+            aria-hidden="true"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(17,48,41,0.38)_0%,rgba(28,58,45,0.16)_45%,rgba(17,48,41,0.42)_100%)] lg:hidden" aria-hidden="true" />
+          <main id="main-content" className="relative z-10 flex w-full justify-center lg:py-0">
+            {children}
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main id="main-content" className="mx-auto max-w-md px-4 py-12 sm:py-16">

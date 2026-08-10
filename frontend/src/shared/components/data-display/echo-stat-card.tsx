@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 
 interface EchoStatCardProps {
   label: string;
@@ -18,7 +19,7 @@ export function EchoStatCard({ label, value, trend, trendLabel, icon, className 
   };
 
   return (
-    <div className={cn("rounded-2xl border border-border/70 bg-card p-5 shadow-subtle", className)}>
+    <EchoMotionSurface as="div" className={cn("rounded-2xl border border-border/70 bg-card p-5 shadow-subtle", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
         {icon && (
@@ -35,6 +36,6 @@ export function EchoStatCard({ label, value, trend, trendLabel, icon, className 
           {trendLabel && <span>{trendLabel}</span>}
         </div>
       )}
-    </div>
+    </EchoMotionSurface>
   );
 }

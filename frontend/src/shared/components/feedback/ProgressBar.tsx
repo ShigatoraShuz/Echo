@@ -24,7 +24,7 @@ export function ProgressBar({ value, max = 100, label }: ProgressBarProps) {
     >
       <div
         style={{
-          width: ${percent}%,
+          width: `${percent}%`,
           height: "100%",
           background: "var(--color-primary-500)",
           borderRadius: "4px",

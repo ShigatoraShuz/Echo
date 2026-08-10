@@ -4,8 +4,8 @@ import { forwardRef, useId } from "react";
 import { Check } from "lucide-react";
 
 interface EchoCheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
-  label: string;
-  description?: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
   error?: string;
 }
 
@@ -17,8 +17,8 @@ export const EchoCheckbox = forwardRef<HTMLInputElement, EchoCheckboxProps>(
 
     return (
       <div className="space-y-1">
-        <label htmlFor={id} className="inline-flex cursor-pointer items-start gap-3">
-          <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-input bg-background transition has-[:checked]:border-primary has-[:checked]:bg-primary">
+        <label htmlFor={id} className="inline-flex cursor-pointer items-start gap-2.5">
+          <span className="relative mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border border-input bg-background transition has-[:checked]:border-primary has-[:checked]:bg-primary">
             <input
               ref={ref}
               id={id}
@@ -31,7 +31,7 @@ export const EchoCheckbox = forwardRef<HTMLInputElement, EchoCheckboxProps>(
             <Check className="h-3.5 w-3.5 text-primary-foreground opacity-0 transition peer-checked:opacity-100" aria-hidden="true" />
           </span>
           <span>
-            <span className="text-sm font-medium text-foreground">{label}</span>
+            <span className="text-xs font-medium text-foreground">{label}</span>
             {description && (
               <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
             )}

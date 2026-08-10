@@ -1,12 +1,5 @@
-import { moodStyles, riskBandStyles, type EchoMood, type EchoRiskBand } from "@/lib/theme";
-
-export function MoodBadge({ mood }: { mood: EchoMood }) {
-  return <span className={moodStyles[mood]}>{mood}</span>;
-}
-
-export function RiskBadge({ band }: { band: EchoRiskBand }) {
-  return <span className={riskBandStyles[band]}>{band}</span>;
-}
+import { RiskBadge } from "./risk-badge";
+import type { EchoRiskBand } from "@/lib/theme";
 
 export function RiskScoreRing({
   score,

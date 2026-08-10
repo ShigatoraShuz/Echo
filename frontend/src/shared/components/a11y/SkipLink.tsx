@@ -6,7 +6,7 @@ interface SkipLinkProps {
 export function SkipLink({ targetId, label = "Skip to main content" }: SkipLinkProps) {
   return (
     <a
-      href={#}
+      href={`#${targetId}`}
       className="skip-link"
       style={{
         position: "absolute",

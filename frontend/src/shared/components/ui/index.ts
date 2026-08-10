@@ -8,6 +8,9 @@ export { EchoCheckbox } from "./echo-checkbox";
 export { EchoRadioGroup, type RadioOption } from "./echo-radio-group";
 export { EchoSwitch } from "./echo-switch";
 export { EchoCard } from "./echo-card";
+export { EchoImage } from "./echo-image";
+export { FeatureCard } from "./feature-card";
+export { BreathingCircle } from "./breathing-circle";
 export { EchoBadge } from "./echo-badge";
 export { EchoAvatar } from "./echo-avatar";
 export { EchoDivider } from "./echo-divider";
@@ -17,3 +20,9 @@ export { EchoDialog } from "./echo-dialog";
 export { EchoSheet } from "./echo-sheet";
 export { EchoSkeleton, EchoSkeletonGroup } from "./echo-skeleton";
 export { EchoTooltip } from "./echo-tooltip";
+export {
+  ArcGalleryHero,
+  getGalleryDimensions,
+  handleHeroTiltMove,
+  resetHeroTilt,
+} from "./arc-gallery-hero-component";
