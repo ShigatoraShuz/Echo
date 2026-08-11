@@ -2,7 +2,9 @@
 
 import { type ReactNode } from "react";
 import { Shield } from "lucide-react";
-import { EchoCard, EchoImage, PrivacyNotice } from "@/shared/components/legacy";
+import { PrivacyNotice } from "@/shared/components/echo";
+import { EchoCard } from "@/shared/components/layout";
+import { EchoImage } from "@/shared/components/ui";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import type { EchoImageKey } from "@/lib/unsplash-images";
 

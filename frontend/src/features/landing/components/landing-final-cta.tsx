@@ -3,7 +3,7 @@ import { ArrowRight, Shield } from "lucide-react";
 import Link from "next/link";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 
-export function LandingFinalCTA() {
+export function LandingFinalCta() {
   return (
     <EchoReveal>
       <section className="rounded-[2rem] bg-gradient-to-br from-primary to-primary/80 p-8 text-center text-primary-foreground shadow-card sm:p-12">

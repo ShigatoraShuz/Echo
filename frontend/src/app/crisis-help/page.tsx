@@ -1,7 +1,26 @@
 import { PhoneCall, MessageSquareText, ShieldAlert } from "lucide-react";
-import { CrisisHelpCard, EchoCard, EchoImage, FeatureCard } from "@/shared/components/legacy";
+import { CrisisHelpCard } from "@/shared/components/echo";
+import { EchoCard } from "@/shared/components/layout";
+import { EchoImage, FeatureCard } from "@/shared/components/ui";
 import { PublicShell } from "@/shared/components/layout/echo-shells";
-import { hotlines } from "@/lib/mock-data";
+
+const hotlines = [
+  {
+    name: "988 Suicide & Crisis Lifeline",
+    action: "Call or text 988",
+    description: "Free, confidential support in the United States.",
+  },
+  {
+    name: "Crisis Text Line",
+    action: "Text HOME to 741741",
+    description: "Text-based crisis support from trained volunteers.",
+  },
+  {
+    name: "Emergency services",
+    action: "Call 911",
+    description: "Use emergency services if you or someone else is in immediate danger.",
+  },
+];
 
 export default function CrisisHelpPage() {
   return (

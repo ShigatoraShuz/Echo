@@ -3,7 +3,7 @@ import { Lock, Eye, ShieldCheck, Server, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 
-const badgeES = [
+const badges = [
   { icon: Lock, label: "End-to-end encrypted", description: "Your journal entries are encrypted before they leave your device." },
   { icon: Eye, label: "You are in control", description: "Choose what to share for analysis. Your data stays yours." },
   { icon: ShieldCheck, label: "No diagnostic claims", description: "ECHO is a reflective tool, not a clinical or diagnostic service." },
@@ -19,7 +19,7 @@ export function LandingPrivacySection() {
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">ECHO is built with privacy as a foundation, not an afterthought.</p>
         </div>
         <div className="mt-10 grid gap-6 sm:grid-cols-2">
-          {badgeES.map((badgee) => {
+          {badges.map((badge) => {
             const Icon = badge.icon;
             return (
               <div key={badge.label} className="rounded-xl border border-border bg-card p-5">

@@ -214,9 +214,10 @@ export default function DesignSystemPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Risk bands</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <EchoRiskIndicator level="low" />
-                  <EchoRiskIndicator level="medium" />
+                  <EchoRiskIndicator level="mild" />
+                  <EchoRiskIndicator level="moderate" />
                   <EchoRiskIndicator level="high" />
-                  <EchoRiskIndicator level="critical" />
+                  <EchoRiskIndicator level="severe" />
                 </div>
                 <EchoDivider />
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Legacy Mood Badges</p>

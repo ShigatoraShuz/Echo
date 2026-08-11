@@ -1,25 +1,60 @@
 "use client";
 
 import { MotionConfig, motion, type Variants } from "framer-motion";
-import { ShieldCheck, Sparkles, Wind, type LucideIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 import heroBackground from "../../../../assets/aac2846f-fae0-4ae0-a910-a48a0627440f (1).png";
+import sereneCloudRoom from "../../../../assets/Landing Page/774cbe149f698999c49f28a20cab1061.jpg";
+import familyAtHome from "../../../../assets/Landing Page/image 1.jpg";
+import lookingSkyward from "../../../../assets/Landing Page/image 2.jpg";
+import joyfulPortrait from "../../../../assets/Landing Page/image 3.jpg";
+import reflectionDesk from "../../../../assets/Landing Page/image 10.jpg";
+import livingRoomPortrait from "../../../../assets/Landing Page/image 11.jpg";
+import sunlitPortrait from "../../../../assets/Landing Page/image 12.jpg";
+import plantPortrait from "../../../../assets/Landing Page/image 13.jpg";
+import coffeePortrait from "../../../../assets/Landing Page/image 14.jpg";
+import travelReflection from "../../../../assets/Landing Page/image 5.jpg";
+import phoneReflection from "../../../../assets/Landing Page/image 6.jpg";
+import couchReflection from "../../../../assets/Landing Page/image 7.jpg";
+import laptopReflection from "../../../../assets/Landing Page/image 8.jpg";
+import deskReflection from "../../../../assets/Landing Page/image 9.jpg";
+import yellowCoatPortrait from "../../../../assets/Landing Page/iamge 4.jpg";
 import { cn } from "@/lib/utils";
+import {
+  ArcGalleryHero,
+  handleHeroTiltMove,
+  resetHeroTilt,
+} from "@/shared/components/ui/arc-gallery-hero-component";
 import { usePrefersReducedMotion } from "@/shared/hooks/use-prefers-reduced-motion";
-import type { LandingHeroContent, LandingStatIcon } from "../model";
+import type { LandingHeroContent } from "../model";
 
 interface LandingHeroProps {
   content: LandingHeroContent;
   className?: string;
 }
 
-const statIcons: Record<LandingStatIcon, LucideIcon> = {
-  privacy: ShieldCheck,
-  moods: Sparkles,
-  grounding: Wind,
-};
+function getLocalImageSrc(image: string | { src: string }) {
+  return typeof image === "string" ? image : image.src;
+}
+
+export const HERO_GALLERY_IMAGES = [
+  getLocalImageSrc(lookingSkyward),
+  getLocalImageSrc(joyfulPortrait),
+  getLocalImageSrc(yellowCoatPortrait),
+  getLocalImageSrc(travelReflection),
+  getLocalImageSrc(couchReflection),
+  getLocalImageSrc(livingRoomPortrait),
+  getLocalImageSrc(sunlitPortrait),
+  getLocalImageSrc(coffeePortrait),
+  getLocalImageSrc(plantPortrait),
+  getLocalImageSrc(phoneReflection),
+  getLocalImageSrc(laptopReflection),
+  getLocalImageSrc(deskReflection),
+  getLocalImageSrc(reflectionDesk),
+  getLocalImageSrc(familyAtHome),
+  getLocalImageSrc(sereneCloudRoom),
+];
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -48,31 +83,35 @@ const titleVariants: Variants = {
 };
 
 export function LandingHero({
-  content: { eyebrow, title, subtitle, actions, stats },
+  content: { eyebrow, title, subtitle, actions },
   className,
 }: LandingHeroProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   return (
     <MotionConfig reducedMotion={prefersReducedMotion ? "always" : "never"}>
-      <section
+      <ArcGalleryHero
         className={cn(
-          "relative flex h-svh min-h-[760px] w-full overflow-hidden bg-[var(--landing-mist)] text-[var(--landing-ink)]",
+          "relative z-50 bg-[var(--landing-mist)] text-[var(--landing-ink)]",
           className,
         )}
+        images={HERO_GALLERY_IMAGES}
+        background={
+          <>
+            <Image
+              src={heroBackground}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center opacity-90"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(242,245,241,0.14)_0%,rgba(240,244,241,0.3)_52%,rgba(240,244,241,0.58)_100%)]" />
+          </>
+        }
       >
-        <Image
-          src={heroBackground}
-          alt=""
-          fill
-          priority
-          aria-hidden="true"
-          sizes="100vw"
-          className="pointer-events-none object-cover object-center"
-        />
-
         <motion.div
-          className="relative z-10 mx-auto flex h-full w-full max-w-[1440px] flex-col items-center px-5 pb-8 pt-36 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pt-40 lg:px-12 lg:pt-[12.5rem]"
+          className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-10 pt-8 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pb-12 sm:pt-10 lg:px-12 lg:pt-12"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
@@ -107,49 +146,30 @@ export function LandingHero({
               const primary = action.variant === "primary";
 
               return (
-                <Link
+                <span
                   key={action.href}
-                  href={action.href}
-                  className={cn(
-                    "inline-flex min-h-12 min-w-48 items-center justify-center rounded-full px-6 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97]",
-                    primary
-                      ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
-                      : "border border-[var(--landing-primary-45)] bg-[var(--landing-cream-35)] text-[var(--landing-primary)] backdrop-blur-sm hover:bg-[var(--landing-cream-65)]",
-                  )}
+                  className="echo-hero-tilt inline-flex rounded-full"
+                  onPointerMove={handleHeroTiltMove}
+                  onPointerLeave={resetHeroTilt}
                 >
-                  {action.text}
-                </Link>
+                  <Link
+                    href={action.href}
+                    className={cn(
+                      "relative z-10 inline-flex min-h-12 min-w-48 items-center justify-center rounded-full px-6 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97]",
+                      primary
+                        ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
+                        : "border border-[var(--landing-primary-45)] bg-[var(--landing-cream-35)] text-[var(--landing-primary)] backdrop-blur-sm hover:bg-[var(--landing-cream-65)]",
+                    )}
+                  >
+                    {action.text}
+                  </Link>
+                </span>
               );
             })}
           </motion.div>
 
-          <motion.div className="mt-11 w-full max-w-xl text-left" variants={itemVariants}>
-            <p className="inline-flex rounded-full bg-[var(--landing-inverse-85)] px-3 py-1.5 text-xs font-bold text-[var(--landing-ink)] shadow-sm backdrop-blur-sm">
-              What makes ECHO different?
-            </p>
-            <div
-              data-testid="hero-stats-panel"
-              className="mt-3 grid gap-2.5 rounded-[var(--landing-panel-radius)] border border-white/35 bg-[#f8f2e6]/90 p-3 shadow-[0_12px_36px_rgba(41,49,27,0.14)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4"
-            >
-              {stats.map((stat) => {
-                const Icon = statIcons[stat.icon];
-
-                return (
-                  <div key={stat.label} className="flex items-center gap-2.5 text-[var(--landing-ink)]">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--landing-inverse)] text-[var(--landing-primary)] shadow-sm [&_svg]:h-4 [&_svg]:w-4">
-                      <Icon aria-hidden="true" />
-                    </span>
-                    <span>
-                      <span className="block text-xs font-extrabold leading-4">{stat.value}</span>
-                      <span className="block text-[10px] font-semibold leading-4 text-[var(--landing-ink-80)]">{stat.label}</span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
         </motion.div>
-      </section>
+      </ArcGalleryHero>
     </MotionConfig>
   );
 }

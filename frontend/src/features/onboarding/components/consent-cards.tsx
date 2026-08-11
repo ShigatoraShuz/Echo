@@ -35,10 +35,11 @@ export function ConsentCards({ onConsentChange, consentValues }: ConsentCardsPro
             type="button"
             role="switch"
             aria-checked={consentValues[opt.key] ?? false}
+            aria-label={`${opt.title} toggle`}
             onClick={() => !opt.required && onConsentChange(opt.key, !(consentValues[opt.key] ?? false))}
-            className={elative h-6 w-11 shrink-0 rounded-full transition-colors }
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${consentValues[opt.key] ?? false ? "bg-primary" : "bg-secondary/40"}`}
           >
-            <span className={bsolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform } />
+            <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${(consentValues[opt.key] ?? false) ? "translate-x-5" : ""}`} />
           </button>
         </div>
       ))}

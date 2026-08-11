@@ -26,9 +26,9 @@ export function GoalsSelector({ selectedGoal, onSelect }: GoalsSelectorProps) {
               key={goal.value}
               type="button"
               onClick={() => onSelect(goal.value)}
-              className={ounded-xl border p-4 text-left transition-colors }
+              className={`rounded-xl border p-4 text-left transition-colors ${isSelected ? "border-primary bg-primary/5" : ""}`}
             >
-              <Icon className={h-5 w-5 } />
+              <Icon className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
               <p className="mt-2 text-sm font-medium text-foreground">{goal.label}</p>
               <p className="mt-1 text-xs text-muted-foreground">{goal.description}</p>
             </button>
@@ -60,7 +60,7 @@ export function BuddyToneSelector({ selectedTone, onSelect }: BuddyToneSelectorP
             key={tone.value}
             type="button"
             onClick={() => onSelect(tone.value)}
-            className={ounded-full px-4 py-2 text-sm font-semibold transition-colors }
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${selectedTone === tone.value ? "bg-primary text-primary-foreground" : "bg-secondary/40 text-muted-foreground"}`}
             title={tone.description}
           >
             {tone.label}

@@ -14,7 +14,8 @@ import Link from "next/link";
 import { echoImages } from "@/lib/unsplash-images";
 import { cn } from "@/lib/utils";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
-import growthBackground from "../../../../assets/3bg.png";
+import growthDoorwayHill from "../../../../assets/growth-doorway-hill.png";
+import communityBackground from "../../../../assets/bg.png";
 
 const portraitImages = [
   {
@@ -52,14 +53,14 @@ const portraitImages = [
 ];
 
 const portraitPositions = [
-  "left-[2%] top-[15%] h-40 w-28",
-  "left-[13%] top-[3%] h-44 w-32",
-  "left-[24%] top-[16%] h-36 w-28",
-  "left-[35%] top-[4%] h-40 w-28",
-  "right-[35%] top-[5%] h-40 w-28",
-  "right-[24%] top-[17%] h-36 w-28",
-  "right-[13%] top-[3%] h-44 w-32",
-  "right-[2%] top-[15%] h-40 w-28",
+  "left-[2%] top-[26%] h-52 w-36",
+  "left-[13%] top-[13%] h-56 w-36",
+  "left-[24%] top-[28%] h-48 w-32",
+  "left-[35%] top-[14%] h-52 w-36",
+  "right-[35%] top-[14%] h-52 w-36",
+  "right-[24%] top-[28%] h-48 w-32",
+  "right-[13%] top-[13%] h-56 w-36",
+  "right-[2%] top-[26%] h-52 w-36",
 ];
 
 function revealDelay(index: number) {
@@ -178,9 +179,9 @@ export function MindfulnessOfferingsSection() {
   return (
     <section
       id="features"
-      className="bg-[var(--landing-mist)] px-4 py-16 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:px-8"
+      className="landing-section-gradient landing-section-gradient--grounding relative z-40 flex min-h-[100svh] items-center overflow-hidden px-4 py-16 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:px-8"
     >
-      <div className="mx-auto grid max-w-[1440px] gap-5 lg:grid-cols-12 lg:items-stretch">
+      <div className="mx-auto grid w-full max-w-[1440px] gap-5 lg:grid-cols-12 lg:items-stretch">
         <EchoReveal variant="card" className="h-full lg:col-span-3">
           <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8 lg:min-h-[690px]">
             <div>
@@ -305,8 +306,8 @@ export function ReflectiveBuddySection() {
   ];
 
   return (
-    <section id="buddy-experience" className="bg-[var(--landing-mist)] px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
-      <div className="mx-auto grid min-h-[720px] max-w-[1440px] overflow-hidden rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] lg:grid-cols-[0.9fr_1.1fr]">
+    <section id="buddy-experience" className="landing-section-gradient landing-section-gradient--reflection relative z-30 flex min-h-[100svh] items-center overflow-hidden px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
+      <div className="mx-auto grid w-full min-h-[720px] max-w-[1440px] overflow-hidden rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] lg:grid-cols-[0.9fr_1.1fr]">
         <EchoReveal variant="text" className="flex flex-col justify-center p-7 sm:p-12 lg:p-16 xl:p-20">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Reflective support</p>
           <h2 className="mt-5 max-w-xl text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] text-[var(--landing-ink)] [text-wrap:balance]">
@@ -408,16 +409,17 @@ export function GrowthInvitationSection() {
       id="growth"
       data-testid="growth-section"
       aria-labelledby="growth-heading"
-      className="relative isolate flex min-h-[680px] overflow-hidden bg-[#f8f7f3] text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:min-h-[720px] md:min-h-[620px] lg:min-h-[780px] xl:min-h-[820px]"
+      className="landing-section-gradient landing-section-gradient--growth relative isolate z-20 flex min-h-[100svh] overflow-hidden text-[var(--landing-ink)] [font-family:var(--font-echo-sans)]"
     >
       <div
         data-testid="growth-background"
-        className="echo-growth-drift absolute inset-0 -z-10 bg-no-repeat [background-position:55%_bottom] [background-size:auto_70%] sm:[background-position:60%_bottom] sm:[background-size:auto_85%] md:[background-position:center_center] md:[background-size:cover]"
-        style={{ backgroundImage: `url(${growthBackground.src})` }}
+        className="echo-growth-drift absolute inset-0 -z-10 bg-cover bg-center"
+        style={{ backgroundImage: `url(${growthDoorwayHill.src})` }}
         aria-hidden="true"
       />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(90deg,rgba(251,247,238,0.9)_0%,rgba(251,247,238,0.7)_35%,rgba(251,247,238,0.24)_66%,rgba(251,247,238,0.08)_100%)]" aria-hidden="true" />
 
-      <div className="mx-auto flex w-full max-w-[1440px] items-start px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:px-14 lg:py-24 xl:px-20">
+      <div className="relative z-10 mx-auto flex w-full max-w-[1440px] items-start px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:px-14 lg:py-24 xl:px-20">
         <EchoReveal variant="text" direction="right" className="max-w-[35rem]">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">
             A gentle beginning
@@ -446,8 +448,13 @@ export function GrowthInvitationSection() {
 
 export function CommunityStoriesSection() {
   return (
-    <section className="relative overflow-hidden bg-[var(--landing-cream)] px-4 py-20 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:min-h-[780px] lg:px-8 lg:py-0">
-      <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-[390px] lg:block" aria-hidden="true">
+    <section className="relative isolate z-10 min-h-[100svh] overflow-hidden bg-[#e8eee6] px-4 py-20 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:px-8 lg:py-0">
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <Image src={communityBackground} alt="" fill sizes="100vw" className="object-cover object-center" />
+        <div className="landing-community-backdrop absolute inset-0" />
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 hidden h-[450px] lg:block" aria-hidden="true">
         {portraitImages.map((image, index) => (
           <EchoReveal
             key={image.src}
@@ -455,20 +462,20 @@ export function CommunityStoriesSection() {
             delay={revealDelay(index)}
             className={`absolute overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)] shadow-[0_14px_35px_rgba(41,49,27,0.1)] ${portraitPositions[index]}`}
           >
-            <Image src={image.src} alt="" fill className="object-cover" sizes="128px" />
+            <Image src={image.src} alt="" fill className="object-cover" sizes="144px" />
           </EchoReveal>
         ))}
       </div>
 
-      <div className="mx-auto grid max-w-[1440px] grid-cols-4 gap-3 lg:hidden">
+      <div className="relative z-10 mx-auto grid max-w-[1440px] grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
         {portraitImages.slice(0, 4).map((image, index) => (
-          <EchoReveal key={image.src} variant="media" delay={revealDelay(index)} className="relative aspect-[0.78] overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)]">
-            <Image src={image.src} alt={image.alt} fill className="object-cover" sizes="25vw" />
+          <EchoReveal key={image.src} variant="media" delay={revealDelay(index)} className="relative aspect-[0.72] overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)]">
+            <Image src={image.src} alt={image.alt} fill className="object-cover" sizes="(max-width: 639px) 50vw, 25vw" />
           </EchoReveal>
         ))}
       </div>
 
-      <EchoReveal variant="text" className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center lg:pt-[330px]">
+      <EchoReveal variant="text" className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center lg:pt-[400px]">
         <p className="mt-12 inline-flex rounded-full bg-[var(--landing-mist)] px-3 py-1.5 text-xs font-bold lg:mt-0">Private by design</p>
         <h2 className="mt-5 text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
           One space for
