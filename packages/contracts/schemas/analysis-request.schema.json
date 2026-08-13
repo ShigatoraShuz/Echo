@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AiAnalysisRequest",
+  "type": "object",
+  "required": ["request_id", "journal_text", "language"],
+  "properties": {
+    "request_id": { "type": "string", "format": "uuid" },
+    "journal_text": { "type": "string", "minLength": 1, "maxLength": 20000 },
+    "language": { "type": "string", "minLength": 2, "maxLength": 16 }
+  },
+  "additionalProperties": false
+}

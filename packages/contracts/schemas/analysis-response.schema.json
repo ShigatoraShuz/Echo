@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AiAnalysisResponse",
+  "type": "object",
+  "required": ["request_id", "phq8_score", "severity", "urgent_language_detected", "model_version", "processing_time_ms"],
+  "properties": {
+    "request_id": { "type": "string", "format": "uuid" },
+    "phq8_score": { "type": "integer", "minimum": 0, "maximum": 24 },
+    "severity": { "enum": ["minimal", "mild", "moderate", "moderately_severe", "severe"] },
+    "urgent_language_detected": { "type": "boolean" },
+    "model_version": { "type": "string", "minLength": 1 },
+    "processing_time_ms": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}
