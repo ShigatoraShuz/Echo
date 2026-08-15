@@ -56,6 +56,7 @@ export const appNavigation: NavigationEntry[] = [
 
 export const settingsNavigation: NavigationEntry[] = [
   { id: "settings-profile", label: "Profile", href: ROUTES.settings.profile, iconKey: "userRound", match: "exact" },
+  { id: "settings-verification", label: "Verification", href: ROUTES.settings.verification, iconKey: "shield", match: "exact" },
   { id: "settings-privacy", label: "Privacy", href: ROUTES.settings.privacy, iconKey: "shield", match: "exact" },
   { id: "settings-notifications", label: "Notifications", href: ROUTES.settings.notifications, iconKey: "bell", match: "exact" },
   { id: "settings-contacts", label: "Trusted contacts", href: ROUTES.settings.trustedContacts, iconKey: "usersRound", match: "exact" },

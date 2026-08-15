@@ -35,11 +35,15 @@ export const ROUTES = {
   },
   settings: {
     profile: "/settings/profile",
+    verification: "/settings/verification",
     privacy: "/settings/privacy",
     security: "/settings/security",
     notifications: "/settings/notifications",
     export: "/settings/export",
     trustedContacts: "/settings/trusted-contacts",
+  },
+  admin: {
+    verifications: "/admin/verifications",
   },
   tools: {
     grounding: "/tools/grounding",

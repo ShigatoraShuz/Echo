@@ -30,8 +30,8 @@ describe("featureFlags", () => {
   });
 
   it("mock mode does not require API base URL", async () => {
-    vi.stubEnv("NEXT_PUBLIC_USE_MOCK", "true");
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "mock");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
     const { env } = await import("../config/environment");
     expect(env.dataAdapter).toBe("mock");
     vi.unstubAllEnvs();

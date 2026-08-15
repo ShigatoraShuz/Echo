@@ -1,0 +1,1 @@
+export { VerifiedFeatureGate } from "./verified-feature-gate";
