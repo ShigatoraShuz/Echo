@@ -7,6 +7,7 @@ import { JournalService } from "./features/journals/journals.service.js";
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
+import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -22,6 +23,7 @@ const journalService = new JournalService(
 const settingsService = new SettingsService(supabaseAdmin);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService);
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
+const onboardingService = new OnboardingService(supabaseAdmin);
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
@@ -43,6 +45,10 @@ const app = createApp({
     },
     verification: {
       service: verificationService,
+      verifier,
+    },
+    onboarding: {
+      service: onboardingService,
       verifier,
     },
   },
