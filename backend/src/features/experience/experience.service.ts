@@ -85,7 +85,7 @@ export class ExperienceService {
     private readonly encryption: EncryptionService,
   ) {}
 
-  async dashboard(userId: string) {
+  async dashboard(userId: string, range = "7d") {
     const [entries, profileResult, preferenceResult] = await Promise.all([
       this.journals.list(userId),
       this.database.from("profiles").select("display_name").eq("id", userId).maybeSingle(),
@@ -100,15 +100,52 @@ export class ExperienceService {
     }
 
     const today = startOfUtcDay(new Date());
-    const moodTrend = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(today);
-      day.setUTCDate(day.getUTCDate() - (6 - index));
-      const matching = entries.filter((entry) => dateKey(entry.created_at) === dateKey(day));
-      const value = matching.length
-        ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-        : 20;
-      return { label: day.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), value };
-    });
+    let moodTrend: Array<{ label: string; value: number }>;
+
+    if (range === "30d" || range === "month") {
+      // 4 clean weekly buckets over the 30-day period
+      moodTrend = Array.from({ length: 4 }, (_, index) => {
+        const weekEnd = new Date(today);
+        weekEnd.setUTCDate(weekEnd.getUTCDate() - (3 - index) * 7);
+        const weekStart = new Date(weekEnd);
+        weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+        const matching = entries.filter((entry) => {
+          const entryDate = new Date(entry.created_at);
+          return entryDate >= weekStart && entryDate <= weekEnd;
+        });
+        const value = matching.length
+          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
+          : 0;
+        return { label: `Week ${index + 1}`, value };
+      });
+    } else if (range === "90d") {
+      // 3 monthly intervals over 90 days
+      moodTrend = Array.from({ length: 3 }, (_, index) => {
+        const periodEnd = new Date(today);
+        periodEnd.setUTCDate(periodEnd.getUTCDate() - (2 - index) * 30);
+        const periodStart = new Date(periodEnd);
+        periodStart.setUTCDate(periodStart.getUTCDate() - 29);
+        const matching = entries.filter((entry) => {
+          const entryDate = new Date(entry.created_at);
+          return entryDate >= periodStart && entryDate <= periodEnd;
+        });
+        const value = matching.length
+          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
+          : 0;
+        const monthLabel = periodEnd.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+        return { label: monthLabel, value };
+      });
+    } else {
+      moodTrend = Array.from({ length: 7 }, (_, index) => {
+        const day = new Date(today);
+        day.setUTCDate(day.getUTCDate() - (6 - index));
+        const matching = entries.filter((entry) => dateKey(entry.created_at) === dateKey(day));
+        const value = matching.length
+          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
+          : 0;
+        return { label: day.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), value };
+      });
+    }
 
     const moodCounts = new Map<string, number>();
     for (const entry of entries) moodCounts.set(entry.mood, (moodCounts.get(entry.mood) ?? 0) + 1);
