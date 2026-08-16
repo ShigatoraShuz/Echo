@@ -238,11 +238,30 @@ export class VerificationService {
 
   async getStatus(userId: string) {
     const admin = await this.isAdmin(userId);
-    const existing = await this.applicationRowForUser(userId);
+    const [consentResult, profileResult, existing] = await Promise.all([
+      this.database
+        .from("user_consents")
+        .select("id")
+        .eq("user_id", userId)
+        .in("consent_type", ["ai_feature_notice", "journal_analysis", "terms_of_use"])
+        .eq("accepted", true)
+        .is("revoked_at", null)
+        .limit(1)
+        .maybeSingle(),
+      this.database
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", userId)
+        .maybeSingle(),
+      this.applicationRowForUser(userId),
+    ]);
+
+    const hasAiConsent = Boolean(consentResult.data) || Boolean(profileResult.data?.onboarding_completed);
+
     if (!existing) {
       return {
         status: "not_started" as const,
-        canAccessAi: false,
+        canAccessAi: hasAiConsent,
         canReview: admin,
         isMinor: null,
         application: null,
@@ -265,7 +284,7 @@ export class VerificationService {
     const status = stringValue(row.verification_status) as Exclude<VerificationStatus, "not_started">;
     return {
       status,
-      canAccessAi: status === "approved",
+      canAccessAi: hasAiConsent || status === "approved",
       canReview: admin,
       isMinor,
       application: this.applicationDetails(row),
@@ -458,6 +477,29 @@ export class VerificationService {
   }
 
   async assertAiAccess(userId: string): Promise<void> {
+    // 1. Check if user has active AI feature notice or journal analysis consent
+    const { data: consent } = await this.database
+      .from("user_consents")
+      .select("id")
+      .eq("user_id", userId)
+      .in("consent_type", ["ai_feature_notice", "journal_analysis", "terms_of_use"])
+      .eq("accepted", true)
+      .is("revoked_at", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (consent) return;
+
+    // 2. Check if user has completed onboarding in profile
+    const { data: profile } = await this.database
+      .from("profiles")
+      .select("onboarding_completed")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.onboarding_completed) return;
+
+    // 3. Fallback to approved identity verification application
     const application = await this.applicationRowForUser(userId);
     if (!application) throw new VerificationRequiredError("not_started");
     const row = await this.normalizeExpired(application);
