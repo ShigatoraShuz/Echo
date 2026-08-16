@@ -9,6 +9,8 @@ export interface ProfileSettingsInput {
   timezone: string;
   themeVariant: ThemeVariant;
   themeMode: ThemeMode;
+  /** Optional public URL or storage path for the user's avatar image */
+  avatarPath?: string | null;
 }
 
 export interface PrivacySettingsInput {
@@ -81,7 +83,7 @@ export class SettingsService {
       await Promise.all([
         this.database
           .from("profiles")
-          .select("display_name, timezone, theme_variant, theme_mode")
+          .select("display_name, timezone, theme_variant, theme_mode, avatar_path")
           .eq("id", userId)
           .single(),
         this.database
@@ -141,6 +143,7 @@ export class SettingsService {
         timezone: stringValue(profile.timezone, "Asia/Manila"),
         themeVariant: stringValue(profile.theme_variant, "echo-calm"),
         themeMode: stringValue(profile.theme_mode, "system"),
+        avatarPath: nullableString(profile.avatar_path),
       },
       privacy: {
         journalPrivate: true,
@@ -192,14 +195,18 @@ export class SettingsService {
 
   async updateProfile(userId: string, input: ProfileSettingsInput) {
     await this.ensureDefaults(userId);
+    const updatePayload: Record<string, unknown> = {
+      display_name: input.displayName,
+      timezone: input.timezone,
+      theme_variant: input.themeVariant,
+      theme_mode: input.themeMode,
+    };
+    if (input.avatarPath !== undefined) {
+      updatePayload.avatar_path = input.avatarPath;
+    }
     const { error } = await this.database
       .from("profiles")
-      .update({
-        display_name: input.displayName,
-        timezone: input.timezone,
-        theme_variant: input.themeVariant,
-        theme_mode: input.themeMode,
-      })
+      .update(updatePayload)
       .eq("id", userId);
     if (error) throw databaseError("Your profile settings could not be saved.");
     return this.get(userId);
