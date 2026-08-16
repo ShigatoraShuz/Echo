@@ -30,7 +30,11 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 export function createExperienceController(service: ExperienceService) {
   return {
     async dashboard(request: Request, response: Response) {
-      sendSuccess(response, await service.dashboard(authenticatedUserId(request)));
+      const range = typeof request.query.range === "string" ? request.query.range : undefined;
+      const data = range
+        ? await service.dashboard(authenticatedUserId(request), range)
+        : await service.dashboard(authenticatedUserId(request));
+      sendSuccess(response, data);
     },
     async buddySession(request: Request, response: Response) {
       sendSuccess(response, await service.buddySession(authenticatedUserId(request)));
