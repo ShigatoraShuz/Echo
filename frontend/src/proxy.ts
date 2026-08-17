@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware-client";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
+import { createMiddlewareSupabaseClient } from "@/infrastructure/supabase/middleware-client";
 
 const protectedPrefixes = [
   "/dashboard",
@@ -60,7 +60,7 @@ function contentSecurityPolicy(nonce: string): string {
   ].join("; ");
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const nonce = generateNonce();
   request.headers.set("x-nonce", nonce);
   const response = NextResponse.next({ request });
@@ -103,6 +103,9 @@ export async function middleware(request: NextRequest) {
 
   return response;
 }
+
+// Backward compatibility alias if needed
+export const middleware = proxy;
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico)$).*)"],
