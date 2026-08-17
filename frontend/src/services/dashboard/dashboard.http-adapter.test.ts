@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/shared/services/supabase-auth-token-provider", () => ({
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
   supabaseAuthTokenProvider: {
     getAccessToken: vi.fn(async () => "access-token"),
     refreshAccessToken: vi.fn(async () => "access-token"),
@@ -63,7 +63,7 @@ describe("dashboard HTTP adapter", () => {
       ),
     );
 
-    const { createDashboardHttpAdapter } = await import("./dashboard.http-adapter");
+    const { createDashboardHttpAdapter } = await import("@/services/dashboard/dashboard.http-adapter");
     const result = await createDashboardHttpAdapter().getDashboardData();
 
     expect(result.success).toBe(true);

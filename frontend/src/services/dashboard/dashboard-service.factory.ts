@@ -1,7 +1,7 @@
-import type { DashboardService } from "./dashboard.service";
-import { createDashboardMockAdapter } from "./dashboard.mock-adapter";
-import { createDashboardHttpAdapter } from "./dashboard.http-adapter";
-import { isMockAdapter } from "@/shared/services/service-adapter";
+import type { DashboardService } from "@/services/dashboard/dashboard.service";
+import { createDashboardMockAdapter } from "@/services/dashboard/dashboard.mock-adapter";
+import { createDashboardHttpAdapter } from "@/services/dashboard/dashboard.http-adapter";
+import { isMockAdapter } from "@/infrastructure/api/service-adapter";
 
 let instance: DashboardService | null = null;
 

@@ -1,6 +1,6 @@
-import type { DashboardService } from "./dashboard.service";
-import { successResult } from "@/shared/services/service-result";
-import type { DashboardData } from "../model/dashboard.model";
+import type { DashboardService } from "@/services/dashboard/dashboard.service";
+import { successResult } from "@/infrastructure/api/service-result";
+import type { DashboardData } from "@/features/dashboard/model/dashboard.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -8,8 +8,31 @@ function delay(ms: number): Promise<void> {
 
 export function createDashboardMockAdapter(): DashboardService {
   return {
-    async getDashboardData() {
-      await delay(300 + Math.random() * 300);
+    async getDashboardData(timeRange = "7d") {
+      await delay(200 + Math.random() * 200);
+
+      const moodTrend = timeRange === "30d" || timeRange === "month"
+        ? [
+            { label: "W1", value: 68 },
+            { label: "W2", value: 55 },
+            { label: "W3", value: 74 },
+            { label: "W4", value: 80 },
+          ]
+        : timeRange === "90d"
+        ? [
+            { label: "May", value: 62 },
+            { label: "Jun", value: 70 },
+            { label: "Jul", value: 78 },
+          ]
+        : [
+            { label: "Mon", value: 65 },
+            { label: "Tue", value: 42 },
+            { label: "Wed", value: 78 },
+            { label: "Thu", value: 55 },
+            { label: "Fri", value: 88 },
+            { label: "Sat", value: 70 },
+            { label: "Sun", value: 60 },
+          ];
 
       const data: DashboardData = {
         userProfile: {

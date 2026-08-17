@@ -1,12 +1,12 @@
-import type { DashboardService } from "./dashboard.service";
+import type { DashboardService } from "@/services/dashboard/dashboard.service";
 import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { createApiClient } from "@/shared/services/api-client";
-import { failureResult, successResult } from "@/shared/services/service-result";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { failureResult, successResult } from "@/infrastructure/api/service-result";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import type { JournalEntryResponseDTO } from "@/features/journal/model/journal.dto";
 import { mapEntryResponseToDomain } from "@/features/journal/model/journal.mapper";
-import type { DashboardData } from "../model/dashboard.model";
+import type { DashboardData } from "@/features/dashboard/model/dashboard.model";
 
 export function createDashboardHttpAdapter(): DashboardService {
   const client = createApiClient({
@@ -20,12 +20,13 @@ export function createDashboardHttpAdapter(): DashboardService {
   };
 
   return {
-    async getDashboardData() {
+    async getDashboardData(timeRange?: string) {
       try {
+        const queryParam = timeRange ? `?range=${encodeURIComponent(timeRange)}` : "";
         const response = await client.get<{
           success: true;
           data: DashboardResponse;
-        }>("/dashboard");
+        }>(`/dashboard${queryParam}`);
         return successResult({
           ...response.data,
           latestEntry: response.data.latestEntry
