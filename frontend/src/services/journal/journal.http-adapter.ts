@@ -1,7 +1,7 @@
 import type {
   JournalService,
   JournalServiceResult,
-} from "./journal.service";
+} from "@/services/journal/journal.service";
 import type {
   JournalEntry,
   JournalDraft,
@@ -10,24 +10,24 @@ import type {
   UpdateJournalInput,
   JournalSearchFilters,
   JournalServiceError,
-} from "../model/journal.model";
+} from "@/features/journal/model/journal.model";
 import type {
   JournalEntryResponseDTO,
   JournalEntryListResponseDTO,
   JournalDraftResponseDTO,
   JournalAnalysisResponseDTO,
   CreateJournalRequestDTO,
-} from "../model/journal.dto";
+} from "@/features/journal/model/journal.dto";
 import {
   mapEntryResponseToDomain,
   mapDraftResponseToDomain,
   mapAnalysisResponseToDomain,
   mapCreateInputToRequest,
-} from "../model/journal.mapper";
+} from "@/features/journal/model/journal.mapper";
 import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { createApiClient } from "@/shared/services/api-client";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 function toServiceError(error: unknown): JournalServiceError {
   const normalized = normalizeError(error);

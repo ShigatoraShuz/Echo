@@ -1,7 +1,7 @@
-import type { JournalService } from "./journal.service";
-import { createJournalMockAdapter } from "./journal.mock-adapter";
-import { createJournalHttpAdapter } from "./journal.http-adapter";
-import { isMockAdapter } from "@/shared/services/service-adapter";
+import type { JournalService } from "@/services/journal/journal.service";
+import { createJournalMockAdapter } from "@/services/journal/journal.mock-adapter";
+import { createJournalHttpAdapter } from "@/services/journal/journal.http-adapter";
+import { isMockAdapter } from "@/infrastructure/api/service-adapter";
 
 let instance: JournalService | null = null;
 

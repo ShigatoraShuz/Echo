@@ -7,7 +7,7 @@ import type {
   JournalSearchFilters,
   JournalPagination,
   JournalServiceError,
-} from "../model/journal.model";
+} from "@/features/journal/model/journal.model";
 
 export type JournalServiceResult<T> =
   | { success: true; data: T }

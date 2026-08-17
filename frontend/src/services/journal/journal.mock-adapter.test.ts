@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createJournalMockAdapter } from "./journal.mock-adapter";
-import type { JournalService } from "./journal.service";
+import { createJournalMockAdapter } from "@/services/journal/journal.mock-adapter";
+import type { JournalService } from "@/services/journal/journal.service";
 
 describe("JournalMockAdapter", () => {
   let adapter: JournalService;

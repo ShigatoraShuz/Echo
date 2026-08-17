@@ -4,8 +4,8 @@ import type {
   JournalAnalysis,
   JournalMood,
   JournalRiskBand,
-} from "../model/journal.model";
-import type { JournalService } from "./journal.service";
+} from "@/features/journal/model/journal.model";
+import type { JournalService } from "@/services/journal/journal.service";
 
 // ─── In-memory store factory ─────────────────────────
 
