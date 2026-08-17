@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/shared/services/supabase-auth-token-provider", () => ({
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
   supabaseAuthTokenProvider: {
     getAccessToken: vi.fn(async () => "access-token"),
     refreshAccessToken: vi.fn(async () => "access-token"),
@@ -37,7 +37,7 @@ describe("experience API adapter envelope contract (ECHO-009)", () => {
       ),
     );
 
-    const { experienceApi } = await import("./experience-api");
+    const { experienceApi } = await import("@/services/experience/experience-api");
     const session = await experienceApi.getBuddySession();
 
     expect(session).toEqual({ conversationId: "c-1", messages: [] });
@@ -55,7 +55,7 @@ describe("experience API adapter envelope contract (ECHO-009)", () => {
       ),
     );
 
-    const { experienceApi } = await import("./experience-api");
+    const { experienceApi } = await import("@/services/experience/experience-api");
     await expect(experienceApi.getBuddySession()).rejects.toMatchObject({
       code: "AUTHENTICATION_REQUIRED",
       userMessage: "Session required.",
@@ -69,7 +69,7 @@ describe("experience API adapter envelope contract (ECHO-009)", () => {
       vi.fn(async () => jsonResponse({ success: true, meta: { requestId: "req_3" } })),
     );
 
-    const { experienceApi } = await import("./experience-api");
+    const { experienceApi } = await import("@/services/experience/experience-api");
     const session = await experienceApi.getBuddySession();
     expect(session).toBeUndefined();
   });

@@ -1,7 +1,7 @@
 import { env } from "@/config/environment";
-import type { ChatMessage } from "@/types";
-import { createApiClient } from "./api-client";
-import { supabaseAuthTokenProvider } from "./supabase-auth-token-provider";
+import type { ChatMessage } from "@/shared/types";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 interface ApiEnvelope<T> {
   success: true;
