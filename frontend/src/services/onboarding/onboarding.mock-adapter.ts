@@ -1,4 +1,4 @@
-import type { OnboardingService } from "./onboarding.service";
+import type { OnboardingService } from "@/services/onboarding/onboarding.service";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
