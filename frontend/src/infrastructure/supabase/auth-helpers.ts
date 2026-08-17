@@ -1,7 +1,7 @@
 "use client";
 
-import { getSupabasePublicConfig } from "./config";
-import { createBrowserSupabaseClient } from "./browser-client";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
+import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
   if (!getSupabasePublicConfig()) return null;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSupabasePublicConfig } from "./config";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 
 describe("getSupabasePublicConfig", () => {
   afterEach(() => {

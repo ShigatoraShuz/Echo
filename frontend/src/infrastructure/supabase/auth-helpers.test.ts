@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   signInWithOAuth: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/browser-client", () => ({
+vi.mock("@/infrastructure/supabase/browser-client", () => ({
   createBrowserSupabaseClient: () => ({
     auth: {
       signInWithOAuth: mocks.signInWithOAuth,
@@ -12,11 +12,11 @@ vi.mock("@/lib/supabase/browser-client", () => ({
   }),
 }));
 
-vi.mock("@/lib/supabase/config", () => ({
+vi.mock("@/infrastructure/supabase/config", () => ({
   getSupabasePublicConfig: () => ({ url: "https://example.supabase.co", publishableKey: "pk" }),
 }));
 
-import { signInWithGoogle } from "./auth-helpers";
+import { signInWithGoogle } from "@/infrastructure/supabase/auth-helpers";
 
 describe("signInWithGoogle", () => {
   const assign = vi.fn();

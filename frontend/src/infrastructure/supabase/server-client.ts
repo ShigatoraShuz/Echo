@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { requireSupabasePublicConfig } from "./config";
+import { requireSupabasePublicConfig } from "@/infrastructure/supabase/config";
 
 function secureCookieOptions() {
   return {
