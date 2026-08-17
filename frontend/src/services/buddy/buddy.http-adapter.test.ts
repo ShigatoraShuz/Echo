@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/shared/services/supabase-auth-token-provider", () => ({
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
   supabaseAuthTokenProvider: {
     getAccessToken: vi.fn(async () => "access-token"),
     refreshAccessToken: vi.fn(async () => "access-token"),
@@ -36,7 +36,7 @@ describe("buddy HTTP adapter", () => {
       ),
     );
 
-    const { createBuddyHttpAdapter } = await import("./buddy.http-adapter");
+    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     const result = await createBuddyHttpAdapter().getAccessStatus();
 
     expect(result.success).toBe(true);
@@ -60,7 +60,7 @@ describe("buddy HTTP adapter", () => {
       ),
     );
 
-    const { createBuddyHttpAdapter } = await import("./buddy.http-adapter");
+    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     const result = await createBuddyHttpAdapter().getConversation("conv-1");
 
     expect(result.success).toBe(true);
@@ -96,7 +96,7 @@ describe("buddy HTTP adapter", () => {
       ),
     );
 
-    const { createBuddyHttpAdapter } = await import("./buddy.http-adapter");
+    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     const result = await createBuddyHttpAdapter().sendMessage({ conversationId: "conv-1", content: "Hello" });
 
     expect(result.success).toBe(true);
@@ -104,7 +104,7 @@ describe("buddy HTTP adapter", () => {
   });
 
   it("marks conversation management as unsupported instead of fabricating data", async () => {
-    const { createBuddyHttpAdapter } = await import("./buddy.http-adapter");
+    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     const result = await createBuddyHttpAdapter().createConversation({ title: "New" });
 
     expect(result.success).toBe(false);

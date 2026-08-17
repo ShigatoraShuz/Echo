@@ -6,7 +6,7 @@ import type {
   SendMessageInput,
   BuddyPagination,
   BuddyServiceError,
-} from "../model/buddy.model";
+} from "@/features/buddy/model/buddy.model";
 
 export type BuddyServiceResult<T> =
   | { success: true; data: T }

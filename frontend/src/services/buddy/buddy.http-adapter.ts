@@ -1,14 +1,14 @@
-import type { BuddyService, BuddyServiceResult } from "./buddy.service";
+import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
 import type {
   BuddyConversation,
   BuddyMessage,
   BuddySession,
   BuddyServiceError,
-} from "../model/buddy.model";
+} from "@/features/buddy/model/buddy.model";
 import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { createApiClient } from "@/shared/services/api-client";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 interface ApiEnvelope<T> {
   success: true;

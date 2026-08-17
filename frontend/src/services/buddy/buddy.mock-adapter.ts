@@ -1,6 +1,6 @@
-import type { BuddyService, BuddyServiceResult } from "./buddy.service";
-import type { BuddyConversation, BuddyMessage, BuddySession, CreateConversationInput, SendMessageInput, BuddyPagination } from "../model/buddy.model";
-import type { BuddyServiceError } from "../model/buddy.model";
+import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
+import type { BuddyConversation, BuddyMessage, BuddySession, CreateConversationInput, SendMessageInput, BuddyPagination } from "@/features/buddy/model/buddy.model";
+import type { BuddyServiceError } from "@/features/buddy/model/buddy.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

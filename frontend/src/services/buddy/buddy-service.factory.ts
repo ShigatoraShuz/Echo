@@ -1,7 +1,7 @@
-import type { BuddyService } from "./buddy.service";
-import { createBuddyMockAdapter } from "./buddy.mock-adapter";
-import { createBuddyHttpAdapter } from "./buddy.http-adapter";
-import { isMockAdapter } from "@/shared/services/service-adapter";
+import type { BuddyService } from "@/services/buddy/buddy.service";
+import { createBuddyMockAdapter } from "@/services/buddy/buddy.mock-adapter";
+import { createBuddyHttpAdapter } from "@/services/buddy/buddy.http-adapter";
+import { isMockAdapter } from "@/infrastructure/api/service-adapter";
 
 let instance: BuddyService | null = null;
 
