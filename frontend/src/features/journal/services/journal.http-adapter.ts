@@ -1,7 +1,69 @@
-import type { JournalService, JournalServiceResult } from "./journal.service";
-import type { JournalEntry, CreateJournalInput, UpdateJournalInput, JournalSearchFilters, JournalPagination } from "../model/journal.model";
+import type {
+  JournalService,
+  JournalServiceResult,
+} from "./journal.service";
+import type {
+  JournalEntry,
+  JournalDraft,
+  JournalAnalysis,
+  CreateJournalInput,
+  UpdateJournalInput,
+  JournalSearchFilters,
+  JournalServiceError,
+} from "../model/journal.model";
+import type {
+  JournalEntryResponseDTO,
+  JournalEntryListResponseDTO,
+  JournalDraftResponseDTO,
+  JournalAnalysisResponseDTO,
+  CreateJournalRequestDTO,
+} from "../model/journal.dto";
+import {
+  mapEntryResponseToDomain,
+  mapDraftResponseToDomain,
+  mapAnalysisResponseToDomain,
+  mapCreateInputToRequest,
+} from "../model/journal.mapper";
+import { env } from "@/config/environment";
+import { normalizeError } from "@/shared/errors/normalize-error";
+import { createApiClient } from "@/shared/services/api-client";
+import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+
+function toServiceError(error: unknown): JournalServiceError {
+  const normalized = normalizeError(error);
+  switch (normalized.code) {
+    case "NOT_FOUND":
+      return { code: "NOT_FOUND", message: normalized.userMessage };
+    case "VALIDATION_ERROR":
+      return {
+        code: "VALIDATION",
+        message: normalized.userMessage,
+        details: normalized.fieldErrors?.reduce<Record<string, string[]>>((acc, field) => {
+          acc[field.field] = [...(acc[field.field] ?? []), field.message];
+          return acc;
+        }, {}),
+      };
+    case "AUTHENTICATION_ERROR":
+      return { code: "UNAUTHORIZED", message: normalized.userMessage };
+    case "AUTHORIZATION_ERROR":
+      return { code: "FORBIDDEN", message: normalized.userMessage };
+    case "CONFLICT":
+      return { code: "CONFLICT", message: normalized.userMessage };
+    case "NETWORK_ERROR":
+    case "TIMEOUT":
+    case "RATE_LIMITED":
+      return { code: "NETWORK", message: normalized.userMessage };
+    default:
+      return { code: "UNKNOWN", message: normalized.userMessage };
+  }
+}
 
 export function createJournalHttpAdapter(): JournalService {
+  const client = createApiClient({
+    baseUrl: env.apiBaseUrl,
+    tokenProvider: supabaseAuthTokenProvider,
+  });
+
   return {
     async listEntries(filters, page, pageSize, signal) {
       try {
@@ -11,55 +73,120 @@ export function createJournalHttpAdapter(): JournalService {
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         params.set("sort", filters.sort);
-        const res = await fetch(`/api/v1/journals?${params.toString()}`, { signal });
-        if (!res.ok) return { success: false, error: { code: "NETWORK", message: "Failed to fetch entries" } };
-        const data = await res.json();
-        return { success: true, data: { entries: data.data.entries, pagination: data.data.pagination } };
-      } catch (err) {
-        return { success: false, error: { code: "NETWORK", message: err instanceof Error ? err.message : "Network error" } };
+        const response = await client.get<{ success: true; data: JournalEntryListResponseDTO }>(
+          `/journals?${params.toString()}`,
+          { signal },
+        );
+        const entries = response.data.entries.map(mapEntryResponseToDomain);
+        return {
+          success: true,
+          data: {
+            entries,
+            pagination: {
+              page,
+              pageSize,
+              totalItems: entries.length,
+              totalPages: Math.max(1, Math.ceil(entries.length / pageSize)),
+            },
+          },
+        };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
       }
     },
     async getEntry(id, signal) {
       try {
-        const res = await fetch(`/api/v1/journals/${id}`, { signal });
-        if (!res.ok) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
-        return { success: true, data: await res.json() };
-      } catch (err) {
-        return { success: false, error: { code: "NETWORK", message: err instanceof Error ? err.message : "Network error" } };
+        const response = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
+          `/journals/${id}`,
+          { signal },
+        );
+        return { success: true, data: mapEntryResponseToDomain(response.data) };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
       }
     },
     async createEntry(input) {
       try {
-        const res = await fetch("/api/v1/journals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-        if (!res.ok) return { success: false, error: { code: "VALIDATION", message: "Failed to create entry" } };
-        return { success: true, data: await res.json() };
-      } catch (err) {
-        return { success: false, error: { code: "NETWORK", message: err instanceof Error ? err.message : "Network error" } };
+        const response = await client.post<{ success: true; data: JournalEntryResponseDTO }, CreateJournalRequestDTO>(
+          "/journals",
+          mapCreateInputToRequest(input),
+        );
+        return { success: true, data: mapEntryResponseToDomain(response.data) };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
       }
     },
     async updateEntry(id, input) {
       try {
-        const res = await fetch(`/api/v1/journals/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-        if (!res.ok) return { success: false, error: { code: "VALIDATION", message: "Failed to update entry" } };
-        return { success: true, data: await res.json() };
-      } catch (err) {
-        return { success: false, error: { code: "NETWORK", message: err instanceof Error ? err.message : "Network error" } };
+        const response = await client.patch<{ success: true; data: JournalEntryResponseDTO }, UpdateJournalInput>(
+          `/journals/${id}`,
+          input,
+        );
+        return { success: true, data: mapEntryResponseToDomain(response.data) };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
       }
     },
     async deleteEntry(id) {
       try {
-        const res = await fetch(`/api/v1/journals/${id}`, { method: "DELETE" });
-        if (!res.ok) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
+        await client.delete<undefined>(`/journals/${id}`);
         return { success: true, data: undefined as unknown as void };
-      } catch (err) {
-        return { success: false, error: { code: "NETWORK", message: err instanceof Error ? err.message : "Network error" } };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
       }
     },
-    async saveDraft(draft) { return { success: true, data: draft }; },
-    async getDraft(id) { return { success: true, data: null }; },
-    async deleteDraft(id) { return { success: true, data: undefined as unknown as void }; },
-    async requestAnalysis(entryId) { return { success: false, error: { code: "UNKNOWN", message: "Analysis not available" } }; },
-    async getAnalysis(entryId) { return { success: false, error: { code: "UNKNOWN", message: "Analysis not available" } }; },
-    async exportEntry(id) { return { success: false, error: { code: "UNKNOWN", message: "Export not available" } }; },
+    async saveDraft(draft) {
+      try {
+        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, JournalDraft>(
+          "/journals/draft",
+          draft,
+        );
+        return { success: true, data: mapDraftResponseToDomain(response.data) };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async getDraft(_id: string, signal?: AbortSignal) {
+      try {
+        const response = await client.get<{ success: true; data: JournalDraftResponseDTO | null }>(
+          "/journals/draft",
+          { signal },
+        );
+        return { success: true, data: response.data ? mapDraftResponseToDomain(response.data) : null };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async deleteDraft() {
+      try {
+        await client.delete<undefined>("/journals/draft");
+        return { success: true, data: undefined as unknown as void };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async requestAnalysis(entryId) {
+      try {
+        const response = await client.post<{ success: true; data: JournalAnalysisResponseDTO }>(
+          `/journals/${entryId}/analyze`,
+        );
+        return { success: true, data: mapAnalysisResponseToDomain(response.data) };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async getAnalysis(entryId) {
+      try {
+        const response = await client.get<{ success: true; data: JournalAnalysisResponseDTO | null }>(
+          `/journals/${entryId}/analyses`,
+        );
+        return { success: true, data: response.data ? mapAnalysisResponseToDomain(response.data) : null };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async exportEntry() {
+      return { success: false, error: { code: "UNKNOWN", message: "Export not available" } };
+    },
   };
 }

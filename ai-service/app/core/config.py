@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     device: str = "cuda"
     torch_dtype: str = "bfloat16"
     log_level: str = "INFO"
+    rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
+    rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":

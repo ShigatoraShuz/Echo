@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.middleware import request_id_middleware
+from app.api.middleware import rate_limit_middleware, request_id_middleware
 from app.api.routes import analysis, health, model_info, readiness
 from app.core.config import get_settings
 from app.core.lifespan import lifespan
@@ -16,6 +16,7 @@ app = FastAPI(
     openapi_url=None if production else "/openapi.json",
 )
 app.middleware("http")(request_id_middleware)
+app.middleware("http")(rate_limit_middleware)
 app.include_router(health.router)
 app.include_router(readiness.router)
 app.include_router(model_info.router)

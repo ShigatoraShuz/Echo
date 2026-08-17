@@ -21,40 +21,8 @@ function readBackendDevelopmentEnvironment(): Record<string, string> {
 
 const backendDevelopmentEnvironment = readBackendDevelopmentEnvironment();
 
-function origin(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
-const supabaseOrigin = origin(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? backendDevelopmentEnvironment.SUPABASE_URL,
-);
-const apiOrigin = origin(
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000/api/v1",
-);
 const isDevelopment = process.env.NODE_ENV !== "production";
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
-  "font-src 'self' data:",
-  `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
-  "media-src 'self' blob: data:",
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
-].join("; ");
-
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },

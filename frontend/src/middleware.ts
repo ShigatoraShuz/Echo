@@ -18,21 +18,71 @@ function isProtected(pathname: string): boolean {
   );
 }
 
+function generateNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function origin(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+const supabaseOrigin = origin(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const apiOrigin = origin(process.env.NEXT_PUBLIC_API_BASE_URL);
+
+function contentSecurityPolicy(nonce: string): string {
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  return [
+    "default-src 'self'",
+    // In production the nonce authenticates Next.js bootstrap and flight
+    // scripts (applied automatically via the x-nonce request header) and the
+    // inline theme-init script. Development keeps 'unsafe-inline' for HMR
+    // bootstrapping; the local dev server is not a production surface.
+    `script-src 'self' 'nonce-${nonce}'${isDevelopment ? " 'unsafe-inline' 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
+    "font-src 'self' data:",
+    `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
+    "media-src 'self' blob: data:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
+  ].join("; ");
+}
+
 export async function middleware(request: NextRequest) {
+  const nonce = generateNonce();
+  request.headers.set("x-nonce", nonce);
+  const response = NextResponse.next({ request });
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+
   if (!getSupabasePublicConfig()) {
-    if (process.env.NODE_ENV !== "production") return NextResponse.next();
+    if (process.env.NODE_ENV !== "production") return response;
 
     // A missing identity-provider configuration must never expose a protected
     // production route. Redirect to the login surface, whose auth adapter will
     // show a configuration-safe error instead of creating a mock session.
+    // Already on the login surface (e.g. after the redirect) -> let it render.
+    if (request.nextUrl.pathname === "/login") return response;
     const destination = request.nextUrl.clone();
     destination.pathname = "/login";
     destination.search = "";
     destination.searchParams.set("error", "auth_not_configured");
-    return NextResponse.redirect(destination);
+    const redirect = NextResponse.redirect(destination);
+    redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+    return redirect;
   }
 
-  const response = NextResponse.next({ request });
   const supabase = createMiddlewareSupabaseClient(request, response);
   const {
     data: { user },
@@ -46,6 +96,7 @@ export async function middleware(request: NextRequest) {
       `${request.nextUrl.pathname}${request.nextUrl.search}`,
     );
     const redirect = NextResponse.redirect(destination);
+    redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
   }
@@ -54,13 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/journal/:path*",
-    "/buddy/:path*",
-    "/insights/:path*",
-    "/tools/:path*",
-    "/settings/:path*",
-    "/admin/:path*",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico)$).*)"],
 };

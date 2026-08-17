@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
+import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { SettingsService } from "./settings.service.js";
 
@@ -68,12 +69,6 @@ function userId(request: Request): string {
   return request.auth.id;
 }
 
-function parameter(request: Request, name: string): string {
-  const value = request.params[name];
-  if (typeof value !== "string" || !value) throw new ValidationError({ [name]: [`${name} is required.`] });
-  return value;
-}
-
 export function createSettingsController(service: SettingsService) {
   return {
     async get(request: Request, response: Response) {
@@ -103,7 +98,7 @@ export function createSettingsController(service: SettingsService) {
         response,
         await service.updateContact(
           userId(request),
-          parameter(request, "contactId"),
+          requireUuidParam(request, "contactId"),
           parse(contactSchema, request.body),
         ),
       );
@@ -111,7 +106,7 @@ export function createSettingsController(service: SettingsService) {
     async removeContact(request: Request, response: Response) {
       sendSuccess(
         response,
-        await service.removeContact(userId(request), parameter(request, "contactId")),
+        await service.removeContact(userId(request), requireUuidParam(request, "contactId")),
       );
     },
     async requestExport(request: Request, response: Response) {
@@ -123,7 +118,7 @@ export function createSettingsController(service: SettingsService) {
     async cancelDeletion(request: Request, response: Response) {
       sendSuccess(
         response,
-        await service.cancelDeletion(userId(request), parameter(request, "requestId")),
+        await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")),
       );
     },
   };

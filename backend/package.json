@@ -2,7 +2,6 @@
   "name": "@echo/backend",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
     "start": "node --env-file=.env dist/server.js",

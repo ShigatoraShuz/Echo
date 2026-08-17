@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
+import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { JournalService } from "./journals.service.js";
 
@@ -31,14 +32,6 @@ function userId(request: Request): string {
   return request.auth.id;
 }
 
-function journalId(request: Request): string {
-  const value = request.params.journalId;
-  if (typeof value !== "string" || value.length === 0) {
-    throw new ValidationError({ journalId: ["A journal id is required."] });
-  }
-  return value;
-}
-
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
   if (!result.success) throw new ValidationError({ body: result.error.issues.map((issue) => issue.message) });
@@ -61,16 +54,16 @@ export function createJournalsController(service: JournalService) {
       sendSuccess(response, { entries: await service.list(userId(request)) });
     },
     async get(request: Request, response: Response) {
-      sendSuccess(response, await service.get(userId(request), journalId(request)));
+      sendSuccess(response, await service.get(userId(request), requireUuidParam(request, "journalId")));
     },
     async create(request: Request, response: Response) {
       sendSuccess(response, await service.create(userId(request), parse(journalInputSchema, normalizeJournalPayload(request.body))), 201);
     },
     async update(request: Request, response: Response) {
-      sendSuccess(response, await service.update(userId(request), journalId(request), parse(journalUpdateSchema, normalizeJournalPayload(request.body))));
+      sendSuccess(response, await service.update(userId(request), requireUuidParam(request, "journalId"), parse(journalUpdateSchema, normalizeJournalPayload(request.body))));
     },
     async remove(request: Request, response: Response) {
-      await service.remove(userId(request), journalId(request));
+      await service.remove(userId(request), requireUuidParam(request, "journalId"));
       response.status(204).end();
     },
     async saveDraft(request: Request, response: Response) {
@@ -87,10 +80,10 @@ export function createJournalsController(service: JournalService) {
       response.status(204).end();
     },
     async analyze(request: Request, response: Response) {
-      sendSuccess(response, await service.analyze(userId(request), journalId(request)), 201);
+      sendSuccess(response, await service.analyze(userId(request), requireUuidParam(request, "journalId")), 201);
     },
     async analyses(request: Request, response: Response) {
-      sendSuccess(response, await service.getLatestAnalysis(userId(request), journalId(request)));
+      sendSuccess(response, await service.getLatestAnalysis(userId(request), requireUuidParam(request, "journalId")));
     },
   };
 }

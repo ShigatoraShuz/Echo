@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
+import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import {
   documentKinds,
@@ -119,7 +120,7 @@ export function createVerificationController(service: VerificationService) {
         response,
         await service.getForAdmin(
           authenticatedUserId(request),
-          parameter(request, "verificationId"),
+          requireUuidParam(request, "verificationId"),
         ),
       );
     },
@@ -128,7 +129,7 @@ export function createVerificationController(service: VerificationService) {
         response,
         await service.claimForReview(
           authenticatedUserId(request),
-          parameter(request, "verificationId"),
+          requireUuidParam(request, "verificationId"),
         ),
       );
     },
@@ -137,7 +138,7 @@ export function createVerificationController(service: VerificationService) {
         response,
         await service.decide(
           authenticatedUserId(request),
-          parameter(request, "verificationId"),
+          requireUuidParam(request, "verificationId"),
           parse(reviewSchema, request.body),
         ),
       );

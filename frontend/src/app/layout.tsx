@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/shared/theme";
 import { ECHO_THEME_STORAGE_KEY } from "@/lib/theme";
@@ -50,11 +51,15 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The middleware sets the x-nonce request header; Next.js applies it to its
+  // own inline bootstrap scripts and the theme-init script below, which allows
+  // a strict script-src without 'unsafe-inline'.
+  const nonce = (await headers()).get("x-nonce") ?? "";
   return (
     <html
       lang="en"
@@ -63,7 +68,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${echoSans.variable} ${echoDisplay.variable}`} suppressHydrationWarning>
         <SmoothScrollProvider>

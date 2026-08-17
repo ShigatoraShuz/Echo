@@ -52,6 +52,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class PayloadTooLargeError extends AppError {
+  constructor(message = "The request body is too large.") {
+    super({ statusCode: 413, code: "PAYLOAD_TOO_LARGE", message });
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "The requested resource was not found.") {
     super({ statusCode: 404, code: "NOT_FOUND", message });

@@ -7,11 +7,20 @@ import { notFoundMiddleware } from "./shared/middleware/not-found.middleware.js"
 import { requestIdMiddleware } from "./shared/middleware/request-id.middleware.js";
 import { requestLoggerMiddleware } from "./shared/middleware/request-logger.middleware.js";
 import { createV1Router, type V1RouterOptions } from "./routes/v1.routes.js";
+import { PayloadTooLargeError, ValidationError } from "./shared/errors/app-error.js";
 
 export interface CreateAppOptions {
   allowedOrigin?: string;
   bodyLimit?: string;
   v1?: V1RouterOptions;
+}
+
+interface BodyParserError {
+  type: string;
+}
+
+function isBodyParserError(error: unknown): error is SyntaxError & BodyParserError {
+  return typeof error === "object" && error !== null && "type" in error;
 }
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -34,9 +43,22 @@ export function createApp(options: CreateAppOptions = {}) {
     response.setHeader("Pragma", "no-cache");
     next();
   });
-  app.use(express.json({ limit: options.bodyLimit ?? "1mb" }));
+  // Request correlation must precede body parsing so that body-parser failures
+  // are attributable to a requestId.
   app.use(requestIdMiddleware);
   app.use(requestLoggerMiddleware);
+  app.use(express.json({ limit: options.bodyLimit ?? "1mb" }));
+  // Map body-parser failures to proper client errors instead of a generic 500:
+  // malformed JSON -> 400, oversized payload -> 413.
+  app.use((error: unknown, _request: express.Request, _response: express.Response, next: express.NextFunction) => {
+    if (isBodyParserError(error)) {
+      if (error.type === "entity.too.large") {
+        return next(new PayloadTooLargeError());
+      }
+      return next(new ValidationError({ field: "body", reason: "The request body is malformed." }));
+    }
+    return next(error);
+  });
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
   app.use("/api/v1", createV1Router(options.v1));
   app.use(notFoundMiddleware);

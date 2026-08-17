@@ -1,10 +1,10 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
+import { createApp, type CreateAppOptions } from "../src/app.js";
 import type { ExperienceService } from "../src/features/experience/experience.service.js";
 import type { VerificationService } from "../src/features/verification/verification.service.js";
 
-function createHarness() {
+function createHarness(appOptions: CreateAppOptions = {}) {
   const service = {
     dashboard: vi.fn().mockResolvedValue({ journalEntries: [], moodToday: null }),
     buddySession: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
@@ -24,6 +24,7 @@ function createHarness() {
     ),
   };
   const app = createApp({
+    ...appOptions,
     v1: {
       experience: {
         service: service as unknown as ExperienceService,
@@ -82,6 +83,37 @@ describe("API envelope contract (ECHO-009)", () => {
     expect(response.body.success).toBe(false);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
     expect(response.body.error.message).toBe("The request is invalid.");
+    expect(typeof response.body.meta.requestId).toBe("string");
+  });
+
+  it("maps malformed JSON bodies to 400 with a requestId instead of 500", async () => {
+    const { app } = createHarness();
+
+    const response = await request(app)
+      .post("/api/v1/journals")
+      .set("Authorization", "Bearer valid-token")
+      .set("Content-Type", "application/json")
+      .send('{"title": "unterminated');
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(typeof response.body.meta.requestId).toBe("string");
+  });
+
+  it("maps oversized bodies to 413 with a requestId instead of 500", async () => {
+    const { app } = createHarness({ bodyLimit: "1kb" });
+
+    const oversized = JSON.stringify({ title: "x".repeat(4 * 1024) });
+    const response = await request(app)
+      .post("/api/v1/journals")
+      .set("Authorization", "Bearer valid-token")
+      .set("Content-Type", "application/json")
+      .send(oversized);
+
+    expect(response.status).toBe(413);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.code).toBe("PAYLOAD_TOO_LARGE");
     expect(typeof response.body.meta.requestId).toBe("string");
   });
 

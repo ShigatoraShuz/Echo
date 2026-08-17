@@ -57,21 +57,29 @@ export function useInsightsViewModel() {
       service.getRiskSignal(abortRef.current.signal),
       service.getFacialTrend(abortRef.current.signal),
     ]);
-    if (summaryResult.success && breakdownResult.success && riskResult.success && facialResult.success) {
-      const riskTrend: TrendPoint[] = riskResult.data.history.map((point) => ({
-        label: point.date,
-        value: point.score,
-        band: point.band,
-      }));
-      dispatch({ type: "LOAD_SUCCESS", summary: summaryResult.data, breakdown: breakdownResult.data, risk: riskResult.data, facialTrend: facialResult.data.points, riskTrend });
-    } else {
-      const error = summaryResult.success === false ? summaryResult.error.message
-        : breakdownResult.success === false ? breakdownResult.error.message
-        : riskResult.success === false ? riskResult.error.message
-        : facialResult.success === false ? facialResult.error.message
-        : "Failed to load insights";
-      dispatch({ type: "LOAD_ERROR", error });
+    if (!summaryResult.success) {
+      dispatch({ type: "LOAD_ERROR", error: summaryResult.error.message });
+      return;
     }
+    // The remaining insights are optional: the backend may not implement them
+    // yet, in which case the emotion summary still renders.
+    const riskTrend: TrendPoint[] = riskResult.success
+      ? riskResult.data.history.map((point) => ({
+          label: point.date,
+          value: point.score,
+          band: point.band,
+        }))
+      : [];
+    dispatch({
+      type: "LOAD_SUCCESS",
+      summary: summaryResult.data,
+      breakdown: breakdownResult.success ? breakdownResult.data : [],
+      risk: riskResult.success
+        ? riskResult.data
+        : { score: 0, band: "low", label: "Unavailable", history: [], supportingFactors: [] },
+      facialTrend: facialResult.success ? facialResult.data.points : [],
+      riskTrend,
+    });
   }, [service]);
 
   const setTimeRange = useCallback((range: InsightTimeRange) => {
