@@ -1,5 +1,5 @@
-import type { AuthService } from "./auth.service";
-import type { AuthSession } from "../model/auth.model";
+import type { AuthService } from "@/services/authentication/auth.service";
+import type { AuthSession } from "@/features/authentication/model/auth.model";
 
 export function createAuthMockAdapter(): AuthService {
   let currentSession: AuthSession | null = null;

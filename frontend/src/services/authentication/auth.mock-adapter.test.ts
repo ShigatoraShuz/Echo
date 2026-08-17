@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createAuthMockAdapter } from "./auth.mock-adapter";
-import type { AuthService } from "./auth.service";
+import { createAuthMockAdapter } from "@/services/authentication/auth.mock-adapter";
+import type { AuthService } from "@/services/authentication/auth.service";
 
 describe("AuthMockAdapter", () => {
   let adapter: AuthService;

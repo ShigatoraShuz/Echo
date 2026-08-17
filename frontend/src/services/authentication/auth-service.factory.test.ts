@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   getSupabasePublicConfig: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/config", () => ({
+vi.mock("@/infrastructure/supabase/config", () => ({
   getSupabasePublicConfig: mocks.getSupabasePublicConfig,
 }));
 
@@ -31,7 +31,7 @@ describe("getAuthService adapter selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "mock");
     mocks.getSupabasePublicConfig.mockReturnValue({ url: "https://x.supabase.co", publishableKey: "pk" });
 
-    const { getAuthService } = await import("./auth-service.factory");
+    const { getAuthService } = await import("@/services/authentication/auth-service.factory");
     expect(getAuthService()).toEqual({ kind: "mock" });
   });
 
@@ -39,7 +39,7 @@ describe("getAuthService adapter selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "http");
     mocks.getSupabasePublicConfig.mockReturnValue({ url: "https://x.supabase.co", publishableKey: "pk" });
 
-    const { getAuthService } = await import("./auth-service.factory");
+    const { getAuthService } = await import("@/services/authentication/auth-service.factory");
     expect(getAuthService()).toEqual({ kind: "supabase" });
   });
 
@@ -47,7 +47,7 @@ describe("getAuthService adapter selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "http");
     mocks.getSupabasePublicConfig.mockReturnValue(null);
 
-    const { getAuthService } = await import("./auth-service.factory");
+    const { getAuthService } = await import("@/services/authentication/auth-service.factory");
     expect(getAuthService()).toEqual({ kind: "http" });
   });
 
@@ -56,7 +56,7 @@ describe("getAuthService adapter selection", () => {
     vi.stubEnv("NODE_ENV", "production");
     mocks.getSupabasePublicConfig.mockReturnValue(null);
 
-    const { getAuthService } = await import("./auth-service.factory");
+    const { getAuthService } = await import("@/services/authentication/auth-service.factory");
     const service = getAuthService();
 
     const result = await service.login({
@@ -73,7 +73,7 @@ describe("getAuthService adapter selection", () => {
   it("returns the same instance across calls until reset", async () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "mock");
 
-    const factory = await import("./auth-service.factory");
+    const factory = await import("@/services/authentication/auth-service.factory");
     const first = factory.getAuthService();
     expect(factory.getAuthService()).toBe(first);
 

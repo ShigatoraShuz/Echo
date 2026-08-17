@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createAuthSupabaseAdapter } from "./auth.supabase-adapter";
+import { createAuthSupabaseAdapter } from "@/services/authentication/auth.supabase-adapter";
 
 const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   signInWithPassword: vi.fn(),
 }));
 
-vi.mock("@/lib/supabase/browser-client", () => ({
+vi.mock("@/infrastructure/supabase/browser-client", () => ({
   createBrowserSupabaseClient: () => ({
     auth: {
       signOut: mocks.signOut,

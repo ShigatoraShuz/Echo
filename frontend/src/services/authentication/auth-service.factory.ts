@@ -1,9 +1,9 @@
-import type { AuthService } from "./auth.service";
-import { createAuthMockAdapter } from "./auth.mock-adapter";
-import { createAuthHttpAdapter } from "./auth.http-adapter";
-import { createAuthSupabaseAdapter } from "./auth.supabase-adapter";
+import type { AuthService } from "@/services/authentication/auth.service";
+import { createAuthMockAdapter } from "@/services/authentication/auth.mock-adapter";
+import { createAuthHttpAdapter } from "@/services/authentication/auth.http-adapter";
+import { createAuthSupabaseAdapter } from "@/services/authentication/auth.supabase-adapter";
 import { env } from "@/config/environment";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 
 let instance: AuthService | null = null;
 

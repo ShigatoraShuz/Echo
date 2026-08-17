@@ -1,8 +1,8 @@
 import type { Session } from "@supabase/supabase-js";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser-client";
-import type { AuthSession } from "../model/auth.model";
-import { SIGNUP_CONSENT_VERSION } from "../model/auth.schema";
-import type { AuthService, AuthServiceResult } from "./auth.service";
+import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import type { AuthSession } from "@/features/authentication/model/auth.model";
+import { SIGNUP_CONSENT_VERSION } from "@/features/authentication/model/auth.schema";
+import type { AuthService, AuthServiceResult } from "@/services/authentication/auth.service";
 
 function toSession(session: Session): AuthSession {
   return {

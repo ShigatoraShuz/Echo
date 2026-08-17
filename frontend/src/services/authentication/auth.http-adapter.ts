@@ -1,4 +1,4 @@
-import type { AuthService, AuthServiceResult } from "./auth.service";
+import type { AuthService, AuthServiceResult } from "@/services/authentication/auth.service";
 
 function notImplemented(): AuthServiceResult<never> {
   return { success: false, error: { code: "NETWORK", message: "Auth HTTP adapter not yet connected" } };

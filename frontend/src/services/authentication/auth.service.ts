@@ -1,4 +1,4 @@
-import type { AuthSession, LoginInput, SignupInput, ForgotPasswordInput, ResetPasswordInput, AuthServiceError } from "../model/auth.model";
+import type { AuthSession, LoginInput, SignupInput, ForgotPasswordInput, ResetPasswordInput, AuthServiceError } from "@/features/authentication/model/auth.model";
 
 export type AuthServiceResult<T> =
   | { success: true; data: T }
