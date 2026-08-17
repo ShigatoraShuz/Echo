@@ -1,0 +1,2 @@
+export type { VerificationService, VerificationServiceResult } from "@/services/verification/verification.service";
+export { getVerificationService, resetVerificationService } from "@/services/verification/verification-service.factory";

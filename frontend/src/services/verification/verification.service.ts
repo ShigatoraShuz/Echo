@@ -1,5 +1,5 @@
-import type { VerificationApplication, VerificationDocumentKind, VerificationSnapshot } from "../model";
-import { verificationApi } from "@/shared/services/verification-api";
+import type { VerificationApplication, VerificationDocumentKind, VerificationSnapshot } from "@/features/verification/model";
+import { verificationApi } from "@/services/verification/verification-api";
 
 export type VerificationServiceResult<T> =
   | { success: true; data: T }

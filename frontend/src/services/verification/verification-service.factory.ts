@@ -1,5 +1,5 @@
-import type { VerificationService } from "./verification.service";
-import { verificationService } from "./verification.service";
+import type { VerificationService } from "@/services/verification/verification.service";
+import { verificationService } from "@/services/verification/verification.service";
 
 let instance: VerificationService | null = null;
 
