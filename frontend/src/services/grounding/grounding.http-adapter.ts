@@ -1,8 +1,8 @@
-import type { GroundingService, GroundingServiceResult } from "./grounding.service";
-import type { GroundingSession, PaceType } from "../model/grounding.model";
+import type { GroundingService, GroundingServiceResult } from "@/services/grounding/grounding.service";
+import type { GroundingSession, PaceType } from "@/features/grounding/model/grounding.model";
 import { env } from "@/config/environment";
-import { createApiClient } from "@/shared/services/api-client";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 interface ApiEnvelope<T> {
   success: true;

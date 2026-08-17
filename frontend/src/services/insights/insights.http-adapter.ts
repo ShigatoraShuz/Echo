@@ -1,13 +1,13 @@
-import type { InsightsService, InsightsServiceResult } from "./insights.service";
+import type { InsightsService, InsightsServiceResult } from "@/services/insights/insights.service";
 import type {
   EmotionInsightSummary,
   EmotionDistribution,
   MoodLevel,
   InsightTimeRange,
-} from "../model/insights.model";
+} from "@/features/insights/model/insights.model";
 import { env } from "@/config/environment";
-import { createApiClient } from "@/shared/services/api-client";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 interface ApiEnvelope<T> {
   success: true;

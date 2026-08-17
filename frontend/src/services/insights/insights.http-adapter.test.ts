@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/shared/services/supabase-auth-token-provider", () => ({
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
   supabaseAuthTokenProvider: {
     getAccessToken: vi.fn(async () => "access-token"),
     refreshAccessToken: vi.fn(async () => "access-token"),
@@ -39,7 +39,7 @@ describe("insights HTTP adapter", () => {
       ),
     );
 
-    const { createInsightsHttpAdapter } = await import("./insights.http-adapter");
+    const { createInsightsHttpAdapter } = await import("@/services/insights/insights.http-adapter");
     const result = await createInsightsHttpAdapter().getEmotionSummary("30d");
 
     expect(result.success).toBe(true);
@@ -51,7 +51,7 @@ describe("insights HTTP adapter", () => {
   });
 
   it("reports backend gaps explicitly instead of returning fabricated risk data", async () => {
-    const { createInsightsHttpAdapter } = await import("./insights.http-adapter");
+    const { createInsightsHttpAdapter } = await import("@/services/insights/insights.http-adapter");
     const result = await createInsightsHttpAdapter().getRiskSignal();
 
     expect(result.success).toBe(false);

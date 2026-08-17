@@ -1,4 +1,4 @@
-import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "../model/insights.model";
+import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "@/features/insights/model/insights.model";
 
 export type InsightsServiceResult<T> =
   | { success: true; data: T }

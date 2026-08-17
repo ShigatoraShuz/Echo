@@ -1,5 +1,5 @@
-import type { InsightsService, InsightsServiceResult } from "./insights.service";
-import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "../model/insights.model";
+import type { InsightsService, InsightsServiceResult } from "@/services/insights/insights.service";
+import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "@/features/insights/model/insights.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

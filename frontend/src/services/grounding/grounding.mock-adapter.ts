@@ -1,5 +1,5 @@
-import type { GroundingService, GroundingServiceResult } from "./grounding.service";
-import type { GroundingSession, ExerciseType, PaceType } from "../model/grounding.model";
+import type { GroundingService, GroundingServiceResult } from "@/services/grounding/grounding.service";
+import type { GroundingSession, ExerciseType, PaceType } from "@/features/grounding/model/grounding.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,4 +1,4 @@
-import type { GroundingSession, ExerciseType, PaceType } from "../model/grounding.model";
+import type { GroundingSession, ExerciseType, PaceType } from "@/features/grounding/model/grounding.model";
 
 export type GroundingServiceResult<T> =
   | { success: true; data: T }
