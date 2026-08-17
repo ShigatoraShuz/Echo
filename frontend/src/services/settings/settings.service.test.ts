@@ -7,15 +7,15 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock("@/shared/services/api-client", () => ({
+vi.mock("@/infrastructure/api/api-client", () => ({
   createApiClient: () => api,
 }));
 
-vi.mock("@/shared/services/supabase-auth-token-provider", () => ({
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
   supabaseAuthTokenProvider: {},
 }));
 
-import { settingsService } from "./settings.service";
+import { settingsService } from "@/services/settings/settings.service";
 
 const snapshot = {
   profile: {

@@ -7,8 +7,8 @@ import type {
   SettingsSnapshot,
   TrustedContact,
   TrustedContactInput,
-} from "../model/settings.model";
-import type { SettingsService } from "./settings.service";
+} from "@/features/settings/model/settings.model";
+import type { SettingsService } from "@/services/settings/settings.service";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

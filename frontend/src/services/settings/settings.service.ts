@@ -7,10 +7,10 @@ import type {
   SettingsSnapshot,
   TrustedContact,
   TrustedContactInput,
-} from "../model/settings.model";
+} from "@/features/settings/model/settings.model";
 import { env } from "@/config/environment";
-import { createApiClient } from "@/shared/services/api-client";
-import { supabaseAuthTokenProvider } from "@/shared/services/supabase-auth-token-provider";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 export interface SettingsService {
   get(): Promise<SettingsSnapshot>;
