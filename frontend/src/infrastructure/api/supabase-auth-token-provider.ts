@@ -1,7 +1,7 @@
-import type { AuthTokenProvider } from "./auth-token-provider";
-import { getSupabaseAccessToken } from "@/lib/supabase/auth-helpers";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser-client";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import type { AuthTokenProvider } from "@/infrastructure/api/auth-token-provider";
+import { getSupabaseAccessToken } from "@/infrastructure/supabase/auth-helpers";
+import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 
 export const supabaseAuthTokenProvider: AuthTokenProvider = {
   getAccessToken: getSupabaseAccessToken,

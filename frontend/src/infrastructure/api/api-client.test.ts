@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createApiClient } from "./api-client";
+import { createApiClient } from "@/infrastructure/api/api-client";
 
 function createMockHeaders(headers?: Record<string, string>): Headers {
   const h = new Headers();

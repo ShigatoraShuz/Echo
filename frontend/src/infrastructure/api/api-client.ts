@@ -1,6 +1,6 @@
 import { AppError } from "@/shared/errors/app-error";
-import type { AuthTokenProvider } from "@/shared/services/auth-token-provider";
-import { nullTokenProvider } from "@/shared/services/auth-token-provider";
+import type { AuthTokenProvider } from "@/infrastructure/api/auth-token-provider";
+import { nullTokenProvider } from "@/infrastructure/api/auth-token-provider";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { composeSignal } from "@/shared/utils/abort-signal";
 
