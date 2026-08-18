@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/shared/theme";
-import { ECHO_THEME_STORAGE_KEY } from "@/lib/theme";
 import { SmoothScrollProvider } from "@/shared/components/providers/smooth-scroll-provider";
 import "lenis/dist/lenis.css";
 import "./globals.css";
@@ -28,38 +27,18 @@ const echoDisplay = Cormorant_Garamond({
   display: "swap",
 });
 
-const themeInitScript = `
-(function() {
-  try {
-    var key = ${JSON.stringify(ECHO_THEME_STORAGE_KEY)};
-    var stored = window.localStorage.getItem(key);
-    var parsed = stored ? JSON.parse(stored) : {};
-    var variants = ["echo-calm", "echo-night", "echo-soft", "echo-focus"];
-    var modes = ["light", "dark", "system"];
-    var variant = variants.indexOf(parsed.variant) >= 0 ? parsed.variant : "echo-calm";
-    var mode = modes.indexOf(parsed.mode) >= 0 ? parsed.mode : "light";
-    var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    var resolvedMode = mode === "system" ? (systemDark ? "dark" : "light") : mode;
-    var root = document.documentElement;
-    root.dataset.echoTheme = variant;
-    root.dataset.echoMode = mode;
-    root.classList.toggle("dark", resolvedMode === "dark" || variant === "echo-night");
-  } catch (error) {
-    document.documentElement.dataset.echoTheme = "echo-calm";
-    document.documentElement.dataset.echoMode = "light";
-  }
-})();
-`;
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // The middleware sets the x-nonce request header; Next.js applies it to its
-  // own inline bootstrap scripts and the theme-init script below, which allows
-  // a strict script-src without 'unsafe-inline'.
-  const nonce = (await headers()).get("x-nonce") ?? "";
+  // own inline bootstrap scripts, which allows a strict script-src without
+  // 'unsafe-inline'. Reading headers() also opts every route into dynamic
+  // rendering so the per-request nonce reaches the rendered HTML. The theme
+  // init script lives in /theme-init.js (allowed by script-src 'self') so no
+  // user script carries a nonce attribute, which avoids a hydration mismatch.
+  await headers();
   return (
     <html
       lang="en"
@@ -68,7 +47,8 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- must block pre-paint to avoid a theme flash */}
+        <script src="/theme-init.js" />
       </head>
       <body className={`${echoSans.variable} ${echoDisplay.variable}`} suppressHydrationWarning>
         <SmoothScrollProvider>
