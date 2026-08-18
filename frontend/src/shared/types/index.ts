@@ -1,4 +1,4 @@
-import type { EchoMood, EchoRiskBand } from "@/lib/theme";
+import type { EchoMood, EchoRiskBand } from "@/shared/lib/theme";
 
 export type EchoImageAsset = {
   key: string;
