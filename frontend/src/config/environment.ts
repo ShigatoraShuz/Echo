@@ -34,7 +34,7 @@ function validateAdapter(value: string | undefined): DataAdapter {
 }
 
 export const env: EnvironmentConfig = {
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api/v1",
+  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4200/api/v1",
   dataAdapter: validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
   enableBuddy: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_BUDDY),
   enableFacialAnalysis: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS),
