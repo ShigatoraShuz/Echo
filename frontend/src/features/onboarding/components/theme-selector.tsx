@@ -1,6 +1,6 @@
 "use client";
 import { Sun, Moon, Monitor } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface ThemeSelectorProps {
   selected: "light" | "dark" | "system";

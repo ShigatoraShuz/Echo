@@ -1,11 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { moodNames, moodStyles, type EchoMood } from "@/lib/theme";
-import { cn } from "@/lib/utils";
+import { moodNames, moodStyles, type EchoMood } from "@/shared/lib/theme";
+import { cn } from "@/shared/lib/utils";
 
-export function MoodSelector({ initialMood = "calm" }: { initialMood?: EchoMood }) {
+export function MoodSelector({
+  initialMood = "calm",
+  onMoodSelect,
+}: {
+  initialMood?: EchoMood;
+  onMoodSelect?: (mood: EchoMood) => void;
+}) {
   const [selectedMood, setSelectedMood] = useState<EchoMood>(initialMood);
+
+  const handleSelect = (mood: EchoMood) => {
+    setSelectedMood(mood);
+    onMoodSelect?.(mood);
+  };
 
   return (
     <div className="grid gap-3 sm:grid-cols-3">
@@ -13,7 +24,7 @@ export function MoodSelector({ initialMood = "calm" }: { initialMood?: EchoMood 
         <button
           key={mood}
           type="button"
-          onClick={() => setSelectedMood(mood)}
+          onClick={() => handleSelect(mood)}
           className={cn(
             "rounded-2xl border border-border/70 bg-background p-4 text-left shadow-subtle transition hover:bg-muted",
             selectedMood === mood && "ring-4 ring-primary/10",
