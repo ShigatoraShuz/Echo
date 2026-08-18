@@ -15,7 +15,7 @@ import { AppShell } from "@/shared/components/layout/echo-shells";
 import {
   experienceApi,
   type SupportResource,
-} from "@/shared/services/experience-api";
+} from "@/services/experience/experience-api";
 import { normalizeError } from "@/shared/errors/normalize-error";
 
 export default function FindHelpPage() {

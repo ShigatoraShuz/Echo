@@ -13,7 +13,7 @@ import {
   echoChartTokens,
   moodNames,
   moodStyles,
-} from "@/lib/theme";
+} from "@/shared/lib/theme";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoCard } from "@/shared/components/ui/echo-card";
 import { EchoBadge } from "@/shared/components/ui/echo-badge";

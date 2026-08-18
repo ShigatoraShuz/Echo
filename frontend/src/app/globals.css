@@ -1,6 +1,6 @@
-@import "../styles/tokens.css" layer(base);
-@import "../styles/accessibility.css" layer(base);
-@import "../styles/motion.css";
+@import "../shared/styles/tokens.css" layer(base);
+@import "../shared/styles/accessibility.css" layer(base);
+@import "../shared/styles/motion.css";
 
 @tailwind base;
 @tailwind components;
@@ -740,16 +740,24 @@
   top: 0;
   z-index: 110;
   display: none;
-  width: 76px;
+  width: 248px;
   height: 100vh;
-  flex: 0 0 76px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transition:
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 220ms ease,
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, opacity, transform;
+}
+
+.echo-app-sidebar-shell--collapsed {
+  width: 76px;
 }
 
 .echo-app-sidebar {
-  position: absolute;
-  inset: 0 auto 0 0;
   display: flex;
-  width: 248px;
+  width: 100%;
   height: 100vh;
   flex-direction: column;
   overflow: hidden;
@@ -758,36 +766,105 @@
   background: rgba(16, 39, 24, 0.91);
   color: var(--landing-inverse);
   box-shadow: 20px 0 48px rgba(8, 24, 15, 0);
-  clip-path: inset(0 0 0 0 round 0 2.75rem 2.75rem 0);
   backdrop-filter: blur(18px) saturate(118%);
   -webkit-backdrop-filter: blur(18px) saturate(118%);
-  will-change: clip-path;
   transition:
-    clip-path 240ms cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 200ms ease;
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 200ms ease,
+    background-color 200ms ease,
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width, transform;
 }
 
 .echo-app-sidebar--collapsed {
-  box-shadow: 20px 0 48px rgba(8, 24, 15, 0);
-  clip-path: inset(0 172px 0 0 round 0 2.15rem 2.15rem 0);
+  border-radius: 0 2.15rem 2.15rem 0;
+  transform: translateX(-2px);
 }
 
 .echo-app-sidebar--collapsed .echo-app-sidebar__toggle {
-  right: auto;
-  left: 22px;
+  top: 4.375rem;
+  right: 1.375rem;
+}
+
+.echo-app-sidebar__toggle {
+  transition:
+    top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    right 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
 }
 
 .echo-app-sidebar__brand-label,
 .echo-app-sidebar__nav-label,
 .echo-app-sidebar__footer-label {
+  overflow: hidden;
   transition:
-    opacity 150ms ease,
-    transform 190ms cubic-bezier(0.23, 1, 0.32, 1);
+    opacity 200ms ease,
+    transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform, max-width, margin-left;
+}
+
+.echo-app-sidebar__brand-label {
+  max-width: 6rem;
+}
+
+.echo-app-sidebar__nav-label {
+  max-width: 12rem;
+  margin-left: 0.75rem;
+}
+
+.echo-app-sidebar__footer-label {
+  max-width: 12rem;
+  margin-left: 0.75rem;
+}
+
+.echo-app-sidebar__nav-link,
+.echo-app-sidebar__footer-link {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  justify-content: flex-start;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  transition:
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    margin 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    padding 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+  will-change: width, padding, transform;
+}
+
+.echo-app-sidebar__footer-link--icon-large {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .echo-app-sidebar--collapsed .echo-app-sidebar__nav-link,
 .echo-app-sidebar--collapsed .echo-app-sidebar__footer-link {
   width: 52px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-right: 0;
+}
+
+.echo-app-sidebar--collapsed .echo-app-sidebar__footer-link--icon-large {
+  padding-left: 0.625rem;
+}
+
+.echo-app-sidebar--collapsed .echo-app-sidebar__brand-label,
+.echo-app-sidebar--collapsed .echo-app-sidebar__nav-label,
+.echo-app-sidebar--collapsed .echo-app-sidebar__footer-label {
+  max-width: 0;
+  margin-left: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-6px);
 }
 
 .echo-reflection-calendar__backdrop {
@@ -843,10 +920,17 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .echo-app-sidebar-shell--collapsed:hover,
+  .echo-app-sidebar-shell--collapsed:focus-within {
+    width: 248px;
+    opacity: 1;
+    transform: translateX(0);
+  }
+
   .echo-app-sidebar--collapsed:hover,
   .echo-app-sidebar--collapsed:focus-within {
     box-shadow: 20px 0 48px rgba(8, 24, 15, 0.22);
-    clip-path: inset(0 0 0 0 round 0 2.75rem 2.75rem 0);
+    transform: translateX(0);
   }
 
   .echo-app-sidebar--collapsed:hover .echo-app-sidebar__brand-label,
@@ -855,28 +939,43 @@
   .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__nav-label,
   .echo-app-sidebar--collapsed:hover .echo-app-sidebar__footer-label,
   .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__footer-label {
-    position: static;
     pointer-events: auto;
     opacity: 1;
     transform: translateX(0);
+  }
+
+  .echo-app-sidebar--collapsed:hover .echo-app-sidebar__brand-label,
+  .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__brand-label {
+    max-width: 6rem;
+  }
+
+  .echo-app-sidebar--collapsed:hover .echo-app-sidebar__nav-label,
+  .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__nav-label,
+  .echo-app-sidebar--collapsed:hover .echo-app-sidebar__footer-label,
+  .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__footer-label {
+    max-width: 12rem;
+    margin-left: 0.75rem;
   }
 
   .echo-app-sidebar--collapsed:hover .echo-app-sidebar__toggle,
   .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__toggle {
     top: 1.75rem;
     right: 0.75rem;
-    left: auto;
   }
 
   .echo-app-sidebar--collapsed:hover .echo-app-sidebar__nav-link,
   .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__nav-link,
   .echo-app-sidebar--collapsed:hover .echo-app-sidebar__footer-link,
   .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__footer-link {
-    width: auto;
-    justify-content: flex-start;
-    gap: 0.75rem;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
     padding-right: 1rem;
-    padding-left: 1rem;
+  }
+
+  .echo-app-sidebar--collapsed:hover .echo-app-sidebar__footer-link--icon-large,
+  .echo-app-sidebar--collapsed:focus-within .echo-app-sidebar__footer-link--icon-large {
+    padding-left: 0.75rem;
   }
 }
 
@@ -1268,7 +1367,14 @@
     display: none;
   }
 
-  .echo-app-sidebar {
+  .echo-app-sidebar-shell,
+  .echo-app-sidebar,
+  .echo-app-sidebar__toggle,
+  .echo-app-sidebar__brand-label,
+  .echo-app-sidebar__nav-label,
+  .echo-app-sidebar__footer-label,
+  .echo-app-sidebar__nav-link,
+  .echo-app-sidebar__footer-link {
     transition: none;
   }
 
