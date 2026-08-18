@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { createServerSupabaseClient } from "@/lib/supabase/server-client";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
+import { createServerSupabaseClient } from "@/infrastructure/supabase/server-client";
 
 export const dynamic = "force-dynamic";
 

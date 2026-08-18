@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server-client";
-import { safeRedirectPath } from "@/lib/safe-redirect";
+import { createServerSupabaseClient } from "@/infrastructure/supabase/server-client";
+import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
