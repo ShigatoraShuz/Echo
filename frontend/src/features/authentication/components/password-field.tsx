@@ -28,12 +28,12 @@ export function PasswordField({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-medium text-foreground">
+      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-semibold text-foreground">
         {label}
         {required && <span className="text-danger ml-0.5">*</span>}
       </label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">
           <LockKeyhole className="h-4 w-4" aria-hidden="true" />
         </span>
         <input
@@ -46,12 +46,12 @@ export function PasswordField({
           aria-invalid={!!error}
           aria-describedby={errorId}
           autoComplete={autoComplete ?? (label.toLowerCase().includes("confirm") ? "new-password" : "current-password")}
-          className={`h-10 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background pl-10 pr-10 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          className={`h-12 w-full rounded-2xl border ${error ? "border-danger" : "border-input"} bg-background pl-10 pr-10 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
         />
         <button
           type="button"
           onClick={onToggleVisibility}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

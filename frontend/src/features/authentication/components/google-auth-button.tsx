@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { signInWithGoogle } from "@/lib/supabase/auth-helpers";
-import { safeRedirectPath } from "@/lib/safe-redirect";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
+import { signInWithGoogle } from "@/infrastructure/supabase/auth-helpers";
+import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 
 type GoogleAuthIntent = "login" | "signup";
 

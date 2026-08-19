@@ -27,13 +27,13 @@ export function AuthFormField({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-medium text-foreground">
+      <label htmlFor={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`} className="text-xs font-semibold text-foreground">
         {label}
         {required && <span className="text-danger ml-0.5">*</span>}
       </label>
       <div className="relative">
         {leadingIcon ? (
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">
             {leadingIcon}
           </span>
         ) : null}
@@ -47,7 +47,7 @@ export function AuthFormField({
           required={required}
           aria-invalid={!!error}
           aria-describedby={errorId}
-          className={`h-10 w-full rounded-xl border ${error ? "border-danger" : "border-input"} bg-background ${leadingIcon ? "pl-10" : "pl-4"} pr-4 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          className={`h-12 w-full rounded-2xl border ${error ? "border-danger" : "border-input"} bg-background ${leadingIcon ? "pl-10" : "pl-4"} pr-4 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
         />
       </div>
       {error ? (
