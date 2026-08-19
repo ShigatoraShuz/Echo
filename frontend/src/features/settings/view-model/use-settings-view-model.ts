@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import type { SettingsSnapshot } from "../model/settings.model";
-import { settingsService } from "../services/settings.service";
+import { settingsService } from "@/services/settings/settings.service";
 
 export interface UseSettingsViewModelResult {
   settings: SettingsSnapshot | null;
