@@ -12,7 +12,7 @@ import { useLoginViewModel } from "../view-model/use-login-view-model";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoCheckbox } from "@/shared/components/ui/echo-checkbox";
-import { safeRedirectPath } from "@/lib/safe-redirect";
+import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 
 interface LoginViewProps {
   title: string;
