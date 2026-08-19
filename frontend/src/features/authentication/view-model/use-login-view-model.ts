@@ -3,7 +3,7 @@
 import { useCallback, useReducer } from "react";
 import type { AuthServiceError } from "../model/auth.model";
 import { validateLoginInput } from "../model/auth.schema";
-import { getAuthService } from "../services/auth-service.factory";
+import { getAuthService } from "@/services/authentication/auth-service.factory";
 
 export type FormStatus = "idle" | "submitting" | "success" | "error";
 
