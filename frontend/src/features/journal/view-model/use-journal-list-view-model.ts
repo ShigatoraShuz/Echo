@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JournalEntry, JournalSearchFilters, JournalPagination, JournalMood, JournalSortOption } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
 import { JOURNAL_PAGE_SIZE } from "../model/journal.constants";
-import { getJournalService } from "../services/journal-service.factory";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 
 interface ListState {
   entries: JournalEntry[];

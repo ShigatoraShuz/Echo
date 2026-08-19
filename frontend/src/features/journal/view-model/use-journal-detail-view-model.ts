@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer } from "react";
 import type { JournalEntry, JournalAnalysis } from "../model/journal.model";
-import { getJournalService } from "../services/journal-service.factory";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 
 interface DetailState {
   entry: JournalEntry | null;

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { DefaultJournalFilters, type JournalEntry } from "../model/journal.model";
-import { getJournalService } from "../services/journal-service.factory";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
@@ -351,19 +351,13 @@ export function ReflectionCalendarModal({ collapsed }: ReflectionCalendarModalPr
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(true)}
-        className={`echo-app-sidebar__nav-link group relative flex h-11 items-center rounded-xl text-[var(--landing-inverse-80)] outline-none transition-[background-color,color,transform] duration-150 ease-out hover:translate-x-0.5 hover:bg-white/10 hover:text-[var(--landing-inverse)] focus-visible:ring-4 focus-visible:ring-ring/20 ${
-          collapsed ? "w-[52px] justify-center px-0" : "w-full gap-3 px-4"
-        }`}
+        className="echo-app-sidebar__nav-link group relative flex h-11 items-center rounded-xl text-[var(--landing-inverse-80)] outline-none hover:translate-x-0.5 hover:bg-white/10 hover:text-[var(--landing-inverse)] focus-visible:ring-4 focus-visible:ring-ring/20"
         title={collapsed ? "Calendar" : undefined}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >
         <CalendarDays className="h-[19px] w-[19px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
-        <span
-          className={`echo-app-sidebar__nav-label whitespace-nowrap text-sm font-medium transition-[opacity,transform] duration-150 motion-reduce:transition-none ${
-            collapsed ? "pointer-events-none absolute -translate-x-2 opacity-0" : "translate-x-0 opacity-100"
-          }`}
-        >
+        <span className="echo-app-sidebar__nav-label whitespace-nowrap text-sm font-medium">
           Calendar
         </span>
       </button>

@@ -1,7 +1,7 @@
 export { JournalListView, JournalEditorView, JournalDetailView } from "./view";
 export { useJournalListViewModel, useJournalEditorViewModel, useJournalDetailViewModel } from "./view-model";
-export type { JournalService, JournalServiceResult } from "./services";
-export { getJournalService } from "./services";
+export type { JournalService, JournalServiceResult } from "@/services/journal";
+export { getJournalService } from "@/services/journal";
 export type {
   JournalEntry,
   JournalDraft,

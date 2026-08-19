@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JournalMood, JournalPrivacyStatus, CreateJournalInput, JournalEntry, JournalDraft } from "../model/journal.model";
 import { JOURNAL_AUTOSAVE_INTERVAL_MS } from "../model/journal.constants";
 import { validateCreateJournalInput } from "../model/journal.schema";
-import { getJournalService } from "../services/journal-service.factory";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 
 export type AutosaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
