@@ -15,7 +15,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { AppShell } from "@/shared/components/layout/echo-shells";
 import { ThemeControls } from "@/shared/theme";
 

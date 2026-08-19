@@ -1,10 +1,10 @@
 export {
-  ExportSettingsView,
   NotificationSettingsView,
   PrivacySettingsView,
   ProfileSettingsView,
   SecuritySettingsView,
   TrustedContactsSettingsView,
+  ExportSettingsView,
 } from "./view";
 export {
   EditableProfileForm,
@@ -25,7 +25,7 @@ export {
 } from "./components";
 export { useSettingsViewModel } from "./view-model";
 export type { UseSettingsViewModelResult } from "./view-model";
-export type { SettingsService } from "./services";
+export type { SettingsService } from "@/services/settings";
 export type {
   ProfileSettings,
   PrivacySettings,

@@ -5,6 +5,8 @@ export interface ProfileSettings {
   timezone: string;
   themeVariant: EchoThemeVariant;
   themeMode: EchoThemeMode;
+  /** Public URL or storage path for the user's avatar image */
+  avatarPath?: string | null;
 }
 
 export interface PrivacySettings {
