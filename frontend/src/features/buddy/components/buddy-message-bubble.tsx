@@ -1,7 +1,7 @@
 "use client";
 import { Bot, UserRound, Clipboard, RotateCcw, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { BuddyMessage } from "../model/buddy.model";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { useState } from "react";
 
 interface MessageBubbleProps {

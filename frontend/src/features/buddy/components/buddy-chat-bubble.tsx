@@ -1,7 +1,7 @@
 "use client";
 import { Bot, UserRound } from "lucide-react";
 import type { BuddyMessage } from "../model/buddy.model";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 export function BuddyChatBubble({ message }: { message: BuddyMessage }) {
   const isBuddy = message.role === "buddy";

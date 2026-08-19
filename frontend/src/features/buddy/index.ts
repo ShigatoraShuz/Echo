@@ -7,8 +7,8 @@ export {
   BuddyGroundingCard, BuddyCrisisCard, BuddyErrorBadge, BuddyCopyButton,
   useCopyToClipboard, BuddyFeedbackButtons, BuddyChatBubble,
 } from "./components";
-export { getBuddyService, resetBuddyService, createBuddyMockAdapter } from "./services";
-export type { BuddyService, BuddyServiceResult } from "./services";
+export { getBuddyService, resetBuddyService, createBuddyMockAdapter } from "@/services/buddy";
+export type { BuddyService, BuddyServiceResult } from "@/services/buddy";
 export type {
   BuddyMood, BuddyConversation, BuddyMessage, BuddySession,
   CreateConversationInput, SendMessageInput, BuddyServiceError, BuddyPagination,

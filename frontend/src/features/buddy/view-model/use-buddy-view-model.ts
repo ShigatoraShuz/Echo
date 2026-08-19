@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getBuddyService } from "../services/buddy-service.factory";
+import { getBuddyService } from "@/services/buddy/buddy-service.factory";
 import type { BuddyConversation, BuddyMessage, BuddyMood, BuddyPagination } from "../model/buddy.model";
 
 interface BuddyState {
