@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getGroundingService } from "../services/grounding-service.factory";
+import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 import type { ExerciseType, PaceType } from "../model/grounding.model";
 
 export type GroundingTechnique = "5-4-3-2-1" | "window-reset" | "box-breathing";

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Frown, Meh, Smile, Heart, Angry } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 type QuickMood = "awful" | "bad" | "okay" | "good" | "great";
 
