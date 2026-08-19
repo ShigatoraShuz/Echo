@@ -8,8 +8,8 @@ export {
 
 export { EmotionInsightsView, RiskInsightsView, FacialInsightsView } from "./view";
 export { useInsightsViewModel } from "./view-model";
-export { getInsightsService, resetInsightsService } from "./services";
-export type { InsightsService, InsightsServiceResult } from "./services";
+export { getInsightsService, resetInsightsService } from "@/services/insights";
+export type { InsightsService, InsightsServiceResult } from "@/services/insights";
 export type {
   InsightTimeRange, RiskBand, MoodLevel, EmotionDistribution,
   MoodTrendPoint, EmotionInsightSummary, JournalSourceBreakdown,

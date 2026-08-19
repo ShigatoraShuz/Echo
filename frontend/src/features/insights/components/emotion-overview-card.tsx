@@ -7,10 +7,12 @@ interface EmotionOverviewCardProps {
 }
 
 export function EmotionOverviewCard({ summary }: EmotionOverviewCardProps) {
-const cursor = 0;
+  let cursor = 0;
   const segments = summary.emotionWheel.map((emotion) => {
     const degrees = emotion.value * 3.6;
-    return `${emotion.color} ${cursor}deg ${cursor + degrees}deg`;
+    const start = cursor;
+    cursor += degrees;
+    return `${emotion.color} ${start}deg ${cursor}deg`;
   }).join(", ");
 
   return (

@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { getInsightsService } from "../services/insights-service.factory";
+import { getInsightsService } from "@/services/insights/insights-service.factory";
 import type { InsightTimeRange, EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, FacialTrendPoint } from "../model/insights.model";
-import type { TrendPoint } from "@/types";
+import type { TrendPoint } from "@/shared/types";
 
 interface InsightsState {
   timeRange: InsightTimeRange;
