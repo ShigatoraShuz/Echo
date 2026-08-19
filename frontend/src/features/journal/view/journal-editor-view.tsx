@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Heart, Leaf, MapPin, Mor
 import journalLandscape from "../../../../assets/growth-doorway-hill.png";
 import type { JournalEntry } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
-import { getJournalService } from "../services/journal-service.factory";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
 import { JournalMoodSelector } from "../components/journal-mood-selector";
 import { JournalAutosaveStatus } from "../components/journal-autosave-status";
