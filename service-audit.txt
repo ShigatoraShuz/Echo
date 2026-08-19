@@ -1,0 +1,280 @@
+=== BACKEND ENVIRONMENT ===
+import { z } from "zod";
+
+const base64KeySchema = z.string().trim().min(1).superRefine((value, context) => {
+  const decoded = Buffer.from(value, "base64");
+  if (decoded.length !== 32) {
+    context.addIssue({ code: "custom", message: "must decode to exactly 32 bytes" });
+  }
+});
+
+const environmentSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+  FRONTEND_URL: z.string().url(),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().trim().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
+  JOURNAL_ENCRYPTION_KEY_BASE64: base64KeySchema,
+  JOURNAL_ENCRYPTION_KEY_VERSION: z.coerce.number().int().positive().default(1),
+  ANALYSIS_PROVIDER: z.literal("mock").default("mock"),
+  ALLOW_MOCK_ANALYSIS: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  REQUEST_BODY_LIMIT: z.string().regex(/^\d+(kb|mb)$/i).default("1mb"),
+});
+
+export type BackendEnvironment = z.infer<typeof environmentSchema>;
+
+export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): BackendEnvironment {
+  const parsed = environmentSchema.safeParse(source);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+    throw new Error(`Invalid backend environment configuration: ${fields}`);
+  }
+
+  if (parsed.data.NODE_ENV === "production" && parsed.data.ANALYSIS_PROVIDER === "mock") {
+    throw new Error("Mock analysis is not permitted in production.");
+  }
+  if (!parsed.data.ALLOW_MOCK_ANALYSIS) {
+    throw new Error("Mock analysis must be explicitly enabled for this non-AI phase.");
+  }
+
+  return parsed.data;
+}
+
+=== BACKEND SUPABASE CLIENT ===
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { BackendEnvironment } from "../../config/environment.js";
+import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
+
+export function createSupabaseAdminClient(environment: BackendEnvironment): SupabaseClient {
+  return createClient(environment.SUPABASE_URL, environment.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+export function createSupabaseAccessTokenVerifier(client: SupabaseClient): AccessTokenVerifier {
+  return {
+    async getUser(accessToken) {
+      // Validate the bearer token with Supabase Auth rather than decoding it
+      // locally. This also supports projects that still use a symmetric JWT
+      // secret, where local JWKS claim verification is not available.
+      const { data, error } = await client.auth.getUser(accessToken);
+      const user = data.user;
+      if (error || !user) return null;
+      return {
+        id: user.id,
+        email: user.email,
+      };
+    },
+  };
+}
+
+=== AI MAIN ===
+from fastapi import FastAPI
+
+from app.api.middleware import request_id_middleware
+from app.api.routes import analysis, health, model_info, readiness
+from app.core.config import get_settings
+from app.core.lifespan import lifespan
+
+settings = get_settings()
+production = settings.app_env == "production"
+app = FastAPI(
+    title="ECHO AI Service",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url=None if production else "/docs",
+    redoc_url=None,
+    openapi_url=None if production else "/openapi.json",
+)
+app.middleware("http")(request_id_middleware)
+app.include_router(health.router)
+app.include_router(readiness.router)
+app.include_router(model_info.router)
+app.include_router(analysis.router)
+
+=== AI RUNTIME ===
+from dataclasses import dataclass
+from pathlib import Path
+
+from app.core.config import Settings
+from app.core.exceptions import ModelUnavailableError
+
+
+@dataclass(frozen=True)
+class ModelRuntime:
+    model_name: str
+    model_version: str
+    adapter_path: str
+    device: str
+    max_input_tokens: int
+    loaded: bool
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "ModelRuntime":
+        # Artifact presence alone is not evidence that a model is safe to serve.
+        # A validated loader must explicitly replace this scaffolding.
+        _artifact_path_exists = Path(settings.lora_adapter_path).exists()
+        return cls(
+            model_name=settings.base_model_id,
+            model_version=settings.model_version,
+            adapter_path=settings.lora_adapter_path,
+            device=settings.device,
+            max_input_tokens=settings.max_input_tokens,
+            loaded=False,
+        )
+
+    def require_ready(self) -> None:
+        if not self.loaded:
+            raise ModelUnavailableError("Validated model runtime is not ready.")
+
+=== AI LIFESPAN ===
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from app.core.config import get_settings
+from app.model.runtime import ModelRuntime
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    # The placeholder runtime intentionally remains unavailable until a reviewed
+    # loader is supplied with local model artefacts. Never fabricate an estimate.
+    app.state.model_runtime = ModelRuntime.from_settings(settings)
+    yield
+
+=== AI SECURITY ===
+from hmac import compare_digest
+from typing import Annotated
+
+from fastapi import Header, HTTPException, status
+
+from app.core.config import get_settings
+
+
+def require_internal_token(
+    authorization: Annotated[str | None, Header()] = None,
+) -> None:
+    settings = get_settings()
+    expected = settings.ai_service_token
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal authentication is not configured.",
+        )
+
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token or not compare_digest(token, expected):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid internal token.")
+
+=== AI HEALTH ===
+from fastapi import APIRouter
+
+router = APIRouter()
+
+
+@router.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+=== AI READINESS ===
+from fastapi import APIRouter, Request, Response, status
+
+from app.schemas.readiness_response import ReadinessResponse
+
+router = APIRouter()
+
+
+@router.get("/ready", response_model=ReadinessResponse)
+def readiness(request: Request, response: Response) -> ReadinessResponse:
+    runtime = request.app.state.model_runtime
+    if not runtime.loaded:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return ReadinessResponse(status="not_ready", model_loaded=False, device=runtime.device)
+    return ReadinessResponse(status="ready", model_loaded=True, device=runtime.device)
+
+=== AI MODEL INFO ===
+from fastapi import APIRouter, Depends, Request
+
+from app.core.security import require_internal_token
+from app.schemas.model_info_response import ModelInfoResponse
+
+router = APIRouter(dependencies=[Depends(require_internal_token)])
+
+
+@router.get("/v1/model", response_model=ModelInfoResponse)
+def model_info(request: Request) -> ModelInfoResponse:
+    runtime = request.app.state.model_runtime
+    return ModelInfoResponse(
+        model_name=runtime.model_name,
+        adapter_version=runtime.adapter_path,
+        model_version=runtime.model_version,
+        device=runtime.device,
+        max_input_tokens=runtime.max_input_tokens,
+        ready=runtime.loaded,
+    )
+
+=== AI SCHEMAS ===
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class AnalysisRequest(BaseModel):
+    request_id: UUID
+    journal_text: str = Field(min_length=1, max_length=20_000)
+    language: str = Field(default="en", min_length=2, max_length=16)
+from typing import Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class AnalysisResponse(BaseModel):
+    request_id: UUID
+    phq8_score: int = Field(ge=0, le=24)
+    severity: Literal["minimal", "mild", "moderate", "moderately_severe", "severe"]
+    urgent_language_detected: bool
+    model_version: str = Field(min_length=1, max_length=128)
+    processing_time_ms: int = Field(ge=0)
+
+=== AI DOCKER ===
+FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir .
+COPY app ./app
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+=== ROOT DOCKER ===
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_SUPABASE_URL=
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - SUPABASE_URL=
+      - SUPABASE_SERVICE_KEY=
+      - NODE_ENV=production
