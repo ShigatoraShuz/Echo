@@ -10,3 +10,7 @@ export { JournalAutosaveIndicator, useAutosave } from "./journal-autosave";
 export { JournalWordCount } from "./journal-word-count";
 export { JournalEmotionTags } from "./journal-emotion-tags";
 export { JournalPrivacyBadge } from "./journal-privacy-badge";
+export { JournalCard } from "./journal-card";
+export { JournalTimelineEntry } from "./journal-timeline-entry";
+export { JournalFilters } from "./journal-filters";
+export { JournalEmptyState } from "./journal-empty-state";
