@@ -18,7 +18,7 @@ import { useVerificationViewModel, masked, formatBytes } from "../view-model/use
 import { SettingsHeader, SettingsSection, SettingsShell } from "@/features/settings";
 import { EchoButton } from "@/shared/components/ui";
 import type { VerificationAddress, VerificationDocumentKind, VerificationSnapshot } from "../model";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 const steps = [
   { label: "Identity & age", icon: UserRoundCheck },

@@ -6,7 +6,7 @@ import { PrivacyNotice } from "@/shared/components/echo";
 import { EchoCard } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
-import type { EchoImageKey } from "@/lib/unsplash-images";
+import type { EchoImageKey } from "@/shared/lib/unsplash-images";
 
 export function PublicTextPage({
   title,

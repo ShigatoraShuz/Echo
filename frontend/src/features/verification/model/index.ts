@@ -6,4 +6,4 @@ export type {
   VerificationApplication,
   VerificationDocument,
   VerificationSnapshot,
-} from "@/shared/services/verification-api";
+} from "@/services/verification/verification-api";

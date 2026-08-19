@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
-import { getVerificationService } from "../services/verification-service.factory";
+import { getVerificationService } from "@/services/verification/verification-service.factory";
 import type {
   GuardianDetails,
   VerificationAddress,

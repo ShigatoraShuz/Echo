@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { BadgeCheck, LockKeyhole } from "lucide-react";
-import { getVerificationService } from "../services/verification-service.factory";
+import { getVerificationService } from "@/services/verification/verification-service.factory";
 
 export function VerifiedFeatureGate({
   children,
