@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { Frown, Meh, Smile, Heart, Angry, EyeOff } from "lucide-react";
 
 type MoodLevel = "awful" | "bad" | "okay" | "good" | "great" | "unknown";

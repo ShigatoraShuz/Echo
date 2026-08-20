@@ -1,4 +1,4 @@
-import type { TrendPoint } from "@/types";
+import type { TrendPoint } from "@/shared/types";
 import { EchoCard } from "../layout/echo-card";
 
 export function DataChartCard({
