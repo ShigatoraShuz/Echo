@@ -2,7 +2,7 @@
 
 import { forwardRef, useId } from "react";
 import { ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface EchoSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
