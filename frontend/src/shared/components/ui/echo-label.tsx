@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface EchoLabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
   required?: boolean;

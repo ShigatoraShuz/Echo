@@ -1,6 +1,6 @@
 import Image from "next/image";
-import { cn } from "@/lib/utils";
-import { getEchoImage, type EchoImageKey } from "@/lib/unsplash-images";
+import { cn } from "@/shared/lib/utils";
+import { getEchoImage, type EchoImageKey } from "@/shared/lib/unsplash-images";
 
 export function EchoImage({
   imageKey,
