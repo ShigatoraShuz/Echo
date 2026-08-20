@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 

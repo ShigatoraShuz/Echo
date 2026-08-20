@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { riskBandNames, type EchoRiskBand } from "@/shared/theme";
 
 type RiskLevel = EchoRiskBand;
