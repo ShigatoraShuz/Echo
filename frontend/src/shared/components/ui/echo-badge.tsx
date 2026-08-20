@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "info" | "neutral";
 type BadgeSize = "small" | "medium";
