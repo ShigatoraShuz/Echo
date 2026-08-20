@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import * as ReactDOM from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 export type ReflectionActivity = {
   date: string;
@@ -24,6 +25,26 @@ export interface ReflectionActivityGraphProps {
   singularLabel?: string;
   pluralLabel?: string;
   className?: string;
+}
+
+// Intensity steps: 0 entries = lightest muted, 1+ entries scale up to full primary
+// We use inline style with rgba so we get smooth interpolation
+const LEVEL_BASE_RGBA = "rgba(83, 103, 51,"; // --landing-primary #536733
+const LEVEL_MUTED_RGBA = "rgba(83, 103, 51, 0.10)"; // empty cell
+
+function getCellStyle(level: number): React.CSSProperties {
+  if (level === 0) return { backgroundColor: LEVEL_MUTED_RGBA };
+  // level 1→4 maps to opacity 0.28 → 0.52 → 0.72 → 1.0
+  const opacities = [0, 0.28, 0.52, 0.74, 1.0];
+  return { backgroundColor: `${LEVEL_BASE_RGBA} ${opacities[level]})` };
+}
+
+function getDotColor(count: number): string {
+  if (count === 0) return "rgba(83, 103, 51, 0.35)";
+  if (count === 1) return "#739944";
+  if (count === 2) return "#536733";
+  if (count <= 4) return "#3b4f21";
+  return "#1e3314";
 }
 
 const levelClasses = [
@@ -97,13 +118,132 @@ function formatActivityLabel(
   pluralLabel: string,
 ): string {
   const parsed = parseDate(cell.date);
-  const date = new Intl.DateTimeFormat("en", {
+  const dateStr = new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
     month: "short",
     day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
   }).format(parsed ?? new Date());
-  const activityLabel = cell.count === 1 ? singularLabel : pluralLabel;
-  return `${cell.count} ${activityLabel} · ${date}`;
+  if (cell.count === 0) return `No ${pluralLabel} · ${dateStr}`;
+  const countLabel = cell.count === 1 ? `1 ${singularLabel}` : `${cell.count} ${pluralLabel}`;
+  return `${countLabel} · ${dateStr}`;
 }
+
+function getFormattedDateComponents(dateKey: string) {
+  const parsed = parseDate(dateKey);
+  const d = parsed ?? new Date();
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(d);
+  const monthDayYear = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(d);
+  return { weekday, monthDayYear };
+}
+
+// ─── Floating tooltip rendered in a document.body portal ─────────────────────
+// This bypasses `overflow-hidden` and CSS 3-D transform containing blocks
+// that would otherwise clip or misplace position:fixed elements.
+
+interface TooltipPortalProps {
+  hoveredCell: {
+    cell: ActivityCell;
+    left: number;
+    top: number;
+    placement: "above" | "below";
+  };
+  reducedMotion: boolean | null;
+  singularLabel: string;
+  pluralLabel: string;
+}
+
+function TooltipPortal({
+  hoveredCell,
+  reducedMotion,
+  singularLabel,
+  pluralLabel,
+}: TooltipPortalProps) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+
+  const { weekday, monthDayYear } = getFormattedDateComponents(hoveredCell.cell.date);
+  const count = hoveredCell.cell.count;
+  const level = hoveredCell.cell.level;
+  const countText =
+    count === 0
+      ? `No ${pluralLabel} recorded`
+      : count === 1
+      ? `1 ${singularLabel} entry`
+      : `${count} ${singularLabel} entries`;
+  const dotColor = getDotColor(count);
+
+  const yOffset = hoveredCell.placement === "above" ? "-100%" : "0%";
+  const yInitial = hoveredCell.placement === "above" ? "-94%" : "6%";
+
+  return ReactDOM.createPortal(
+    <AnimatePresence>
+      <motion.div
+        role="tooltip"
+        className="pointer-events-none fixed flex flex-col items-center gap-1.5 whitespace-nowrap rounded-2xl border border-[rgba(83,103,51,0.25)] bg-[rgba(255,253,247,0.98)] px-4 py-3 text-center shadow-[0_16px_40px_rgba(20,40,15,0.18)] backdrop-blur-md"
+        style={{
+          left: hoveredCell.left,
+          top: hoveredCell.top,
+          x: "-50%",
+          y: yOffset,
+          transformOrigin:
+            hoveredCell.placement === "above" ? "center bottom" : "center top",
+          zIndex: 99999,
+        }}
+        initial={{ opacity: 0, scale: 0.88, y: yInitial }}
+        animate={{ opacity: 1, scale: 1, y: yOffset }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ duration: reducedMotion ? 0 : 0.13, ease: "easeOut" }}
+      >
+        {/* Day name — prominent dark green */}
+        <span className="text-sm font-black tracking-tight text-[#1e3314] leading-tight">
+          {weekday}
+        </span>
+
+        {/* Full date — dark green muted subtitle */}
+        <span className="text-[11px] font-bold text-[#536733] leading-none">
+          {monthDayYear}
+        </span>
+
+        {/* Divider */}
+        <div className="my-0.5 h-px w-full bg-[rgba(83,103,51,0.2)]" aria-hidden="true" />
+
+        {/* Entry count with dot */}
+        <div className="flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: dotColor }}
+            aria-hidden="true"
+          />
+          <span className="text-xs font-extrabold text-[#1e3314]">
+            {countText}
+          </span>
+        </div>
+
+        {/* Intensity dots — 5 segments light → dark green */}
+        <div className="mt-0.5 flex items-center gap-[3px]" aria-hidden="true">
+          {[1, 2, 3, 4, 5].map((seg) => (
+            <span
+              key={seg}
+              className="h-1.5 w-4 rounded-full transition-colors"
+              style={{
+                backgroundColor:
+                  seg <= level
+                    ? "#3d5424"
+                    : "rgba(83, 103, 51, 0.16)",
+              }}
+            />
+          ))}
+        </div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ReflectionActivityGraph({
   data,
@@ -239,10 +379,13 @@ export function ReflectionActivityGraph({
                           pluralLabel,
                         )}
                         className={cn(
-                          "relative rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow] duration-150 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
-                          levelClasses[cell.level],
+                          "relative cursor-pointer rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow,transform] duration-150 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
                         )}
-                        style={{ width: cellSize, height: cellSize }}
+                        style={{
+                          width: cellSize,
+                          height: cellSize,
+                          ...getCellStyle(cell.level),
+                        }}
                         initial={
                           reducedMotion
                             ? false
@@ -289,7 +432,7 @@ export function ReflectionActivityGraph({
                                 },
                               }
                         }
-                        whileHover={reducedMotion ? undefined : { scale: 1.16 }}
+                        whileHover={reducedMotion ? undefined : { scale: 1.22, zIndex: 10 }}
                         whileTap={reducedMotion ? undefined : { scale: 0.94 }}
                         onMouseEnter={(event) =>
                           showTooltip(event.currentTarget, cell)
@@ -322,34 +465,15 @@ export function ReflectionActivityGraph({
         </div>
       ) : null}
 
-      <AnimatePresence>
-        {hoveredCell ? (
-          <motion.span
-            role="tooltip"
-            className="pointer-events-none fixed z-[160] whitespace-nowrap rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-card"
-            style={{
-              left: hoveredCell.left,
-              top: hoveredCell.top,
-              x: "-50%",
-              y: hoveredCell.placement === "above" ? "-100%" : "0%",
-              transformOrigin:
-                hoveredCell.placement === "above"
-                  ? "center bottom"
-                  : "center top",
-            }}
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: reducedMotion ? 0 : 0.14, ease: "easeOut" }}
-          >
-            {formatActivityLabel(
-              hoveredCell.cell,
-              singularLabel,
-              pluralLabel,
-            )}
-          </motion.span>
-        ) : null}
-      </AnimatePresence>
+      {/* Portal tooltip — rendered on document.body to escape overflow/transform clipping */}
+      {hoveredCell && (
+        <TooltipPortal
+          hoveredCell={hoveredCell}
+          reducedMotion={reducedMotion}
+          singularLabel={singularLabel}
+          pluralLabel={pluralLabel}
+        />
+      )}
     </div>
   );
 }

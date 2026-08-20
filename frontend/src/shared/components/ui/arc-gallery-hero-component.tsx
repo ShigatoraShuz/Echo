@@ -10,7 +10,7 @@ import {
 } from "react";
 import Image from "next/image";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 type ArcGalleryHeroProps = {
   images: string[];
@@ -151,7 +151,7 @@ export function ArcGalleryHero({
   return (
     <section
       className={cn(
-        "relative isolate flex min-h-[100svh] w-full flex-col overflow-hidden bg-[var(--landing-mist)] text-[var(--landing-ink)]",
+        "relative isolate flex min-h-[100svh] w-full flex-col justify-center overflow-hidden bg-[var(--landing-mist)] pt-[88px] text-[var(--landing-ink)] sm:pt-[100px]",
         className,
       )}
     >
@@ -207,7 +207,7 @@ export function ArcGalleryHero({
         </div>
       </div>
 
-      {children ? <div className="relative z-10 -mt-30 flex flex-1 items-start justify-center sm:-mt-44 lg:-mt-80">{children}</div> : null}
+      {children ? <div className="relative z-10 -mt-30 flex w-full items-start justify-center sm:-mt-44 lg:-mt-80">{children}</div> : null}
     </section>
   );
 }

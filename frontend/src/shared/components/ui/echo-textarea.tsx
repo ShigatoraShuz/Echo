@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useId } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 interface EchoTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
