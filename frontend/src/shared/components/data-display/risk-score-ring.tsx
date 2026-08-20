@@ -1,5 +1,5 @@
 import { RiskBadge } from "./risk-badge";
-import type { EchoRiskBand } from "@/lib/theme";
+import type { EchoRiskBand } from "@/shared/lib/theme";
 
 export function RiskScoreRing({
   score,
