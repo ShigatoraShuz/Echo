@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateCreateJournalInput } from "./journal.schema";
+import { validateCreateJournalInput } from "@/features/journal/model/journal.schema";
 
 describe("validateCreateJournalInput", () => {
   it("accepts valid input", () => {

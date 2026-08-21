@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useJournalListViewModel } from "./use-journal-list-view-model";
-import { getJournalService } from "../services/journal-service.factory";
+import { useJournalListViewModel } from "@/features/journal/view-model/use-journal-list-view-model";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 
 vi.mock("../services/journal-service.factory", () => ({
   getJournalService: vi.fn(),
