@@ -1,7 +1,7 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
-import type { VerificationService } from "../src/features/verification/verification.service.js";
+import { createApp } from "../../../app.js";
+import type { VerificationService } from "../verification.service.js";
 
 function harness() {
   const snapshot = {

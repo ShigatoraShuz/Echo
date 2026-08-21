@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateAge,
   requiredDocumentKinds,
-} from "../../src/features/verification/verification.service.js";
+} from "../verification.service.js";
 
 describe("verification rules", () => {
   it("calculates age without advancing before the birthday", () => {
