@@ -1,6 +1,6 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
+import { createApp } from "../../../app.js";
 
 describe("health endpoints", () => {
   it("returns the standardized health response", async () => {
