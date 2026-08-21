@@ -4,7 +4,7 @@ import {
   validateSignupInput,
   validateForgotPasswordInput,
   validateResetPasswordInput,
-} from "./auth.schema";
+} from "@/features/authentication/model/auth.schema";
 
 describe("validateLoginInput", () => {
   it("accepts valid email and password", () => {

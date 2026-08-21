@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useResetPasswordViewModel } from "./use-reset-password-view-model";
-import { getAuthService } from "../services/auth-service.factory";
+import { useResetPasswordViewModel } from "@/features/authentication/view-model/use-reset-password-view-model";
+import { getAuthService } from "@/services/authentication/auth-service.factory";
 
 vi.mock("../services/auth-service.factory", () => ({
   getAuthService: vi.fn(),
