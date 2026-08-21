@@ -1,9 +1,9 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
-import type { ExperienceService } from "../src/features/experience/experience.service.js";
-import type { VerificationService } from "../src/features/verification/verification.service.js";
-import { VerificationRequiredError } from "../src/shared/errors/app-error.js";
+import { createApp } from "../../../app.js";
+import type { ExperienceService } from "../experience.service.js";
+import type { VerificationService } from "../../verification/verification.service.js";
+import { VerificationRequiredError } from "../../../shared/errors/app-error.js";
 
 function createHarness(verified = true) {
   const service = {
@@ -110,5 +110,20 @@ describe("experience routes", () => {
       durationSeconds: 120,
       pace: "gentle",
     });
+  });
+
+  it("serves emotion insights for authenticated users", async () => {
+    const { app, service } = createHarness();
+    const response = await request(app)
+      .get("/api/v1/insights/emotions")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      emotionWheel: [],
+      moodTrend: [],
+      summary: "No entries.",
+    });
+    expect(service.emotionInsights).toHaveBeenCalledWith("user-1");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockAnalysisProvider } from "../../src/infrastructure/analysis/mock-analysis.provider.js";
+import { createMockAnalysisProvider } from "../../../infrastructure/analysis/mock-analysis.provider.js";
 
 describe("mock analysis provider", () => {
   it("uses explicit development markers only", async () => {
