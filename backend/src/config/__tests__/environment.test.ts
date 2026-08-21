@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnvironment } from "../../src/config/environment.js";
+import { loadEnvironment } from "../environment.js";
 
 const validEnvironment = {
   NODE_ENV: "test",
