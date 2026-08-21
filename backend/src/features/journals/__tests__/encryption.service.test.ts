@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEncryptionService, decodeEncryptionKey } from "../../src/infrastructure/encryption/encryption.service.js";
+import { createEncryptionService, decodeEncryptionKey } from "../../../infrastructure/encryption/encryption.service.js";
 
 const key = Buffer.alloc(32, 7).toString("base64");
 
