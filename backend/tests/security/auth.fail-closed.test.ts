@@ -1,7 +1,7 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
-import type { ExperienceService } from "../src/features/experience/experience.service.js";
+import { createApp } from "../../src/app.js";
+import type { ExperienceService } from "../../src/features/experience/experience.service.js";
 
 interface VerifierStub {
   getUser: ReturnType<typeof vi.fn>;

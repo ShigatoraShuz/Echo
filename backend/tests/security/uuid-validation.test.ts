@@ -1,9 +1,9 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
-import type { JournalService } from "../src/features/journals/journals.service.js";
-import type { SettingsService } from "../src/features/settings/settings.service.js";
-import type { VerificationService } from "../src/features/verification/verification.service.js";
+import { createApp } from "../../src/app.js";
+import type { JournalService } from "../../src/features/journals/journals.service.js";
+import type { SettingsService } from "../../src/features/settings/settings.service.js";
+import type { VerificationService } from "../../src/features/verification/verification.service.js";
 
 const VALID_UUID = "123e4567-e89b-12d3-a456-426614174000";
 // Note: an empty segment never reaches the controller (Express returns 404), so it is excluded here.
