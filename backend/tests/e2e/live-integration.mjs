@@ -21,7 +21,7 @@ function readEnvironment() {
 const environment = readEnvironment();
 const apiBaseUrl =
   process.env.ECHO_API_BASE_URL ??
-  `http://127.0.0.1:${environment.PORT || "4000"}/api/v1`;
+  `http://127.0.0.1:${environment.PORT || "4200"}/api/v1`;
 const admin = createClient(environment.SUPABASE_URL, environment.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });

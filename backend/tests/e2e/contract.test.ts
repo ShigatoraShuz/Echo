@@ -1,8 +1,8 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
-import { createApp, type CreateAppOptions } from "../src/app.js";
-import type { ExperienceService } from "../src/features/experience/experience.service.js";
-import type { VerificationService } from "../src/features/verification/verification.service.js";
+import { createApp, type CreateAppOptions } from "../../src/app.js";
+import type { ExperienceService } from "../../src/features/experience/experience.service.js";
+import type { VerificationService } from "../../src/features/verification/verification.service.js";
 
 function createHarness(appOptions: CreateAppOptions = {}) {
   const service = {
