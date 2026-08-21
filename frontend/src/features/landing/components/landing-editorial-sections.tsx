@@ -11,8 +11,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 
-import { echoImages } from "@/lib/unsplash-images";
-import { cn } from "@/lib/utils";
+import { echoImages } from "@/shared/lib/unsplash-images";
+import { cn } from "@/shared/lib/utils";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import growthDoorwayHill from "../../../../assets/growth-doorway-hill.png";
 import communityBackground from "../../../../assets/bg.png";
@@ -306,7 +306,7 @@ export function ReflectiveBuddySection() {
   ];
 
   return (
-    <section id="buddy-experience" className="landing-section-gradient landing-section-gradient--reflection relative z-30 flex min-h-[100svh] items-center overflow-hidden px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
+    <section id="how-it-works" data-section="buddy-experience" className="landing-section-gradient landing-section-gradient--reflection relative z-30 flex min-h-[100svh] items-center overflow-hidden px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto grid w-full min-h-[720px] max-w-[1440px] overflow-hidden rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] lg:grid-cols-[0.9fr_1.1fr]">
         <EchoReveal variant="text" className="flex flex-col justify-center p-7 sm:p-12 lg:p-16 xl:p-20">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Reflective support</p>

@@ -5,22 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 
 import heroBackground from "../../../../assets/aac2846f-fae0-4ae0-a910-a48a0627440f (1).png";
-import sereneCloudRoom from "../../../../assets/Landing Page/774cbe149f698999c49f28a20cab1061.jpg";
-import familyAtHome from "../../../../assets/Landing Page/image 1.jpg";
-import lookingSkyward from "../../../../assets/Landing Page/image 2.jpg";
-import joyfulPortrait from "../../../../assets/Landing Page/image 3.jpg";
-import reflectionDesk from "../../../../assets/Landing Page/image 10.jpg";
-import livingRoomPortrait from "../../../../assets/Landing Page/image 11.jpg";
-import sunlitPortrait from "../../../../assets/Landing Page/image 12.jpg";
-import plantPortrait from "../../../../assets/Landing Page/image 13.jpg";
-import coffeePortrait from "../../../../assets/Landing Page/image 14.jpg";
-import travelReflection from "../../../../assets/Landing Page/image 5.jpg";
-import phoneReflection from "../../../../assets/Landing Page/image 6.jpg";
-import couchReflection from "../../../../assets/Landing Page/image 7.jpg";
-import laptopReflection from "../../../../assets/Landing Page/image 8.jpg";
-import deskReflection from "../../../../assets/Landing Page/image 9.jpg";
-import yellowCoatPortrait from "../../../../assets/Landing Page/iamge 4.jpg";
-import { cn } from "@/lib/utils";
+import sereneCloudRoom from "../../../../assets/landing-page/774cbe149f698999c49f28a20cab1061.jpg";
+import familyAtHome from "../../../../assets/landing-page/image 1.jpg";
+import lookingSkyward from "../../../../assets/landing-page/image 2.jpg";
+import joyfulPortrait from "../../../../assets/landing-page/image 3.jpg";
+import reflectionDesk from "../../../../assets/landing-page/image 10.jpg";
+import livingRoomPortrait from "../../../../assets/landing-page/image 11.jpg";
+import sunlitPortrait from "../../../../assets/landing-page/image 12.jpg";
+import plantPortrait from "../../../../assets/landing-page/image 13.jpg";
+import coffeePortrait from "../../../../assets/landing-page/image 14.jpg";
+import travelReflection from "../../../../assets/landing-page/image 5.jpg";
+import phoneReflection from "../../../../assets/landing-page/image 6.jpg";
+import couchReflection from "../../../../assets/landing-page/image 7.jpg";
+import laptopReflection from "../../../../assets/landing-page/image 8.jpg";
+import deskReflection from "../../../../assets/landing-page/image 9.jpg";
+import yellowCoatPortrait from "../../../../assets/landing-page/iamge 4.jpg";
+import { cn } from "@/shared/lib/utils";
 import {
   ArcGalleryHero,
   handleHeroTiltMove,
