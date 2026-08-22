@@ -1,4 +1,4 @@
-import { render } from "../../../test-utils/test-utils";
+import { render } from "@/shared/test-utils/test-utils";
 import { axe } from "jest-axe";
 import { EditableProfileForm } from "../components/editable-profile-form";
 
