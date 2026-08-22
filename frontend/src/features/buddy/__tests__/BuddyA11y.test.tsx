@@ -1,4 +1,4 @@
-import { render } from "../../../test-utils/test-utils";
+import { render } from "@/shared/test-utils/test-utils";
 import { axe } from "jest-axe";
 import { BuddyConversationList } from "../components/buddy-conversation-list";
 import type { BuddyConversation } from "../model/buddy.model";

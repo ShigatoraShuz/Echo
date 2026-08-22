@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
-import { getBuddyService } from "../services/buddy-service.factory";
+import { getBuddyService } from "@/services/buddy/buddy-service.factory";
 
 vi.mock("../services/buddy-service.factory", () => ({
   getBuddyService: vi.fn(),
