@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useGroundingViewModel } from "../view-model/use-grounding-view-model";
-import { getGroundingService } from "../services/grounding-service.factory";
+import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 
 vi.mock("../services/grounding-service.factory", () => ({
   getGroundingService: vi.fn(),
