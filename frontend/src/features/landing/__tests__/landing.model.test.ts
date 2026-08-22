@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LANDING_HERO_CONTENT, LANDING_PAGE_METADATA } from "./landing.model";
+import { LANDING_HERO_CONTENT, LANDING_PAGE_METADATA } from "@/features/landing/model/landing.model";
 
 describe("landing content model", () => {
   it("defines a complete hero without embedding JSX in the model", () => {
