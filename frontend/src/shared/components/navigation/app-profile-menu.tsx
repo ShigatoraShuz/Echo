@@ -15,9 +15,9 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
-import profileImage from "../../../../assets/Landing Page/image 13.jpg";
-import { getAuthService } from "@/features/authentication/services/auth-service.factory";
-import { settingsService } from "@/features/settings/services/settings.service";
+
+import { getAuthService } from "@/services/authentication/auth-service.factory";
+import { settingsService } from "@/services/settings/settings.service";
 
 const profileLinks = [
   { href: "/settings/profile#profile-overview", label: "Profile", icon: UserRound },
@@ -113,12 +113,17 @@ export function AppProfileMenu() {
     }
   };
 
+  const [avatar, setAvatar] = useState<string | null>(null);
+
   useEffect(() => {
     let active = true;
     void settingsService
       .get()
       .then((settings) => {
-        if (active) setDisplayName(settings.profile.displayName);
+        if (active) {
+          setDisplayName(settings.profile.displayName);
+          setAvatar(settings.profile.avatarPath ?? null);
+        }
       })
       .catch(() => {
         // Keep the friendly fallback name if profile settings are unavailable.
@@ -152,6 +157,13 @@ export function AppProfileMenu() {
     };
   }, [isOpen]);
 
+  const initials = displayName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div ref={menuRef} className="relative">
       <button
@@ -168,7 +180,13 @@ export function AppProfileMenu() {
         aria-label={`Profile menu for ${displayName}`}
         className="flex items-center gap-2 rounded-full p-1 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
       >
-        <Image src={profileImage} alt={`${displayName}'s profile`} className="h-9 w-9 rounded-full border-2 border-card object-cover" />
+        {avatar ? (
+          <img src={avatar} alt={`${displayName}'s profile`} className="h-9 w-9 rounded-full border-2 border-card object-cover" />
+        ) : (
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-card bg-primary/10 text-xs font-bold text-primary">
+            {initials || <UserRound className="h-4 w-4" />}
+          </div>
+        )}
         <ChevronDown className={`hidden h-4 w-4 text-muted-foreground transition-transform duration-150 sm:block ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
         <span className="sr-only">Open profile menu</span>
       </button>

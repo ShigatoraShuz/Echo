@@ -28,13 +28,13 @@ vi.mock("next/image", () => ({
   }) => <div role="img" aria-label={alt} className={className} />,
 }));
 
-vi.mock("@/features/authentication/services/auth-service.factory", () => ({
+vi.mock("@/services/authentication/auth-service.factory", () => ({
   getAuthService: () => ({
     logout: mocks.logout,
   }),
 }));
 
-vi.mock("@/features/settings/services/settings.service", () => ({
+vi.mock("@/services/settings/settings.service", () => ({
   settingsService: {
     get: mocks.getSettings,
   },
