@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { Info, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 
 type InlineVariant = "info" | "success" | "warning" | "error";

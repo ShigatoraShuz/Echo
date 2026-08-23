@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { EchoButton } from "../ui/echo-button";
 

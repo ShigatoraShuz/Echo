@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { Inbox } from "lucide-react";
 import { EchoButton } from "../ui/echo-button";
 
