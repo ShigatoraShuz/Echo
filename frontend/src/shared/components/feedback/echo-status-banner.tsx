@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { X, Info, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 
 type BannerVariant = "info" | "success" | "warning" | "error";
