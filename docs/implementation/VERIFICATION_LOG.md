@@ -33,8 +33,8 @@ These were resolved by the ECHO-002 quarantine, which removes the legacy stack f
 
 | Check | Command | Result |
 |---|---|---|
-| Quarantine | Moved 17 legacy files to `backend/src-legacy/` (index.ts, routes/v1.ts, buddy/insights/grounding/journal/onboarding legacy routes, settings sub-routes, auth.ts, errorHandler.ts, AppError.ts, legacy integration tests) | Applied |
-| tsconfig | Added `src-legacy` to exclude | Applied |
+| Quarantine | Moved 17 legacy files to a temporary legacy quarantine during the migration; the quarantined implementation was subsequently removed | Applied |
+| tsconfig | Added the temporary legacy quarantine path to the TypeScript exclusion during migration; the exclusion was subsequently retired after removal | Applied |
 | Duplicate routes | `grep router.(get|post|put|patch|delete)` over `src/` — one router per concept, no duplicates | PASS |
 | No req.supabase | grep `req.supabase` over `src/` | PASS — no matches |
 | Backend typecheck | `npm run typecheck` | PASS — exit 0 |
@@ -98,7 +98,7 @@ npx supabase db lint
 | Duplicate middleware | Only `error.middleware.ts` remains (errorHandler.ts quarantined) | PASS |
 | Duplicate routers | Only `routes/v1.routes.ts` remains (v1.ts quarantined) | PASS |
 | Feature naming | Only `features/journals/` (plural) remains (journal/ quarantined) | PASS |
-| Dead schemas | `shared/validation/schemas.ts` (legacy-shaped, unimported) moved to `src-legacy/shared/validation/` | PASS |
+| Dead schemas | `shared/validation/schemas.ts` was identified as legacy-shaped and unimported; the file was subsequently removed | PASS |
 | Documentation | `docs/backend/canonical-architecture.md` documents canonical imports + v1 API paths | PASS |
 | Backend typecheck + build + test | `npm run typecheck && npm run build && npm run test` | PASS — exit 0, 20/20 |
 

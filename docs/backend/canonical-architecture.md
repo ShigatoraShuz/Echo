@@ -41,9 +41,8 @@ Status: maintained. Updated 2026-08-15 (ECHO-001/002/003). The executable compos
 | Experience (dashboard, buddy, insights, grounding, support) | `backend/src/features/experience/` | Active |
 | Verification | `backend/src/features/verification/` | Active |
 
-Legacy duplicates (`features/journal`, `features/buddy`, `features/insights`, `features/grounding`,
-`features/onboarding`, legacy settings sub-routes) were quarantined to `backend/src-legacy/` on 2026-08-15.
-See `backend/src-legacy/README.md`. Nothing under `src/` may import `src-legacy/`.
+Legacy duplicates from the previous backend structure were quarantined during the backend migration and have since been removed.
+The canonical implementations under `backend/src/` are now the sole active backend implementations.
 
 ## v1 API surface
 
