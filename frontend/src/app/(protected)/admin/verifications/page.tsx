@@ -23,8 +23,8 @@ import {
   type AdminVerificationDetail,
   type AdminVerificationSummary,
   type VerificationStatus,
-} from "@/shared/services/verification-api";
-import { cn } from "@/lib/utils";
+} from "@/services/verification/verification-api";
+import { cn } from "@/shared/lib/utils";
 
 const filters: Array<{ value: string; label: string }> = [
   { value: "all", label: "All" },
