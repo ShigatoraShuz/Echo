@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, HeartHandshake, MessageCircle, Phone, ShieldAlert, Wind } from "lucide-react";
-import { experienceApi, type SupportResource } from "@/shared/services/experience-api";
+import { experienceApi, type SupportResource } from "@/services/experience/experience-api";
 
 const immediateSteps = [
   "Call local emergency services now if someone may be in immediate danger.",
