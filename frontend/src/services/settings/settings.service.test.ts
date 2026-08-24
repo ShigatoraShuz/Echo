@@ -7,12 +7,16 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
+const tokenProvider = vi.hoisted(() => ({
+  getAccessToken: vi.fn(),
+}));
+
 vi.mock("@/infrastructure/api/api-client", () => ({
   createApiClient: () => api,
 }));
 
 vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
-  supabaseAuthTokenProvider: {},
+  supabaseAuthTokenProvider: tokenProvider,
 }));
 
 import { settingsService } from "@/services/settings/settings.service";
@@ -42,11 +46,13 @@ const snapshot = {
   },
   trustedContacts: [],
   latestExport: null,
+  exportHistory: [],
   deletionRequest: null,
 } as const;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("settingsService", () => {
@@ -77,10 +83,23 @@ describe("settingsService", () => {
   });
 
   it("uses explicit endpoints for export and deletion recovery", async () => {
-    api.post.mockResolvedValue({ success: true, data: snapshot });
+    const exportSnapshot = {
+      ...snapshot,
+      latestExport: {
+        id: "export-1",
+        status: "requested" as const,
+        requestedAt: "2026-08-25T00:00:00.000Z",
+        completedAt: null,
+        expiresAt: null,
+      },
+      exportHistory: [],
+    };
+    api.post
+      .mockResolvedValueOnce({ success: true, data: exportSnapshot })
+      .mockResolvedValueOnce({ success: true, data: snapshot });
     api.patch.mockResolvedValue({ success: true, data: snapshot });
 
-    await settingsService.requestExport();
+    await expect(settingsService.requestExport()).resolves.toEqual(exportSnapshot.latestExport);
     await settingsService.requestDeletion();
     await settingsService.cancelDeletion("request/1");
 
@@ -88,6 +107,43 @@ describe("settingsService", () => {
     expect(api.post).toHaveBeenNthCalledWith(2, "/settings/account-deletion");
     expect(api.patch).toHaveBeenCalledWith(
       "/settings/account-deletion/request%2F1/cancel",
+    );
+  });
+
+  it("sends password changes to the security password endpoint", async () => {
+    const payload = {
+      currentPassword: "OldPassword1!",
+      newPassword: "NewPassword1!",
+      confirmPassword: "NewPassword1!",
+    };
+    api.patch.mockResolvedValueOnce({ success: true, data: { passwordChanged: true } });
+
+    await expect(settingsService.changePassword(payload)).resolves.toEqual({ passwordChanged: true });
+
+    expect(api.patch).toHaveBeenCalledWith("/settings/security/password", payload);
+  });
+
+  it("uploads avatar files through the binary avatar endpoint", async () => {
+    tokenProvider.getAccessToken.mockResolvedValueOnce("access-token");
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: vi.fn().mockResolvedValueOnce({ success: true, data: snapshot }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["image"], "avatar.png", { type: "image/png" });
+
+    await expect(settingsService.uploadAvatar(file)).resolves.toEqual(snapshot);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:4200/api/v1/settings/profile/avatar",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "image/png",
+          Authorization: "Bearer access-token",
+        },
+        body: file,
+      },
     );
   });
 });

@@ -156,6 +156,151 @@ describe("createApiClient", () => {
     );
   });
 
+  it("refreshes once and retries a 401 with the renewed token", async () => {
+    vi.restoreAllMocks();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ error: { message: "expired" } }),
+        text: () => Promise.resolve(JSON.stringify({ error: { message: "expired" } })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ ok: true }),
+        text: () => Promise.resolve(JSON.stringify({ ok: true })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response);
+    const tokenProvider = {
+      getAccessToken: vi.fn(async () => "stale-token"),
+      refreshAccessToken: vi.fn(async () => "fresh-token"),
+      clearSession: vi.fn(async () => undefined),
+    };
+    const client = createApiClient({ baseUrl: "http://localhost:8000", tokenProvider });
+    await expect(client.get("/api/test")).resolves.toEqual({ ok: true });
+    expect(tokenProvider.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(tokenProvider.clearSession).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/api/test",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer stale-token",
+        }),
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:8000/api/test",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      })
+    );
+  });
+
+  it("clears the session after an unrecoverable 401", async () => {
+    vi.restoreAllMocks();
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      headers: createMockHeaders(),
+      json: () => Promise.resolve({ error: { message: "expired" } }),
+      text: () => Promise.resolve(JSON.stringify({ error: { message: "expired" } })),
+      blob: () => Promise.resolve(new Blob()),
+    } as Response);
+    const tokenProvider = {
+      getAccessToken: vi.fn(async () => null),
+      refreshAccessToken: vi.fn(async () => null),
+      clearSession: vi.fn(async () => undefined),
+    };
+    const client = createApiClient({ baseUrl: "http://localhost:8000", tokenProvider });
+    await expect(client.get("/api/test")).rejects.toMatchObject({ code: "AUTHENTICATION_ERROR" });
+    expect(tokenProvider.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(tokenProvider.clearSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares one refresh operation across concurrent 401 responses", async () => {
+    vi.restoreAllMocks();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ error: { message: "expired" } }),
+        text: () => Promise.resolve(JSON.stringify({ error: { message: "expired" } })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ error: { message: "expired" } }),
+        text: () => Promise.resolve(JSON.stringify({ error: { message: "expired" } })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ ok: true, call: 1 }),
+        text: () => Promise.resolve(JSON.stringify({ ok: true, call: 1 })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: createMockHeaders(),
+        json: () => Promise.resolve({ ok: true, call: 2 }),
+        text: () => Promise.resolve(JSON.stringify({ ok: true, call: 2 })),
+        blob: () => Promise.resolve(new Blob()),
+      } as Response);
+    const tokenProvider = {
+      getAccessToken: vi.fn(async () => "stale-token"),
+      refreshAccessToken: vi.fn(async () => "fresh-token"),
+      clearSession: vi.fn(async () => undefined),
+    };
+    const client = createApiClient({ baseUrl: "http://localhost:8000", tokenProvider });
+
+    const [first, second] = await Promise.all([
+      client.get<{ ok: true; call: number }>("/api/test"),
+      client.get<{ ok: true; call: number }>("/api/test"),
+    ]);
+
+    expect(first).toEqual({ ok: true, call: 1 });
+    expect(second).toEqual({ ok: true, call: 2 });
+    expect(tokenProvider.refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(tokenProvider.clearSession).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not attach auth headers when no token is available", async () => {
+    mockFetch(200, {});
+    const tokenProvider = {
+      getAccessToken: () => Promise.resolve(null),
+      refreshAccessToken: () => Promise.resolve(null),
+      clearSession: () => Promise.resolve(),
+    };
+    const client = createApiClient({ baseUrl: "http://localhost:8000", tokenProvider });
+    await client.get("/api/public");
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      })
+    );
+  });
+
   it("does not log tokens in developer messages", async () => {
     mockFetch(500, { error: { message: "Server error" } });
     const client = createApiClient({ baseUrl: "http://localhost:8000" });

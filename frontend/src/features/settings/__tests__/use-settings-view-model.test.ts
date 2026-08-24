@@ -42,6 +42,7 @@ describe("useSettingsViewModel", () => {
       },
       trustedContacts: [],
       latestExport: null,
+      exportHistory: [],
       deletionRequest: null,
     });
 
@@ -95,6 +96,7 @@ describe("useSettingsViewModel", () => {
       },
       trustedContacts: [],
       latestExport: null,
+      exportHistory: [],
       deletionRequest: null,
     };
 

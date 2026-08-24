@@ -24,7 +24,7 @@ export function SignupView({ title, description }: SignupViewProps) {
   const {
     name, email, password, confirmPassword,
     termsAccepted, privacyAcknowledged, dataProcessingAcknowledged, aiFeatureAcknowledged, journalAnalysisConsent, showPassword,
-    passwordStrength, status, error, fieldErrors,
+    passwordStrength, status, error, successMessage, fieldErrors,
     setName, setEmail, setPassword, setConfirmPassword,
     setTermsAccepted, setPrivacyAcknowledged, setDataProcessingAcknowledged, setAiFeatureAcknowledged, setJournalAnalysisConsent, togglePasswordVisibility,
     submit,
@@ -33,8 +33,8 @@ export function SignupView({ title, description }: SignupViewProps) {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (status === "submitting") return;
-    const session = await submit();
-    if (session) router.push("/dashboard");
+    const result = await submit();
+    if (result && !("requiresEmailConfirmation" in result)) router.push("/dashboard");
   };
 
   return (
@@ -65,7 +65,7 @@ export function SignupView({ title, description }: SignupViewProps) {
 
           {/* ── Form ────────────────────────────────────────────── */}
           <form onSubmit={handleSubmit} className="mt-2.5 space-y-2" noValidate>
-            <AuthStatusMessage status={status} error={error} />
+            <AuthStatusMessage status={status} error={error} successMessage={successMessage ?? undefined} />
 
             {/* Name + Email side by side on larger screens */}
             <div className="grid gap-2 sm:grid-cols-2">

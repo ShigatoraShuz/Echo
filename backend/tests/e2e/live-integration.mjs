@@ -121,6 +121,7 @@ async function run() {
   const checks = [];
 
   const consentRows = await admin
+    .schema("user_service")
     .from("user_consents")
     .select("consent_type, consent_version, accepted, accepted_at")
     .eq("user_id", temporaryUserId);
@@ -183,15 +184,35 @@ async function run() {
     throw secondCreated.error ?? new Error("Second temporary QA user was not created.");
   }
   temporarySecondUserId = secondCreated.data.user.id;
-  const ownProfile = await publicClient.from("profiles").select("id").eq("id", temporaryUserId).maybeSingle();
-  const otherProfile = await publicClient.from("profiles").select("id").eq("id", temporarySecondUserId);
-  const deniedConsentDelete = await publicClient.from("user_consents").delete().eq("user_id", temporaryUserId);
+  const ownProfile = await publicClient
+    .schema("user_service")
+    .from("profiles")
+    .select("user_id")
+    .eq("user_id", temporaryUserId)
+    .maybeSingle();
+  const otherProfile = await publicClient
+    .schema("user_service")
+    .from("profiles")
+    .select("user_id")
+    .eq("user_id", temporarySecondUserId);
+  const deniedConsentDelete = await publicClient
+    .schema("user_service")
+    .from("user_consents")
+    .delete()
+    .eq("user_id", temporaryUserId);
+  const consentRowsAfterDeniedDelete = await admin
+    .schema("user_service")
+    .from("user_consents")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", temporaryUserId);
   if (
     ownProfile.error ||
-    ownProfile.data?.id !== temporaryUserId ||
+    ownProfile.data?.user_id !== temporaryUserId ||
     otherProfile.error ||
     otherProfile.data?.length !== 0 ||
-    !deniedConsentDelete.error
+    deniedConsentDelete.error ||
+    consentRowsAfterDeniedDelete.error ||
+    consentRowsAfterDeniedDelete.count !== expectedConsents.size
   ) {
     throw new Error("Row-level security or consent history protection did not isolate the QA user.");
   }
@@ -416,10 +437,13 @@ async function run() {
     throw new Error("Verification application was not submitted.");
   }
 
-  const adminGrant = await admin.from("verification_admins").insert({
-    user_id: temporaryUserId,
-    is_active: true,
-  });
+  const adminGrant = await admin
+    .schema("verification_service")
+    .from("verification_admins")
+    .insert({
+      user_id: temporaryUserId,
+      is_active: true,
+    });
   if (adminGrant.error) throw adminGrant.error;
   const queue = await api("/admin/verifications?status=submitted", authenticated);
   const queuedApplication = queue.find((item) => item.userId === temporaryUserId);

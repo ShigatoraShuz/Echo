@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
 import { AuthFormField } from "../components/auth-form-field";
@@ -10,6 +10,7 @@ import { AuthDivider, GoogleAuthButton } from "../components/google-auth-button"
 import { PasswordField } from "../components/password-field";
 import { useLoginViewModel } from "../view-model/use-login-view-model";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
+import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoCheckbox } from "@/shared/components/ui/echo-checkbox";
 import { safeRedirectPath } from "@/shared/lib/safe-redirect";
@@ -21,6 +22,7 @@ interface LoginViewProps {
 
 export function LoginView({ title, description }: LoginViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     email, password, rememberSession, showPassword,
     status, error, fieldErrors,
@@ -34,17 +36,14 @@ export function LoginView({ title, description }: LoginViewProps) {
 
     const session = await submit();
     if (session) {
-      const next =
-        typeof window === "undefined"
-          ? "/dashboard"
-          : safeRedirectPath(new URLSearchParams(window.location.search).get("next"));
+      const next = safeRedirectPath(searchParams.get("next"));
       router.replace(next);
       router.refresh();
     }
   };
 
-  const googleNext =
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next");
+  const googleNext = searchParams.get("next");
+  const routeError = searchParams.get("error");
 
   return (
     <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
@@ -66,6 +65,12 @@ export function LoginView({ title, description }: LoginViewProps) {
           </div>
 
           <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
+            {routeError === "google_account_exists" ? (
+              <EchoInlineMessage
+                variant="error"
+                message="This Google account already exists. Log in with Google from this page to continue."
+              />
+            ) : null}
             <AuthStatusMessage status={status} error={error} />
 
             <AuthFormField

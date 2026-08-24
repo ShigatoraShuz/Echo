@@ -2,13 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Bell,
   Check,
   Download,
+  History,
   KeyRound,
   LoaderCircle,
+  LogOut,
   Mail,
   MapPin,
   Pencil,
@@ -18,6 +21,7 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
+  X,
   UserRound,
   UsersRound,
   ShieldAlert,
@@ -38,6 +42,7 @@ import { EchoButton } from "@/shared/components/ui/echo-button";
 
 import {
   AvatarUpload,
+  ChangePasswordForm,
   ExportDataSection,
   SettingsHeader,
   SettingsRow,
@@ -51,6 +56,7 @@ import type {
   NotificationSettings,
   PrivacySettings,
   ProfileSettings,
+  SecurityAuditEvent,
   TrustedContact,
   TrustedContactInput,
 } from "../model/settings.model";
@@ -93,6 +99,12 @@ function formatDate(value: string | null | undefined): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatEventType(value: string): string {
+  return value
+    .replace(/[_\.]/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 // -----------------------------------------------------------------------------
@@ -408,21 +420,14 @@ export function ProfileSettingsView() {
     async (file: File) => {
       setIsUploadingAvatar(true);
       try {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        setForm((prev) => prev ? { ...prev, avatarPath: dataUrl } : prev);
-        if (form) {
-          await settingsService.updateProfile({ ...form, avatarPath: dataUrl });
-        }
+        const snapshot = await settingsService.uploadAvatar(file);
+        setForm(snapshot.profile);
+        await refresh();
       } finally {
         setIsUploadingAvatar(false);
       }
     },
-    [form],
+    [refresh],
   );
 
   const submit = async (event: FormEvent) => {
@@ -1089,10 +1094,16 @@ export function NotificationSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function SecuritySettingsView() {
+  const router = useRouter();
   const supabase = createBrowserSupabaseClient();
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [passwordStatus, setPasswordStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<SecurityAuditEvent[]>([]);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [signingOutAll, setSigningOutAll] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -1100,19 +1111,57 @@ export function SecuritySettingsView() {
     });
   }, []);
 
-  async function sendPasswordReset() {
-    if (!email) return;
-    setStatus("sending");
+  const loadAuditEvents = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditError(null);
+    try {
+      const data = await settingsService.getSecurityAuditEvents(50);
+      setAuditEvents(data.auditEvents);
+    } catch {
+      setAuditError("Security history could not be loaded.");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAuditEvents();
+  }, [loadAuditEvents]);
+
+  async function changePassword(currentPassword: string, newPassword: string, confirmPassword: string) {
+    setPasswordStatus("saving");
     setError(null);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+      await settingsService.changePassword({
+        currentPassword,
+        newPassword,
+        confirmPassword,
       });
-      if (resetError) throw resetError;
-      setStatus("sent");
+      setPasswordStatus("saved");
+      await loadAuditEvents();
     } catch (err) {
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Password reset failed.");
+      setPasswordStatus("error");
+      const message = err instanceof Error ? err.message : "Password could not be changed.";
+      setError(message);
+      throw new Error(message);
+    }
+  }
+
+  async function signOutAllDevices() {
+    setSigningOutAll(true);
+    setError(null);
+    try {
+      await settingsService.signOutAllDevices();
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        // The backend may have already revoked the refresh token globally.
+      }
+      router.replace("/login");
+      router.refresh();
+    } catch (err) {
+      setSigningOutAll(false);
+      setError(err instanceof Error ? err.message : "All devices could not be signed out.");
     }
   }
 
@@ -1123,6 +1172,49 @@ export function SecuritySettingsView() {
           title="Security"
           description="Manage your account authentication and access."
         />
+
+        <SettingsSection
+          title="Security Audit History"
+          description="Recent account and security actions recorded by ECHO."
+        >
+          {auditError ? (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <span>{auditError}</span>
+              <button type="button" onClick={() => void loadAuditEvents()} className="font-bold underline underline-offset-4">
+                Retry
+              </button>
+            </div>
+          ) : auditLoading ? (
+            <div className="grid min-h-32 place-items-center rounded-2xl border border-border/60 bg-card">
+              <LoaderCircle className="h-7 w-7 animate-spin text-primary" />
+            </div>
+          ) : auditEvents.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/70 bg-card px-5 py-8 text-center">
+              <History className="mx-auto h-7 w-7 text-muted-foreground/60" />
+              <p className="mt-2 text-sm font-semibold text-foreground">No security history yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">Account activity will appear here after changes are saved.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {auditEvents.map((event) => (
+                <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card p-4">
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10">
+                    <History className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-foreground">{formatEventType(event.eventType)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatDate(event.createdAt)}</p>
+                    {event.resourceType ? (
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                        {event.resourceType.replace(/_/g, " ")}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SettingsSection>
 
         <SettingsSection
           title="Password & Authentication"
@@ -1141,27 +1233,11 @@ export function SecuritySettingsView() {
               </div>
             </div>
 
-            {status === "sent" ? (
-              <div className="flex items-center gap-2 rounded-xl bg-primary/8 px-4 py-3 text-sm text-primary">
-                <Check className="h-4 w-4 shrink-0" />
-                Password reset link sent to {email}. Check your inbox.
-              </div>
-            ) : (
-              <EchoButton
-                type="button"
-                variant="primary"
-                isLoading={status === "sending"}
-                onClick={() => void sendPasswordReset()}
-                className="h-11 w-full rounded-full px-8 sm:w-auto"
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Send Reset Email
-              </EchoButton>
-            )}
-
-            {status === "error" && error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            <ChangePasswordForm
+              onChangePassword={changePassword}
+              isChanging={passwordStatus === "saving"}
+              successMessage={passwordStatus === "saved" ? "Password changed successfully." : null}
+            />
           </div>
 
           <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
@@ -1180,8 +1256,65 @@ export function SecuritySettingsView() {
               2FA is managed via your Supabase account settings. Contact support to enable it.
             </p>
           </div>
+
+          <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-destructive/10">
+                <LogOut className="h-5 w-5 text-destructive" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">Sign out all devices</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Revoke active refresh tokens everywhere, including this browser.
+                </p>
+              </div>
+            </div>
+            <EchoButton
+              type="button"
+              variant="danger"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="h-11 w-full rounded-full border-destructive bg-destructive/10 px-8 text-destructive hover:bg-destructive hover:text-white sm:w-auto"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign Out All Devices
+            </EchoButton>
+          </div>
         </SettingsSection>
+
       </div>
+
+      {showLogoutConfirm ? (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-[#10231b]/50 px-4 backdrop-blur-sm">
+          <section role="dialog" aria-modal="true" aria-labelledby="sign-out-all-title" className="w-full max-w-md rounded-[2rem] border border-border/70 bg-card p-5 text-foreground shadow-[0_28px_80px_rgba(16,35,27,0.28)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-destructive">Security action</p>
+                <h2 id="sign-out-all-title" className="mt-1 text-xl font-bold">Sign out all devices?</h2>
+              </div>
+              <button type="button" onClick={() => setShowLogoutConfirm(false)} className="grid h-9 w-9 place-items-center rounded-full border border-border/70 text-muted-foreground hover:bg-secondary" aria-label="Cancel sign out all devices">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              This revokes refresh tokens on every device. Existing short-lived access tokens may remain valid until they expire.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setShowLogoutConfirm(false)} className="h-11 rounded-full border border-border/70 px-5 text-sm font-bold text-muted-foreground hover:bg-secondary">
+                Cancel
+              </button>
+              <EchoButton
+                type="button"
+                variant="danger"
+                isLoading={signingOutAll}
+                onClick={() => void signOutAllDevices()}
+                className="h-11 rounded-full border-destructive bg-destructive px-5 text-white hover:bg-destructive/90"
+              >
+                Sign out everywhere
+              </EchoButton>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </SettingsShell>
   );
 }
@@ -1638,26 +1771,33 @@ export function ExportSettingsView() {
           />
         </SettingsSection>
 
-        {settings?.latestExport && (
+        {(settings?.exportHistory?.length ?? 0) > 0 && (
           <SettingsSection
-            title="Previous Export"
-            description="History of your last data export request."
+            title="Export History"
+            description="Recent data export requests recorded in your account."
           >
-            <div className="flex w-full min-w-0 items-center gap-4 rounded-2xl border border-border/60 bg-card p-4">
-              <Download className="h-5 w-5 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground capitalize">
-                  {settings.latestExport.status}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Requested {formatDate(settings.latestExport.requestedAt)}
-                </p>
-                {settings.latestExport.expiresAt && (
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Expires {formatDate(settings.latestExport.expiresAt)}
-                  </p>
-                )}
-              </div>
+            <div className="space-y-3">
+              {settings?.exportHistory.map((exportRequest) => (
+                <div
+                  key={exportRequest.id}
+                  className="flex w-full min-w-0 items-center gap-4 rounded-2xl border border-border/60 bg-card p-4"
+                >
+                  <Download className="h-5 w-5 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground capitalize">
+                      {exportRequest.status}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Requested {formatDate(exportRequest.requestedAt)}
+                    </p>
+                    {exportRequest.expiresAt && (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        Expires {formatDate(exportRequest.expiresAt)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </SettingsSection>
         )}
@@ -1730,4 +1870,4 @@ export function ExportSettingsView() {
       </div>
     </SettingsShell>
   );
-}
+}

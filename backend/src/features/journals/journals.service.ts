@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AuthorizationError, ExternalServiceError, NotFoundError, ValidationError } from "../../shared/errors/app-error.js";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import type { AnalysisProvider, AnalysisProviderResult } from "../../infrastructure/analysis/analysis-provider.types.js";
+import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 
 export interface JournalInput {
   title: string;
@@ -104,6 +105,11 @@ function errorCode(error: unknown): string {
   return error instanceof ExternalServiceError ? error.code : "ANALYSIS_UNAVAILABLE";
 }
 
+function databaseError(error: unknown, operation: SupabaseOperation, message: string): ExternalServiceError {
+  if (error) logSupabaseError(operation, error as Parameters<typeof logSupabaseError>[1]);
+  return new ExternalServiceError("DATABASE_UNAVAILABLE", message);
+}
+
 export class JournalService {
   constructor(
     private readonly database: SupabaseClient,
@@ -136,6 +142,7 @@ export class JournalService {
 
   private async latestAnalysis(journalId: string, userId: string): Promise<AnalysisRow | null> {
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journal_analyses")
       .select("*")
       .eq("journal_id", journalId)
@@ -172,17 +179,19 @@ export class JournalService {
 
   async list(userId: string): Promise<JournalResponse[]> {
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journals")
       .select("*")
       .eq("user_id", userId)
       .is("deleted_at", null)
-      .order("entry_date", { ascending: false });
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal service is temporarily unavailable.");
+      .order("created_at", { ascending: false });
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "list journals" }, "The journal service is temporarily unavailable.");
     return Promise.all(((data ?? []) as JournalRow[]).map(async (row) => this.toJournalResponse(row, await this.latestAnalysis(asString(row.id), userId))));
   }
 
   async get(userId: string, journalId: string): Promise<JournalResponse> {
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journals")
       .select("*")
       .eq("id", journalId)
@@ -198,11 +207,11 @@ export class JournalService {
   async create(userId: string, input: JournalInput): Promise<JournalResponse> {
     const encrypted = this.encryptJournal(input);
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journals")
       .insert({
         user_id: userId,
-        title: null,
-        content: null,
+        title: input.title,
         content_ciphertext: bytea(encrypted.ciphertext),
         encryption_iv: bytea(encrypted.iv),
         encryption_auth_tag: bytea(encrypted.authenticationTag),
@@ -233,10 +242,10 @@ export class JournalService {
     };
     const encrypted = this.encryptJournal(next);
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journals")
       .update({
-        title: null,
-        content: null,
+        title: next.title,
         content_ciphertext: bytea(encrypted.ciphertext),
         encryption_iv: bytea(encrypted.iv),
         encryption_auth_tag: bytea(encrypted.authenticationTag),
@@ -259,6 +268,7 @@ export class JournalService {
 
   async remove(userId: string, journalId: string): Promise<void> {
     const { error, count } = await this.database
+      .schema("journal_service")
       .from("journals")
       .delete({ count: "exact" })
       .eq("id", journalId)
@@ -270,7 +280,7 @@ export class JournalService {
   private toDraftResponse(row: JournalRow): JournalDraftResponse {
     const draft = this.decryptJournal(row);
     return {
-      id: asString(row.id),
+      id: asString(row.id, asString(row.user_id)),
       title: draft.title,
       body: draft.body,
       mood: asString(row.mood, "calm"),
@@ -285,10 +295,12 @@ export class JournalService {
   async saveDraft(userId: string, input: JournalDraftInput): Promise<JournalDraftResponse> {
     const encrypted = this.encryptJournal(input);
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journal_drafts")
       .upsert(
         {
           user_id: userId,
+          title: input.title,
           content_ciphertext: bytea(encrypted.ciphertext),
           encryption_iv: bytea(encrypted.iv),
           encryption_auth_tag: bytea(encrypted.authenticationTag),
@@ -309,6 +321,7 @@ export class JournalService {
 
   async getDraft(userId: string): Promise<JournalDraftResponse | null> {
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journal_drafts")
       .select("*")
       .eq("user_id", userId)
@@ -318,7 +331,7 @@ export class JournalService {
   }
 
   async deleteDraft(userId: string): Promise<void> {
-    const { error } = await this.database.from("journal_drafts").delete().eq("user_id", userId);
+    const { error } = await this.database.schema("journal_service").from("journal_drafts").delete().eq("user_id", userId);
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be removed.");
   }
 
@@ -328,6 +341,7 @@ export class JournalService {
       throw new AuthorizationError("Journal analysis requires your explicit consent.");
     }
     const { data: consent, error: consentError } = await this.database
+      .schema("user_service")
       .from("user_consents")
       .select("id")
       .eq("user_id", userId)
@@ -341,6 +355,7 @@ export class JournalService {
 
     const requestId = randomUUID();
     const { data: pending, error: pendingError } = await this.database
+      .schema("journal_service")
       .from("journal_analyses")
       .insert({ journal_id: journalId, user_id: userId, request_id: requestId, status: "processing", started_at: new Date().toISOString() })
       .select("*")
@@ -352,6 +367,7 @@ export class JournalService {
       return this.completeAnalysis(pending as AnalysisRow, result);
     } catch (error) {
       await this.database
+        .schema("journal_service")
         .from("journal_analyses")
         .update({ status: "failed", failure_code: errorCode(error), completed_at: new Date().toISOString() })
         .eq("id", (pending as AnalysisRow).id)
@@ -363,6 +379,7 @@ export class JournalService {
   private async completeAnalysis(pending: AnalysisRow, result: AnalysisProviderResult): Promise<AnalysisResponse> {
     const completedAt = new Date().toISOString();
     const { data, error } = await this.database
+      .schema("journal_service")
       .from("journal_analyses")
       .update({
         status: "completed",
@@ -379,7 +396,7 @@ export class JournalService {
       .select("*")
       .single();
     if (error || !data) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The analysis result could not be saved.");
-    await this.database.from("notifications").insert({
+    await this.database.schema("notification_service").from("notifications").insert({
       user_id: pending.user_id as string,
       notification_type: "analysis_ready",
       title: "Your reflection is ready",
@@ -387,7 +404,7 @@ export class JournalService {
       resource_type: "journal_analysis",
       resource_id: pending.id as string,
     });
-    await this.database.from("audit_events").insert({
+    await this.database.schema("user_service").from("audit_events").insert({
       actor_user_id: pending.user_id as string,
       user_id: pending.user_id as string,
       event_type: "analysis.completed",

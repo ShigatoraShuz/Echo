@@ -42,6 +42,7 @@ describe("useSignupViewModel", () => {
     expect(result.current.showPassword).toBe(false);
     expect(result.current.status).toBe("idle");
     expect(result.current.error).toBeNull();
+    expect(result.current.successMessage).toBeNull();
     expect(result.current.passwordStrength.score).toBe(0);
   });
 
@@ -128,12 +129,48 @@ describe("useSignupViewModel", () => {
     });
 
     expect(result.current.status).toBe("success");
+    expect(result.current.successMessage).toBe("Account created successfully.");
     expect(mockService.signup).toHaveBeenCalled();
     expect(returned).toEqual(mockSession);
   });
 
+  it("shows the email confirmation message without creating a session", async () => {
+    const pending = {
+      requiresEmailConfirmation: true,
+      email: "mira@test.com",
+      message: "We sent a confirmation link to mira@test.com. Open that email to continue your signup.",
+    };
+    const mockService = createMockService();
+    mockService.signup.mockResolvedValue({ success: true, data: pending });
+    vi.mocked(getAuthService).mockReturnValue(mockService);
+
+    const { result } = renderHook(() => useSignupViewModel());
+
+    act(() => result.current.setName("Mira"));
+    act(() => result.current.setEmail("mira@test.com"));
+    act(() => result.current.setPassword("StrongP@ss1"));
+    act(() => result.current.setConfirmPassword("StrongP@ss1"));
+    act(() => result.current.setTermsAccepted(true));
+    act(() => result.current.setPrivacyAcknowledged(true));
+    act(() => result.current.setDataProcessingAcknowledged(true));
+    act(() => result.current.setAiFeatureAcknowledged(true));
+
+    let returned: unknown;
+    await act(async () => {
+      returned = await result.current.submit();
+    });
+
+    expect(result.current.status).toBe("success");
+    expect(result.current.successMessage).toBe(pending.message);
+    expect(returned).toEqual(pending);
+  });
+
   it("sets error on service failure", async () => {
-    const mockError = { code: "EMAIL_IN_USE", message: "An account with this email already exists." };
+    const mockError = {
+      code: "EMAIL_IN_USE",
+      message: "This email has already been used. Log in instead.",
+      fieldErrors: { email: ["This email has already been used."] },
+    };
     const mockService = createMockService();
     mockService.signup.mockResolvedValue({ success: false, error: mockError });
     vi.mocked(getAuthService).mockReturnValue(mockService);
@@ -155,6 +192,7 @@ describe("useSignupViewModel", () => {
 
     expect(result.current.status).toBe("error");
     expect(result.current.error).toEqual(mockError);
+    expect(result.current.fieldErrors.email).toEqual(["This email has already been used."]);
   });
 
   it("resets to initial state", () => {

@@ -39,6 +39,14 @@ export interface AuthSession {
   isMockSession: boolean;
 }
 
+export interface PendingEmailConfirmation {
+  requiresEmailConfirmation: true;
+  email: string;
+  message: string;
+}
+
+export type SignupResult = AuthSession | PendingEmailConfirmation;
+
 export type AuthServiceErrorCode =
   | "INVALID_CREDENTIALS"
   | "EMAIL_IN_USE"

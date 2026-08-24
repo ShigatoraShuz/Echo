@@ -36,6 +36,24 @@ const notificationSchema = z
     { message: "A reminder time and timezone are required when reminders are enabled." },
   );
 
+const auditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required."),
+    newPassword: z.string().min(8, "New password must be at least 8 characters.").max(128),
+    confirmPassword: z.string().min(1, "Confirm your new password."),
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
+  });
+
+const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const maxAvatarBytes = 5 * 1024 * 1024;
+
 const contactSchema = z
   .object({
     contactName: z.string().trim().min(1).max(200),
@@ -69,6 +87,11 @@ function userId(request: Request): string {
   return request.auth.id;
 }
 
+function accessToken(request: Request): string {
+  if (!request.auth?.accessToken) throw new ValidationError({ authentication: ["Authentication is required."] });
+  return request.auth.accessToken;
+}
+
 export function createSettingsController(service: SettingsService) {
   return {
     async get(request: Request, response: Response) {
@@ -76,6 +99,24 @@ export function createSettingsController(service: SettingsService) {
     },
     async updateProfile(request: Request, response: Response) {
       sendSuccess(response, await service.updateProfile(userId(request), parse(profileSchema, request.body)));
+    },
+    async uploadAvatar(request: Request, response: Response) {
+      const mimeType = String(request.header("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      const body = request.body;
+      if (!allowedAvatarTypes.has(mimeType)) {
+        throw new ValidationError({ avatar: ["Upload a JPEG, PNG, WebP, or GIF image."] });
+      }
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        throw new ValidationError({ avatar: ["Choose a profile photo to upload."] });
+      }
+      if (body.length > maxAvatarBytes) {
+        throw new ValidationError({ avatar: ["Profile photo must be no larger than 5 MB."] });
+      }
+      sendSuccess(response, await service.uploadAvatar(userId(request), {
+        contents: body,
+        mimeType,
+        sizeBytes: body.length,
+      }));
     },
     async updatePrivacy(request: Request, response: Response) {
       sendSuccess(response, await service.updatePrivacy(userId(request), parse(privacySchema, request.body)));
@@ -120,6 +161,19 @@ export function createSettingsController(service: SettingsService) {
         response,
         await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")),
       );
+    },
+    async changePassword(request: Request, response: Response) {
+      const input = parse(changePasswordSchema, request.body);
+      sendSuccess(response, await service.changePassword(userId(request), request.auth?.email, {
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+      }));
+    },
+    async listSecurityAuditEvents(request: Request, response: Response) {
+      sendSuccess(response, await service.listSecurityAuditEvents(userId(request), parse(auditQuerySchema, request.query).limit));
+    },
+    async signOutAllDevices(request: Request, response: Response) {
+      sendSuccess(response, await service.signOutAllDevices(userId(request), accessToken(request)));
     },
   };
 }

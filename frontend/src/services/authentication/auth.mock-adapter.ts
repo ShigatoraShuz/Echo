@@ -62,13 +62,14 @@ export function createAuthMockAdapter(): AuthService {
         return { success: false, error: { code: "VALIDATION", message: "Please check the form for errors.", fieldErrors } };
       }
 
-      const session: AuthSession = {
-        user: { id: "mock-user-new", name: input.name, email: input.email },
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        isMockSession: true,
+      return {
+        success: true,
+        data: {
+          requiresEmailConfirmation: true,
+          email: input.email,
+          message: `We sent a confirmation link to ${input.email}. Open that email to continue your signup.`,
+        },
       };
-      currentSession = session;
-      return { success: true, data: session };
     },
 
     async forgotPassword(input) {

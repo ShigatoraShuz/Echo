@@ -1,10 +1,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { BackendEnvironment } from "../../config/environment.js";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
+import type { Database } from "./database.types.js";
+import { createResilientFetch } from "./resilient-fetch.js";
 
 export function createSupabaseAdminClient(environment: BackendEnvironment): SupabaseClient {
-  return createClient(environment.SUPABASE_URL, environment.SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient<Database>(environment.SUPABASE_URL, environment.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
+    global: { fetch: createResilientFetch() },
   });
 }
 

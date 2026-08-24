@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { CheckCircle2, Clock, HandHeart, Leaf, Pause, Play, RotateCcw, ShieldAlert, Wind } from "lucide-react";
+import { CheckCircle2, Clock, HandHeart, Leaf, Pause, Play, RotateCcw, ShieldAlert, Sparkles, Wind } from "lucide-react";
 import { useGroundingViewModel, type GroundingTechnique } from "../view-model/use-grounding-view-model";
 import { CrisisHelpCard } from "@/shared/components/echo";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
@@ -36,6 +36,7 @@ export function GroundingView() {
   const vm = useGroundingViewModel();
 
   const selected = groundingCards.find((card) => card.id === vm.technique) ?? groundingCards[2];
+  const SelectedIcon = selected.icon;
 
   return (
     <div className="space-y-6">
@@ -45,7 +46,7 @@ export function GroundingView() {
         description="Choose a short practice, set a comfortable pace, and let ECHO keep a private record when you finish."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_370px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
         <div className="space-y-6">
           <EchoCard
             title={selected.title}
@@ -55,25 +56,32 @@ export function GroundingView() {
                 {formatTime(vm.remainingSeconds)}
               </span>
             }
-            className="overflow-hidden bg-[linear-gradient(145deg,rgba(255,253,247,0.94),rgba(220,232,214,0.78))]"
+            className="relative overflow-hidden bg-[radial-gradient(circle_at_50%_18%,rgba(220,232,214,0.95),transparent_22rem),linear-gradient(145deg,rgba(255,253,247,0.97),rgba(226,237,220,0.78))]"
           >
-            <div className="grid min-h-[360px] place-items-center rounded-[1.6rem] border border-[var(--landing-primary-10)] bg-white/55 p-6">
-              <div className="text-center">
-                <BreathingCircle label={vm.isRunning ? "Follow your breath" : "Ready when you are"} />
-                <p className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-foreground">
+            <div className="pointer-events-none absolute -left-20 bottom-0 h-60 w-60 rounded-full bg-white/60 blur-3xl" aria-hidden="true" />
+            <div className="relative grid min-h-[390px] place-items-center rounded-[1.8rem] border border-[var(--landing-primary-10)] bg-white/50 p-5 sm:p-8">
+              <div className="relative text-center">
+                <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/10 bg-[radial-gradient(circle,hsl(var(--secondary)/0.7),transparent_62%)]" aria-hidden="true" />
+                <div className="relative mx-auto grid h-60 w-60 place-items-center rounded-full border border-primary/10 bg-white/45 shadow-[inset_0_0_40px_hsl(var(--secondary)/0.7)] sm:h-72 sm:w-72">
+                  <span className="absolute left-7 top-7 grid h-10 w-10 place-items-center rounded-full bg-secondary text-primary shadow-subtle">
+                    <SelectedIcon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <BreathingCircle label={vm.isRunning ? "Follow your breath" : "Ready when you are"} />
+                </div>
+                <p className="mt-6 text-5xl font-semibold tracking-[-0.06em] text-foreground">
                   {formatTime(vm.remainingSeconds)}
                 </p>
-                <div className="mt-5 flex justify-center gap-3">
+                <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
                   <button
                     type="button"
                     onClick={vm.toggleRunning}
                     disabled={vm.remainingSeconds === 0 || vm.isSaving}
-                    className="echo-button-primary"
+                    className="echo-button-primary rounded-full px-6"
                   >
                     {vm.isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     {vm.isRunning ? "Pause" : vm.remainingSeconds < vm.totalSeconds ? "Resume" : "Start session"}
                   </button>
-                  <button type="button" onClick={vm.reset} className="echo-button-secondary">
+                  <button type="button" onClick={vm.reset} className="echo-button-secondary rounded-full px-6">
                     <RotateCcw className="h-4 w-4" />
                     Reset
                   </button>
@@ -88,7 +96,7 @@ export function GroundingView() {
             </div>
           </EchoCard>
 
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3">
             {groundingCards.map((card) => {
               const Icon = card.icon;
               const active = vm.technique === card.id;
@@ -98,12 +106,13 @@ export function GroundingView() {
                   type="button"
                   onClick={() => vm.selectTechnique(card.id)}
                   aria-pressed={active}
-                  className={`rounded-[1.5rem] border p-5 text-left shadow-subtle outline-none transition-[transform,background-color,border-color] duration-200 hover:-translate-y-1 focus-visible:ring-4 focus-visible:ring-ring/20 ${
+                  className={`relative overflow-hidden rounded-[1.6rem] border p-5 text-left shadow-subtle outline-none transition-[transform,background-color,border-color] duration-200 hover:-translate-y-1 focus-visible:ring-4 focus-visible:ring-ring/20 ${
                     active
-                      ? "border-primary/35 bg-secondary"
+                      ? "border-primary/40 bg-[linear-gradient(145deg,hsl(var(--secondary)),hsl(var(--card)))]"
                       : "border-border/70 bg-card hover:border-primary/25"
                   }`}
                 >
+                  {active ? <span className="absolute right-4 top-4 rounded-full bg-primary px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-primary-foreground">Selected</span> : null}
                   <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-primary">
                     <Icon className="h-5 w-5" />
                   </span>
@@ -115,8 +124,8 @@ export function GroundingView() {
           </div>
         </div>
 
-        <aside className="space-y-6">
-          <EchoCard title="Session settings" description="Choose a pace that feels comfortable.">
+        <aside className="space-y-5">
+          <EchoCard title="Session settings" description="Choose a comfortable pace.">
             <div className="space-y-4">
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-foreground">Duration</span>
@@ -148,11 +157,12 @@ export function GroundingView() {
           </EchoCard>
 
           <EchoCard compact>
-            <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
-            <p className="mt-4 text-3xl font-semibold text-foreground">{vm.completedSessions ?? "—"}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              completed practice{vm.completedSessions === 1 ? "" : "s"} recorded privately
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <Clock className="h-5 w-5 text-primary" aria-hidden="true" />
+              <Sparkles className="h-4 w-4 text-primary/55" aria-hidden="true" />
+            </div>
+            <p className="mt-4 text-4xl font-semibold tracking-[-0.05em] text-foreground">{vm.completedSessions ?? "—"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">private practices completed</p>
           </EchoCard>
 
           <Link href="/crisis" className="flex items-center gap-3 rounded-2xl border border-danger/30 bg-crisis-soft p-5">

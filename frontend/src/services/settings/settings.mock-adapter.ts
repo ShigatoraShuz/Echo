@@ -4,6 +4,7 @@ import type {
   NotificationSettings,
   PrivacySettings,
   ProfileSettings,
+  SecurityAuditEvent,
   SettingsSnapshot,
   TrustedContact,
   TrustedContactInput,
@@ -44,6 +45,25 @@ const defaultContacts: TrustedContact[] = [
   { id: "contact-2", contactName: "Dr. Morgan", contactEmail: "", contactPhone: "+1-555-0123", relationship: "Therapist", verified: false, isPrimary: false, permissionAcknowledged: false },
 ];
 
+const defaultAuditEvents: SecurityAuditEvent[] = [
+  {
+    id: "audit-1",
+    eventType: "settings.profile_updated",
+    resourceType: "profile",
+    resourceId: null,
+    metadata: {},
+    createdAt: new Date(Date.now() - 60_000).toISOString(),
+  },
+  {
+    id: "audit-2",
+    eventType: "security.sign_out_all_devices",
+    resourceType: "auth_session",
+    resourceId: null,
+    metadata: {},
+    createdAt: new Date(Date.now() - 120_000).toISOString(),
+  },
+];
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -58,6 +78,7 @@ export function createSettingsMockAdapter(): SettingsService {
   let notifications = { ...defaultNotifications };
   const contacts = [...defaultContacts];
   let latestExport: ExportRequest | null = null;
+  const exportHistory: ExportRequest[] = [];
   let deletionRequest: DeletionRequest | null = null;
 
   const snapshot = (): SettingsSnapshot => ({
@@ -66,6 +87,7 @@ export function createSettingsMockAdapter(): SettingsService {
     notifications,
     trustedContacts: [...contacts],
     latestExport,
+    exportHistory: [...exportHistory],
     deletionRequest,
   });
 
@@ -78,6 +100,14 @@ export function createSettingsMockAdapter(): SettingsService {
       await delay(150);
       profile = { ...profile, ...updates };
       return profile;
+    },
+    async uploadAvatar(file) {
+      await delay(150);
+      profile = {
+        ...profile,
+        avatarPath: `mock-avatar://${encodeURIComponent(file.name)}`,
+      };
+      return snapshot();
     },
     async updatePrivacy(updates) {
       await delay(150);
@@ -111,6 +141,7 @@ export function createSettingsMockAdapter(): SettingsService {
     async requestExport() {
       await delay(150);
       latestExport = { id: `export-${Date.now().toString(36)}`, status: "requested", requestedAt: nowIso(), completedAt: null, expiresAt: null };
+      exportHistory.unshift(latestExport);
       return latestExport;
     },
     async requestDeletion() {
@@ -123,6 +154,19 @@ export function createSettingsMockAdapter(): SettingsService {
       if (deletionRequest?.id !== id) throw new Error("Deletion request not found");
       deletionRequest = { ...deletionRequest, status: "cancelled", cancelledAt: nowIso() };
       return deletionRequest;
+    },
+    async getSecurityAuditEvents(limit = 50) {
+      await delay(100);
+      return { auditEvents: defaultAuditEvents.slice(0, limit) };
+    },
+    async changePassword(input) {
+      await delay(150);
+      if (!input.currentPassword) throw new Error("Current password is required.");
+      return { passwordChanged: true };
+    },
+    async signOutAllDevices() {
+      await delay(150);
+      return { signedOut: true };
     },
   };
 }

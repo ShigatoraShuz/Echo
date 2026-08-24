@@ -84,4 +84,14 @@ describe("JournalEditorView", () => {
     expect(mock.setAnalysisConsent).toHaveBeenCalled();
     expect(mock.save).toHaveBeenCalled();
   });
+
+  it("does not render the removed prompt and privacy notice cards", () => {
+    const mock = setupMock();
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+
+    render(<JournalEditorView />);
+
+    expect(screen.queryByText(/a prompt, if it helps/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/echo is private by design/i)).not.toBeInTheDocument();
+  });
 });

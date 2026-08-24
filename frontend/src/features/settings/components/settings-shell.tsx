@@ -32,9 +32,9 @@ const settingsLinks = [
 export function SettingsShell({ children }: { children: ReactNode }) {
   return (
     <AppShell>
-      <div className="grid min-w-0 gap-5 2xl:grid-cols-[248px_minmax(0,1fr)]">
+      <div className="grid min-w-0 max-w-full gap-4 overflow-hidden sm:gap-5 2xl:grid-cols-[248px_minmax(0,1fr)]">
         <SettingsSidebar />
-        <div className="min-w-0">{children}</div>
+        <div className="min-w-0 max-w-full overflow-hidden">{children}</div>
       </div>
     </AppShell>
   );
@@ -44,13 +44,13 @@ export function SettingsSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="self-start rounded-[1.6rem] border border-border/65 bg-card/88 p-3 shadow-card backdrop-blur-xl 2xl:sticky 2xl:top-[108px]">
+    <aside className="min-w-0 self-start rounded-[1.6rem] border border-border/65 bg-card/88 p-3 shadow-card backdrop-blur-xl 2xl:sticky 2xl:top-[108px]">
       <div className="px-3 pb-3 pt-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Settings</p>
         <p className="mt-1 text-sm text-muted-foreground">Shape your private ECHO space.</p>
       </div>
       <nav
-        className="flex gap-2 overflow-x-auto pb-1 2xl:grid 2xl:overflow-visible"
+        className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] 2xl:grid 2xl:overflow-visible [&::-webkit-scrollbar]:hidden"
         aria-label="Settings sections"
       >
         {settingsLinks.map((item) => {
@@ -62,7 +62,7 @@ export function SettingsSidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group flex min-w-[190px] items-center gap-3 rounded-2xl px-3 py-3 text-left outline-none transition-[background-color,color,transform] duration-200 hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.98] 2xl:min-w-0",
+                "group flex min-w-[10.75rem] snap-start items-center gap-3 rounded-2xl px-3 py-3 text-left outline-none transition-[background-color,color,transform] duration-200 hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.98] sm:min-w-[12rem] 2xl:min-w-0",
                 active ? "bg-primary text-primary-foreground shadow-subtle" : "text-foreground",
               )}
             >
@@ -122,14 +122,14 @@ export function SettingsHeader({
   return (
     <header
       id={id}
-      className="mb-5 flex scroll-mt-24 flex-col gap-4 rounded-[1.6rem] border border-border/65 bg-card/82 p-5 shadow-subtle backdrop-blur-xl sm:p-6 lg:flex-row lg:items-center lg:justify-between"
+        className="mb-5 flex min-w-0 scroll-mt-24 flex-col gap-4 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/82 p-4 shadow-subtle backdrop-blur-xl sm:rounded-[1.6rem] sm:p-6 lg:flex-row lg:items-center lg:justify-between"
     >
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">ECHO settings</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">
+        <h1 className="mt-1 break-words font-serif text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">
           {title}
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+        <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
       {showThemeControls ? (
         <div className="w-full shrink-0 rounded-2xl border border-border/70 bg-background/75 p-4 lg:w-[370px]">
@@ -157,7 +157,7 @@ export function SettingsSection({
     <section
       id={id}
       className={cn(
-        "scroll-mt-24 rounded-[1.6rem] border border-border/65 bg-card/88 p-5 shadow-card backdrop-blur-xl sm:p-6",
+        "min-w-0 scroll-mt-24 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/88 p-4 shadow-card backdrop-blur-xl sm:rounded-[1.6rem] sm:p-6",
         className,
       )}
     >

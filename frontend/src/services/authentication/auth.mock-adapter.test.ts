@@ -37,22 +37,24 @@ describe("AuthMockAdapter", () => {
   });
 
   describe("signup", () => {
-    it("returns session for valid input", async () => {
+    it("returns pending email confirmation for valid input", async () => {
       const result = await adapter.signup({
         name: "Mira",
         email: "mira@example.com",
         password: "StrongP@ss1",
         confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        dataProcessingAcknowledged: true,
+        aiFeatureAcknowledged: true,
+        journalAnalysisConsent: false,
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.user.name).toBe("Mira");
-        expect(result.data.isMockSession).toBe(true);
+        expect("requiresEmailConfirmation" in result.data).toBe(true);
+        if (!("requiresEmailConfirmation" in result.data)) return;
+        expect(result.data.requiresEmailConfirmation).toBe(true);
+        expect(result.data.email).toBe("mira@example.com");
       }
     });
 
@@ -62,11 +64,11 @@ describe("AuthMockAdapter", () => {
         email: "bad",
         password: "short",
         confirmPassword: "mismatch",
-      termsAccepted: false,
-      privacyAcknowledged: false,
-      dataProcessingAcknowledged: false,
-      aiFeatureAcknowledged: false,
-      journalAnalysisConsent: false,
+        termsAccepted: false,
+        privacyAcknowledged: false,
+        dataProcessingAcknowledged: false,
+        aiFeatureAcknowledged: false,
+        journalAnalysisConsent: false,
       });
       expect(result.success).toBe(false);
       if (!result.success) {

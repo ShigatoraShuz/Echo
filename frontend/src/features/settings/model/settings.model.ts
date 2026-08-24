@@ -57,12 +57,22 @@ export interface DeletionRequest {
   completedAt: string | null;
 }
 
+export interface SecurityAuditEvent {
+  id: string;
+  eventType: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface SettingsSnapshot {
   profile: ProfileSettings;
   privacy: PrivacySettings;
   notifications: NotificationSettings;
   trustedContacts: TrustedContact[];
   latestExport: ExportRequest | null;
+  exportHistory: ExportRequest[];
   deletionRequest: DeletionRequest | null;
 }
 

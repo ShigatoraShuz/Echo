@@ -18,12 +18,21 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
-export async function signInWithGoogle(redirectTo: string): Promise<{ error: string | null }> {
+export async function signInWithGoogle(
+  redirectTo: string,
+  options: { forceAccountSelection?: boolean } = {},
+): Promise<{ error: string | null; didRedirect: boolean }> {
   const { data, error } = await createBrowserSupabaseClient().auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo },
+    options: {
+      redirectTo,
+      queryParams: options.forceAccountSelection ? { prompt: "select_account" } : undefined,
+    },
   });
 
-  if (!error && data.url) window.location.assign(data.url);
-  return { error: error?.message ?? null };
+  if (!error && data.url) {
+    window.location.assign(data.url);
+    return { error: null, didRedirect: true };
+  }
+  return { error: error?.message ?? null, didRedirect: false };
 }

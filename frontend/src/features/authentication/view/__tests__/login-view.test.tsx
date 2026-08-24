@@ -10,6 +10,7 @@ const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace, refresh }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/features/authentication/view-model/use-login-view-model", () => ({

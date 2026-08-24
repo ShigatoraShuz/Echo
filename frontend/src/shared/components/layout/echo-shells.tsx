@@ -204,7 +204,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
     <div className="grid h-[100svh] overflow-hidden lg:grid-cols-2">
       {/* Left – full-bleed image, no scroll */}
       <aside className="relative hidden lg:block">
-        <Image src={authMountainLandscape} alt="Auth" fill className="object-cover" priority />
+        <Image src={authMountainLandscape} alt="Auth" fill sizes="50vw" className="object-cover" priority />
       </aside>
       {/* Right – scrolls internally if form grows, never overflows page */}
       <main className="flex h-full items-start justify-center overflow-y-auto bg-[#fbf8f1] px-6 py-8 lg:items-center lg:px-10">
@@ -225,5 +225,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
 }
 
 export function OnboardingShell({ children }: { children: ReactNode }) {
-  return <div className="mx-auto max-w-2xl px-4 py-10">{children}</div>;
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-[#fbf8f1]">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-24 sm:px-6 lg:px-10 lg:py-12">
+        {children}
+      </div>
+    </div>
+  );
 }

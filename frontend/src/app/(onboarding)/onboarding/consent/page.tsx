@@ -91,9 +91,9 @@ export default function ConsentOnboardingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
-      <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="space-y-6">
+    <div className="mx-auto w-full max-w-6xl">
+      <div className="grid items-start gap-8 md:grid-cols-[minmax(17rem,0.8fr)_minmax(22rem,1fr)] xl:gap-12">
+        <section className="space-y-5 lg:sticky lg:top-8">
           <PageHeader
             label="Onboarding · Step 1 of 3"
             title="Consent and disclosures"
@@ -103,7 +103,7 @@ export default function ConsentOnboardingPage() {
           <PrivacyNotice />
         </section>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="min-w-0">
           <EchoCard
             title="Before you continue"
             description="Please review and confirm these foundational privacy notices and AI disclosures."
@@ -115,15 +115,15 @@ export default function ConsentOnboardingPage() {
                   <div
                     key={item.key}
                     onClick={() => toggleConsent(item.key)}
-                    className={`flex cursor-pointer items-start justify-between gap-4 rounded-2xl border p-4 transition-all duration-150 ${
+                    className={`flex cursor-pointer items-start justify-between gap-3 rounded-2xl border p-4 transition-all duration-150 sm:gap-4 ${
                       isChecked
                         ? "border-[var(--landing-primary)]/30 bg-[var(--landing-primary)]/[0.03]"
                         : "border-border/70 bg-card hover:border-border"
                     }`}
                   >
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold leading-5 text-foreground">{item.title}</p>
                         {item.required ? (
                           <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
                             Required

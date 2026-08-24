@@ -1,4 +1,4 @@
-import type { OnboardingService, OnboardingServiceResult } from "./onboarding.service";
+import type { OnboardingService, OnboardingServiceResult, OnboardingStatus } from "./onboarding.service";
 import type { OnboardingData } from "@/features/onboarding/model/onboarding.model";
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
@@ -12,6 +12,16 @@ export function createOnboardingHttpAdapter(): OnboardingService {
   });
 
   return {
+    async getStatus(): Promise<OnboardingServiceResult<OnboardingStatus>> {
+      try {
+        const response = await client.get<{ success: true; data: OnboardingStatus }>("/onboarding/status");
+        return { success: true, data: response.data };
+      } catch (error) {
+        const normalized = normalizeError(error);
+        return { success: false, error: { code: normalized.code, message: normalized.userMessage } };
+      }
+    },
+
     async saveConsent(consent: Record<string, boolean>): Promise<OnboardingServiceResult<void>> {
       try {
         await client.post("/onboarding/consent", {

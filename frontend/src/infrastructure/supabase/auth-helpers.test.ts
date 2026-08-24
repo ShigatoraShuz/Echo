@@ -44,10 +44,34 @@ describe("signInWithGoogle", () => {
 
     expect(mocks.signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
-      options: { redirectTo: "http://localhost:3000/callback?next=/dashboard" },
+      options: {
+        redirectTo: "http://localhost:3000/callback?next=/dashboard",
+        queryParams: undefined,
+      },
     });
     expect(assign).toHaveBeenCalledWith("https://accounts.google.com/o/oauth2/auth?state=xyz");
-    expect(result).toEqual({ error: null });
+    expect(result).toEqual({ error: null, didRedirect: true });
+  });
+
+  it("can force Google account selection for signup", async () => {
+    mocks.signInWithOAuth.mockResolvedValue({
+      data: { url: "https://accounts.google.com/o/oauth2/auth?prompt=select_account" },
+      error: null,
+    });
+
+    const result = await signInWithGoogle("http://localhost:3000/callback?next=/onboarding/consent", {
+      forceAccountSelection: true,
+    });
+
+    expect(mocks.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: "http://localhost:3000/callback?next=/onboarding/consent",
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    expect(assign).toHaveBeenCalledWith("https://accounts.google.com/o/oauth2/auth?prompt=select_account");
+    expect(result).toEqual({ error: null, didRedirect: true });
   });
 
   it("returns the provider error without navigating on failure", async () => {
@@ -60,6 +84,6 @@ describe("signInWithGoogle", () => {
 
     expect(mocks.signInWithOAuth).toHaveBeenCalledTimes(1);
     expect(assign).not.toHaveBeenCalled();
-    expect(result).toEqual({ error: "provider unavailable" });
+    expect(result).toEqual({ error: "provider unavailable", didRedirect: false });
   });
 });

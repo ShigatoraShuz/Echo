@@ -5,6 +5,8 @@ import { createAuthSupabaseAdapter } from "@/services/authentication/auth.supaba
 const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   signInWithPassword: vi.fn(),
+  signUp: vi.fn(),
+  updateProfile: vi.fn(),
 }));
 
 vi.mock("@/infrastructure/supabase/browser-client", () => ({
@@ -12,7 +14,13 @@ vi.mock("@/infrastructure/supabase/browser-client", () => ({
     auth: {
       signOut: mocks.signOut,
       signInWithPassword: mocks.signInWithPassword,
+      signUp: mocks.signUp,
     },
+    schema: () => ({
+      from: () => ({
+        update: mocks.updateProfile,
+      }),
+    }),
   }),
 }));
 
@@ -148,5 +156,84 @@ describe("createAuthSupabaseAdapter volatile session", () => {
     expect(result.success).toBe(false);
     fireBeforeUnload();
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("createAuthSupabaseAdapter signup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(window, "location", {
+      value: { origin: "http://localhost:3000" },
+      configurable: true,
+    });
+    mocks.updateProfile.mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+  });
+
+  it("returns a pending email confirmation success when Supabase sends a confirmation email", async () => {
+    mocks.signUp.mockResolvedValue({
+      data: { user: { id: "user-1", email: "mira@test.com" }, session: null },
+      error: null,
+    });
+    const adapter = createAuthSupabaseAdapter();
+
+    const result = await adapter.signup({
+      name: "Mira",
+      email: "mira@test.com",
+      password: "StrongP@ss1",
+      confirmPassword: "StrongP@ss1",
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
+    });
+
+    expect(mocks.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "mira@test.com",
+        options: expect.objectContaining({
+          emailRedirectTo: "http://localhost:3000/callback?next=%2Fonboarding%2Fconsent&intent=signup",
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      success: true,
+      data: {
+        requiresEmailConfirmation: true,
+        email: "mira@test.com",
+        message: "We sent a confirmation link to mira@test.com. Open that email to continue your signup.",
+      },
+    });
+  });
+
+  it("maps duplicate signup responses to an email field error", async () => {
+    mocks.signUp.mockResolvedValue({
+      data: { user: { id: "user-1", email: "mira@test.com", identities: [] }, session: null },
+      error: null,
+    });
+    const adapter = createAuthSupabaseAdapter();
+
+    const result = await adapter.signup({
+      name: "Mira",
+      email: "mira@test.com",
+      password: "StrongP@ss1",
+      confirmPassword: "StrongP@ss1",
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        code: "EMAIL_IN_USE",
+        message: "This email has already been used. Log in instead.",
+        fieldErrors: { email: ["This email has already been used."] },
+      },
+    });
   });
 });

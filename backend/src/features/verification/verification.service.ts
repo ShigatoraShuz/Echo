@@ -162,6 +162,7 @@ export class VerificationService {
 
   async isAdmin(userId: string): Promise<boolean> {
     const { data, error } = await this.database
+      .schema("verification_service")
       .from("verification_admins")
       .select("user_id")
       .eq("user_id", userId)
@@ -179,6 +180,7 @@ export class VerificationService {
 
   private async applicationRowForUser(userId: string): Promise<Row | null> {
     const { data, error } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .select("*")
       .eq("user_id", userId)
@@ -189,6 +191,7 @@ export class VerificationService {
 
   private async documentsForVerification(verificationId: string): Promise<Row[]> {
     const { data, error } = await this.database
+      .schema("verification_service")
       .from("verification_documents")
       .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path")
       .eq("verification_id", verificationId)
@@ -214,6 +217,7 @@ export class VerificationService {
       new Date(row.approved_expires_at).getTime() <= Date.now()
     ) {
       const { data, error } = await this.database
+        .schema("verification_service")
         .from("identity_verifications")
         .update({ verification_status: "expired" })
         .eq("id", row.id)
@@ -337,10 +341,11 @@ export class VerificationService {
 
     const query = existing
       ? this.database
+          .schema("verification_service")
           .from("identity_verifications")
           .update(payload)
           .eq("id", existing.id)
-      : this.database.from("identity_verifications").insert(payload);
+      : this.database.schema("verification_service").from("identity_verifications").insert(payload);
     const { error } = await query;
     if (error) throw databaseError("Your verification application could not be saved.");
     return this.getStatus(userId);
@@ -379,6 +384,7 @@ export class VerificationService {
     if (upload.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
 
     const { data: previous, error: previousError } = await this.database
+      .schema("verification_service")
       .from("verification_documents")
       .select("storage_path")
       .eq("verification_id", verificationId)
@@ -390,7 +396,7 @@ export class VerificationService {
     }
 
     const sha256 = createHash("sha256").update(contents).digest("hex");
-    const { error } = await this.database.from("verification_documents").upsert(
+    const { error } = await this.database.schema("verification_service").from("verification_documents").upsert(
       {
         verification_id: verificationId,
         user_id: userId,
@@ -431,6 +437,7 @@ export class VerificationService {
     }
     const now = new Date().toISOString();
     const { error } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .update({
         verification_status: "submitted",
@@ -446,7 +453,7 @@ export class VerificationService {
       })
       .eq("id", application.id);
     if (error) throw databaseError("Your verification application could not be submitted.");
-    await this.database.from("audit_events").insert({
+    await this.database.schema("user_service").from("audit_events").insert({
       user_id: userId,
       actor_user_id: userId,
       event_type: "verification.submitted",
@@ -470,6 +477,7 @@ export class VerificationService {
   async listForAdmin(adminUserId: string, status?: string) {
     await this.assertAdmin(adminUserId);
     let query = this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .select("id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at")
       .order("submitted_at", { ascending: true, nullsFirst: false })
@@ -492,6 +500,7 @@ export class VerificationService {
   async getForAdmin(adminUserId: string, verificationId: string) {
     await this.assertAdmin(adminUserId);
     const { data, error } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .select("*")
       .eq("id", verificationId)
@@ -529,6 +538,7 @@ export class VerificationService {
   async claimForReview(adminUserId: string, verificationId: string) {
     await this.assertAdmin(adminUserId);
     const { data, error } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .update({ verification_status: "under_review" })
       .eq("id", verificationId)
@@ -553,6 +563,7 @@ export class VerificationService {
       });
     }
     const { data: current, error: currentError } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .select("*")
       .eq("id", verificationId)
@@ -580,6 +591,7 @@ export class VerificationService {
           : null,
     };
     const { data: updated, error } = await this.database
+      .schema("verification_service")
       .from("identity_verifications")
       .update(update)
       .eq("id", verificationId)
@@ -595,7 +607,7 @@ export class VerificationService {
     }
 
     const reviewNote = input.note ? this.encryption.encrypt(input.note) : null;
-    const { error: reviewError } = await this.database.from("verification_reviews").insert({
+    const { error: reviewError } = await this.database.schema("verification_service").from("verification_reviews").insert({
       verification_id: verificationId,
       admin_user_id: adminUserId,
       decision: input.decision,
@@ -607,6 +619,7 @@ export class VerificationService {
     });
     if (reviewError) {
       await this.database
+        .schema("verification_service")
         .from("identity_verifications")
         .update({
           verification_status: current.verification_status,
@@ -625,7 +638,7 @@ export class VerificationService {
 
     const userId = stringValue(current.user_id);
     await Promise.all([
-      this.database.from("notifications").insert({
+      this.database.schema("notification_service").from("notifications").insert({
         user_id: userId,
         notification_type: "verification_status",
         title: input.decision === "approved" ? "Your account is verified" : "Verification update",
@@ -636,7 +649,7 @@ export class VerificationService {
               ? "An administrator requested changes to your verification application."
               : "Your verification application was not approved. Review the reason before resubmitting.",
       }),
-      this.database.from("audit_events").insert({
+      this.database.schema("user_service").from("audit_events").insert({
         user_id: userId,
         actor_user_id: adminUserId,
         event_type: `verification.${input.decision}`,

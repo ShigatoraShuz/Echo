@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { errorMiddleware } from "./shared/middleware/error.middleware.js";
 import { notFoundMiddleware } from "./shared/middleware/not-found.middleware.js";
+import { requestContextMiddleware } from "./shared/middleware/request-context.middleware.js";
 import { requestIdMiddleware } from "./shared/middleware/request-id.middleware.js";
 import { requestLoggerMiddleware } from "./shared/middleware/request-logger.middleware.js";
 import { createV1Router, type V1RouterOptions } from "./routes/v1.routes.js";
@@ -46,6 +47,7 @@ export function createApp(options: CreateAppOptions = {}) {
   // Request correlation must precede body parsing so that body-parser failures
   // are attributable to a requestId.
   app.use(requestIdMiddleware);
+  app.use(requestContextMiddleware);
   app.use(requestLoggerMiddleware);
   app.use(express.json({ limit: options.bodyLimit ?? "1mb" }));
   // Map body-parser failures to proper client errors instead of a generic 500:

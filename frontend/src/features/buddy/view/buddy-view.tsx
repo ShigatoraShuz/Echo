@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, BadgeCheck, Bot, HeartHandshake, History, Leaf, LockKeyhole, Send, ShieldAlert, Sparkles, Wind } from "lucide-react";
+import { ArrowUpRight, BadgeCheck, Bot, HeartHandshake, History, Leaf, LockKeyhole, Mic, MicOff, Send, ShieldAlert, Sparkles, Volume2, VolumeX, Wind } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
+import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { moodStyles } from "@/shared/theme";
@@ -16,8 +17,10 @@ const promptChips = [
 
 export function BuddyView() {
   const vm = useBuddyViewModel();
+  const voice = useBuddyVoiceControls();
   const [draft, setDraft] = useState("");
   const conversationEndRef = useRef<HTMLDivElement>(null);
+  const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -78,14 +81,14 @@ export function BuddyView() {
           tilt={false}
           className="overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[rgba(255,253,247,0.88)] shadow-[0_20px_54px_rgba(30,53,34,0.08)] backdrop-blur-sm"
         >
-          <div className="flex items-center justify-between gap-4 bg-[var(--landing-footer)] px-5 py-4 text-[var(--landing-inverse)] sm:px-7">
+          <div className="flex items-center justify-between gap-4 bg-[radial-gradient(circle_at_0%_0%,rgba(169,208,162,0.24),transparent_16rem),var(--landing-footer)] px-5 py-4 text-[var(--landing-inverse)] sm:px-7">
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-white/10">
                 <Bot className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <h2 className="font-semibold tracking-[-0.025em]">Your quiet conversation</h2>
-                <p className="mt-0.5 text-xs text-[var(--landing-inverse-80)]">Buddy is here to listen, not diagnose.</p>
+                <h2 className="font-semibold tracking-[-0.025em]">Quiet conversation room</h2>
+                <p className="mt-0.5 text-xs text-[var(--landing-inverse-80)]">Listen, type, or speak. No diagnosis.</p>
               </div>
             </div>
             <span className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/80 sm:inline-flex">
@@ -94,11 +97,22 @@ export function BuddyView() {
             </span>
           </div>
 
-          <div className="relative p-5 sm:p-7">
-            <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-2/3 -translate-x-1/2 rounded-full bg-[var(--landing-sage-soft)]/35 blur-3xl" aria-hidden="true" />
-            <div className="relative min-h-[390px] space-y-5" aria-live="polite" aria-busy={vm.isLoadingMessages || vm.isSending}>
+            <div className="relative p-4 sm:p-7">
+              <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-2/3 -translate-x-1/2 rounded-full bg-[var(--landing-sage-soft)]/35 blur-3xl" aria-hidden="true" />
+            <div className="relative min-h-[390px] space-y-5 rounded-[1.5rem] border border-[var(--landing-primary-10)] bg-white/35 p-3 sm:p-5" aria-live="polite" aria-busy={vm.isLoadingMessages || vm.isSending}>
               {vm.isLoadingMessages && vm.messages.length === 0 ? (
                 <p className="py-16 text-center text-sm text-[var(--landing-muted)]">Opening your private conversation…</p>
+              ) : null}
+              {!vm.isLoadingMessages && vm.messages.length === 0 ? (
+                <div className="grid min-h-[18rem] place-items-center text-center">
+                  <div>
+                    <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-[var(--landing-primary)]">
+                      <Bot className="h-6 w-6" aria-hidden="true" />
+                    </span>
+                    <p className="mt-4 font-[family-name:var(--font-echo-display)] text-2xl text-[var(--landing-ink)]">Start with one sentence.</p>
+                    <p className="mt-2 text-sm text-[var(--landing-muted)]">Buddy will keep the next step gentle and practical.</p>
+                  </div>
+                </div>
               ) : null}
               {vm.messages.map((message) => (
                 <BuddyChatBubble key={message.id} message={message} />
@@ -109,7 +123,7 @@ export function BuddyView() {
               <div ref={conversationEndRef} />
             </div>
 
-            <div className="relative mt-6 border-t border-[var(--landing-primary-10)] pt-5">
+            <div className="relative mt-5 rounded-[1.35rem] border border-[var(--landing-primary-10)] bg-[var(--landing-cream-70)] p-3">
               <p className="mb-3 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[var(--landing-primary)]">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                 Gentle ways to begin
@@ -123,7 +137,30 @@ export function BuddyView() {
               </div>
             </div>
 
-            <div className="mt-4 flex items-end gap-3 rounded-[1.4rem] border border-[var(--landing-primary-15)] bg-white/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus-within:border-[var(--landing-primary-40)] focus-within:ring-4 focus-within:ring-[var(--landing-primary-10)]">
+            <div className="sticky bottom-3 mt-4 rounded-[1.5rem] border border-[var(--landing-primary-15)] bg-white/82 p-3 shadow-[0_12px_30px_rgba(30,53,34,0.1),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur focus-within:border-[var(--landing-primary-40)] focus-within:ring-4 focus-within:ring-[var(--landing-primary-10)]">
+              {voice.interimTranscript ? (
+                <p className="mb-2 rounded-full bg-[var(--landing-sage-soft)]/70 px-3 py-1.5 text-xs font-medium text-[var(--landing-primary)]">
+                  Listening: {voice.interimTranscript}
+                </p>
+              ) : null}
+              <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (voice.isListening) {
+                    voice.stopListening();
+                  } else {
+                    voice.startListening((transcript) => {
+                      setDraft((current) => `${current}${current.trim() ? " " : ""}${transcript}`);
+                    });
+                  }
+                }}
+                disabled={!voice.voiceSupported || vm.isSending}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] outline-none transition-[background-color,transform] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
+              >
+                {voice.isListening ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
+              </button>
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -137,10 +174,24 @@ export function BuddyView() {
                 placeholder="Tell Buddy what feels present..."
                 aria-label="Message Buddy"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  if (voice.isSpeaking) voice.stopSpeaking();
+                  else voice.speak(latestBuddyReply);
+                }}
+                disabled={!voice.speechSupported || !latestBuddyReply}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] outline-none transition-[background-color,transform] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label={voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
+              >
+                {voice.isSpeaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+              </button>
               <button type="button" onClick={() => void handleSend()} disabled={!draft.trim() || vm.isSending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] hover:shadow-[0_8px_18px_rgba(30,53,34,0.18)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45" aria-label="Send message">
                 <Send className="h-4 w-4" aria-hidden="true" />
               </button>
+              </div>
             </div>
+            {voice.voiceError ? <p role="status" className="mt-2 text-xs font-medium text-[var(--landing-muted)]">{voice.voiceError}</p> : null}
             {vm.error ? <p role="alert" className="mt-3 text-sm font-medium text-danger">{vm.error}</p> : null}
           </div>
         </EchoMotionSurface>

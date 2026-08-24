@@ -27,6 +27,7 @@ function setupMock() {
     passwordStrength: { score: 0, label: "" },
     status: "idle" as const,
     error: null,
+    successMessage: null,
     fieldErrors: {},
     setName: vi.fn(),
     setEmail: vi.fn(),

@@ -29,7 +29,14 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
       : lower.includes("password")
         ? "WEAK_PASSWORD"
         : "UNKNOWN";
-  return { success: false, error: { code, message } };
+  return {
+    success: false,
+    error: {
+      code,
+      message: code === "EMAIL_IN_USE" ? "This email has already been used. Log in instead." : message,
+      fieldErrors: code === "EMAIL_IN_USE" ? { email: ["This email has already been used."] } : undefined,
+    },
+  };
 }
 
 function registerVolatileSession(client: ReturnType<typeof createBrowserSupabaseClient>): () => void {
@@ -68,10 +75,14 @@ export function createAuthSupabaseAdapter(): AuthService {
       return { success: true, data: toSession(data.session) };
     },
     async signup(input) {
+      const callback = new URL("/callback", window.location.origin);
+      callback.searchParams.set("next", "/onboarding/consent");
+      callback.searchParams.set("intent", "signup");
       const { data, error } = await client.auth.signUp({
         email: input.email,
         password: input.password,
         options: {
+          emailRedirectTo: callback.toString(),
           data: {
             display_name: input.name,
             signup_consent: {
@@ -86,19 +97,24 @@ export function createAuthSupabaseAdapter(): AuthService {
         },
       });
       if (error) return failure(error);
+      if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
+        return failure({ message: "This email already exists." });
+      }
       if (!data.session) {
         return {
-          success: false,
-          error: {
-            code: "UNKNOWN",
-            message: "Check your email to confirm your account, then log in.",
+          success: true,
+          data: {
+            requiresEmailConfirmation: true,
+            email: input.email,
+            message: `We sent a confirmation link to ${input.email}. Open that email to continue your signup.`,
           },
         };
       }
       const { error: profileError } = await client
+        .schema("user_service")
         .from("profiles")
         .update({ display_name: input.name })
-        .eq("id", data.session.user.id);
+        .eq("user_id", data.session.user.id);
       if (profileError) {
         // The auth trigger creates the profile row; losing this write only
         // leaves the trigger's default display name in place.

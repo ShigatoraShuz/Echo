@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useReducer, useMemo } from "react";
-import type { AuthServiceError } from "../model/auth.model";
+import type { AuthServiceError, SignupResult } from "../model/auth.model";
 import { validateSignupInput } from "../model/auth.schema";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
 
@@ -20,6 +20,7 @@ interface SignupState {
   showPassword: boolean;
   status: FormStatus;
   error: AuthServiceError | null;
+  successMessage: string | null;
   fieldErrors: Record<string, string[]>;
 }
 
@@ -35,27 +36,27 @@ type SignupAction =
   | { type: "SET_JOURNAL_ANALYSIS_CONSENT"; journalAnalysisConsent: boolean }
   | { type: "TOGGLE_PASSWORD_VISIBILITY" }
   | { type: "SUBMIT_START" }
-  | { type: "SUBMIT_SUCCESS" }
+  | { type: "SUBMIT_SUCCESS"; message: string }
   | { type: "SUBMIT_ERROR"; error: AuthServiceError }
   | { type: "SET_FIELD_ERRORS"; fieldErrors: Record<string, string[]> }
   | { type: "RESET" };
 
 function signupReducer(state: SignupState, action: SignupAction): SignupState {
   switch (action.type) {
-    case "SET_NAME": return { ...state, name: action.name, error: null, fieldErrors: {} };
-    case "SET_EMAIL": return { ...state, email: action.email, error: null, fieldErrors: {} };
-    case "SET_PASSWORD": return { ...state, password: action.password, error: null, fieldErrors: {} };
-    case "SET_CONFIRM_PASSWORD": return { ...state, confirmPassword: action.confirmPassword, error: null, fieldErrors: {} };
-    case "SET_TERMS_ACCEPTED": return { ...state, termsAccepted: action.termsAccepted, error: null, fieldErrors: {} };
-    case "SET_PRIVACY_ACKNOWLEDGED": return { ...state, privacyAcknowledged: action.privacyAcknowledged, error: null, fieldErrors: {} };
-    case "SET_DATA_PROCESSING_ACKNOWLEDGED": return { ...state, dataProcessingAcknowledged: action.dataProcessingAcknowledged, error: null, fieldErrors: {} };
-    case "SET_AI_FEATURE_ACKNOWLEDGED": return { ...state, aiFeatureAcknowledged: action.aiFeatureAcknowledged, error: null, fieldErrors: {} };
-    case "SET_JOURNAL_ANALYSIS_CONSENT": return { ...state, journalAnalysisConsent: action.journalAnalysisConsent, error: null, fieldErrors: {} };
+    case "SET_NAME": return { ...state, name: action.name, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_EMAIL": return { ...state, email: action.email, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_PASSWORD": return { ...state, password: action.password, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_CONFIRM_PASSWORD": return { ...state, confirmPassword: action.confirmPassword, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_TERMS_ACCEPTED": return { ...state, termsAccepted: action.termsAccepted, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_PRIVACY_ACKNOWLEDGED": return { ...state, privacyAcknowledged: action.privacyAcknowledged, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_DATA_PROCESSING_ACKNOWLEDGED": return { ...state, dataProcessingAcknowledged: action.dataProcessingAcknowledged, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_AI_FEATURE_ACKNOWLEDGED": return { ...state, aiFeatureAcknowledged: action.aiFeatureAcknowledged, error: null, successMessage: null, fieldErrors: {} };
+    case "SET_JOURNAL_ANALYSIS_CONSENT": return { ...state, journalAnalysisConsent: action.journalAnalysisConsent, error: null, successMessage: null, fieldErrors: {} };
     case "TOGGLE_PASSWORD_VISIBILITY": return { ...state, showPassword: !state.showPassword };
-    case "SUBMIT_START": return { ...state, status: "submitting", error: null, fieldErrors: {} };
-    case "SUBMIT_SUCCESS": return { ...state, status: "success" };
-    case "SUBMIT_ERROR": return { ...state, status: "error", error: action.error };
-    case "SET_FIELD_ERRORS": return { ...state, status: "idle", fieldErrors: action.fieldErrors };
+    case "SUBMIT_START": return { ...state, status: "submitting", error: null, successMessage: null, fieldErrors: {} };
+    case "SUBMIT_SUCCESS": return { ...state, status: "success", successMessage: action.message };
+    case "SUBMIT_ERROR": return { ...state, status: "error", error: action.error, fieldErrors: action.error.fieldErrors ?? {} };
+    case "SET_FIELD_ERRORS": return { ...state, status: "idle", successMessage: null, fieldErrors: action.fieldErrors };
     case "RESET": return { ...initialSignupState };
     default: return state;
   }
@@ -74,8 +75,13 @@ const initialSignupState: SignupState = {
   showPassword: false,
   status: "idle",
   error: null,
+  successMessage: null,
   fieldErrors: {},
 };
+
+function isPendingEmailConfirmation(result: SignupResult): result is Extract<SignupResult, { requiresEmailConfirmation: true }> {
+  return "requiresEmailConfirmation" in result;
+}
 
 export function useSignupViewModel() {
   const [state, dispatch] = useReducer(signupReducer, initialSignupState);
@@ -136,7 +142,12 @@ export function useSignupViewModel() {
       journalAnalysisConsent: state.journalAnalysisConsent,
     });
     if (result.success) {
-      dispatch({ type: "SUBMIT_SUCCESS" });
+      dispatch({
+        type: "SUBMIT_SUCCESS",
+        message: isPendingEmailConfirmation(result.data)
+          ? result.data.message
+          : "Account created successfully.",
+      });
       return result.data;
     }
     dispatch({ type: "SUBMIT_ERROR", error: result.error });
@@ -159,6 +170,7 @@ export function useSignupViewModel() {
     passwordStrength,
     status: state.status,
     error: state.error,
+    successMessage: state.successMessage,
     fieldErrors: state.fieldErrors,
     setName,
     setEmail,

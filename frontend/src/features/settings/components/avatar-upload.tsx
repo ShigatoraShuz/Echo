@@ -54,8 +54,8 @@ export function AvatarUpload({
         await onUpload(file);
         setUploadDone(true);
         setTimeout(() => setUploadDone(false), 4000);
-      } catch {
-        setUploadError("Upload failed. Please try again.");
+      } catch (error) {
+        setUploadError(error instanceof Error ? error.message : "Upload failed. Please try again.");
         setPreview(null);
       }
     },
@@ -79,10 +79,10 @@ export function AvatarUpload({
   const avatarSrc = preview ?? currentAvatar ?? null;
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
       {/* ── Avatar circle + camera button ────────────────────────────────── */}
       <div
-        className={`relative h-24 w-24 shrink-0 rounded-full transition-all duration-200 ${isDragOver ? "ring-4 ring-primary ring-offset-2 scale-105" : ""}`}
+        className={`relative h-20 w-20 shrink-0 rounded-full transition-all duration-200 sm:h-24 sm:w-24 ${isDragOver ? "ring-4 ring-primary ring-offset-2 scale-105" : ""}`}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
@@ -91,10 +91,10 @@ export function AvatarUpload({
           <img
             src={avatarSrc}
             alt={displayName}
-            className="h-24 w-24 rounded-full object-cover shadow-md"
+            className="h-20 w-20 rounded-full object-cover shadow-md sm:h-24 sm:w-24"
           />
         ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/10 text-primary shadow-inner">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary shadow-inner sm:h-24 sm:w-24">
             {initials ? (
               <span className="text-2xl font-bold tracking-tight">{initials}</span>
             ) : (
@@ -130,9 +130,9 @@ export function AvatarUpload({
       </div>
 
       {/* ── Labels + status feedback ─────────────────────────────────────── */}
-      <div className="flex-1 space-y-1.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
         <p className="text-sm font-semibold text-foreground">{displayName || "Your name"}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="break-words text-xs text-muted-foreground">
           Click the camera icon or drag &amp; drop a photo (max 5 MB — JPEG, PNG, WebP, GIF).
         </p>
 

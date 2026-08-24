@@ -29,6 +29,7 @@ vi.mock("@/features/settings/view-model/use-settings-view-model", () => ({
 vi.mock("@/services/settings/settings.service", () => ({
   settingsService: {
     updateProfile: vi.fn(),
+    uploadAvatar: vi.fn(),
   },
 }));
 
@@ -60,6 +61,7 @@ function setupMock() {
       },
       trustedContacts: [],
       latestExport: null,
+      exportHistory: [],
       deletionRequest: null,
     },
     loading: false,

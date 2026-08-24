@@ -1,12 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Bell, UserRound, Clock, Heart, Loader2 } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { MoodSelector } from "@/features/onboarding";
 import { getOnboardingService } from "@/services/onboarding/onboarding-service.factory";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
+import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+
+function recommendedNameFromMetadata(metadata: Record<string, unknown> | undefined): string {
+  for (const key of ["display_name", "full_name", "name"]) {
+    const value = metadata?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
 
 export default function ProfileOnboardingPage() {
   const router = useRouter();
@@ -17,6 +27,34 @@ export default function ProfileOnboardingPage() {
   const [buddyTone, setBuddyTone] = useState("gentle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecommendedName() {
+      const service = getOnboardingService();
+      const status = await service.getStatus();
+      if (cancelled) return;
+
+      if (status.success) {
+        if (status.data.displayName.trim()) setDisplayName(status.data.displayName.trim());
+        if (status.data.timezone) setTimezone(status.data.timezone);
+        return;
+      }
+
+      if (!getSupabasePublicConfig()) return;
+      const { data } = await createBrowserSupabaseClient().auth.getUser();
+      if (cancelled) return;
+
+      const recommendedName = recommendedNameFromMetadata(data.user?.user_metadata);
+      if (recommendedName) setDisplayName(recommendedName);
+    }
+
+    void loadRecommendedName();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,14 +78,14 @@ export default function ProfileOnboardingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
+    <div className="mx-auto w-full max-w-6xl">
       <PageHeader
         label="Onboarding · Step 2 of 3"
         title="Set up your check-in profile"
         description="Choose the basics ECHO and Buddy will use for greetings, tone, and gentle reflection check-ins."
       />
 
-      <form onSubmit={handleSubmit} className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <form onSubmit={handleSubmit} className="mt-8 grid items-start gap-6 md:grid-cols-[minmax(22rem,0.95fr)_minmax(24rem,1.05fr)]">
         <EchoCard
           title="Profile details"
           description="Personalize your greeting and check-in cadence."
@@ -66,9 +104,9 @@ export default function ProfileOnboardingPage() {
               </div>
             </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Preferred check-in time</span>
+                <span className="text-sm font-medium leading-5 text-foreground">Preferred check-in time</span>
                 <div className="relative">
                   <Clock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" aria-hidden="true" />
                   <input
@@ -81,9 +119,9 @@ export default function ProfileOnboardingPage() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-sm font-medium text-foreground">Buddy tone</span>
+                <span className="text-sm font-medium leading-5 text-foreground">Buddy tone</span>
                 <select
-                  className="echo-input h-11 cursor-pointer"
+                  className="echo-input h-11 cursor-pointer truncate"
                   value={buddyTone}
                   onChange={(e) => setBuddyTone(e.target.value)}
                 >
@@ -132,7 +170,7 @@ export default function ProfileOnboardingPage() {
           </div>
         </EchoCard>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <EchoCard
             title="Starting reflection vibe"
             description="How are you arriving to ECHO today? This helps set the initial tone."

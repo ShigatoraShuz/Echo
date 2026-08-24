@@ -11,6 +11,8 @@ import type { VerificationService } from "../features/verification/verification.
 import { createVerificationRouter } from "../features/verification/verification.routes.js";
 import type { OnboardingService } from "../features/onboarding/onboarding.service.js";
 import { createOnboardingRouter } from "../features/onboarding/onboarding.routes.js";
+import type { NotificationService } from "../features/notifications/notifications.service.js";
+import { createNotificationsRouter } from "../features/notifications/notifications.routes.js";
 
 export interface V1RouterOptions {
   journals?: {
@@ -35,6 +37,10 @@ export interface V1RouterOptions {
     service: OnboardingService;
     verifier: AccessTokenVerifier;
   };
+  notifications?: {
+    service: NotificationService;
+    verifier: AccessTokenVerifier;
+  };
 }
 
 export function createV1Router(options: V1RouterOptions = {}): Router {
@@ -45,5 +51,6 @@ export function createV1Router(options: V1RouterOptions = {}): Router {
   if (options.experience) router.use(createExperienceRouter(options.experience.service, options.experience.verifier, options.experience.verificationService));
   if (options.verification) router.use(createVerificationRouter(options.verification.service, options.verification.verifier));
   if (options.onboarding) router.use(createOnboardingRouter(options.onboarding.service, options.onboarding.verifier));
+  if (options.notifications) router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier));
   return router;
 }

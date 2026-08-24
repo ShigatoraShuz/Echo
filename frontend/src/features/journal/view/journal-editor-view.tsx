@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Heart, Leaf, MapPin, MoreHorizontal, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Leaf, MapPin, MoreHorizontal, Save, Sparkles } from "lucide-react";
 import journalLandscape from "../../../../assets/growth-doorway-hill.png";
 import type { JournalEntry } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
@@ -14,7 +14,6 @@ import { JournalMoodSelector } from "../components/journal-mood-selector";
 import { JournalAutosaveStatus } from "../components/journal-autosave-status";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
-import { PrivacyNotice } from "@/shared/components/echo/privacy-notice";
 
 type TurnDirection = "older" | "newer";
 
@@ -187,14 +186,8 @@ export function JournalEditorView() {
                 <div className="flex items-center gap-2"><JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} /><button type="button" aria-label="More journal options" className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"><MoreHorizontal className="h-5 w-5" aria-hidden="true" /></button></div>
               </div>
 
-              <div className="mt-4 rounded-[1.35rem] border border-border/55 bg-[linear-gradient(135deg,hsl(var(--secondary)/0.55),hsl(var(--card)))] p-4">
-                <p className="flex items-center gap-2 text-xs font-semibold text-primary"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> A prompt, if it helps</p>
-                <p className="mt-2 font-[family-name:var(--font-echo-display)] text-lg leading-7 text-foreground sm:text-xl">What deserves a little more gentleness from you today?</p>
-                <div className="mt-3 flex items-center gap-3 text-muted-foreground"><Heart className="h-4 w-4" aria-hidden="true" /><span className="h-4 w-px bg-border" /><span className="text-xs">You can write as little or as much as you need.</span></div>
-              </div>
-
               {error ? <div className="mt-4"><EchoInlineMessage variant="error" message={error} /></div> : null}
-              <div className="mt-5"><label htmlFor="journal-title" className="sr-only">Title</label><input id="journal-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="Give this moment a name (optional)" className={`w-full border-b bg-transparent pb-3 text-base font-semibold text-foreground outline-none transition-colors placeholder:text-muted-foreground/65 focus:border-primary ${fieldErrors.title ? "border-danger" : "border-border/70"}`} />{fieldErrors.title ? <p className="mt-1 text-xs text-danger">{fieldErrors.title[0]}</p> : null}</div>
+              <div className="mt-4"><label htmlFor="journal-title" className="sr-only">Title</label><input id="journal-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="Give this moment a name (optional)" className={`w-full border-b bg-transparent pb-3 text-base font-semibold text-foreground outline-none transition-colors placeholder:text-muted-foreground/65 focus:border-primary ${fieldErrors.title ? "border-danger" : "border-border/70"}`} />{fieldErrors.title ? <p className="mt-1 text-xs text-danger">{fieldErrors.title[0]}</p> : null}</div>
               <div className="mt-4"><div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="journal-body" className="text-xs font-medium text-muted-foreground">Start writing...</label><span className="text-[11px] text-muted-foreground">{wordCount} words · {charCount} characters</span></div><textarea id="journal-body" value={body} onChange={(event) => setBody(event.target.value)} placeholder="There is no right way to begin. Notice what feels present, then let the page meet you there." className={`min-h-52 w-full resize-none rounded-xl border bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_31px,hsl(var(--border)/0.55)_32px)] px-3 py-2 text-sm leading-8 text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/55 focus:border-primary focus:ring-4 focus:ring-primary/10 sm:min-h-60 ${fieldErrors.body ? "border-danger" : "border-transparent"}`} />{fieldErrors.body ? <p className="mt-1 text-xs text-danger">{fieldErrors.body[0]}</p> : null}</div>
               <div className="journal-mood-panel mt-4 rounded-2xl border border-border/60 bg-background/60 p-3">
                 <JournalMoodSelector value={mood} onChange={setMood} />
@@ -208,7 +201,6 @@ export function JournalEditorView() {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Write from wherever you are.</span><EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={save}><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
-              <div className="journal-privacy-notice mt-4"><PrivacyNotice /></div>
                 </section>
               )}
             </div>
