@@ -162,7 +162,7 @@ export class VerificationService {
 
   async isAdmin(userId: string): Promise<boolean> {
     const { data, error } = await this.database
-      .from("verification_service.verification_admins")
+      .from("verification_admins")
       .select("user_id")
       .eq("user_id", userId)
       .eq("is_active", true)
@@ -179,7 +179,7 @@ export class VerificationService {
 
   private async applicationRowForUser(userId: string): Promise<Row | null> {
     const { data, error } = await this.database
-      .from("verification_service.identity_verifications")
+      .from("identity_verifications")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -189,7 +189,7 @@ export class VerificationService {
 
   private async documentsForVerification(verificationId: string): Promise<Row[]> {
     const { data, error } = await this.database
-      .from("verification_service.verification_documents")
+      .from("verification_documents")
       .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path")
       .eq("verification_id", verificationId)
       .order("uploaded_at", { ascending: true });
@@ -214,7 +214,7 @@ export class VerificationService {
       new Date(row.approved_expires_at).getTime() <= Date.now()
     ) {
       const { data, error } = await this.database
-        .from("verification_service.identity_verifications")
+        .from("identity_verifications")
         .update({ verification_status: "expired" })
         .eq("id", row.id)
         .eq("verification_status", "approved")
@@ -238,30 +238,12 @@ export class VerificationService {
 
   async getStatus(userId: string) {
     const admin = await this.isAdmin(userId);
-    const [consentResult, profileResult, existing] = await Promise.all([
-      this.database
-        .from("user_service.user_consents")
-        .select("id")
-        .eq("user_id", userId)
-        .in("consent_type", ["ai_feature_notice", "journal_analysis", "terms_of_use"])
-        .eq("accepted", true)
-        .is("revoked_at", null)
-        .limit(1)
-        .maybeSingle(),
-      this.database
-        .from("user_service.profiles")
-        .select("onboarding_completed")
-        .eq("id", userId)
-        .maybeSingle(),
-      this.applicationRowForUser(userId),
-    ]);
-
-    const hasAiConsent = Boolean(consentResult.data) || Boolean(profileResult.data?.onboarding_completed);
+    const existing = await this.applicationRowForUser(userId);
 
     if (!existing) {
       return {
         status: "not_started" as const,
-        canAccessAi: hasAiConsent,
+        canAccessAi: false,
         canReview: admin,
         isMinor: null,
         application: null,
@@ -284,7 +266,7 @@ export class VerificationService {
     const status = stringValue(row.verification_status) as Exclude<VerificationStatus, "not_started">;
     return {
       status,
-      canAccessAi: hasAiConsent || status === "approved",
+      canAccessAi: status === "approved",
       canReview: admin,
       isMinor,
       application: this.applicationDetails(row),
@@ -355,10 +337,10 @@ export class VerificationService {
 
     const query = existing
       ? this.database
-          .from("verification_service.identity_verifications")
+          .from("identity_verifications")
           .update(payload)
           .eq("id", existing.id)
-      : this.database.from("verification_service.identity_verifications").insert(payload);
+      : this.database.from("identity_verifications").insert(payload);
     const { error } = await query;
     if (error) throw databaseError("Your verification application could not be saved.");
     return this.getStatus(userId);
@@ -397,7 +379,7 @@ export class VerificationService {
     if (upload.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
 
     const { data: previous, error: previousError } = await this.database
-      .from("verification_service.verification_documents")
+      .from("verification_documents")
       .select("storage_path")
       .eq("verification_id", verificationId)
       .eq("document_kind", kind)
@@ -408,7 +390,7 @@ export class VerificationService {
     }
 
     const sha256 = createHash("sha256").update(contents).digest("hex");
-    const { error } = await this.database.from("verification_service.verification_documents").upsert(
+    const { error } = await this.database.from("verification_documents").upsert(
       {
         verification_id: verificationId,
         user_id: userId,
@@ -449,7 +431,7 @@ export class VerificationService {
     }
     const now = new Date().toISOString();
     const { error } = await this.database
-      .from("verification_service.identity_verifications")
+      .from("identity_verifications")
       .update({
         verification_status: "submitted",
         submitted_at: now,
@@ -477,29 +459,6 @@ export class VerificationService {
   }
 
   async assertAiAccess(userId: string): Promise<void> {
-    // 1. Check if user has active AI feature notice or journal analysis consent
-    const { data: consent } = await this.database
-      .from("user_service.user_consents")
-      .select("id")
-      .eq("user_id", userId)
-      .in("consent_type", ["ai_feature_notice", "journal_analysis", "terms_of_use"])
-      .eq("accepted", true)
-      .is("revoked_at", null)
-      .limit(1)
-      .maybeSingle();
-
-    if (consent) return;
-
-    // 2. Check if user has completed onboarding in profile
-    const { data: profile } = await this.database
-      .from("user_service.profiles")
-      .select("onboarding_completed")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (profile?.onboarding_completed) return;
-
-    // 3. Fallback to approved identity verification application
     const application = await this.applicationRowForUser(userId);
     if (!application) throw new VerificationRequiredError("not_started");
     const row = await this.normalizeExpired(application);
@@ -511,7 +470,7 @@ export class VerificationService {
   async listForAdmin(adminUserId: string, status?: string) {
     await this.assertAdmin(adminUserId);
     let query = this.database
-      .from("verification_service.identity_verifications")
+      .from("identity_verifications")
       .select("id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at")
       .order("submitted_at", { ascending: true, nullsFirst: false })
       .limit(100);
@@ -533,7 +492,7 @@ export class VerificationService {
   async getForAdmin(adminUserId: string, verificationId: string) {
     await this.assertAdmin(adminUserId);
     const { data, error } = await this.database
-      .from("verification_service.identity_verifications")
+      .from("identity_verifications")
       .select("*")
       .eq("id", verificationId)
       .maybeSingle();
@@ -570,7 +529,7 @@ export class VerificationService {
   async claimForReview(adminUserId: string, verificationId: string) {
     await this.assertAdmin(adminUserId);
     const { data, error } = await this.database
-      .from("verification_service.identity_verifications")
+      .from("identity_verifications")
       .update({ verification_status: "under_review" })
       .eq("id", verificationId)
       .eq("verification_status", "submitted")
@@ -636,7 +595,7 @@ export class VerificationService {
     }
 
     const reviewNote = input.note ? this.encryption.encrypt(input.note) : null;
-    const { error: reviewError } = await this.database.from("verification_service.verification_reviews").insert({
+    const { error: reviewError } = await this.database.from("verification_reviews").insert({
       verification_id: verificationId,
       admin_user_id: adminUserId,
       decision: input.decision,
@@ -648,7 +607,7 @@ export class VerificationService {
     });
     if (reviewError) {
       await this.database
-        .from("verification_service.identity_verifications")
+        .from("identity_verifications")
         .update({
           verification_status: current.verification_status,
           reviewed_at: current.reviewed_at,
@@ -666,7 +625,7 @@ export class VerificationService {
 
     const userId = stringValue(current.user_id);
     await Promise.all([
-      this.database.from("notification_service.notifications").insert({
+      this.database.from("notifications").insert({
         user_id: userId,
         notification_type: "verification_status",
         title: input.decision === "approved" ? "Your account is verified" : "Verification update",

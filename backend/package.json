@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:live": "node tests/live-integration.mjs",
+    "test:live": "node tests/e2e/live-integration.mjs",
     "admin:verification": "node --env-file=.env scripts/verification-admin.mjs"
   },
   "dependencies": {

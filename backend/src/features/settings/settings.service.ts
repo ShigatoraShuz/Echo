@@ -62,12 +62,13 @@ export class SettingsService {
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
-      this.database.from("user_service.profiles").upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true }),
-      this.database.from("user_service.notification_preferences").upsert(
+      this.database.from("profiles")
+        .upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true }),
+      this.database.from("notification_preferences").upsert(
         { user_id: userId },
         { onConflict: "user_id", ignoreDuplicates: true },
       ),
-      this.database.from("user_service.privacy_preferences").upsert(
+      this.database.from("privacy_preferences").upsert(
         { user_id: userId },
         { onConflict: "user_id", ignoreDuplicates: true },
       ),
@@ -82,24 +83,24 @@ export class SettingsService {
     const [profileResult, notificationResult, privacyResult, contactsResult, exportResult, deletionResult] =
       await Promise.all([
         this.database
-          .from("user_service.profiles")
+          .from("profiles")
           .select("display_name, timezone, theme_variant, theme_mode, avatar_path")
           .eq("id", userId)
           .single(),
         this.database
-          .from("user_service.notification_preferences")
+          .from("notification_preferences")
           .select(
             "email_enabled, push_enabled, in_app_enabled, journal_reminders_enabled, wellbeing_reminders_enabled, insight_notifications_enabled, reminder_time, reminder_timezone",
           )
           .eq("user_id", userId)
           .single(),
         this.database
-          .from("user_service.privacy_preferences")
+          .from("privacy_preferences")
           .select("facial_analysis_enabled, crisis_support_visible, lock_screen_private")
           .eq("user_id", userId)
           .single(),
         this.database
-          .from("user_service.trusted_contacts")
+          .from("trusted_contacts")
           .select(
             "id, contact_name, contact_email, contact_phone, relationship, verified, is_primary, permission_acknowledged_at, created_at, updated_at",
           )
@@ -107,14 +108,14 @@ export class SettingsService {
           .order("is_primary", { ascending: false })
           .order("created_at", { ascending: true }),
         this.database
-          .from("user_service.data_export_requests")
+          .from("data_export_requests")
           .select("id, request_status, requested_at, completed_at, expires_at")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
         this.database
-          .from("user_service.account_deletion_requests")
+          .from("account_deletion_requests")
           .select("id, request_status, requested_at, scheduled_for, cancelled_at, completed_at")
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
@@ -205,7 +206,7 @@ export class SettingsService {
       updatePayload.avatar_path = input.avatarPath;
     }
     const { error } = await this.database
-      .from("user_service.profiles")
+      .from("profiles")
       .update(updatePayload)
       .eq("id", userId);
     if (error) throw databaseError("Your profile settings could not be saved.");
@@ -215,7 +216,7 @@ export class SettingsService {
   async updatePrivacy(userId: string, input: PrivacySettingsInput) {
     await this.ensureDefaults(userId);
     const { error } = await this.database
-      .from("user_service.privacy_preferences")
+      .from("privacy_preferences")
       .update({
         facial_analysis_enabled: input.facialAnalysisEnabled,
         crisis_support_visible: input.crisisSupportVisible,
@@ -229,7 +230,7 @@ export class SettingsService {
   async updateNotifications(userId: string, input: NotificationSettingsInput) {
     await this.ensureDefaults(userId);
     const { error } = await this.database
-      .from("user_service.notification_preferences")
+      .from("notification_preferences")
       .update({
         email_enabled: input.emailEnabled,
         push_enabled: input.pushEnabled,
@@ -248,12 +249,12 @@ export class SettingsService {
   async createContact(userId: string, input: TrustedContactInput) {
     if (input.isPrimary) {
       const { error } = await this.database
-        .from("user_service.trusted_contacts")
+        .from("trusted_contacts")
         .update({ is_primary: false })
         .eq("user_id", userId);
       if (error) throw databaseError("Your trusted contacts could not be updated.");
     }
-    const { error } = await this.database.from("user_service.trusted_contacts").insert({
+    const { error } = await this.database.from("trusted_contacts").insert({
       user_id: userId,
       contact_name: input.contactName,
       contact_email: input.contactEmail,
@@ -269,14 +270,14 @@ export class SettingsService {
   async updateContact(userId: string, contactId: string, input: TrustedContactInput) {
     if (input.isPrimary) {
       const { error } = await this.database
-        .from("user_service.trusted_contacts")
+        .from("trusted_contacts")
         .update({ is_primary: false })
         .eq("user_id", userId)
         .neq("id", contactId);
       if (error) throw databaseError("Your trusted contacts could not be updated.");
     }
     const { data, error } = await this.database
-      .from("user_service.trusted_contacts")
+      .from("trusted_contacts")
       .update({
         contact_name: input.contactName,
         contact_email: input.contactEmail,
@@ -296,7 +297,7 @@ export class SettingsService {
 
   async removeContact(userId: string, contactId: string) {
     const { data, error } = await this.database
-      .from("user_service.trusted_contacts")
+      .from("trusted_contacts")
       .delete()
       .eq("id", contactId)
       .eq("user_id", userId)
@@ -309,7 +310,7 @@ export class SettingsService {
 
   async requestExport(userId: string) {
     const { data: active, error: activeError } = await this.database
-      .from("user_service.data_export_requests")
+      .from("data_export_requests")
       .select("id")
       .eq("user_id", userId)
       .in("request_status", ["requested", "processing"])
@@ -318,7 +319,7 @@ export class SettingsService {
     if (activeError) throw databaseError("Your export status could not be checked.");
     if (!active) {
       const { error } = await this.database
-        .from("user_service.data_export_requests")
+        .from("data_export_requests")
         .insert({ user_id: userId, request_status: "requested" });
       if (error) throw databaseError("Your export request could not be created.");
     }
@@ -327,7 +328,7 @@ export class SettingsService {
 
   async requestDeletion(userId: string) {
     const { data: active, error: activeError } = await this.database
-      .from("user_service.account_deletion_requests")
+      .from("account_deletion_requests")
       .select("id")
       .eq("user_id", userId)
       .in("request_status", ["pending", "processing"])
@@ -335,7 +336,7 @@ export class SettingsService {
       .maybeSingle();
     if (activeError) throw databaseError("Your deletion request status could not be checked.");
     if (!active) {
-      const { error } = await this.database.from("user_service.account_deletion_requests").insert({
+      const { error } = await this.database.from("account_deletion_requests").insert({
         user_id: userId,
         request_status: "pending",
         scheduled_for: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -347,7 +348,7 @@ export class SettingsService {
 
   async cancelDeletion(userId: string, requestId: string) {
     const { data, error } = await this.database
-      .from("user_service.account_deletion_requests")
+      .from("account_deletion_requests")
       .update({ request_status: "cancelled", cancelled_at: new Date().toISOString() })
       .eq("id", requestId)
       .eq("user_id", userId)
