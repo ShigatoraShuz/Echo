@@ -20,17 +20,17 @@ function parseBoolean(value: string | undefined): boolean {
 }
 
 function validateAdapter(value: string | undefined): DataAdapter {
-  if (value === undefined) return "mock";
+  if (value === undefined) return "http";
   const lower = value.trim().toLowerCase();
   if (VALID_ADAPTER_VALUES.includes(lower as DataAdapter)) {
     return lower as DataAdapter;
   }
   if (process.env.NODE_ENV === "development") {
     console.warn(
-      `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "mock".`
+      `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "http".`
     );
   }
-  return "mock";
+  return "http";
 }
 
 export const env: EnvironmentConfig = {

@@ -88,9 +88,9 @@ export class ExperienceService {
   async dashboard(userId: string, range = "7d") {
     const [entries, profileResult, preferenceResult] = await Promise.all([
       this.journals.list(userId),
-      this.database.from("profiles").select("display_name").eq("id", userId).maybeSingle(),
+      this.database.from("user_service.profiles").select("display_name").eq("id", userId).maybeSingle(),
       this.database
-        .from("notification_preferences")
+        .from("user_service.notification_preferences")
         .select("reminder_time")
         .eq("user_id", userId)
         .maybeSingle(),
@@ -196,10 +196,10 @@ export class ExperienceService {
 
   private async activeConversation(userId: string): Promise<DatabaseRow> {
     const { data, error } = await this.database
-      .from("buddy_conversations")
+      .from("buddy_service.buddy_conversations")
       .select("*")
       .eq("user_id", userId)
-      .eq("conversation_status", "active")
+      .eq("archived", false)
       .order("last_message_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -207,8 +207,8 @@ export class ExperienceService {
     if (data) return data as DatabaseRow;
 
     const { data: created, error: createError } = await this.database
-      .from("buddy_conversations")
-      .insert({ user_id: userId, conversation_status: "active" })
+      .from("buddy_service.buddy_conversations")
+      .insert({ user_id: userId, title: "Buddy conversation", archived: false })
       .select("*")
       .single();
     if (createError || !created) {
@@ -221,7 +221,7 @@ export class ExperienceService {
     const conversation = await this.activeConversation(userId);
     const conversationId = asString(conversation.id);
     const { data, error } = await this.database
-      .from("buddy_messages")
+      .from("buddy_service.buddy_messages")
       .select("*")
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
@@ -229,7 +229,7 @@ export class ExperienceService {
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy messages could not be loaded.");
     const messages = ((data ?? []) as DatabaseRow[]).map((row) => ({
       id: asString(row.id),
-      role: row.message_role === "user" ? "user" : "buddy",
+      role: row.role === "user" ? "user" : "buddy",
       content: this.decryptMessage(row),
       timestamp: new Date(asString(row.created_at)).toLocaleTimeString("en-US", {
         hour: "numeric",
@@ -255,25 +255,25 @@ export class ExperienceService {
     const now = new Date().toISOString();
     const userEncrypted = this.encryption.encrypt(content);
     const replyEncrypted = this.encryption.encrypt(reply);
-    const { error } = await this.database.from("buddy_messages").insert([
+    const { error } = await this.database.from("buddy_service.buddy_messages").insert([
       {
         conversation_id: conversationId,
         user_id: userId,
-        message_role: "user",
+        role: "user",
         ...toEncryptedColumns(userEncrypted),
         urgent_language_detected: urgent,
       },
       {
         conversation_id: conversationId,
         user_id: userId,
-        message_role: "assistant",
+        role: "assistant",
         ...toEncryptedColumns(replyEncrypted),
         urgent_language_detected: urgent,
       },
     ]);
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy could not save this conversation.");
     await this.database
-      .from("buddy_conversations")
+      .from("buddy_service.buddy_conversations")
       .update({ last_message_at: now })
       .eq("id", conversationId)
       .eq("user_id", userId);
@@ -391,8 +391,8 @@ export class ExperienceService {
 
   async buddyHistory(userId: string) {
     const { data, error } = await this.database
-      .from("buddy_conversations")
-      .select("id, conversation_status, last_message_at, created_at")
+      .from("buddy_service.buddy_conversations")
+      .select("id, archived, last_message_at, created_at")
       .eq("user_id", userId)
       .order("last_message_at", { ascending: false });
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy history could not be loaded.");
@@ -401,7 +401,7 @@ export class ExperienceService {
 
   async ensureOwnedConversation(userId: string, conversationId: string) {
     const { data, error } = await this.database
-      .from("buddy_conversations")
+      .from("buddy_service.buddy_conversations")
       .select("id")
       .eq("id", conversationId)
       .eq("user_id", userId)

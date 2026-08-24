@@ -136,7 +136,7 @@ export class JournalService {
 
   private async latestAnalysis(journalId: string, userId: string): Promise<AnalysisRow | null> {
     const { data, error } = await this.database
-      .from("journal_analyses")
+      .from("journal_service.journal_analyses")
       .select("*")
       .eq("journal_id", journalId)
       .eq("user_id", userId)
@@ -172,7 +172,7 @@ export class JournalService {
 
   async list(userId: string): Promise<JournalResponse[]> {
     const { data, error } = await this.database
-      .from("journals")
+      .from("journal_service.journals")
       .select("*")
       .eq("user_id", userId)
       .is("deleted_at", null)
@@ -183,7 +183,7 @@ export class JournalService {
 
   async get(userId: string, journalId: string): Promise<JournalResponse> {
     const { data, error } = await this.database
-      .from("journals")
+      .from("journal_service.journals")
       .select("*")
       .eq("id", journalId)
       .eq("user_id", userId)
@@ -198,7 +198,7 @@ export class JournalService {
   async create(userId: string, input: JournalInput): Promise<JournalResponse> {
     const encrypted = this.encryptJournal(input);
     const { data, error } = await this.database
-      .from("journals")
+      .from("journal_service.journals")
       .insert({
         user_id: userId,
         title: null,
@@ -233,7 +233,7 @@ export class JournalService {
     };
     const encrypted = this.encryptJournal(next);
     const { data, error } = await this.database
-      .from("journals")
+      .from("journal_service.journals")
       .update({
         title: null,
         content: null,
@@ -259,7 +259,7 @@ export class JournalService {
 
   async remove(userId: string, journalId: string): Promise<void> {
     const { error, count } = await this.database
-      .from("journals")
+      .from("journal_service.journals")
       .delete({ count: "exact" })
       .eq("id", journalId)
       .eq("user_id", userId);
@@ -285,7 +285,7 @@ export class JournalService {
   async saveDraft(userId: string, input: JournalDraftInput): Promise<JournalDraftResponse> {
     const encrypted = this.encryptJournal(input);
     const { data, error } = await this.database
-      .from("journal_drafts")
+      .from("journal_service.journal_drafts")
       .upsert(
         {
           user_id: userId,
@@ -309,7 +309,7 @@ export class JournalService {
 
   async getDraft(userId: string): Promise<JournalDraftResponse | null> {
     const { data, error } = await this.database
-      .from("journal_drafts")
+      .from("journal_service.journal_drafts")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -318,7 +318,7 @@ export class JournalService {
   }
 
   async deleteDraft(userId: string): Promise<void> {
-    const { error } = await this.database.from("journal_drafts").delete().eq("user_id", userId);
+    const { error } = await this.database.from("journal_service.journal_drafts").delete().eq("user_id", userId);
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be removed.");
   }
 
@@ -328,7 +328,7 @@ export class JournalService {
       throw new AuthorizationError("Journal analysis requires your explicit consent.");
     }
     const { data: consent, error: consentError } = await this.database
-      .from("user_consents")
+      .from("user_service.user_consents")
       .select("id")
       .eq("user_id", userId)
       .eq("consent_type", "journal_analysis")
@@ -341,7 +341,7 @@ export class JournalService {
 
     const requestId = randomUUID();
     const { data: pending, error: pendingError } = await this.database
-      .from("journal_analyses")
+      .from("journal_service.journal_analyses")
       .insert({ journal_id: journalId, user_id: userId, request_id: requestId, status: "processing", started_at: new Date().toISOString() })
       .select("*")
       .single();
@@ -352,7 +352,7 @@ export class JournalService {
       return this.completeAnalysis(pending as AnalysisRow, result);
     } catch (error) {
       await this.database
-        .from("journal_analyses")
+        .from("journal_service.journal_analyses")
         .update({ status: "failed", failure_code: errorCode(error), completed_at: new Date().toISOString() })
         .eq("id", (pending as AnalysisRow).id)
         .eq("user_id", userId);
@@ -363,7 +363,7 @@ export class JournalService {
   private async completeAnalysis(pending: AnalysisRow, result: AnalysisProviderResult): Promise<AnalysisResponse> {
     const completedAt = new Date().toISOString();
     const { data, error } = await this.database
-      .from("journal_analyses")
+      .from("journal_service.journal_analyses")
       .update({
         status: "completed",
         phq8_score: result.phq8Score,
