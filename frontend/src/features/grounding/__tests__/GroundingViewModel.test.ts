@@ -3,7 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useGroundingViewModel } from "../view-model/use-grounding-view-model";
 import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 
-vi.mock("../services/grounding-service.factory", () => ({
+vi.mock("@/services/grounding/grounding-service.factory", () => ({
   getGroundingService: vi.fn(),
   resetGroundingService: vi.fn(),
 }));

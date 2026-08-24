@@ -3,7 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useSignupViewModel } from "@/features/authentication/view-model/use-signup-view-model";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
 
-vi.mock("../services/auth-service.factory", () => ({
+vi.mock("@/services/authentication/auth-service.factory", () => ({
   getAuthService: vi.fn(),
   resetAuthService: vi.fn(),
 }));

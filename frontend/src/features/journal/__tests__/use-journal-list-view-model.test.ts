@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useJournalListViewModel } from "@/features/journal/view-model/use-journal-list-view-model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
-vi.mock("../services/journal-service.factory", () => ({
+vi.mock("@/services/journal/journal-service.factory", () => ({
   getJournalService: vi.fn(),
   resetJournalService: vi.fn(),
 }));
@@ -72,7 +72,7 @@ describe("useJournalListViewModel", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading state initially", () => {
+  it("shows loading state initially", async () => {
     const mockService = createMockService();
     vi.mocked(getJournalService).mockReturnValue(mockService);
 
@@ -80,6 +80,10 @@ describe("useJournalListViewModel", () => {
     expect(result.current.isLoading).toBe(true);
     expect(result.current.entries).toEqual([]);
     expect(result.current.error).toBeNull();
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
   it("loads entries on mount", async () => {
@@ -188,6 +192,10 @@ describe("useJournalListViewModel", () => {
 
     const { result } = renderHook(() => useJournalListViewModel());
 
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
     act(() => {
       result.current.setSort("oldest");
     });
@@ -200,6 +208,10 @@ describe("useJournalListViewModel", () => {
     vi.mocked(getJournalService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useJournalListViewModel());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
 
     act(() => {
       result.current.setPage(2);

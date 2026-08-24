@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { getBuddyService } from "@/services/buddy/buddy-service.factory";
 
-vi.mock("../services/buddy-service.factory", () => ({
+vi.mock("@/services/buddy/buddy-service.factory", () => ({
   getBuddyService: vi.fn(),
   resetBuddyService: vi.fn(),
 }));
@@ -46,12 +46,16 @@ describe("useBuddyViewModel", () => {
     vi.clearAllMocks();
   });
 
-  it("shows loading access status initially", () => {
+  it("shows loading access status initially", async () => {
     const mockService = createMockService();
     vi.mocked(getBuddyService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useBuddyViewModel());
     expect(result.current.accessStatus).toBe("loading");
+
+    await waitFor(() => {
+      expect(result.current.accessStatus).toBe("allowed");
+    });
   });
 
   it("allows access after status resolves", async () => {
@@ -101,8 +105,8 @@ describe("useBuddyViewModel", () => {
       expect(result.current.isLoadingList).toBe(false);
     });
 
-    act(() => {
-      void result.current.sendMessage("conv-1", "Hello");
+    await act(async () => {
+      await result.current.sendMessage("conv-1", "Hello");
     });
 
     await waitFor(() => {
@@ -128,8 +132,8 @@ describe("useBuddyViewModel", () => {
       expect(result.current.isLoadingList).toBe(false);
     });
 
-    act(() => {
-      void result.current.sendMessage("conv-1", "Hello");
+    await act(async () => {
+      await result.current.sendMessage("conv-1", "Hello");
     });
 
     await waitFor(() => {

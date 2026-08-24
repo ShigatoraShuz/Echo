@@ -166,7 +166,7 @@ export function SignupView({ title, description }: SignupViewProps) {
                 error={fieldErrors.dataProcessingAcknowledged?.[0]}
               />
               <EchoCheckbox
-                label={<span className="text-[11px]">I understand ECHO's optional AI features are for this thesis, non-diagnostic, and not emergency monitoring</span>}
+                label={<span className="text-[11px]">I understand ECHO&apos;s optional AI features are for this thesis, non-diagnostic, and not emergency monitoring</span>}
                 checked={aiFeatureAcknowledged}
                 onChange={(e) => setAiFeatureAcknowledged(e.target.checked)}
                 error={fieldErrors.aiFeatureAcknowledged?.[0]}
