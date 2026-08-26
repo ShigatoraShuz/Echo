@@ -5,10 +5,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:80"
-environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:4200
-      - NEXT_PUBLIC_SUPABASE_URL=
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=
+    environment:
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_PUBLISHABLE_KEY}
     depends_on:
       - backend
 
@@ -16,10 +16,29 @@ environment:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "4200:4200"
+    expose:
+      - "4200"
     environment:
       - PORT=4200
-      - SUPABASE_URL=
-      - SUPABASE_SERVICE_KEY=
-      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:3000
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JOURNAL_ENCRYPTION_KEY_BASE64=${JOURNAL_ENCRYPTION_KEY_BASE64}
+      - JOURNAL_ENCRYPTION_KEY_VERSION=${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
+      - ANALYSIS_PROVIDER=ai-service
+      - ALLOW_MOCK_ANALYSIS=false
+      - REQUEST_TIMEOUT_MS=30000
+      - LOG_LEVEL=info
+      - REQUEST_BODY_LIMIT=1mb
+      - AI_SERVICE_URL=http://ai-service:8000
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN}
+    depends_on:
+      - ai-service
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    expose:
+      - "8000"

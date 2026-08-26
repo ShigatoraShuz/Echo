@@ -1,21 +1,33 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp, type CreateAppOptions } from "../../src/app.js";
-import type { ExperienceService } from "../../src/features/experience/experience.service.js";
+import type { BuddyService } from "../../src/features/buddy/buddy.service.js";
+import type { DashboardService } from "../../src/features/dashboard/dashboard.service.js";
+import type { InsightsService } from "../../src/features/insights/insights.service.js";
+import type { GroundingService } from "../../src/features/grounding/grounding.service.js";
+import type { SupportResourcesService } from "../../src/features/support-resources/support-resources.service.js";
 import type { VerificationService } from "../../src/features/verification/verification.service.js";
 
 function createHarness(appOptions: CreateAppOptions = {}) {
-  const service = {
+  const dashboardService = {
     dashboard: vi.fn().mockResolvedValue({ journalEntries: [], moodToday: null }),
+  };
+  const buddyService = {
     buddySession: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
     sendBuddyMessage: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
     buddyHistory: vi.fn().mockResolvedValue([]),
+  };
+  const insightsService = {
     emotionInsights: vi.fn().mockResolvedValue({ emotionWheel: [], moodTrend: [], summary: "No entries." }),
+  };
+  const groundingService = {
     completeGrounding: vi.fn().mockResolvedValue({
       id: "session-1",
       completedAt: "2026-07-25T00:00:00.000Z",
       completedSessions: 1,
     }),
+  };
+  const supportResourcesService = {
     supportResources: vi.fn().mockResolvedValue([{ id: "resource-1", name: "Verified support" }]),
   };
   const verifier = {
@@ -23,15 +35,31 @@ function createHarness(appOptions: CreateAppOptions = {}) {
       token === "valid-token" ? { id: "user-1", email: "user@example.com" } : null,
     ),
   };
+  const verificationService = {
+    assertAiAccess: vi.fn().mockResolvedValue(undefined),
+  } as unknown as VerificationService;
   const app = createApp({
     ...appOptions,
     v1: {
-      experience: {
-        service: service as unknown as ExperienceService,
+      buddy: {
+        service: buddyService as unknown as BuddyService,
         verifier,
-        verificationService: {
-          assertAiAccess: vi.fn().mockResolvedValue(undefined),
-        } as unknown as VerificationService,
+        verificationService,
+      },
+      dashboard: {
+        service: dashboardService as unknown as DashboardService,
+        verifier,
+      },
+      insights: {
+        service: insightsService as unknown as InsightsService,
+        verifier,
+      },
+      grounding: {
+        service: groundingService as unknown as GroundingService,
+        verifier,
+      },
+      supportResources: {
+        service: supportResourcesService as unknown as SupportResourcesService,
       },
     },
   });

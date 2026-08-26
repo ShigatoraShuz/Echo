@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMockAnalysisProvider } from "../../../infrastructure/analysis/mock-analysis.provider.js";
+import { createMockAnalysisProvider } from "../mock-analysis.provider.js";
 
 describe("mock analysis provider", () => {
   it("uses explicit development markers only", async () => {
@@ -21,3 +21,4 @@ describe("mock analysis provider", () => {
     await expect(provider.analyze({ requestId: "request", journalText: "[MOCK:FAIL]", language: "en" })).rejects.toMatchObject({ code: "MOCK_ANALYSIS_FAILED" });
   });
 });
+

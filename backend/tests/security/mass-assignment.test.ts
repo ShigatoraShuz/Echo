@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/app.js";
 import type { JournalService } from "../../src/features/journals/journals.service.js";
 import type { SettingsService } from "../../src/features/settings/settings.service.js";
-import type { ExperienceService } from "../../src/features/experience/experience.service.js";
+import type { BuddyService } from "../../src/features/buddy/buddy.service.js";
+import type { DashboardService } from "../../src/features/dashboard/dashboard.service.js";
+import type { InsightsService } from "../../src/features/insights/insights.service.js";
+import type { GroundingService } from "../../src/features/grounding/grounding.service.js";
+import type { SupportResourcesService } from "../../src/features/support-resources/support-resources.service.js";
 import type { VerificationService } from "../../src/features/verification/verification.service.js";
 
 function createHarness() {
@@ -34,15 +38,24 @@ function createHarness() {
     requestDeletion: vi.fn().mockResolvedValue({}),
     cancelDeletion: vi.fn().mockResolvedValue({}),
   };
-  const experience = {
-    dashboard: vi.fn().mockResolvedValue({}),
+  const buddyService = {
     buddySession: vi.fn().mockResolvedValue({ conversationId: "conv-1", messages: [] }),
     sendBuddyMessage: vi.fn().mockResolvedValue({ conversationId: "conv-1", messages: [] }),
     buddyHistory: vi.fn().mockResolvedValue([]),
+  };
+  const dashboardService = {
+    dashboard: vi.fn().mockResolvedValue({}),
+  };
+  const insightsService = {
     emotionInsights: vi.fn().mockResolvedValue({}),
+  };
+  const groundingService = {
     completeGrounding: vi.fn().mockResolvedValue({}),
+  };
+  const supportResourcesService = {
     supportResources: vi.fn().mockResolvedValue([]),
   };
+  const experience = { ...dashboardService, ...buddyService, ...insightsService, ...groundingService, ...supportResourcesService };
   const verification = {
     getStatus: vi.fn().mockResolvedValue({}),
     saveApplication: vi.fn().mockResolvedValue({}),
@@ -65,10 +78,25 @@ function createHarness() {
         service: settings as unknown as SettingsService,
         verifier,
       },
-      experience: {
-        service: experience as unknown as ExperienceService,
+      buddy: {
+        service: buddyService as unknown as BuddyService,
         verifier,
         verificationService: verification as unknown as VerificationService,
+      },
+      dashboard: {
+        service: dashboardService as unknown as DashboardService,
+        verifier,
+      },
+      insights: {
+        service: insightsService as unknown as InsightsService,
+        verifier,
+      },
+      grounding: {
+        service: groundingService as unknown as GroundingService,
+        verifier,
+      },
+      supportResources: {
+        service: supportResourcesService as unknown as SupportResourcesService,
       },
       verification: {
         service: verification as unknown as VerificationService,

@@ -94,7 +94,7 @@ export class OnboardingService {
 
     for (const item of consentEntries) {
       const { error } = await this.database
-        .from("user_service.user_consents")
+        .from("user_consents")
         .upsert(item, { onConflict: "user_id,consent_type,consent_version" });
       if (error) {
         throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Consent preferences could not be recorded.");

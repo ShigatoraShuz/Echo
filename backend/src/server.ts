@@ -5,7 +5,11 @@ import { createEncryptionService } from "./infrastructure/encryption/encryption.
 import { createSupabaseAccessTokenVerifier, createSupabaseAdminClient } from "./infrastructure/supabase/supabase-admin.client.js";
 import { JournalService } from "./features/journals/journals.service.js";
 import { SettingsService } from "./features/settings/settings.service.js";
-import { ExperienceService } from "./features/experience/experience.service.js";
+import { BuddyService } from "./features/buddy/buddy.service.js";
+import { DashboardService } from "./features/dashboard/dashboard.service.js";
+import { InsightsService } from "./features/insights/insights.service.js";
+import { GroundingService } from "./features/grounding/grounding.service.js";
+import { SupportResourcesService } from "./features/support-resources/support-resources.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 
@@ -21,7 +25,11 @@ const journalService = new JournalService(
   createAnalysisProvider(environment),
 );
 const settingsService = new SettingsService(supabaseAdmin);
-const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService);
+const buddyService = new BuddyService(supabaseAdmin, encryptionService);
+const dashboardService = new DashboardService(supabaseAdmin, journalService);
+const insightsService = new InsightsService(journalService);
+const groundingService = new GroundingService(supabaseAdmin);
+const supportResourcesService = new SupportResourcesService(supabaseAdmin);
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
 const onboardingService = new OnboardingService(supabaseAdmin);
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin);
@@ -38,10 +46,25 @@ const app = createApp({
       service: settingsService,
       verifier,
     },
-    experience: {
-      service: experienceService,
+    buddy: {
+      service: buddyService,
       verifier,
       verificationService,
+    },
+    dashboard: {
+      service: dashboardService,
+      verifier,
+    },
+    insights: {
+      service: insightsService,
+      verifier,
+    },
+    grounding: {
+      service: groundingService,
+      verifier,
+    },
+    supportResources: {
+      service: supportResourcesService,
     },
     verification: {
       service: verificationService,

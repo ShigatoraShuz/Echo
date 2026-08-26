@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { ExperienceService } from "../experience.service.js";
+import { DashboardService } from "../dashboard.service.js";
 import type { JournalService } from "../../journals/journals.service.js";
-import type { EncryptionService } from "../../../infrastructure/encryption/encryption.service.js";
 
 function createChain() {
   const chain: any = {
@@ -15,7 +14,7 @@ function createChain() {
   return chain;
 }
 
-describe("ExperienceService.dashboard", () => {
+describe("DashboardService.dashboard", () => {
   it("loads the dashboard from the public profile and notification tables", async () => {
     const profileChain = createChain();
     const preferenceChain = createChain();
@@ -31,8 +30,7 @@ describe("ExperienceService.dashboard", () => {
         { id: "entry-1", created_at: "2026-08-24T00:00:00.000Z", mood: "calm", tags: [], emotions: [] },
       ]),
     };
-    const encryption = {} as EncryptionService;
-    const service = new ExperienceService(database as any, journals as unknown as JournalService, encryption);
+    const service = new DashboardService(database as any, journals as unknown as JournalService);
 
     const result = await service.dashboard("user-1");
 
@@ -43,3 +41,4 @@ describe("ExperienceService.dashboard", () => {
     expect(preferenceChain.eq).toHaveBeenCalledWith("user_id", "user-1");
   });
 });
+
