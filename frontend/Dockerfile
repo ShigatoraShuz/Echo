@@ -1,12 +1,39 @@
-FROM node:20-alpine AS build
+FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
+
+FROM node:24-alpine AS build
+WORKDIR /app
+ARG NEXT_PUBLIC_API_BASE_URL=/api/v1
+ARG NEXT_PUBLIC_DATA_ADAPTER=http
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_ENABLE_BUDDY=true
+ARG NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS=false
+ARG NEXT_PUBLIC_ENABLE_RISK_INSIGHTS=true
+ARG NEXT_PUBLIC_ENABLE_NOTIFICATIONS=true
+ARG NEXT_PUBLIC_ENABLE_DATA_EXPORT=true
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_DATA_ADAPTER=$NEXT_PUBLIC_DATA_ADAPTER \
+    NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+    NEXT_PUBLIC_ENABLE_BUDDY=$NEXT_PUBLIC_ENABLE_BUDDY \
+    NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS=$NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS \
+    NEXT_PUBLIC_ENABLE_RISK_INSIGHTS=$NEXT_PUBLIC_ENABLE_RISK_INSIGHTS \
+    NEXT_PUBLIC_ENABLE_NOTIFICATIONS=$NEXT_PUBLIC_ENABLE_NOTIFICATIONS \
+    NEXT_PUBLIC_ENABLE_DATA_EXPORT=$NEXT_PUBLIC_ENABLE_DATA_EXPORT
+COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
-COPY --from=build /app/out /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM node:24-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/public ./public
+COPY --from=build /app/package.json ./package.json
+USER node
+EXPOSE 3000
+CMD ["npm", "run", "start"]

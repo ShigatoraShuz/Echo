@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest"; import { phq8 } from "./assessment.js"; describe("PHQ-8 scoring", () => { it("uses the validated 0-24 severity bands", () => { expect(phq8([3,3,3,3,3,3,3,3])).toMatchObject({ score: 24, severity: "severe" }); expect(phq8([0,0,0,0,0,0,0,0])).toMatchObject({ score: 0, severity: "minimal" }); }); });

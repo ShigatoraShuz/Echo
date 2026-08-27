@@ -1,11 +1,12 @@
 [project]
 name = "echo-ai-service"
 version = "0.1.0"
-description = "Internal FastAPI inference boundary for ECHO"
+description = "Internal FastAPI analysis orchestration service for ECHO"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1.0",
+  "httpx>=0.28,<1.0",
   "pydantic>=2.10,<3.0",
   "pydantic-settings>=2.6,<3.0",
   "uvicorn[standard]>=0.32,<1.0",
@@ -20,8 +21,6 @@ include = ["app*"]
 
 [dependency-groups]
 dev = [
-  "datamodel-code-generator>=0.26.0,<1.0",
-  "httpx>=0.28,<1.0",
   "pytest>=8.3,<9.0",
   "ruff>=0.8,<1.0",
 ]

@@ -1,5 +1,5 @@
 # Docker build context exclusion - prevents secrets and artifacts from entering images.
-# Build context is the repository root: docker build -f backend/Dockerfile .
+# Node services and ML use the repository root as their build context.
 
 node_modules
 **/node_modules

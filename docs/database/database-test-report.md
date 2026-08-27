@@ -2,18 +2,21 @@
 
 ## Prepared tests
 
-`supabase/tests/database/rls-policy.test.sql` verifies ERD table presence, RLS enablement, protected service-only tables, secure policies, private functions/triggers, and key constraints/indexes.
+The database suite includes:
+
+- `rls-policy.test.sql` for canonical table/constraint/RLS structure;
+- `service-role-ownership.test.sql` for service grant ownership and duplicate-schema/table removal;
+- `ownership-isolation.test.sql` for functional cross-role access denial.
 
 ## Execution status
 
-Unverified locally. The following commands were attempted but could not connect because Docker Desktop's engine is not available on this machine:
+Unverified in the 2026-08-28 migration environment because Docker, Supabase CLI, and a local PostgreSQL engine are unavailable. Static migration and pgTAP review completed, but that does not replace execution.
 
 ```text
-npx supabase db reset --local --workdir .
-# Docker Desktop is a prerequisite; the Windows Docker pipe was not found.
-
-npx supabase test db --local --workdir .
-# failed to connect to local Postgres
+supabase start
+supabase db reset
+supabase db lint
+supabase test db
 ```
 
-When Docker is available, run `npx supabase start`, `npx supabase db reset`, and `npx supabase test db`. No remote Supabase project was linked, pushed, or changed.
+No remote Supabase project was linked, pushed, or changed. A non-empty abandoned schema/table intentionally blocks the corrective migration until its rows are reconciled, preventing silent loss.

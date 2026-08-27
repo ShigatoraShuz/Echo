@@ -1,5 +1,7 @@
 # ECHO Security Audit
 
+> Historical pre-microservices baseline. Current topology, environment contracts, database grants, and resolved architecture findings are documented in `docs/architecture/microservices.md` and `docs/deployment.md`; paths under the removed `backend/` directory below are retained only as audit history.
+
 - Audit date: 2026-08-17
 - Baseline: task5.md security-hardening plan, OWASP ASVS 5.x
 - Scope: `frontend/`, `backend/`, `ai-service/`, `supabase/` (migrations + config), deployment files, tests

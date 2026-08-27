@@ -1,43 +1,57 @@
-# Echo — Mental Wellness Companion
+# ECHO — Mental Wellness Companion
 
-A full-stack mental wellness application with AI-powered journaling, mood tracking, grounding exercises, and a supportive AI buddy.
+ECHO is a full-stack mental-wellness application built as independently runnable microservices around a Next.js frontend, an application API gateway, Supabase Auth/PostgreSQL, and a separate Python ML runtime.
 
-## Features
+## Architecture
 
-- **Journal**: Rich editor with emotion tagging, search, filters, and autosave
-- **Insights**: Emotion trends, risk signals, facial camera widget, and breakdown charts
-- **Buddy**: Conversational AI companion with mood-aware responses
-- **Grounding**: Breathing exercises (Box Breathing, Sensory, 5-4-3-2-1)
-- **Settings**: Profile, notifications, privacy controls, trusted contacts
-- **Onboarding**: Consent-based setup with profile and theme selection
-- **Accessibility**: WCAG-compliant with screen reader support and keyboard navigation
+The browser talks only to NGINX and `/api/v1`. The gateway validates Supabase access tokens and routes requests to the owning service. Domain services use role-scoped server credentials and explicit HTTP APIs; they do not import one another or query one another's tables.
 
-## Tech Stack
+Services:
 
-- **Frontend**: Next.js, TypeScript, Tailwind CSS, React
-- **Backend**: Node.js, Express, Supabase, PostgreSQL
-- **Testing**: Jest, React Testing Library, jest-axe
-- **Documentation**: Storybook, OpenAPI/Swagger
+- API Gateway
+- User Service
+- Journal Service
+- Assessment Service
+- Analysis Service
+- ML Inference Service
+- Recommendation Service
+- Wellness Service
+- Insights Service
+- Next.js frontend
 
-## Quick Start
+See [the implemented architecture](docs/architecture/microservices.md), [deployment guide](docs/deployment.md), and [API description](docs/api.yaml).
+
+## Local validation
 
 ```bash
-# Install dependencies
-npm install
-
-# Copy environment variables
-cp .env.example .env.local
-
-# Start development
-npm run dev
+npm ci
+npm run architecture:check
+npm run environment:check
+npm run typecheck
+npm run lint
+npm run test
+npm run build
 ```
 
-## Project Structure
+Python services use Python 3.12 and `uv`:
 
-- `frontend/` — Next.js application
-- `backend/` — Express API server
-- `supabase/` — Database migrations and seed data
-- `docs/` — API documentation and architecture guides
+```bash
+cd ai-service && uv sync --all-groups && uv run ruff check . && uv run pytest
+cd ../ml && uv sync --all-groups && uv run ruff check . && uv run pytest
+```
+
+Database checks require Supabase CLI and Docker:
+
+```bash
+supabase start
+supabase db reset
+supabase db lint
+supabase test db
+```
+
+For the complete stack, copy `.env.example` to `.env`, provision the documented custom-role database keys, mount validated model artifacts if available, and run `docker compose up --build`.
+
+Real model inference remains unavailable until reviewed model artifacts, loader dependencies, and an evaluation manifest are supplied. The ML service reports this truthfully with readiness/inference `503` responses.
 
 ## License
 

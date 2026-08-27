@@ -1,9 +1,7 @@
-# Database architecture
+# Canonical database architecture
 
-The `supabase/migrations/20260724012900_initial_echo_schema.sql` migration creates profiles, consents, journals, analysis records, mood entries, trusted contacts, notification preferences, notifications, audit events, and model versions.
+Supabase Auth owns `auth.*`; ECHO application data has one canonical schema, `public`. The additive migration `20260828000000_canonical_public_service_ownership.sql` retires the unused duplicate schemas/tables introduced by the earlier experiment and partitions public-table privileges among custom non-login service roles.
 
-User-owned tables have RLS enabled with `TO authenticated` policies and ownership predicates based on `auth.uid()`. Every update policy includes both `USING` and `WITH CHECK`, preventing ownership reassignment. Audit events and model versions intentionally have no user-facing policies; they remain server-only.
+Browser roles have no protected application-table privileges. The API Gateway validates browser sessions through Supabase Auth. Each domain service receives a distinct server-only Supabase key carrying only its custom role claim. Services obtain another domain's data through its HTTP API, never its tables.
 
-The Supabase CLI configuration keeps new tables out of automatic Data API exposure. This matches the architecture: browser code uses Supabase Auth only, while protected data access goes through the Express API.
-
-The migration constrains completed analysis scores to `0–24`, accepts only approved severity/status values, and rejects obvious raw journal-text keys in audit metadata. These checks do not replace server-side redaction and logging discipline.
+See [the full ownership matrix and conflict analysis](microservices.md#database-architecture-and-ownership) and the pgTAP tests in `supabase/tests/database/`.

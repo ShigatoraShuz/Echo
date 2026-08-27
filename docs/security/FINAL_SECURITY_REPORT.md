@@ -1,5 +1,7 @@
 # ECHO — Final Security Report
 
+> Historical report for the former modular-monolith baseline. See the current architecture and deployment documentation for active service-token and database-role boundaries.
+
 ## 1. Executive Summary
 
 ECHO's security posture was hardened end-to-end per `plan/task5.md`. All critical (P0) and high (P1) findings from the audit are remediated and regression-tested; medium and low findings are addressed or explicitly tracked as deployment-time items. The system now enforces fail-closed authentication, session-derived ownership (never client-supplied), RLS isolation on every sensitive table, nonce-based CSP, bounded request sizes, layered rate limiting, and no-journal-content logging. Verification gates pass across all services: backend 53/53 tests, frontend 212/212 tests, ai-service 9/9 tests, lint/typecheck/build clean, production runtime smoke-tested. Residual risks are operational (email verification/MFA, network restrictions, manual pentest) rather than code-level.

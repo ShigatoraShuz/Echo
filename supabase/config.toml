@@ -8,8 +8,8 @@ project_id = "Echo"
 enabled = true
 # Port to use for the API URL.
 port = 54321
-# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
-# endpoints. `public` and `graphql_public` schemas are included by default.
+# Canonical application tables remain in public; service ownership is enforced by the
+# restricted database roles created in the canonical ownership migration.
 schemas = ["public", "graphql_public"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]

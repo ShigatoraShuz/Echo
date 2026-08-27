@@ -1,0 +1,1 @@
+import { listen, positiveIntegerEnv, secretEnv } from "@echo/service-core"; import { createRecommendationApp } from "./app.js"; const port = positiveIntegerEnv("PORT", 4205); listen(createRecommendationApp(secretEnv("RECOMMENDATION_SERVICE_TOKEN")), { name: "recommendation-service", port });

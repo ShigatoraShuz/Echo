@@ -1,95 +1,149 @@
-openapi: "3.0.3"
+openapi: 3.1.0
 info:
-  title: Echo API
-  description: Backend API for the Echo mental wellness platform
+  title: ECHO Public Gateway API
   version: 1.0.0
-  contact:
-    name: Echo Team
+  description: The browser-facing API. Internal service routes and hostnames are intentionally omitted.
 servers:
-  - url: https://api.echo-app.dev/api/v1
-    description: Production server
-  - url: http://localhost:4200/api/v1
-    description: Development server
-
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
+  - url: /api/v1
 security:
   - bearerAuth: []
-
 paths:
-  /buddy/conversations:
+  /health:
     get:
-      summary: List all conversations for the authenticated user
+      security: []
+      summary: Gateway liveness
       responses:
-        '200':
-          description: List of conversations
+        "200": { description: Healthy }
+  /journals:
+    get:
+      summary: List the authenticated user's journal entries
+      responses:
+        "200": { description: Journal list }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     post:
-      summary: Create a new conversation
+      summary: Create an encrypted journal entry
+      responses:
+        "201": { description: Journal created }
+        "400": { description: Invalid journal }
+  /journals/draft:
+    get:
+      summary: Get the user's draft
+      responses: { "200": { description: Draft or null } }
+    put:
+      summary: Save the user's encrypted draft
+      responses: { "200": { description: Draft saved } }
+    delete:
+      summary: Delete the user's draft
+      responses: { "204": { description: Draft deleted } }
+  /journals/{journalId}:
+    parameters:
+      - $ref: "#/components/parameters/JournalId"
+    get:
+      summary: Get a journal entry
+      responses: { "200": { description: Journal }, "404": { description: Not found } }
+    patch:
+      summary: Update a journal entry
+      responses: { "200": { description: Journal updated } }
+    delete:
+      summary: Delete a journal entry
+      responses: { "204": { description: Journal deleted } }
+  /journals/{journalId}/analyze:
+    parameters:
+      - $ref: "#/components/parameters/JournalId"
+    post:
+      summary: Request analysis through Analysis and ML services
+      responses:
+        "201": { description: Analysis completed }
+        "403": { description: Consent or verification required }
+        "503": { description: ML or another dependency unavailable }
+        "504": { description: Dependency timeout }
+  /journals/{journalId}/analyses:
+    parameters:
+      - $ref: "#/components/parameters/JournalId"
+    get:
+      summary: Get the latest analysis result
+      responses: { "200": { description: Latest analysis or null } }
+  /moods:
+    get:
+      summary: List recent mood entries
+      responses: { "200": { description: Mood entries } }
+    post:
+      summary: Record an encrypted mood entry
+      responses: { "201": { description: Mood recorded }, "400": { description: Invalid mood } }
+  /assessments/phq8:
+    post:
+      summary: Calculate a non-diagnostic PHQ-8 screening score
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [answers]
               properties:
-                title:
-                  type: string
-                mood:
-                  type: string
-      responses:
-        '201':
-          description: Created conversation
-
-  /journal:
-    get:
-      summary: List journal entries with search and filters
-      parameters:
-        - name: search
-          in: query
-          schema: { type: string }
-        - name: mood
-          in: query
-          schema: { type: string }
-        - name: page
-          in: query
-          schema: { type: integer, default: 1 }
-      responses:
-        '200':
-          description: Paginated journal entries
+                answers:
+                  type: array
+                  minItems: 8
+                  maxItems: 8
+                  items: { type: integer, minimum: 0, maximum: 3 }
+      responses: { "200": { description: Score, severity, and disclaimer }, "400": { description: Invalid answers } }
+  /recommendations:
     post:
-      summary: Create a journal entry
-      responses:
-        '201':
-          description: Created journal entry
-
+      summary: Request a wellbeing/CBT recommendation
+      responses: { "200": { description: Recommendation } }
+  /buddy/session:
+    get:
+      summary: Get or start the verified user's Buddy session
+      responses: { "200": { description: Buddy session }, "403": { description: Verification required } }
+  /buddy/messages:
+    post:
+      summary: Send a Buddy message
+      responses: { "201": { description: Updated session }, "403": { description: Verification required } }
+  /buddy/history:
+    get:
+      summary: List Buddy conversations
+      responses: { "200": { description: Conversation history } }
   /grounding/sessions:
     post:
       summary: Record a grounding session
-      responses:
-        '201':
-          description: Session recorded
-
-  /settings/profile:
+      responses: { "201": { description: Session recorded } }
+  /support-resources:
     get:
-      summary: Get user profile
-      responses:
-        '200':
-          description: User profile
-    patch:
-      summary: Update user profile
-      responses:
-        '200':
-          description: Updated profile
-
-  /health:
-    get:
-      summary: Health check
       security: []
-      responses:
-        '200':
-          description: Server is healthy
+      summary: List verified active support resources
+      responses: { "200": { description: Resources } }
+  /dashboard:
+    get:
+      summary: Get the API-composed dashboard
+      responses: { "200": { description: Dashboard } }
+  /insights/emotions:
+    get:
+      summary: Get derived emotion patterns
+      responses: { "200": { description: Emotion insights } }
+  /settings:
+    get:
+      summary: Get account settings
+      responses: { "200": { description: Settings } }
+  /onboarding/status:
+    get:
+      summary: Get onboarding status
+      responses: { "200": { description: Onboarding status } }
+  /verification:
+    get:
+      summary: Get verification status
+      responses: { "200": { description: Verification status } }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Supabase access token
+  parameters:
+    JournalId:
+      name: journalId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or expired Supabase access token

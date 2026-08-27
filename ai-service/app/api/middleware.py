@@ -61,30 +61,30 @@ async def request_id_middleware(request: Request, call_next):
         except ValueError:
             return _error_response(400, "Invalid Content-Length header.", request_id)
 
-    # Chunked bodies carry no Content-Length, so the actual byte stream is
-    # counted here. The wrapped receive stops reading (http.disconnect) as
-    # soon as the cap is exceeded, which prevents unbounded buffering while
-    # guaranteeing the 413 still reaches the client.
+    # Consume and replay at most MAX_BODY_BYTES before authentication. Merely
+    # wrapping receive is insufficient because dependencies can reject a
+    # request without consuming its chunked body, bypassing the size check.
     original_receive = request._receive
     received_bytes = 0
-    limit_exceeded = False
-
-    async def capped_receive():
-        nonlocal received_bytes, limit_exceeded
-        if limit_exceeded:
-            return {"type": "http.disconnect"}
+    messages = []
+    more_body = True
+    while more_body:
         message = await original_receive()
-        if message["type"] == "http.request":
-            received_bytes += len(message.get("body", b""))
-            if received_bytes > MAX_BODY_BYTES:
-                limit_exceeded = True
-                return {"type": "http.disconnect"}
-        return message
+        if message["type"] == "http.disconnect":
+            break
+        received_bytes += len(message.get("body", b""))
+        if received_bytes > MAX_BODY_BYTES:
+            return _error_response(413, "Request body is too large.", request_id)
+        messages.append(message)
+        more_body = bool(message.get("more_body", False))
 
-    request._receive = capped_receive
+    async def replay_receive():
+        if messages:
+            return messages.pop(0)
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request._receive = replay_receive
     response = await call_next(request)
-    if limit_exceeded:
-        return _error_response(413, "Request body is too large.", request_id)
     response.headers["x-request-id"] = request_id
     response.headers["cache-control"] = "no-store"
     response.headers["x-content-type-options"] = "nosniff"

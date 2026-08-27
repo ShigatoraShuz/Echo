@@ -1,44 +1,222 @@
 services:
+  edge:
+    image: nginx:1.27-alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    environment:
-      - NEXT_PUBLIC_API_URL=/api
-      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_PUBLISHABLE_KEY}
-    depends_on:
-      - backend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+        NEXT_PUBLIC_DATA_ADAPTER: ${NEXT_PUBLIC_DATA_ADAPTER:-http}
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_ENABLE_BUDDY: ${NEXT_PUBLIC_ENABLE_BUDDY:-true}
+        NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS: ${NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS:-false}
+        NEXT_PUBLIC_ENABLE_RISK_INSIGHTS: ${NEXT_PUBLIC_ENABLE_RISK_INSIGHTS:-true}
+        NEXT_PUBLIC_ENABLE_NOTIFICATIONS: ${NEXT_PUBLIC_ENABLE_NOTIFICATIONS:-true}
+        NEXT_PUBLIC_ENABLE_DATA_EXPORT: ${NEXT_PUBLIC_ENABLE_DATA_EXPORT:-true}
+    expose: ["3000"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
-  backend:
+  api-gateway:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    expose:
-      - "4200"
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    expose: ["4200"]
     environment:
-      - PORT=4200
-      - FRONTEND_URL=http://localhost:3000
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - JOURNAL_ENCRYPTION_KEY_BASE64=${JOURNAL_ENCRYPTION_KEY_BASE64}
-      - JOURNAL_ENCRYPTION_KEY_VERSION=${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
-      - ANALYSIS_PROVIDER=ai-service
-      - ALLOW_MOCK_ANALYSIS=false
-      - REQUEST_TIMEOUT_MS=30000
-      - LOG_LEVEL=info
-      - REQUEST_BODY_LIMIT=1mb
-      - AI_SERVICE_URL=http://ai-service:8000
-      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN}
+      PORT: 4200
+      FRONTEND_URL: http://localhost:3000
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      USER_SERVICE_TOKEN: ${USER_SERVICE_TOKEN}
+      JOURNAL_SERVICE_TOKEN: ${JOURNAL_SERVICE_TOKEN}
+      ASSESSMENT_SERVICE_TOKEN: ${ASSESSMENT_SERVICE_TOKEN}
+      ANALYSIS_SERVICE_TOKEN: ${ANALYSIS_SERVICE_TOKEN}
+      RECOMMENDATION_SERVICE_TOKEN: ${RECOMMENDATION_SERVICE_TOKEN}
+      WELLNESS_SERVICE_TOKEN: ${WELLNESS_SERVICE_TOKEN}
+      INSIGHTS_SERVICE_TOKEN: ${INSIGHTS_SERVICE_TOKEN}
+      REQUEST_TIMEOUT_MS: ${GATEWAY_REQUEST_TIMEOUT_MS:-5000}
+      USER_SERVICE_URL: http://user-service:4201
+      JOURNAL_SERVICE_URL: http://journal-service:4202
+      ASSESSMENT_SERVICE_URL: http://assessment-service:4203
+      ANALYSIS_SERVICE_URL: http://analysis-service:8000
+      RECOMMENDATION_SERVICE_URL: http://recommendation-service:4205
+      WELLNESS_SERVICE_URL: http://wellness-service:4206
+      INSIGHTS_SERVICE_URL: http://insights-service:4207
     depends_on:
-      - ai-service
+      user-service: { condition: service_healthy }
+      journal-service: { condition: service_healthy }
+      assessment-service: { condition: service_healthy }
+      analysis-service: { condition: service_healthy }
+      recommendation-service: { condition: service_healthy }
+      wellness-service: { condition: service_healthy }
+      insights-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4200/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    expose:
-      - "8000"
+  user-service:
+    build: { context: ., dockerfile: services/user-service/Dockerfile }
+    expose: ["4201"]
+    environment:
+      PORT: 4201
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_DATABASE_KEY: ${USER_SERVICE_DATABASE_KEY}
+      USER_SERVICE_TOKEN: ${USER_SERVICE_TOKEN}
+      JOURNAL_ENCRYPTION_KEY_BASE64: ${JOURNAL_ENCRYPTION_KEY_BASE64}
+      JOURNAL_ENCRYPTION_KEY_VERSION: ${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
+    healthcheck: &node_health
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4201/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  journal-service:
+    build: { context: ., dockerfile: services/journal-service/Dockerfile }
+    expose: ["4202"]
+    environment:
+      PORT: 4202
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_DATABASE_KEY: ${JOURNAL_SERVICE_DATABASE_KEY}
+      JOURNAL_SERVICE_TOKEN: ${JOURNAL_SERVICE_TOKEN}
+      JOURNAL_ENCRYPTION_KEY_BASE64: ${JOURNAL_ENCRYPTION_KEY_BASE64}
+      JOURNAL_ENCRYPTION_KEY_VERSION: ${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4202/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  assessment-service:
+    build: { context: ., dockerfile: services/assessment-service/Dockerfile }
+    expose: ["4203"]
+    environment:
+      PORT: 4203
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_DATABASE_KEY: ${ASSESSMENT_SERVICE_DATABASE_KEY}
+      ASSESSMENT_SERVICE_TOKEN: ${ASSESSMENT_SERVICE_TOKEN}
+      JOURNAL_ENCRYPTION_KEY_BASE64: ${JOURNAL_ENCRYPTION_KEY_BASE64}
+      JOURNAL_ENCRYPTION_KEY_VERSION: ${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4203/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  analysis-service:
+    build: { context: ./ai-service, dockerfile: Dockerfile }
+    expose: ["8000"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      ANALYSIS_SERVICE_TOKEN: ${ANALYSIS_SERVICE_TOKEN}
+      USER_SERVICE_TOKEN: ${USER_SERVICE_TOKEN}
+      JOURNAL_SERVICE_TOKEN: ${JOURNAL_SERVICE_TOKEN}
+      ML_SERVICE_TOKEN: ${ML_SERVICE_TOKEN}
+      RECOMMENDATION_SERVICE_TOKEN: ${RECOMMENDATION_SERVICE_TOKEN}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_DATABASE_KEY: ${ANALYSIS_SERVICE_DATABASE_KEY}
+      USER_SERVICE_URL: http://user-service:4201
+      JOURNAL_SERVICE_URL: http://journal-service:4202
+      ML_SERVICE_URL: http://ml-service:8001
+      RECOMMENDATION_SERVICE_URL: http://recommendation-service:4205
+      REQUEST_TIMEOUT_SECONDS: ${ANALYSIS_REQUEST_TIMEOUT_SECONDS:-10}
+      LOG_LEVEL: ${ANALYSIS_LOG_LEVEL:-INFO}
+      RATE_LIMIT_PER_MINUTE: ${ANALYSIS_RATE_LIMIT_PER_MINUTE:-60}
+      RATE_LIMIT_WINDOW_SECONDS: ${ANALYSIS_RATE_LIMIT_WINDOW_SECONDS:-60}
+    depends_on:
+      ml-service: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      journal-service: { condition: service_healthy }
+      recommendation-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  ml-service:
+    build: { context: ., dockerfile: ml/Dockerfile }
+    expose: ["8001"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      ML_SERVICE_TOKEN: ${ML_SERVICE_TOKEN}
+      BASE_MODEL_ID: ${ML_BASE_MODEL_ID:-microsoft/Phi-4-mini-instruct}
+      LORA_ADAPTER_PATH: /models/echo-adapter
+      MODEL_VERSION: ${ML_MODEL_VERSION:-phi4-mini-echo-v1}
+      DEVICE: ${ML_DEVICE:-cpu}
+    volumes:
+      - ${MODEL_ARTIFACTS_PATH:-./ml/model-artifacts}:/models/echo-adapter:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  recommendation-service:
+    build: { context: ., dockerfile: services/recommendation-service/Dockerfile }
+    expose: ["4205"]
+    environment:
+      PORT: 4205
+      RECOMMENDATION_SERVICE_TOKEN: ${RECOMMENDATION_SERVICE_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4205/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  wellness-service:
+    build: { context: ., dockerfile: services/wellness-service/Dockerfile }
+    expose: ["4206"]
+    environment:
+      PORT: 4206
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_DATABASE_KEY: ${WELLNESS_SERVICE_DATABASE_KEY}
+      WELLNESS_SERVICE_TOKEN: ${WELLNESS_SERVICE_TOKEN}
+      USER_SERVICE_TOKEN: ${USER_SERVICE_TOKEN}
+      USER_SERVICE_URL: http://user-service:4201
+      REQUEST_TIMEOUT_MS: ${WELLNESS_REQUEST_TIMEOUT_MS:-5000}
+      JOURNAL_ENCRYPTION_KEY_BASE64: ${JOURNAL_ENCRYPTION_KEY_BASE64}
+      JOURNAL_ENCRYPTION_KEY_VERSION: ${JOURNAL_ENCRYPTION_KEY_VERSION:-1}
+    depends_on:
+      user-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4206/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  insights-service:
+    build: { context: ., dockerfile: services/insights-service/Dockerfile }
+    expose: ["4207"]
+    environment:
+      PORT: 4207
+      INSIGHTS_SERVICE_TOKEN: ${INSIGHTS_SERVICE_TOKEN}
+      USER_SERVICE_TOKEN: ${USER_SERVICE_TOKEN}
+      JOURNAL_SERVICE_TOKEN: ${JOURNAL_SERVICE_TOKEN}
+      USER_SERVICE_URL: http://user-service:4201
+      JOURNAL_SERVICE_URL: http://journal-service:4202
+      REQUEST_TIMEOUT_MS: ${INSIGHTS_REQUEST_TIMEOUT_MS:-5000}
+    depends_on:
+      user-service: { condition: service_healthy }
+      journal-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4207/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10

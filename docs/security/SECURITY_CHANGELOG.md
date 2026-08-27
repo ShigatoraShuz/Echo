@@ -1,5 +1,7 @@
 # ECHO — Security Changelog
 
+> Historical hardening record. Current microservice credential ownership is defined by the root and per-service `.env.example` contracts.
+
 Chronological record of security-hardening changes (references `SECURITY_AUDIT.md` finding IDs and `THREAT_MODEL.md` threat IDs).
 
 ## 2026-08-17 — Full hardening pass (`plan/task5.md`)

@@ -1,0 +1,39 @@
+name: Microservices CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  node-services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run architecture:check
+      - run: npm run environment:check
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  python-services:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ai-service, ml]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-groups --locked
+      - run: uv run ruff check .
+      - run: uv run pytest

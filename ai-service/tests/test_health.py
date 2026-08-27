@@ -1,10 +1,14 @@
 import os
+from hashlib import sha256
+from hmac import new
+from types import SimpleNamespace
 
-os.environ.setdefault("AI_SERVICE_TOKEN", "test-internal-token")
+os.environ.setdefault("ANALYSIS_SERVICE_TOKEN", "test-analysis-token")
 
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.api.routes.analysis import internal_headers
 
 
 def test_health_is_available_without_internal_credentials() -> None:
@@ -12,49 +16,44 @@ def test_health_is_available_without_internal_credentials() -> None:
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "service": "analysis-service"}
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
 
 
-def test_readiness_is_false_without_a_validated_runtime() -> None:
-    with TestClient(app) as client:
-        response = client.get("/ready")
-
-    assert response.status_code == 503
-    assert response.json()["model_loaded"] is False
-
-
-def test_readiness_does_not_leak_runtime_device_details() -> None:
-    with TestClient(app) as client:
-        response = client.get("/ready")
-
-    assert "device" not in response.json()
-
-
-def test_analysis_rejects_missing_internal_credentials() -> None:
+def test_analysis_rejects_missing_signed_gateway_identity() -> None:
     with TestClient(app) as client:
         response = client.post(
-            "/v1/analyze",
-            json={
-                "request_id": "123e4567-e89b-12d3-a456-426614174000",
-                "journal_text": "A private reflection.",
-                "language": "en",
-            },
+            "/api/v1/journals/123e4567-e89b-12d3-a456-426614174000/analyze",
+            json={},
         )
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid internal token."}
+    assert response.json() == {"detail": "Invalid gateway identity."}
+
+
+def test_internal_headers_use_only_the_target_service_token() -> None:
+    request_id = "00000000-0000-4000-8000-000000000001"
+    user_id = "00000000-0000-4000-8000-000000000002"
+    target_token = "target-service-token"
+    request = SimpleNamespace(state=SimpleNamespace(request_id=request_id))
+
+    headers = internal_headers(request, user_id, target_token)  # type: ignore[arg-type]
+    payload = f"{request_id}\n{user_id}\n{headers['x-echo-timestamp']}".encode()
+
+    assert headers["authorization"] == f"Bearer {target_token}"
+    assert headers["x-echo-signature"] == new(
+        target_token.encode(), payload, sha256
+    ).hexdigest()
 
 
 def test_oversized_requests_are_rejected_before_body_processing() -> None:
     with TestClient(app) as client:
         response = client.post(
-            "/v1/analyze",
+            "/api/v1/journals/123e4567-e89b-12d3-a456-426614174000/analyze",
             content=b"x" * (64 * 1024 + 1),
             headers={
-                "authorization": "Bearer test-internal-token",
                 "content-type": "application/json",
             },
         )
@@ -69,10 +68,9 @@ def test_chunked_oversized_requests_are_rejected_without_content_length() -> Non
 
     with TestClient(app) as client:
         response = client.post(
-            "/v1/analyze",
+            "/api/v1/journals/123e4567-e89b-12d3-a456-426614174000/analyze",
             content=chunked_body(),
             headers={
-                "authorization": "Bearer test-internal-token",
                 "content-type": "application/json",
             },
         )
@@ -85,10 +83,7 @@ def test_rate_limit_returns_429_after_the_per_minute_budget() -> None:
 
     limit = get_settings().rate_limit_per_minute
     with TestClient(app) as client:
-        responses = [
-            client.get("/health")
-            for _ in range(limit + 1)
-        ]
+        responses = [client.get("/health") for _ in range(limit + 1)]
 
     assert responses[0].status_code == 200
     assert responses[-1].status_code == 429

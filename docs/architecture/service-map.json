@@ -1,0 +1,13 @@
+{
+  "services": {
+    "api-gateway": ["user-service", "journal-service", "assessment-service", "analysis-service", "recommendation-service", "wellness-service", "insights-service"],
+    "user-service": [],
+    "journal-service": [],
+    "assessment-service": [],
+    "analysis-service": ["user-service", "journal-service", "ml-service", "recommendation-service"],
+    "ml-service": [],
+    "recommendation-service": [],
+    "wellness-service": ["user-service"],
+    "insights-service": ["user-service", "journal-service"]
+  }
+}

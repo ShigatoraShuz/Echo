@@ -4,6 +4,8 @@
 - Companion: [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)
 - Posture: Zero Trust + Least Privilege + Defense in Depth + Privacy by Design
 
+> Current microservices boundary: Browser -> NGINX -> API Gateway -> domain services. Gateway user context is signed with a unique destination-service token; internal callers hold only target tokens required by `service-map.json`. Domain data uses separate role-scoped Supabase keys, while the gateway-only general service-role key is never copied into a domain service. The legacy topology below is retained as historical threat-analysis context.
+
 ## Trust boundaries
 
 ```
@@ -39,7 +41,7 @@ Primary security boundaries: **Express API** (application-level authorization) a
 | Export / deletion requests | `data_export_requests`, `account_deletion_requests` | Medium |
 | Audit trail | `audit_events` | Medium |
 | Admin identity | `verification_admins` | High |
-| API credentials | `SUPABASE_SERVICE_ROLE_KEY`, `JOURNAL_ENCRYPTION_KEY_BASE64`, `AI_SERVICE_TOKEN` | Critical |
+| API credentials | gateway-only `SUPABASE_SERVICE_ROLE_KEY`, role-scoped database keys, unique `*_SERVICE_TOKEN` values, `JOURNAL_ENCRYPTION_KEY_BASE64` | Critical |
 
 Facial data: **not collected or stored** — facial analysis is client-side only and feature-flagged off. No raw facial images exist server-side.
 

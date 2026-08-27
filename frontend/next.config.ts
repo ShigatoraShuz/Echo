@@ -1,25 +1,5 @@
-import fs from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
-
-function readBackendDevelopmentEnvironment(): Record<string, string> {
-  if (process.env.NODE_ENV === "production") return {};
-  const filePath = path.join(__dirname, "..", "backend", ".env");
-  if (!fs.existsSync(filePath)) return {};
-  return Object.fromEntries(
-    fs
-      .readFileSync(filePath, "utf8")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#") && line.includes("="))
-      .map((line) => {
-        const separator = line.indexOf("=");
-        return [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
-      }),
-  );
-}
-
-const backendDevelopmentEnvironment = readBackendDevelopmentEnvironment();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 const securityHeaders = [
@@ -38,22 +18,16 @@ const nextConfig: NextConfig = {
     ? { distDir: process.env.NEXT_DIST_DIR }
     : {}),
   outputFileTracingRoot: path.join(__dirname, ".."),
-  // Local monorepo development reuses only the public Supabase values from
-  // backend/.env. The service-role and encryption keys are never exposed.
+  // Only explicitly public build values are embedded in the browser bundle.
   env: {
     NEXT_PUBLIC_SUPABASE_URL:
-      process.env.NEXT_PUBLIC_SUPABASE_URL ??
-      backendDevelopmentEnvironment.SUPABASE_URL ??
-      "",
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      backendDevelopmentEnvironment.SUPABASE_PUBLISHABLE_KEY ??
-      "",
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
     NEXT_PUBLIC_API_BASE_URL:
-      process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
+      process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1",
     NEXT_PUBLIC_DATA_ADAPTER:
-      process.env.NEXT_PUBLIC_DATA_ADAPTER ??
-      (backendDevelopmentEnvironment.SUPABASE_URL ? "http" : "mock"),
+      process.env.NEXT_PUBLIC_DATA_ADAPTER ?? "http",
   },
   images: {
     remotePatterns: [

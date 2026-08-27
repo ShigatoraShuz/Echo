@@ -1,8 +1,8 @@
-# ECHO AI service
+# ECHO Analysis service
 
-This FastAPI service is an internal inference boundary. It does not authenticate end users, store journals, or expose a browser-facing API. The Express backend is the only permitted caller and must send the internal bearer token.
+This FastAPI service orchestrates journal analysis. It validates signed gateway identity, obtains consented journal text through the Journal Service API, calls the independently deployed ML Inference Service, persists analysis-owned records with an `analysis_service_role` key, and requests recommendation output over HTTP.
 
-The scaffold deliberately reports `ready: false` until a validated fine-tuned model loader and model artefacts are supplied. It does **not** fabricate a PHQ-8 score or a clinical result. Model artefacts belong in `model-artifacts/` locally and are ignored by Git.
+It never loads a model itself and never queries Journal Service tables. Missing ML runtime capability is propagated as an unavailable response; no score is fabricated.
 
 ## Development
 
@@ -12,4 +12,4 @@ uv sync
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Health does not require a token: `GET /health`. Readiness, model metadata, and analysis are internal endpoints. The application returns only a safe unavailable response until a production-safe model runtime is implemented and verified.
+Health does not require a token: `GET /health`. Analysis routes require gateway identity signed with `ANALYSIS_SERVICE_TOKEN`. Outbound calls use only the target tokens listed in `.env.example`; model readiness, metadata, and inference belong to the ML service. Analysis returns a safe unavailable response when that dependency is not ready.

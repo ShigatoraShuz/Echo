@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest"; import { emotionInsights } from "./insights.js"; describe("insight derivation", () => { it("derives from journal API results", () => expect(emotionInsights([{ id: "1", mood: "calm", tags: [], created_at: new Date().toISOString() }]).emotionWheel.find((item) => item.mood === "calm")?.value).toBe(100)); });
