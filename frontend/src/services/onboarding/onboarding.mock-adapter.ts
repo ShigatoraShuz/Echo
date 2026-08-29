@@ -18,9 +18,21 @@ export function createOnboardingMockAdapter(): OnboardingService {
         },
       };
     },
-    async saveConsent() { await delay(150); return { success: true, data: undefined as unknown as void }; },
-    async saveProfile() { await delay(150); return { success: true, data: undefined as unknown as void }; },
-    async saveSetup() { await delay(150); return { success: true, data: undefined as unknown as void }; },
-    async completeOnboarding() { await delay(200); return { success: true, data: undefined as unknown as void }; },
+    async saveConsent() {
+      await delay(150);
+      return { success: true, data: undefined as unknown as void };
+    },
+    async saveProfile() {
+      await delay(150);
+      return { success: true, data: undefined as unknown as void };
+    },
+    async saveSetup() {
+      await delay(150);
+      return { success: true, data: undefined as unknown as void };
+    },
+    async completeOnboarding() {
+      await delay(200);
+      return { success: true, data: undefined as unknown as void };
+    },
   };
 }

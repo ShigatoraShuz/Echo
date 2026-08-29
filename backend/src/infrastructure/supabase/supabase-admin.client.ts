@@ -11,6 +11,13 @@ export function createSupabaseAdminClient(environment: BackendEnvironment): Supa
   });
 }
 
+export function createSupabasePublicServerClient(environment: BackendEnvironment): SupabaseClient {
+  return createClient<Database>(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+    global: { fetch: createResilientFetch() },
+  });
+}
+
 export function createSupabaseAccessTokenVerifier(client: SupabaseClient): AccessTokenVerifier {
   return {
     async getUser(accessToken) {
@@ -23,6 +30,7 @@ export function createSupabaseAccessTokenVerifier(client: SupabaseClient): Acces
       return {
         id: user.id,
         email: user.email,
+        emailVerified: Boolean(user.email_confirmed_at),
       };
     },
   };

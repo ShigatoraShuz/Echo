@@ -2,21 +2,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createMiddlewareSupabaseClient } from "@/infrastructure/supabase/middleware-client";
 
-const protectedPrefixes = [
-  "/dashboard",
-  "/journal",
-  "/buddy",
-  "/insights",
-  "/tools",
-  "/settings",
-  "/admin",
-];
+const protectedPrefixes = ["/dashboard", "/journal", "/buddy", "/insights", "/tools", "/settings", "/admin"];
 
 function isProtected(pathname: string): boolean {
-  return protectedPrefixes.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
+
+const accessDestinations: Record<string, string> = {
+  ACCOUNT_UNAVAILABLE: "/login?error=account_unavailable",
+  EMAIL_VERIFICATION_REQUIRED: "/login?error=email_verification_required",
+  AGE_VERIFICATION_REQUIRED: "/onboarding/age",
+  POLICY_REVIEW_REQUIRED: "/onboarding/policies",
+  ONBOARDING_REQUIRED: "/onboarding",
+};
 
 function generateNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -45,11 +43,12 @@ function contentSecurityPolicy(nonce: string): string {
     // scripts (applied automatically via the x-nonce request header) and the
     // inline theme-init script. Development keeps 'unsafe-inline' for HMR
     // bootstrapping; the local dev server is not a production surface.
-    `script-src 'self' 'nonce-${nonce}'${isDevelopment ? " 'unsafe-inline' 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' https://accounts.google.com${isDevelopment ? " 'unsafe-inline' 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
     "font-src 'self' data:",
-    `connect-src 'self'${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
+    `connect-src 'self' https://accounts.google.com${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
+    "frame-src https://accounts.google.com",
     "media-src 'self' blob: data:",
     "worker-src 'self' blob:",
     "object-src 'none'",
@@ -91,14 +90,47 @@ export async function proxy(request: NextRequest) {
   if (!user && isProtected(request.nextUrl.pathname)) {
     const destination = request.nextUrl.clone();
     destination.pathname = "/login";
-    destination.searchParams.set(
-      "next",
-      `${request.nextUrl.pathname}${request.nextUrl.search}`,
-    );
+    destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
     const redirect = NextResponse.redirect(destination);
     redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
+  }
+
+  if (user && (isProtected(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/onboarding"))) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token || !process.env.NEXT_PUBLIC_API_BASE_URL) throw new Error("Access service unavailable");
+      const accessResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/access/status`, {
+        headers: { authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (!accessResponse.ok) throw new Error("Access service rejected the session");
+      const payload = (await accessResponse.json()) as { data?: { decision?: string } };
+      const decision = payload.data?.decision ?? "ACCOUNT_UNAVAILABLE";
+      const destinationPath = accessDestinations[decision];
+      const alreadyAtDestination = destinationPath && request.nextUrl.pathname === destinationPath.split("?")[0];
+      if (destinationPath && !alreadyAtDestination) {
+        const destination = new URL(destinationPath, request.url);
+        if (isProtected(request.nextUrl.pathname))
+          destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+        const redirect = NextResponse.redirect(destination);
+        redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+        response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+        return redirect;
+      }
+      if (decision === "ACCESS_GRANTED" && request.nextUrl.pathname.startsWith("/onboarding")) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    } catch {
+      if (isProtected(request.nextUrl.pathname)) {
+        const destination = new URL("/login?error=access_check_unavailable", request.url);
+        const redirect = NextResponse.redirect(destination);
+        redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+        return redirect;
+      }
+    }
   }
 
   return response;

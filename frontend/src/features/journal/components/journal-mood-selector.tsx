@@ -1,5 +1,6 @@
 "use client";
 
+import { Circle, CloudRain, Flame, Leaf, Smile, Wind } from "lucide-react";
 import type { JournalMood } from "../model/journal.model";
 import { MOOD_LABELS } from "../model/journal.schema";
 
@@ -11,6 +12,15 @@ interface JournalMoodSelectorProps {
 
 const moodOrder: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
 
+const MOOD_ICONS: Record<JournalMood, typeof Leaf> = {
+  calm: Leaf,
+  happy: Smile,
+  neutral: Circle,
+  sad: CloudRain,
+  anxious: Wind,
+  angry: Flame,
+};
+
 export function JournalMoodSelector({ value, onChange, disabled }: JournalMoodSelectorProps) {
   return (
     <fieldset>
@@ -18,6 +28,7 @@ export function JournalMoodSelector({ value, onChange, disabled }: JournalMoodSe
       <div className="flex flex-wrap gap-2">
         {moodOrder.map((mood) => {
           const isActive = value === mood;
+          const MoodIcon = MOOD_ICONS[mood];
           return (
             <button
               key={mood}
@@ -30,6 +41,7 @@ export function JournalMoodSelector({ value, onChange, disabled }: JournalMoodSe
                   : "border-border/70 bg-card text-foreground hover:bg-muted"
               }`}
             >
+              <MoodIcon aria-hidden="true" className="mr-1.5 inline-block h-3.5 w-3.5" />
               {MOOD_LABELS[mood]}
             </button>
           );

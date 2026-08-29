@@ -41,7 +41,7 @@ export function createOnboardingHttpAdapter(): OnboardingService {
     async saveProfile(profile: OnboardingData["profile"]): Promise<OnboardingServiceResult<void>> {
       try {
         await client.post("/onboarding/profile", {
-          displayName: profile.displayName,
+          preferredName: profile.preferredName ?? profile.displayName,
           timezone: profile.timezone,
           goals: profile.goals,
           buddyTone: profile.buddyTone,
@@ -58,6 +58,10 @@ export function createOnboardingHttpAdapter(): OnboardingService {
         await client.post("/onboarding/setup", {
           theme: setup.theme,
           notifications: setup.notifications,
+          genderIdentity: setup.genderIdentity,
+          genderSelfDescription: setup.genderSelfDescription,
+          pronouns: setup.pronouns,
+          pronounsSelfDescription: setup.pronounsSelfDescription,
         });
         return { success: true, data: undefined as unknown as void };
       } catch (error) {

@@ -13,8 +13,15 @@ import type { OnboardingService } from "../features/onboarding/onboarding.servic
 import { createOnboardingRouter } from "../features/onboarding/onboarding.routes.js";
 import type { NotificationService } from "../features/notifications/notifications.service.js";
 import { createNotificationsRouter } from "../features/notifications/notifications.routes.js";
+import type { RegistrationService } from "../features/registration/registration.service.js";
+import { createRegistrationRouter } from "../features/registration/registration.routes.js";
+import type { AccessService } from "../features/access/access.service.js";
+import { createAccessGuard, createAccessRouter } from "../features/access/access.routes.js";
+import { createAuthMiddleware } from "../shared/middleware/auth.middleware.js";
 
 export interface V1RouterOptions {
+  registration?: { service: RegistrationService; allowedOrigin: string };
+  access?: { service: AccessService; verifier: AccessTokenVerifier };
   journals?: {
     service: JournalService;
     verifier: AccessTokenVerifier;
@@ -46,11 +53,29 @@ export interface V1RouterOptions {
 export function createV1Router(options: V1RouterOptions = {}): Router {
   const router = Router();
   router.use(createHealthRouter());
-  if (options.journals) router.use(createJournalsRouter(options.journals.service, options.journals.verifier, options.journals.verificationService));
+  if (options.registration)
+    router.use(createRegistrationRouter(options.registration.service, options.registration.allowedOrigin));
+  if (options.access) {
+    router.use(createAccessRouter(options.access.service, options.access.verifier));
+    router.use(createAuthMiddleware(options.access.verifier), createAccessGuard(options.access.service));
+  }
+  if (options.journals)
+    router.use(
+      createJournalsRouter(options.journals.service, options.journals.verifier, options.journals.verificationService),
+    );
   if (options.settings) router.use(createSettingsRouter(options.settings.service, options.settings.verifier));
-  if (options.experience) router.use(createExperienceRouter(options.experience.service, options.experience.verifier, options.experience.verificationService));
-  if (options.verification) router.use(createVerificationRouter(options.verification.service, options.verification.verifier));
+  if (options.experience)
+    router.use(
+      createExperienceRouter(
+        options.experience.service,
+        options.experience.verifier,
+        options.experience.verificationService,
+      ),
+    );
+  if (options.verification)
+    router.use(createVerificationRouter(options.verification.service, options.verification.verifier));
   if (options.onboarding) router.use(createOnboardingRouter(options.onboarding.service, options.onboarding.verifier));
-  if (options.notifications) router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier));
+  if (options.notifications)
+    router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier));
   return router;
 }

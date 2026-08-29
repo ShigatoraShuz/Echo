@@ -2,13 +2,19 @@ import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
 import { createAnalysisProvider } from "./infrastructure/analysis/analysis-provider.factory.js";
 import { createEncryptionService } from "./infrastructure/encryption/encryption.service.js";
-import { createSupabaseAccessTokenVerifier, createSupabaseAdminClient } from "./infrastructure/supabase/supabase-admin.client.js";
+import {
+  createSupabaseAccessTokenVerifier,
+  createSupabaseAdminClient,
+  createSupabasePublicServerClient,
+} from "./infrastructure/supabase/supabase-admin.client.js";
 import { JournalService } from "./features/journals/journals.service.js";
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
+import { RegistrationService } from "./features/registration/registration.service.js";
+import { AccessService } from "./features/access/access.service.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -16,21 +22,27 @@ const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
   environment.JOURNAL_ENCRYPTION_KEY_VERSION,
 );
-const journalService = new JournalService(
-  supabaseAdmin,
-  encryptionService,
-  createAnalysisProvider(environment),
-);
+const journalService = new JournalService(supabaseAdmin, encryptionService, createAnalysisProvider(environment));
 const settingsService = new SettingsService(supabaseAdmin);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService);
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
 const onboardingService = new OnboardingService(supabaseAdmin);
 const notificationService = new NotificationService(supabaseAdmin);
+const registrationService = new RegistrationService(
+  supabaseAdmin,
+  createSupabasePublicServerClient(environment),
+  environment.SIGNUP_DRAFT_SECRET ?? environment.JOURNAL_ENCRYPTION_KEY_BASE64,
+  environment.GOOGLE_WEB_CLIENT_ID,
+  environment.FRONTEND_URL,
+);
+const accessService = new AccessService(supabaseAdmin);
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
   v1: {
+    registration: { service: registrationService, allowedOrigin: environment.FRONTEND_URL },
+    access: { service: accessService, verifier },
     journals: {
       service: journalService,
       verifier,

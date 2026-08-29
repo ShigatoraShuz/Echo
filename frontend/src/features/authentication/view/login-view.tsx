@@ -6,7 +6,8 @@ import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
 import { AuthFormField } from "../components/auth-form-field";
 import { AuthStatusMessage } from "../components/auth-status-message";
-import { AuthDivider, GoogleAuthButton } from "../components/google-auth-button";
+import { AuthDivider } from "../components/google-auth-button";
+import { SecureGoogleLoginButton } from "../components/secure-google-login-button";
 import { PasswordField } from "../components/password-field";
 import { useLoginViewModel } from "../view-model/use-login-view-model";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
@@ -24,9 +25,17 @@ export function LoginView({ title, description }: LoginViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
-    email, password, rememberSession, showPassword,
-    status, error, fieldErrors,
-    setEmail, setPassword, setRememberSession, togglePasswordVisibility,
+    email,
+    password,
+    rememberSession,
+    showPassword,
+    status,
+    error,
+    fieldErrors,
+    setEmail,
+    setPassword,
+    setRememberSession,
+    togglePasswordVisibility,
     submit,
   } = useLoginViewModel();
 
@@ -42,7 +51,6 @@ export function LoginView({ title, description }: LoginViewProps) {
     }
   };
 
-  const googleNext = searchParams.get("next");
   const routeError = searchParams.get("error");
 
   return (
@@ -60,7 +68,7 @@ export function LoginView({ title, description }: LoginViewProps) {
           </header>
 
           <div className="mt-4 space-y-2">
-            <GoogleAuthButton intent="login" next={googleNext} />
+            <SecureGoogleLoginButton />
             <AuthDivider />
           </div>
 
@@ -102,7 +110,10 @@ export function LoginView({ title, description }: LoginViewProps) {
                 checked={rememberSession}
                 onChange={(event) => setRememberSession(event.target.checked)}
               />
-              <Link href="/forgot-password" className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+              <Link
+                href="/forgot-password"
+                className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+              >
                 Forgot password?
               </Link>
             </div>
@@ -131,7 +142,10 @@ export function LoginView({ title, description }: LoginViewProps) {
             </div>
             <p className="mt-2 text-xs text-[var(--landing-muted)]">
               New to ECHO?{" "}
-              <Link href="/signup" className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+              <Link
+                href="/signup"
+                className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+              >
                 Create an account
               </Link>
             </p>
@@ -139,7 +153,10 @@ export function LoginView({ title, description }: LoginViewProps) {
         </section>
       </EchoReveal>
 
-      <Link href="/" className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+      <Link
+        href="/"
+        className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+      >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Return home
       </Link>

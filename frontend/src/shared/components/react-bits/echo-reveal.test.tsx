@@ -32,13 +32,13 @@ describe("EchoReveal", () => {
     render(<EchoReveal variant="media">Feature image</EchoReveal>);
 
     const reveal = screen.getByText("Feature image");
-    expect(reveal).toHaveClass("opacity-0", "translate-y-8", "scale-[0.975]");
+    expect(reveal).toHaveClass("opacity-0", "translate-y-6", "scale-[0.985]");
     expect(reveal).toHaveStyle({
-      transitionDuration: "680ms",
+      transitionDuration: "720ms",
       transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
     });
     expect(ControlledIntersectionObserver.options).toEqual({
-      rootMargin: "0px 0px -6% 0px",
+      rootMargin: "0px 0px -8% 0px",
       threshold: 0.08,
     });
 
@@ -56,5 +56,6 @@ describe("EchoReveal", () => {
     render(<EchoReveal variant="card">Feature card</EchoReveal>);
 
     expect(screen.getByText("Feature card")).toHaveClass("echo-scroll-reveal");
+    expect(screen.getByText("Feature card")).not.toHaveClass("motion-reduce:opacity-100");
   });
 });

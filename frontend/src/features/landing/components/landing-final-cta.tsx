@@ -5,7 +5,7 @@ import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 
 export function LandingFinalCta() {
   return (
-    <EchoReveal>
+    <EchoReveal variant="card">
       <section className="rounded-[2rem] bg-gradient-to-br from-primary to-primary/80 p-8 text-center text-primary-foreground shadow-card sm:p-12">
         <Shield className="mx-auto h-10 w-10 text-primary-foreground/80" />
         <h2 className="mt-4 font-serif text-3xl tracking-[-0.04em] sm:text-4xl">Start your private practice</h2>

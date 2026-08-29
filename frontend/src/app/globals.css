@@ -1135,8 +1135,204 @@
   margin-top: 0.75rem !important;
 }
 
+.journal-entry-page > .journal-mood-panel {
+  margin-top: auto !important;
+}
+
+.landing-arch-portrait {
+  border: 5px solid rgba(255, 250, 240, 0.88);
+  border-radius: 999px 999px 0.85rem 0.85rem;
+  outline: 1px solid rgba(83, 103, 51, 0.2);
+  outline-offset: 3px;
+}
+
+.landing-product-showcase-gradient {
+  background: #f5f5f0;
+  background: radial-gradient(
+    circle,
+    rgba(245, 245, 240, 1) 0%,
+    rgba(255, 253, 208, 1) 31%,
+    rgba(216, 238, 182, 1) 45%,
+    rgba(195, 230, 168, 1) 58%,
+    rgba(146, 179, 114, 1) 74%,
+    rgba(110, 142, 74, 1) 80%,
+    rgba(74, 104, 33, 1) 89%,
+    rgba(53, 83, 10, 1) 92%
+  );
+}
+
+.growth-photo-tray {
+  --growth-open: 42%;
+  --growth-closed: calc((58% - 5.25rem) / 7);
+
+  grid-template-columns:
+    var(--growth-open) var(--growth-closed) var(--growth-closed) var(--growth-closed)
+    var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed);
+  transition:
+    grid-template-columns 240ms cubic-bezier(0.77, 0, 0.175, 1),
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.growth-photo-reveal .growth-photo-slice:first-child {
+  border-radius: 1.75rem;
+  filter: saturate(1.06) brightness(1.02);
+}
+
+.growth-photo-slice {
+  transition:
+    border-radius 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    filter 180ms ease,
+    opacity 180ms ease,
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.growth-photo-slice__image {
+  transition: transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .growth-photo-reveal:hover .growth-photo-tray {
+    background-color: rgba(18, 27, 22, 0.32);
+    box-shadow: 0 30px 96px rgba(25, 38, 28, 0.28);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(2):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-open) var(--growth-closed) var(--growth-closed)
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(3):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-open) var(--growth-closed)
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(4):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-open)
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(5):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed)
+      var(--growth-open) var(--growth-closed) var(--growth-closed) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(6):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed)
+      var(--growth-closed) var(--growth-open) var(--growth-closed) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(7):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed)
+      var(--growth-closed) var(--growth-closed) var(--growth-open) var(--growth-closed);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:nth-child(8):is(:hover, :focus-visible)) {
+    grid-template-columns:
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-closed)
+      var(--growth-closed) var(--growth-closed) var(--growth-closed) var(--growth-open);
+  }
+
+  .growth-photo-reveal:hover .growth-photo-slice {
+    opacity: 0.86;
+    filter: saturate(0.84) brightness(0.9);
+  }
+
+  .growth-photo-reveal:has(.growth-photo-slice:not(:first-child):is(:hover, :focus-visible))
+    .growth-photo-slice:first-child {
+    border-radius: 999px;
+    filter: saturate(0.84) brightness(0.9);
+  }
+
+  .growth-photo-reveal .growth-photo-slice:hover,
+  .growth-photo-reveal .growth-photo-slice:focus-visible {
+    border-radius: 1.75rem;
+    opacity: 1;
+    filter: saturate(1.1) brightness(1.04);
+    transform: translateY(-3px);
+  }
+
+  .growth-photo-slice:hover .growth-photo-slice__image,
+  .growth-photo-slice:focus-visible .growth-photo-slice__image {
+    transform: scale(1.045);
+  }
+
+  .growth-photo-tray:has(.growth-photo-slice:focus-visible) {
+    transition-duration: 0ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .growth-photo-slice,
+  .growth-photo-slice__image,
+  .growth-photo-tray {
+    transition: none;
+  }
+
+  .growth-photo-reveal .growth-photo-slice:hover,
+  .growth-photo-reveal .growth-photo-slice:focus-visible {
+    transform: none;
+  }
+}
+
+.journal-photo-booth-grid {
+  align-items: start;
+  perspective: 900px;
+}
+
+.journal-photo-print {
+  background:
+    linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--card)) 74%, hsl(var(--secondary) / 0.34) 100%);
+  box-shadow:
+    0 12px 24px rgba(23, 45, 37, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transform: rotate(var(--journal-photo-tilt, -1deg));
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.journal-photo-print:nth-child(2n) {
+  --journal-photo-tilt: 1.2deg;
+}
+
+.journal-photo-print:nth-child(3n) {
+  --journal-photo-tilt: -0.6deg;
+}
+
+.journal-photo-print::before {
+  position: absolute;
+  top: -0.35rem;
+  left: 50%;
+  z-index: 1;
+  width: 2.35rem;
+  height: 0.8rem;
+  content: "";
+  border: 1px solid hsl(var(--border) / 0.42);
+  border-radius: 999px;
+  background: hsl(var(--secondary) / 0.52);
+  transform: translateX(-50%) rotate(calc(var(--journal-photo-tilt, -1deg) * -1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .journal-photo-print:hover {
+    box-shadow:
+      0 16px 30px rgba(23, 45, 37, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    transform: translateY(-2px) rotate(0deg);
+  }
+}
+
 .journal-entry-page textarea {
   min-height: 7.5rem !important;
+}
+
+.journal-entry-page .journal-notes-textarea {
+  min-height: 18rem !important;
 }
 
 .journal-book-page::after {
@@ -1297,25 +1493,35 @@
     padding: 1.5rem !important;
   }
 
-  .journal-date-page > .relative > img {
-    height: 18rem;
+  .journal-date-page__media {
     margin-top: 1rem !important;
   }
 
-  .journal-date-page > .relative > blockquote {
-    margin-top: 0.75rem;
+  .journal-date-page__media > img {
+    height: 18rem !important;
+  }
+
+  .journal-date-page__fixed-footer {
+    padding-top: 0.75rem !important;
+  }
+
+  .journal-date-page__fixed-footer blockquote {
     font-size: 0.95rem;
     line-height: 1.35rem;
   }
 
-  .journal-date-page > .relative > div:nth-of-type(2),
-  .journal-date-page > .relative > div:nth-of-type(3) {
+  .journal-date-page__fixed-footer > div {
     margin-top: 0.75rem !important;
   }
 
   .journal-entry-page textarea {
     min-height: 8rem !important;
     line-height: 1.8rem;
+  }
+
+  .journal-entry-page .journal-notes-textarea {
+    min-height: 20rem !important;
+    line-height: 2.25rem;
   }
 
   .journal-feature-rail {
@@ -1377,4 +1583,10 @@
   .echo-dashboard-span-6 {
     grid-column: span 6 / span 6 !important;
   }
+}
+@layer components {
+  .eyebrow { @apply text-xs font-black uppercase tracking-[0.18em] text-[#58743b]; }
+  .auth-wizard-input { @apply h-14 w-full rounded-2xl border border-[#526f3540] bg-[#fffdf7] px-4 text-base outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#526f35] focus:ring-4 focus:ring-[#526f3520]; }
+  .auth-primary { @apply mt-7 flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#526f35] px-6 font-bold text-white transition-transform duration-150 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50; }
+  .auth-back { @apply grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#526f3540] text-[#526f35] transition-transform duration-150 active:scale-[.97]; }
 }

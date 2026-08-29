@@ -2,12 +2,16 @@
   "name": "echo",
   "version": "1.0.0-beta",
   "private": true,
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w frontend\" \"npm run dev -w backend\"",
     "build": "npm run build -w frontend && npm run build -w backend",
     "lint": "npm run lint -w frontend && npm run lint -w backend",
     "typecheck": "npm run typecheck -w frontend && npm run typecheck -w backend",
+    "check:auth-policy": "node scripts/check-auth-password-policy.mjs",
     "test": "npm run test -w frontend && npm run test -w backend",
     "clean": "npm run clean -w frontend && npm run clean -w backend",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\"",

@@ -10,14 +10,18 @@ export interface OnboardingConsentInput {
 }
 
 export interface OnboardingProfileInput {
-  displayName: string;
-  timezone: string;
+  preferredName: string;
+  timezone?: string;
   goals?: string;
   buddyTone?: string;
   startingMood?: string;
 }
 
 export interface OnboardingSetupInput {
+  genderIdentity?: "woman" | "man" | "non_binary" | "self_describe" | "prefer_not_to_say" | null;
+  genderSelfDescription?: string | null;
+  pronouns?: "she_her" | "he_him" | "they_them" | "use_my_name" | "self_describe" | "prefer_not_to_say" | null;
+  pronounsSelfDescription?: string | null;
   theme?: "light" | "dark" | "system";
   notifications?: boolean;
   facialAnalysis?: boolean;
@@ -30,15 +34,18 @@ export class OnboardingService {
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
-      this.database.schema("user_service").from("profiles").upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
-      this.database.schema("user_service").from("notification_preferences").upsert(
-        { user_id: userId },
-        { onConflict: "user_id", ignoreDuplicates: true },
-      ),
-      this.database.schema("user_service").from("privacy_preferences").upsert(
-        { user_id: userId },
-        { onConflict: "user_id", ignoreDuplicates: true },
-      ),
+      this.database
+        .schema("user_service")
+        .from("profiles")
+        .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
+      this.database
+        .schema("user_service")
+        .from("notification_preferences")
+        .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
+      this.database
+        .schema("user_service")
+        .from("privacy_preferences")
+        .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
     ]);
     if (profile.error || notifications.error || privacy.error) {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Onboarding setup could not be prepared.");
@@ -108,11 +115,19 @@ export class OnboardingService {
   async saveProfile(userId: string, input: OnboardingProfileInput) {
     await this.ensureDefaults(userId);
     const updates: Record<string, unknown> = {};
-    if (input.displayName !== undefined) updates.display_name = input.displayName;
+    const preferredName = input.preferredName?.trim().replace(/[<>]/g, "").slice(0, 80);
+    if (!preferredName) throw new ExternalServiceError("INVALID_PROFILE", "A preferred name is required.");
+    updates.display_name = preferredName;
+    updates.preferred_name = preferredName;
+    updates.onboarding_step = 1;
     if (input.timezone !== undefined) updates.timezone = input.timezone;
 
     if (Object.keys(updates).length > 0) {
-      const { error } = await this.database.schema("user_service").from("profiles").update(updates).eq("user_id", userId);
+      const { error } = await this.database
+        .schema("user_service")
+        .from("profiles")
+        .update(updates)
+        .eq("user_id", userId);
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Profile could not be saved.");
     }
 
@@ -121,6 +136,22 @@ export class OnboardingService {
 
   async saveSetup(userId: string, input: OnboardingSetupInput) {
     await this.ensureDefaults(userId);
+
+    const sanitize = (value?: string | null) => value?.trim().replace(/[<>]/g, "").slice(0, 80) || null;
+    const { error: identityError } = await this.database
+      .schema("user_service")
+      .from("profiles")
+      .update({
+        gender_identity: input.genderIdentity ?? null,
+        gender_self_description:
+          input.genderIdentity === "self_describe" ? sanitize(input.genderSelfDescription) : null,
+        pronouns: input.pronouns ?? null,
+        pronouns_self_description: input.pronouns === "self_describe" ? sanitize(input.pronounsSelfDescription) : null,
+        onboarding_step: 2,
+      })
+      .eq("user_id", userId);
+    if (identityError)
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Identity preferences could not be saved.");
 
     if (input.notifications !== undefined) {
       const { error } = await this.database
@@ -148,7 +179,12 @@ export class OnboardingService {
     const { error } = await this.database
       .schema("user_service")
       .from("profiles")
-      .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
+      .update({
+        onboarding_completed: true,
+        onboarding_step: 3,
+        onboarding_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq("user_id", userId);
 
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Could not complete onboarding.");
@@ -161,10 +197,16 @@ export class OnboardingService {
       this.database
         .schema("user_service")
         .from("profiles")
-        .select("onboarding_completed, display_name, timezone")
+        .select(
+          "onboarding_completed, onboarding_step, display_name, preferred_name, timezone, gender_identity, gender_self_description, pronouns, pronouns_self_description",
+        )
         .eq("user_id", userId)
         .single(),
-      this.database.schema("user_service").from("user_consents").select("consent_type, accepted, accepted_at").eq("user_id", userId),
+      this.database
+        .schema("user_service")
+        .from("user_consents")
+        .select("consent_type, accepted, accepted_at")
+        .eq("user_id", userId),
     ]);
 
     const profile = profileResult.data as Record<string, unknown> | null;
@@ -172,7 +214,15 @@ export class OnboardingService {
 
     return {
       onboardingCompleted: Boolean(profile?.onboarding_completed),
+      onboardingStep: Number(profile?.onboarding_step ?? 0),
       displayName: typeof profile?.display_name === "string" ? profile.display_name : "",
+      preferredName: typeof profile?.preferred_name === "string" ? profile.preferred_name : "",
+      genderIdentity: typeof profile?.gender_identity === "string" ? profile.gender_identity : null,
+      genderSelfDescription:
+        typeof profile?.gender_self_description === "string" ? profile.gender_self_description : null,
+      pronouns: typeof profile?.pronouns === "string" ? profile.pronouns : null,
+      pronounsSelfDescription:
+        typeof profile?.pronouns_self_description === "string" ? profile.pronouns_self_description : null,
       timezone: typeof profile?.timezone === "string" ? profile.timezone : "UTC",
       consents: Object.fromEntries(consents.map((c) => [c.consent_type, c.accepted])),
     };
