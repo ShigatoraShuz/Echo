@@ -99,6 +99,25 @@ describe("createApiClient", () => {
     );
   });
 
+  it("sends binary PUT bodies without JSON serialization and keeps correlation headers", async () => {
+    mockFetch(200, {});
+    const client = createApiClient({ baseUrl: "http://localhost:8000" });
+    const file = new File(["document"], "identity.txt", { type: "text/plain" });
+    await client.put("/api/upload", file, { headers: { "Content-Type": file.type } });
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/upload",
+      expect.objectContaining({
+        method: "PUT",
+        body: file,
+        headers: expect.objectContaining({
+          "Content-Type": "text/plain",
+          "X-Request-Id": expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+        }),
+      })
+    );
+  });
+
   it("sends DELETE request", async () => {
     mockFetch(200, {});
     const client = createApiClient({ baseUrl: "http://localhost:8000" });
@@ -168,6 +187,23 @@ describe("createApiClient", () => {
   });
 
   describe("envelope contract parsing (ECHO-009)", () => {
+    it("preserves canonical field validation details and the server request id", async () => {
+      mockFetch(400, {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "The request is invalid.",
+          details: { fields: [{ field: "displayName", message: "Display name is required." }] },
+        },
+        meta: { requestId: "00000000-0000-4000-8000-000000000009" },
+      });
+      const client = createApiClient({ baseUrl: "http://localhost:8000" });
+      await expect(client.get("/api/test")).rejects.toMatchObject({
+        fieldErrors: [{ field: "displayName", message: "Display name is required." }],
+        requestId: "00000000-0000-4000-8000-000000000009",
+      });
+    });
+
     it("returns the canonical success envelope body for adapters to unwrap", async () => {
       mockFetch(200, { success: true, data: { id: "1" }, meta: { requestId: "req_1" } });
       const client = createApiClient({ baseUrl: "http://localhost:8000" });

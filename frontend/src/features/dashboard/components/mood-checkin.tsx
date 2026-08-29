@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Frown, Meh, Smile, Heart, Angry } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
-type QuickMood = "awful" | "bad" | "okay" | "good" | "great";
+export type QuickMood = "awful" | "bad" | "okay" | "good" | "great";
 
 const MOODS: Array<{ value: QuickMood; icon: typeof Heart; label: string }> = [
   { value: "awful", icon: Angry, label: "Awful" },

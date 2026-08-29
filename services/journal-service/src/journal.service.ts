@@ -4,6 +4,7 @@ import type { Encryption, EncryptedPayload } from "./encryption.js";
 
 export type JournalInput = { title: string; body: string; mood: "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry"; emotions: string[]; tags: string[]; privacyStatus: "private" | "shared"; analysisConsent: boolean };
 export type JournalDraftInput = JournalInput;
+export type JournalListQuery = { page: number; pageSize: number; query: string; mood?: JournalInput["mood"]; dateFrom?: string; dateTo?: string; sort: "newest" | "oldest" };
 type Row = Record<string, unknown>;
 
 const text = (value: unknown, fallback = "") => typeof value === "string" ? value : fallback;
@@ -26,10 +27,31 @@ export class JournalService {
     const clear = this.decrypt(row);
     return { id: text(row.id), ...clear, excerpt: clear.body.slice(0, 180), mood: text(row.mood, "neutral"), emotions: strings(row.emotions), tags: strings(row.tags), privacy_status: text(row.privacy_status, "private"), analysis_consent: row.analysis_consent === true, risk_score: 0, risk_band: "low" as const, summary: "Analysis is available from the analysis endpoint.", perspective: null, created_at: text(row.created_at), updated_at: text(row.updated_at) };
   }
-  async list(userId: string) {
+  async list(userId: string, query: JournalListQuery = { page: 1, pageSize: 20, query: "", sort: "newest" }) {
     const { data, error } = await this.database.from("journals").select("*").eq("user_id", userId).is("deleted_at", null).order("entry_date", { ascending: false });
     if (error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "The journal service is temporarily unavailable.");
-    return ((data ?? []) as Row[]).map((row) => this.response(row));
+    const search = query.query.toLocaleLowerCase();
+    const entries = ((data ?? []) as Row[])
+      .map((row) => ({ entry: this.response(row), entryDate: text(row.entry_date, text(row.created_at).slice(0, 10)) }))
+      .filter(({ entry, entryDate }) =>
+        (!query.mood || entry.mood === query.mood) &&
+        (!query.dateFrom || entryDate >= query.dateFrom) &&
+        (!query.dateTo || entryDate <= query.dateTo) &&
+        (!search || [entry.title, entry.body, ...entry.tags, ...entry.emotions].some((value) => value.toLocaleLowerCase().includes(search)))
+      )
+      .sort((left, right) => {
+        const dateOrder = left.entry.created_at.localeCompare(right.entry.created_at);
+        const stableOrder = dateOrder || left.entry.id.localeCompare(right.entry.id);
+        return query.sort === "oldest" ? stableOrder : -stableOrder;
+      })
+      .map(({ entry }) => entry);
+    const start = (query.page - 1) * query.pageSize;
+    return {
+      entries: entries.slice(start, start + query.pageSize),
+      total: entries.length,
+      page: query.page,
+      page_size: query.pageSize,
+    };
   }
   async get(userId: string, journalId: string) {
     const { data, error } = await this.database.from("journals").select("*").eq("id", journalId).eq("user_id", userId).is("deleted_at", null).maybeSingle();

@@ -6,7 +6,7 @@ export const journalMoodSchema = z.enum(["calm", "happy", "neutral", "sad", "anx
 
 export const journalPrivacyStatusSchema = z.enum(["private", "shared"]);
 
-export const journalSortOptionSchema = z.enum(["newest", "oldest", "highest-risk", "lowest-risk"]);
+export const journalSortOptionSchema = z.enum(["newest", "oldest"]);
 
 export const createJournalSchema = z.object({
   title: z
@@ -28,7 +28,7 @@ export const updateJournalSchema = createJournalSchema.partial();
 
 const MOODS: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
 const PRIVACY_STATUSES: JournalPrivacyStatus[] = ["private", "shared"];
-const SORT_OPTIONS: JournalSortOption[] = ["newest", "oldest", "highest-risk", "lowest-risk"];
+const SORT_OPTIONS: JournalSortOption[] = ["newest", "oldest"];
 
 export function isValidMood(value: string): value is JournalMood {
   return MOODS.includes(value as JournalMood);
@@ -73,6 +73,4 @@ export const MOOD_LABELS: Record<JournalMood, string> = {
 export const SORT_LABELS: Record<JournalSortOption, string> = {
   newest: "Newest first",
   oldest: "Oldest first",
-  "highest-risk": "Highest distress signal",
-  "lowest-risk": "Lowest distress signal",
 };

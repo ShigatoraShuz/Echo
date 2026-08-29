@@ -3,12 +3,16 @@ from hashlib import sha256
 from hmac import new
 from types import SimpleNamespace
 
+import pytest
+from pydantic import ValidationError
+
 os.environ.setdefault("ANALYSIS_SERVICE_TOKEN", "test-analysis-token")
 
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.api.routes.analysis import internal_headers
+from app.core.config import Settings
+from app.main import app
 
 
 def test_health_is_available_without_internal_credentials() -> None:
@@ -30,7 +34,10 @@ def test_analysis_rejects_missing_signed_gateway_identity() -> None:
         )
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid gateway identity."}
+    assert response.json()["error"] == {
+        "code": "AUTHENTICATION_ERROR",
+        "message": "Invalid gateway identity.",
+    }
 
 
 def test_internal_headers_use_only_the_target_service_token() -> None:
@@ -48,6 +55,19 @@ def test_internal_headers_use_only_the_target_service_token() -> None:
     ).hexdigest()
 
 
+def test_production_analysis_configuration_fails_fast_when_dependencies_are_missing() -> None:
+    token = "x" * 32
+    with pytest.raises(ValidationError, match="Production analysis configuration is missing"):
+        Settings(
+            app_env="production",
+            analysis_service_token=token,
+            user_service_token=token,
+            journal_service_token=token,
+            ml_service_token=token,
+            recommendation_service_token=token,
+        )
+
+
 def test_oversized_requests_are_rejected_before_body_processing() -> None:
     with TestClient(app) as client:
         response = client.post(
@@ -59,6 +79,7 @@ def test_oversized_requests_are_rejected_before_body_processing() -> None:
         )
 
     assert response.status_code == 413
+    assert response.json()["error"]["code"] == "REQUEST_REJECTED"
 
 
 def test_chunked_oversized_requests_are_rejected_without_content_length() -> None:
@@ -76,6 +97,7 @@ def test_chunked_oversized_requests_are_rejected_without_content_length() -> Non
         )
 
     assert response.status_code == 413
+    assert response.json()["error"]["code"] == "REQUEST_REJECTED"
 
 
 def test_rate_limit_returns_429_after_the_per_minute_budget() -> None:
@@ -87,4 +109,5 @@ def test_rate_limit_returns_429_after_the_per_minute_budget() -> None:
 
     assert responses[0].status_code == 200
     assert responses[-1].status_code == 429
+    assert responses[-1].json()["error"]["code"] == "RATE_LIMITED"
     assert responses[-1].headers["retry-after"] == str(get_settings().rate_limit_window_seconds)

@@ -1,25 +1,25 @@
 import { z } from "zod";
 
-export const apiErrorCodeSchema = z.enum([
-  "VALIDATION_ERROR",
-  "AUTHENTICATION_REQUIRED",
-  "INVALID_ACCESS_TOKEN",
-  "RESOURCE_FORBIDDEN",
-  "JOURNAL_NOT_FOUND",
-  "ANALYSIS_ALREADY_RUNNING",
-  "CONSENT_REQUIRED",
-  "AI_SERVICE_UNAVAILABLE",
-  "AI_RESPONSE_INVALID",
-  "RATE_LIMIT_EXCEEDED",
-  "INTERNAL_SERVER_ERROR",
-  "NOT_FOUND",
-]);
+export const apiErrorCodeSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
+export const apiFieldErrorSchema = z.object({
+  field: z.string().min(1),
+  message: z.string().min(1),
+});
 
 export const apiErrorPayloadSchema = z.object({
   code: apiErrorCodeSchema,
   message: z.string().min(1),
-  details: z.record(z.string(), z.unknown()).optional(),
+  details: z.object({
+    fields: z.array(apiFieldErrorSchema).optional(),
+  }).catchall(z.unknown()).optional(),
+});
+
+export const apiErrorEnvelopeSchema = z.object({
+  success: z.literal(false),
+  error: apiErrorPayloadSchema,
+  meta: z.object({ requestId: z.string().uuid() }),
 });
 
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 export type ApiErrorPayload = z.infer<typeof apiErrorPayloadSchema>;
+export type ApiErrorEnvelope = z.infer<typeof apiErrorEnvelopeSchema>;

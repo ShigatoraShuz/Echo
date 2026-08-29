@@ -11,7 +11,14 @@ MAX_BODY_BYTES = 64 * 1024
 
 
 def _error_response(status_code: int, detail: str, request_id: str) -> JSONResponse:
-    response = JSONResponse(status_code=status_code, content={"detail": detail})
+    response = JSONResponse(
+        status_code=status_code,
+        content={
+            "success": False,
+            "error": {"code": "REQUEST_REJECTED", "message": detail},
+            "meta": {"requestId": request_id},
+        },
+    )
     response.headers["x-request-id"] = request_id
     response.headers["cache-control"] = "no-store"
     response.headers["x-content-type-options"] = "nosniff"
@@ -100,7 +107,14 @@ async def rate_limit_middleware(request: Request, call_next):
         # Middleware layers receive separate Request instances, so the request
         # id set by the outer request-id middleware is not visible here.
         request_id = getattr(request.state, "request_id", None) or str(uuid4())
-        response = JSONResponse(status_code=429, content={"detail": "Too many requests."})
+        response = JSONResponse(
+            status_code=429,
+            content={
+                "success": False,
+                "error": {"code": "RATE_LIMITED", "message": "Too many requests."},
+                "meta": {"requestId": request_id},
+            },
+        )
         response.headers["x-request-id"] = request_id
         response.headers["retry-after"] = str(settings.rate_limit_window_seconds)
         response.headers["cache-control"] = "no-store"

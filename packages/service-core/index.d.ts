@@ -19,6 +19,9 @@ export class ServiceError extends Error {
 export function env(name: string, fallback?: string): string;
 export function positiveIntegerEnv(name: string, fallback: number): number;
 export function secretEnv(name: string, minimumLength?: number): string;
+export interface AesGcmPayload { ciphertext: string; iv: string; authenticationTag: string; keyVersion: number }
+export interface AesGcmEncryption { encrypt(plaintext: string): AesGcmPayload; decrypt(payload: AesGcmPayload): string }
+export function createAesGcmEncryption(keyBase64: string, keyVersion: number): AesGcmEncryption;
 export interface OwnedDatabase {
   from(table: string): ReturnType<SupabaseClient["from"]>;
   storage: SupabaseClient["storage"];

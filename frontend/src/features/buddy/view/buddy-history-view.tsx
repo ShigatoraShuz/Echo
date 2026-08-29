@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BadgeCheck, Bot, LockKeyhole, Search } from "lucide-react";
+import { BadgeCheck, Bot, LockKeyhole } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
@@ -36,26 +36,7 @@ export function BuddyHistoryView() {
         action={<Link href="/buddy" className="echo-button-primary"><Bot className="h-4 w-4" aria-hidden="true" />Open Buddy</Link>}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <EchoCard title="Filters" description="Static filter controls for future search.">
-          <div className="space-y-3">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" aria-hidden="true" />
-              <input className="echo-input pl-10" placeholder="Search conversations" />
-            </label>
-            <select className="echo-input">
-              <option>All moods</option>
-              <option>Calm</option>
-              <option>Anxious</option>
-            </select>
-            <select className="echo-input">
-              <option>Newest first</option>
-              <option>Most messages</option>
-            </select>
-          </div>
-        </EchoCard>
-
-        <div className="space-y-5">
+      <div className="space-y-5">
           <EchoCard title="Sessions" description="Conversation summaries and message counts.">
             <div className="grid gap-3">
               {vm.conversations.map((conversation) => (
@@ -79,7 +60,6 @@ export function BuddyHistoryView() {
               ))}
             </div>
           </EchoCard>
-        </div>
       </div>
     </div>
   );

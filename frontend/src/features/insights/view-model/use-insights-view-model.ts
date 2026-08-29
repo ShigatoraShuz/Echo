@@ -51,34 +51,18 @@ export function useInsightsViewModel() {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     dispatch({ type: "LOAD_START" });
-    const [summaryResult, breakdownResult, riskResult, facialResult] = await Promise.all([
-      service.getEmotionSummary(timeRange, abortRef.current.signal),
-      service.getJournalBreakdown(timeRange, abortRef.current.signal),
-      service.getRiskSignal(abortRef.current.signal),
-      service.getFacialTrend(abortRef.current.signal),
-    ]);
+    const summaryResult = await service.getEmotionSummary(timeRange, abortRef.current.signal);
     if (!summaryResult.success) {
       dispatch({ type: "LOAD_ERROR", error: summaryResult.error.message });
       return;
     }
-    // The remaining insights are optional: the backend may not implement them
-    // yet, in which case the emotion summary still renders.
-    const riskTrend: TrendPoint[] = riskResult.success
-      ? riskResult.data.history.map((point) => ({
-          label: point.date,
-          value: point.score,
-          band: point.band,
-        }))
-      : [];
     dispatch({
       type: "LOAD_SUCCESS",
       summary: summaryResult.data,
-      breakdown: breakdownResult.success ? breakdownResult.data : [],
-      risk: riskResult.success
-        ? riskResult.data
-        : { score: 0, band: "low", label: "Unavailable", history: [], supportingFactors: [] },
-      facialTrend: facialResult.success ? facialResult.data.points : [],
-      riskTrend,
+      breakdown: [],
+      risk: { score: 0, band: "low", label: "Unavailable", history: [], supportingFactors: [] },
+      facialTrend: [],
+      riskTrend: [],
     });
   }, [service]);
 

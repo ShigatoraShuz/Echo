@@ -19,16 +19,23 @@ remain available without verification.
 
 ## Grant an administrator
 
-The account must already exist in Supabase Auth. From `backend/`, run:
+The account must already exist in Supabase Auth. There is no browser-facing or
+repository CLI that can self-grant reviewer privileges. Using an authorized
+local/admin database connection, insert the user's UUID into the canonical
+table:
 
-```powershell
-npm.cmd run admin:verification -- admin@example.com
+```sql
+insert into public.verification_admins (user_id, is_active)
+values ('00000000-0000-4000-8000-000000000000', true)
+on conflict (user_id) do update set is_active = excluded.is_active;
 ```
 
 To revoke future review access:
 
-```powershell
-npm.cmd run admin:verification -- admin@example.com --revoke
+```sql
+update public.verification_admins
+set is_active = false
+where user_id = '00000000-0000-4000-8000-000000000000';
 ```
 
 Authorization is checked against `verification_admins` on every review request.
@@ -36,10 +43,10 @@ It is not inferred from client-side state or editable user metadata.
 
 ## Data handling
 
-- Structured identity, guardian, and review-note data is encrypted by the
-  backend before storage.
+- Structured identity, guardian, and review-note data is encrypted by User
+  Service before storage.
 - Evidence is stored in the private `verification-documents` bucket.
-- Reviewers receive five-minute signed links after backend authorization.
+- Reviewers receive five-minute signed links after User Service authorization.
 - Browser roles have no table privileges or RLS policies on the verification
   tables.
 - Documents are limited to JPG, PNG, or PDF files no larger than 8 MB.

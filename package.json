@@ -8,9 +8,10 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "node --test scripts/check-architecture.test.mjs && npm run test --workspaces --if-present",
     "architecture:check": "node scripts/check-architecture.mjs",
     "environment:check": "node scripts/check-environment-contracts.mjs",
+    "local:secrets": "node scripts/generate-local-secrets.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\""
   },
   "engines": {

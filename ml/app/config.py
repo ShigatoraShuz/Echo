@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     port: int = Field(default=8001, ge=1, le=65535)
     ml_service_token: str = ""
     base_model_id: str = "microsoft/Phi-4-mini-instruct"
-    lora_adapter_path: str = "/models/echo-adapter"
+    lora_adapter_path: str = "./model-artifacts"
     model_version: str = "phi4-mini-echo-v1"
-    device: str = "cuda"
+    device: str = "cpu"
 
     @model_validator(mode="after")
     def production_token(self) -> "Settings":

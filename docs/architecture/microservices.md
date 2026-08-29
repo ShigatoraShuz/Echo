@@ -66,6 +66,7 @@ Internal-only routes:
 
 - Journal `GET /api/v1/internal/journals/:id/analysis-input`
 - User `GET /api/v1/internal/verification`
+- User `GET /api/v1/internal/analysis-access` (verification plus active account-level journal-analysis consent)
 - User `POST /api/v1/internal/notifications` and `/api/v1/internal/audit-events`
 - Recommendation `POST /api/v1/internal/recommendations`
 - ML `POST /v1/infer` and `GET /v1/model`
@@ -124,7 +125,7 @@ Authentication: browser signs in with Supabase Auth, sends the access token to t
 
 Journal creation/retrieval: browser → gateway → Journal Service → role-scoped `journals`/`journal_drafts` tables. Plaintext is encrypted before persistence and decrypted only inside Journal Service.
 
-Journal analysis: browser → gateway → Analysis Service → User verification API → Journal analysis-input API → ML inference API → Analysis-owned result table → Recommendation API → response. ML unavailability marks/returns failure and never invents a score.
+Journal analysis: browser → gateway → Analysis Service → User analysis-access API (verification plus account-level consent) → Journal analysis-input API (per-entry consent) → ML inference API → Analysis-owned result table → Recommendation API → response. ML unavailability marks/returns failure and never invents a score.
 
 PHQ-8: browser → gateway → Assessment Service. Exactly eight answers in the range 0–3 are summed into the established severity bands; the response includes a non-diagnostic disclaimer.
 

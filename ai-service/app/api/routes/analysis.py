@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from hmac import new
 from time import time
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 import httpx
@@ -18,7 +18,7 @@ router = APIRouter()
 class InferenceResult(BaseModel):
     request_id: UUID
     phq8_score: int = Field(ge=0, le=24)
-    severity: str
+    severity: Literal["minimal", "mild", "moderate", "moderately_severe", "severe"]
     urgent_language_detected: bool
     model_version: str
     processing_time_ms: int = Field(ge=0)
@@ -53,6 +53,11 @@ def db_headers(prefer: str | None = None) -> dict[str, str]:
 
 async def checked_json(response: httpx.Response, service: str) -> Any:
     if response.status_code >= 400:
+        if service == "ml-service" and response.status_code == 503:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Validated model currently unavailable.",
+            )
         code = (
             status.HTTP_504_GATEWAY_TIMEOUT if response.status_code == 504 else response.status_code
         )
@@ -67,10 +72,13 @@ async def checked_json(response: httpx.Response, service: str) -> Any:
         ) from error
 
 
-async def verify_access(client: httpx.AsyncClient, request: Request, user_id: str) -> None:
+async def verify_access(
+    client: httpx.AsyncClient, request: Request, user_id: str, *, require_consent: bool
+) -> None:
     settings = get_settings()
+    path = "analysis-access" if require_consent else "verification"
     response = await client.get(
-        f"{settings.user_service_url.rstrip('/')}/api/v1/internal/verification",
+        f"{settings.user_service_url.rstrip('/')}/api/v1/internal/{path}",
         headers=internal_headers(request, user_id, settings.user_service_token),
     )
     await checked_json(response, "user-service")
@@ -86,7 +94,7 @@ async def analyze(
     async with httpx.AsyncClient(timeout=httpx.Timeout(settings.request_timeout_seconds)) as client:
         pending_id: str | None = None
         try:
-            await verify_access(client, request, user_id)
+            await verify_access(client, request, user_id, require_consent=True)
             journal_response = await client.get(
                 f"{settings.journal_service_url.rstrip('/')}/api/v1/internal/journals/{journal_id}/analysis-input",
                 headers=internal_headers(request, user_id, settings.journal_service_token),
@@ -220,7 +228,7 @@ async def latest_analysis(
     query = f"journal_id=eq.{journal_id}&user_id=eq.{user_id}&order=created_at.desc&limit=1"
     async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
         try:
-            await verify_access(client, request, user_id)
+            await verify_access(client, request, user_id, require_consent=False)
             rows = await checked_json(
                 await client.get(
                     f"{settings.supabase_url.rstrip('/')}/rest/v1/journal_analyses?{query}",

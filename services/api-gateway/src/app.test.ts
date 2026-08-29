@@ -42,6 +42,54 @@ describe("API gateway", () => {
       .post("/api/v1/journals/00000000-0000-4000-8000-000000000002/analyze").set("authorization", "Bearer user-token");
     expect(String(upstream.mock.calls[0]?.[0])).toContain("http://analysis/");
   });
+  it("preserves a valid caller request id end to end", async () => {
+    const requestId = "00000000-0000-4000-8000-000000000099";
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: [] }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .get("/api/v1/journals")
+      .set("authorization", "Bearer user-token")
+      .set("x-request-id", requestId);
+    const headers = upstream.mock.calls[0]?.[1]?.headers as Headers;
+    expect(response.headers["x-request-id"]).toBe(requestId);
+    expect(headers.get("x-request-id")).toBe(requestId);
+  });
+  it("replaces malformed caller request ids with a UUID", async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .get("/api/v1/journals")
+      .set("authorization", "Bearer user-token")
+      .set("x-request-id", "not-a-uuid");
+    expect(response.headers["x-request-id"]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  });
+  it.each([
+    ["/api/v1/onboarding/status", "http://user"],
+    ["/api/v1/settings", "http://user"],
+    ["/api/v1/verification", "http://user"],
+    ["/api/v1/admin/verifications", "http://user"],
+    ["/api/v1/moods", "http://assessment"],
+    ["/api/v1/assessments/phq8", "http://assessment"],
+    ["/api/v1/recommendations", "http://recommendation"],
+    ["/api/v1/buddy/session", "http://wellness"],
+    ["/api/v1/grounding/sessions", "http://wellness"],
+    ["/api/v1/dashboard", "http://insights"],
+    ["/api/v1/insights/emotions", "http://insights"],
+  ])("routes %s to its owning service", async (path, expectedUpstream) => {
+    const upstream = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", upstream);
+    await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .get(path).set("authorization", "Bearer user-token");
+    expect(String(upstream.mock.calls[0]?.[0])).toBe(`${expectedUpstream}${path}`);
+  });
+  it("routes public support resources without requiring a user token", async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createGatewayApp(config, async () => null))
+      .get("/api/v1/support-resources");
+    expect(response.status).toBe(200);
+    expect(String(upstream.mock.calls[0]?.[0])).toBe("http://wellness/api/v1/support-resources");
+  });
   it("fails closed on invalid auth", async () => {
     const response = await request(createGatewayApp(config, async () => null)).get("/api/v1/journals").set("authorization", "Bearer bad");
     expect(response.status).toBe(401);

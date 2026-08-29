@@ -54,7 +54,7 @@ paths:
       summary: Request analysis through Analysis and ML services
       responses:
         "201": { description: Analysis completed }
-        "403": { description: Consent or verification required }
+        "403": { description: Verification, account consent, or per-entry consent required }
         "503": { description: ML or another dependency unavailable }
         "504": { description: Dependency timeout }
   /journals/{journalId}/analyses:
@@ -124,14 +124,123 @@ paths:
     get:
       summary: Get account settings
       responses: { "200": { description: Settings } }
+  /settings/profile:
+    patch:
+      summary: Update profile settings
+      responses: { "200": { description: Profile updated } }
+  /settings/privacy:
+    patch:
+      summary: Update privacy settings
+      responses: { "200": { description: Privacy settings updated } }
+  /settings/notifications:
+    patch:
+      summary: Update notification settings
+      responses: { "200": { description: Notification settings updated } }
+  /settings/trusted-contacts:
+    post:
+      summary: Create a trusted contact
+      responses: { "201": { description: Contact created } }
+  /settings/trusted-contacts/{contactId}:
+    parameters:
+      - name: contactId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Update a trusted contact
+      responses: { "200": { description: Contact updated } }
+    delete:
+      summary: Delete a trusted contact
+      responses: { "200": { description: Contact deleted } }
+  /settings/data-exports:
+    post:
+      summary: Request an account data export
+      responses: { "201": { description: Export requested } }
+  /settings/account-deletion:
+    post:
+      summary: Request account deletion
+      responses: { "201": { description: Deletion requested } }
+  /settings/account-deletion/{requestId}/cancel:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Cancel a pending account deletion request
+      responses: { "200": { description: Deletion request cancelled } }
   /onboarding/status:
     get:
       summary: Get onboarding status
       responses: { "200": { description: Onboarding status } }
+  /onboarding/consent:
+    post:
+      summary: Save onboarding consent choices
+      responses: { "200": { description: Consent saved } }
+  /onboarding/profile:
+    post:
+      summary: Save onboarding profile data
+      responses: { "200": { description: Profile saved } }
+  /onboarding/setup:
+    post:
+      summary: Save onboarding setup choices
+      responses: { "200": { description: Setup saved } }
+  /onboarding/complete:
+    post:
+      summary: Complete onboarding
+      responses: { "200": { description: Onboarding completed } }
   /verification:
     get:
       summary: Get verification status
       responses: { "200": { description: Verification status } }
+  /verification/application:
+    put:
+      summary: Save a verification application
+      responses: { "200": { description: Application saved } }
+  /verification/documents/{kind}:
+    parameters:
+      - name: kind
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      summary: Upload a verification document
+      responses: { "200": { description: Document uploaded }, "413": { description: Document too large } }
+  /verification/submit:
+    post:
+      summary: Submit a verification application
+      responses: { "200": { description: Application submitted } }
+  /admin/verifications:
+    get:
+      summary: List verification applications for an authorized administrator
+      responses: { "200": { description: Verification list }, "403": { description: Administrator access required } }
+  /admin/verifications/{verificationId}:
+    parameters:
+      - name: verificationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get verification detail for an authorized administrator
+      responses: { "200": { description: Verification detail } }
+  /admin/verifications/{verificationId}/claim:
+    parameters:
+      - name: verificationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Claim a submitted verification for review
+      responses: { "200": { description: Review claimed }, "409": { description: Already claimed or reviewed } }
+  /admin/verifications/{verificationId}/decision:
+    parameters:
+      - name: verificationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Record a verification decision
+      responses: { "200": { description: Decision recorded }, "409": { description: Already reviewed } }
 components:
   securitySchemes:
     bearerAuth:

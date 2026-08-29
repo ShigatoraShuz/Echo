@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Camera, CheckCircle2, Smartphone, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Smartphone, Loader2, Sparkles } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
 import { PrivacyNotice } from "@/shared/components/echo";
@@ -11,7 +11,6 @@ import { getOnboardingService } from "@/services/onboarding/onboarding-service.f
 export default function SetupOnboardingPage() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [facialAnalysisEnabled, setFacialAnalysisEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +47,7 @@ export default function SetupOnboardingPage() {
       <PageHeader
         label="Onboarding · Step 3 of 3"
         title="Finish setup & enter ECHO"
-        description="Review optional camera and notification preferences before opening your private dashboard."
+        description="Review notification preferences before opening your private dashboard."
       />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -62,37 +61,6 @@ export default function SetupOnboardingPage() {
           description="You maintain complete control. Every setting can be adjusted anytime from Settings."
         >
           <div className="space-y-4">
-            {/* Camera / Facial Trend Permission Card */}
-            <div className="rounded-2xl border border-border/70 bg-card p-4 transition-colors">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex gap-3">
-                  <Camera className="mt-0.5 h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Facial emotion analysis is optional</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Camera check-ins run only when you explicitly start them. Video is processed locally and never stored.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setFacialAnalysisEnabled(!facialAnalysisEnabled)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                    facialAnalysisEnabled ? "bg-[var(--landing-primary)]" : "bg-muted"
-                  }`}
-                  role="switch"
-                  aria-checked={facialAnalysisEnabled}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                      facialAnalysisEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-
             {/* Notification Permission Card */}
             <div className="rounded-2xl border border-border/70 bg-card p-4 transition-colors">
               <div className="flex items-start justify-between gap-3">

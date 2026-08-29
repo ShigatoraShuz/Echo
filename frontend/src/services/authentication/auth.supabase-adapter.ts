@@ -1,5 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { createApiClient } from "@/infrastructure/api/api-client";
+import { env } from "@/config/environment";
 import type { AuthSession } from "@/features/authentication/model/auth.model";
 import { SIGNUP_CONSENT_VERSION } from "@/features/authentication/model/auth.schema";
 import type { AuthService, AuthServiceResult } from "@/services/authentication/auth.service";
@@ -43,6 +45,19 @@ function registerVolatileSession(client: ReturnType<typeof createBrowserSupabase
   return () => {
     window.removeEventListener("beforeunload", signOutOnClose);
   };
+}
+
+async function persistSignupProfile(session: Session, displayName: string): Promise<void> {
+  const api = createApiClient({
+    baseUrl: env.apiBaseUrl,
+    tokenProvider: {
+      getAccessToken: async () => session.access_token,
+      refreshAccessToken: async () => session.access_token,
+      clearSession: async () => undefined,
+    },
+  });
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  await api.post("/onboarding/profile", { displayName, timezone });
 }
 
 export function createAuthSupabaseAdapter(): AuthService {
@@ -95,14 +110,14 @@ export function createAuthSupabaseAdapter(): AuthService {
           },
         };
       }
-      const { error: profileError } = await client
-        .from("profiles")
-        .update({ display_name: input.name })
-        .eq("id", data.session.user.id);
-      if (profileError) {
+      try {
+        // Supabase owns identity only. Protected profile data is persisted by
+        // User Service through the authenticated public Gateway boundary.
+        await persistSignupProfile(data.session, input.name);
+      } catch {
         // The auth trigger creates the profile row; losing this write only
-        // leaves the trigger's default display name in place.
-        console.warn("[auth.supabase] Could not persist display name on signup", profileError.message);
+        // leaves the trigger's metadata-derived default display name in place.
+        console.warn("[auth.supabase] Could not persist signup profile through User Service.");
       }
       return { success: true, data: toSession(data.session) };
     },

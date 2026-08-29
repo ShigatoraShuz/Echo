@@ -21,6 +21,8 @@ import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
 import { settingsService } from "@/services/settings/settings.service";
+import { assessmentService } from "@/services/assessment/assessment.service";
+import { MoodCheckIn, type QuickMood } from "../components/mood-checkin";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 
 function DashboardCard({
@@ -148,6 +150,19 @@ export function DashboardView() {
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(
     null,
   );
+  const [moodSaveStatus, setMoodSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+
+  async function saveMood(mood: QuickMood) {
+    setMoodSaveStatus("saving");
+    try {
+      await assessmentService.recordMood(mood);
+      setMoodSaveStatus("saved");
+    } catch {
+      setMoodSaveStatus("error");
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -282,6 +297,20 @@ export function DashboardView() {
             </Link>
           </div>
         </header>
+
+        <section aria-label="Mood check-in">
+          <MoodCheckIn onSelect={(mood) => void saveMood(mood)} />
+          <p
+            className="mt-2 min-h-5 text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            {moodSaveStatus === "saving" && "Saving your private check-in..."}
+            {moodSaveStatus === "saved" && "Your check-in was saved."}
+            {moodSaveStatus === "error" &&
+              "Your check-in could not be saved. Please try again."}
+          </p>
+        </section>
 
         {/* DASHBOARD GRID */}
         <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">

@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from hmac import compare_digest
+from time import perf_counter
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel, Field
 
 from .config import get_settings
 from .runtime import ModelRuntime
+from .safety import has_urgent_language
+from .severity import severity_from_phq8
 
 
 class InferenceRequest(BaseModel):
@@ -88,11 +91,25 @@ def model(request: Request) -> dict[str, str | bool]:
 
 @app.post("/v1/infer", response_model=InferenceResponse, dependencies=[Depends(require_token)])
 def infer(payload: InferenceRequest, request: Request) -> InferenceResponse:
-    del payload
+    started = perf_counter()
     runtime: ModelRuntime = request.app.state.runtime
     if not runtime.ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Validated model inference is unavailable.",
         )
-    raise HTTPException(status_code=503, detail="Validated model inference is unavailable.")
+    try:
+        score = runtime.infer_phq8(payload.journal_text, payload.language)
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Validated model inference is unavailable.",
+        ) from error
+    return InferenceResponse(
+        request_id=payload.request_id,
+        phq8_score=score,
+        severity=severity_from_phq8(score),
+        urgent_language_detected=has_urgent_language(payload.journal_text),
+        model_version=runtime.model_version,
+        processing_time_ms=max(0, round((perf_counter() - started) * 1000)),
+    )

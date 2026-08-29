@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run architecture:check
       - run: npm run environment:check
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
@@ -37,3 +38,24 @@ jobs:
       - run: uv sync --all-groups --locked
       - run: uv run ruff check .
       - run: uv run pytest
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config
+
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.84.2
+          github-token: ${{ github.token }}
+      - run: supabase start
+      - run: supabase db reset
+      - run: supabase db lint
+      - run: supabase test db
+      - if: always()
+        run: supabase stop --no-backup

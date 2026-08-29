@@ -1,7 +1,11 @@
-# Future AI integration boundary
+# AI/ML integration boundary
 
-The current non-AI phase uses `AnalysisProvider` in `backend/src/infrastructure/analysis`. Its mock implementation accepts explicit development markers only, such as `[MOCK:SCORE=12]`; it does not infer or diagnose from journal prose.
+The boundary is now implemented as separate services:
 
-Later, replace `MockAnalysisProvider` with `FastApiAnalysisProvider` implementing the same `analyze`, `healthCheck`, and `getProviderInfo` methods. The adapter may use `AI_SERVICE_URL`, `AI_SERVICE_TOKEN`, and a timeout only when a validated model and security review are available. Controllers, journal services, repositories, frontend services, and API DTOs must remain unchanged.
+`Gateway -> Analysis Service -> Journal/User/ML/Recommendation services`
 
-The future adapter must send plaintext only over its authenticated internal channel, never log it, validate structured output, preserve request IDs, map failures to safe codes, and never present a score as a diagnosis.
+Analysis Service owns consent/verification orchestration and analysis records. ML Service exclusively owns loading a reviewed model runtime and producing structured inference. Recommendation Service converts validated severity/safety fields into non-diagnostic support guidance.
+
+Plaintext journal content may cross only the authenticated Journal-to-Analysis-to-ML internal path, must never be logged, and must retain the same UUID request ID. Structured output is validated before persistence. Dependency failures use controlled error envelopes.
+
+The current ML runtime is deliberately not ready: repository code contains no validated loader, artifacts, or clinical evaluation manifest. `/health` is a liveness probe, `/health/ready` returns 503, and `/v1/infer` returns 503. Do not replace this with fabricated scores or a mock provider. A future validated loader belongs only in `ml/app/runtime.py` and requires artifact checksums, evaluation evidence, and security/clinical review.

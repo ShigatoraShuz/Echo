@@ -111,10 +111,6 @@ const client = createApiClient({
   tokenProvider: supabaseAuthTokenProvider,
 });
 
-function endpoint(path: string): string {
-  return `${env.apiBaseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-}
-
 export const verificationApi = {
   async getStatus(): Promise<VerificationSnapshot> {
     return (await client.get<ApiEnvelope<VerificationSnapshot>>("/verification")).data;
@@ -131,29 +127,13 @@ export const verificationApi = {
     kind: VerificationDocumentKind,
     file: File,
   ): Promise<VerificationSnapshot> {
-    const token = await supabaseAuthTokenProvider.getAccessToken();
-    const response = await fetch(
-      endpoint(`/verification/documents/${encodeURIComponent(kind)}`),
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: file,
-      },
-    );
-    const body = (await response.json()) as
-      | ApiEnvelope<VerificationSnapshot>
-      | { error?: { message?: string } };
-    if (!response.ok || !("data" in body)) {
-      throw new Error(
-        "error" in body && body.error?.message
-          ? body.error.message
-          : "The document could not be uploaded.",
-      );
-    }
-    return body.data;
+    return (
+      await client.put<ApiEnvelope<VerificationSnapshot>, File>(
+        `/verification/documents/${encodeURIComponent(kind)}`,
+        file,
+        { headers: { "Content-Type": file.type } },
+      )
+    ).data;
   },
   async submit(): Promise<VerificationSnapshot> {
     return (await client.post<ApiEnvelope<VerificationSnapshot>>("/verification/submit")).data;

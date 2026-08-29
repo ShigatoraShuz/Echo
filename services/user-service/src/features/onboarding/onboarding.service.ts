@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OwnedDatabase } from "@echo/service-core";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
 
 export interface OnboardingConsentInput {
@@ -26,11 +26,11 @@ export interface OnboardingSetupInput {
 const CONSENT_VERSION = "2026-07-25";
 
 export class OnboardingService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(private readonly database: OwnedDatabase) {}
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
-      this.database.from("profiles").upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
+      this.database.from("profiles").upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true }),
       this.database.from("notification_preferences").upsert(
         { user_id: userId },
         { onConflict: "user_id", ignoreDuplicates: true },
@@ -111,7 +111,7 @@ export class OnboardingService {
     if (input.timezone !== undefined) updates.timezone = input.timezone;
 
     if (Object.keys(updates).length > 0) {
-      const { error } = await this.database.from("profiles").update(updates).eq("user_id", userId);
+      const { error } = await this.database.from("profiles").update(updates).eq("id", userId);
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Profile could not be saved.");
     }
 
@@ -145,7 +145,7 @@ export class OnboardingService {
     const { error } = await this.database
       .from("profiles")
       .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
-      .eq("user_id", userId);
+      .eq("id", userId);
 
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Could not complete onboarding.");
     return { success: true };
@@ -157,7 +157,7 @@ export class OnboardingService {
       this.database
         .from("profiles")
         .select("onboarding_completed, display_name, timezone")
-        .eq("user_id", userId)
+        .eq("id", userId)
         .single(),
       this.database.from("user_consents").select("consent_type, accepted, accepted_at").eq("user_id", userId),
     ]);

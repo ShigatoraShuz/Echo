@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+import { referencedDatabaseTables, usesDirectSupabaseClient } from "./architecture-rules.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const violations = [];
@@ -8,7 +9,7 @@ const extension = (path) => path.slice(path.lastIndexOf("."));
 function files(directory) {
   const result = [];
   for (const name of readdirSync(directory)) {
-    if (["node_modules", "dist", ".next", ".git", ".pytest_cache", "__pycache__"].includes(name)) continue;
+    if (["node_modules", "dist", ".next", ".git", ".venv", ".pytest_cache", ".ruff_cache", "__pycache__"].includes(name)) continue;
     const path = join(directory, name);
     if (statSync(path).isDirectory()) result.push(...files(path));
     else if (sourceExtensions.has(extension(path))) result.push(path);
@@ -38,7 +39,8 @@ const ownership = {
 for (const [service, allowed] of Object.entries(ownership)) {
   for (const file of files(join(root, "services", service))) {
     const content = readFileSync(file, "utf8");
-    for (const match of content.matchAll(/\.from\(["']([a-z_]+)["']\)/g)) check(!allowed.has(match[1]), file, `${service} accesses non-owned table ${match[1]}`);
+    for (const table of referencedDatabaseTables(content)) check(!allowed.has(table), file, `${service} accesses non-owned table ${table}`);
+    check(service !== "api-gateway" && usesDirectSupabaseClient(content), file, `${service} constructs a direct Supabase client instead of using the ownership wrapper`);
   }
 }
 
@@ -49,7 +51,8 @@ const pythonOwnership = {
 for (const [service, allowed] of Object.entries(pythonOwnership)) {
   for (const file of files(join(root, service))) {
     const content = readFileSync(file, "utf8");
-    for (const match of content.matchAll(/\.table\(["']([a-z_]+)["']\)/g)) check(!allowed.has(match[1]), file, `${service} accesses non-owned table ${match[1]}`);
+    for (const table of referencedDatabaseTables(content)) check(!allowed.has(table), file, `${service} accesses non-owned table ${table}`);
+    check(usesDirectSupabaseClient(content), file, `${service} constructs a direct Supabase client instead of using its approved database boundary`);
   }
 }
 
@@ -62,6 +65,7 @@ for (const file of files(join(root, "frontend", "src"))) {
   const content = readFileSync(file, "utf8");
   check(/(?:USER|JOURNAL|ASSESSMENT|ANALYSIS|ML|RECOMMENDATION|WELLNESS|INSIGHTS)_SERVICE_URL|(?:user|journal|assessment|analysis|ml|recommendation|wellness|insights)-service:\d+/.test(content), file, "frontend knows internal service topology");
   check(/SUPABASE_SERVICE_ROLE_KEY|SUPABASE_DATABASE_KEY|INTERNAL_SERVICE_TOKEN|(?:USER|JOURNAL|ASSESSMENT|ANALYSIS|ML|RECOMMENDATION|WELLNESS|INSIGHTS)_SERVICE_TOKEN/.test(content), file, "frontend references a server credential");
+  check(/\.from\(\s*["'][a-z_]+["']\s*\)/.test(content), file, "frontend accesses an application table directly instead of using the Gateway");
 }
 
 const graph = JSON.parse(readFileSync(join(root, "docs", "architecture", "service-map.json"), "utf8")).services;
@@ -79,4 +83,4 @@ if (violations.length) {
   console.error(`Architecture check failed with ${violations.length} violation(s):\n${violations.map((value) => `- ${value}`).join("\n")}`);
   process.exit(1);
 }
-console.log("Architecture check passed: service imports, ownership, graph, frontend boundary, and Compose topology are valid.");
+console.log("Architecture check passed: service imports, wrapper/raw-REST ownership, graph, frontend boundary, and Compose topology are valid.");

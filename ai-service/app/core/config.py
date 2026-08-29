@@ -42,6 +42,19 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"Service tokens must contain at least 32 characters: {', '.join(invalid)}"
                 )
+            required = {
+                "SUPABASE_URL": self.supabase_url,
+                "SUPABASE_DATABASE_KEY": self.supabase_database_key,
+                "USER_SERVICE_URL": self.user_service_url,
+                "JOURNAL_SERVICE_URL": self.journal_service_url,
+                "ML_SERVICE_URL": self.ml_service_url,
+                "RECOMMENDATION_SERVICE_URL": self.recommendation_service_url,
+            }
+            missing = [name for name, value in required.items() if not value.strip()]
+            if missing:
+                raise ValueError(
+                    f"Production analysis configuration is missing: {', '.join(missing)}"
+                )
         return self
 
 

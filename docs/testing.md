@@ -1,24 +1,57 @@
-# Testing Guide
+# Testing guide
 
-## Frontend Tests
+Run the repository checks from the root with Node.js 24 and npm 11:
 
-Run with: \
-pm run test -w frontend\
+```bash
+npm ci
+npm run architecture:check
+npm run environment:check
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
 
-- \*.test.ts\ — Unit and integration tests
-- \*A11y.test.tsx\ — Accessibility audits via jest-axe
-- \*.stories.ts\ — Storybook story files
+`npm run test` covers the frontend, API Gateway, and every Node domain service. To run a narrower suite, use its workspace name, for example:
 
-## Backend Tests
+```bash
+npm run test -w frontend
+npm run test -w @echo/api-gateway
+npm run test -w @echo/journal-service
+```
 
-Run with: \
-pm run test -w backend\
+Run both Python projects independently with Python 3.12 and `uv`:
 
-- \integration/*.test.ts\ — API endpoint integration tests
+```bash
+cd ai-service
+uv sync --all-groups --locked
+uv run ruff check .
+uv run pytest
 
-## Coverage Requirements
+cd ../ml
+uv sync --all-groups --locked
+uv run ruff check .
+uv run pytest
+```
 
-- Statements: 80%
-- Branches: 75%
-- Functions: 80%
-- Lines: 80%
+Database ownership, RLS, and migration checks require a local Supabase stack and Docker:
+
+```bash
+supabase start
+supabase db reset
+supabase db lint
+supabase test db
+```
+
+The database suite includes `ownership-isolation.test.sql`, `service-role-ownership.test.sql`, and `rls-policy.test.sql`. Never point these reset/test commands at production.
+
+Container validation:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+ML liveness should return `200` without model artifacts. ML readiness and inference should return controlled `503` responses until a reviewed loader, artifacts, and evaluation manifest are supplied. A `503` in that state is the expected truthful result, not a test bypass.

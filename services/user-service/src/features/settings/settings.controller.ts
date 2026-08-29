@@ -10,6 +10,7 @@ const profileSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
   themeVariant: z.enum(["echo-calm", "echo-night", "echo-soft", "echo-focus"]),
   themeMode: z.enum(["light", "dark", "system"]),
+  avatarPath: z.string().trim().max(500).nullable().optional(),
 });
 
 const privacySchema = z.object({

@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import cors from "cors";
 import express from "express";
@@ -34,6 +34,30 @@ export function secretEnv(name, minimumLength = 32) {
   const value = env(name);
   if (value.length < minimumLength) throw new Error(`${name} must contain at least ${minimumLength} characters.`);
   return value;
+}
+
+export function createAesGcmEncryption(keyBase64, keyVersion) {
+  const key = Buffer.from(keyBase64, "base64");
+  if (key.length !== 32) throw new Error("The encryption key must decode to 32 bytes.");
+  if (!Number.isInteger(keyVersion) || keyVersion <= 0) throw new Error("The encryption key version must be a positive integer.");
+  return {
+    encrypt(plaintext) {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv("aes-256-gcm", key, iv);
+      return {
+        ciphertext: Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]).toString("base64"),
+        iv: iv.toString("base64"),
+        authenticationTag: cipher.getAuthTag().toString("base64"),
+        keyVersion,
+      };
+    },
+    decrypt(payload) {
+      if (payload.keyVersion !== keyVersion) throw new Error("Unsupported encryption key version.");
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(payload.iv, "base64"));
+      decipher.setAuthTag(Buffer.from(payload.authenticationTag, "base64"));
+      return Buffer.concat([decipher.update(Buffer.from(payload.ciphertext, "base64")), decipher.final()]).toString("utf8");
+    },
+  };
 }
 
 export function createOwnedDatabase({ url, key, tables }) {

@@ -83,10 +83,10 @@ export function createJournalHttpAdapter(): JournalService {
           data: {
             entries,
             pagination: {
-              page,
-              pageSize,
-              totalItems: entries.length,
-              totalPages: Math.max(1, Math.ceil(entries.length / pageSize)),
+              page: response.data.page,
+              pageSize: response.data.page_size,
+              totalItems: response.data.total,
+              totalPages: Math.max(1, Math.ceil(response.data.total / response.data.page_size)),
             },
           },
         };

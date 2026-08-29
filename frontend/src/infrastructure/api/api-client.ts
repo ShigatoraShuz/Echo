@@ -22,7 +22,12 @@ interface ApiErrorResponse {
     message?: string;
     field?: string;
     detail?: string;
+    details?: {
+      fields?: Array<{ field?: unknown; message?: unknown }>;
+      fieldErrors?: Record<string, unknown>;
+    };
   };
+  meta?: { requestId?: string };
 }
 
 interface EnvelopeLike {
@@ -48,17 +53,24 @@ function isMalformedEnvelope(body: unknown): boolean {
   );
 }
 
-let requestCounter = 0;
-
 function generateRequestId(): string {
-  requestCounter += 1;
-  return `req_${Date.now()}_${requestCounter}`;
+  return crypto.randomUUID();
 }
 
 function joinUrl(base: string, path: string): string {
   const baseClean = base.replace(/\/+$/, "");
   const pathClean = path.replace(/^\/+/, "");
   return `${baseClean}/${pathClean}`;
+}
+
+function isRawRequestBody(body: unknown): body is BodyInit {
+  return (
+    body instanceof FormData ||
+    body instanceof Blob ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    body instanceof URLSearchParams
+  );
 }
 
 function parseAppErrorResponse(
@@ -72,14 +84,36 @@ function parseAppErrorResponse(
   const code = errBody.error.code ?? "UNKNOWN_ERROR";
   const userMessage = errBody.error.message ?? "Something went wrong.";
   const field = errBody.error.field;
+  const fields = errBody.error.details?.fields;
+  const flattened = errBody.error.details?.fieldErrors;
+  const fieldErrors = [
+    ...(field ? [{ field, message: userMessage }] : []),
+    ...(Array.isArray(fields)
+      ? fields.flatMap((item) =>
+          typeof item.field === "string" && typeof item.message === "string"
+            ? [{ field: item.field, message: item.message }]
+            : [],
+        )
+      : []),
+    ...(flattened && typeof flattened === "object"
+      ? Object.entries(flattened).flatMap(([fieldName, messages]) =>
+          Array.isArray(messages)
+            ? messages.flatMap((message) =>
+                typeof message === "string" ? [{ field: fieldName, message }] : [],
+              )
+            : [],
+        )
+      : []),
+  ];
 
   return new AppError({
     code: code as AppError["code"],
     userMessage,
     developerMessage: errBody.error.detail,
     statusCode,
-    fieldErrors: field ? [{ field, message: userMessage }] : undefined,
+    fieldErrors: fieldErrors.length ? fieldErrors : undefined,
     retryable: statusCode >= 500 || statusCode === 429,
+    requestId: errBody.meta?.requestId,
   });
 }
 
@@ -175,7 +209,8 @@ export function createApiClient(options: ApiClientOptions) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    if (body !== undefined && !(body instanceof FormData)) {
+    const rawBody = isRawRequestBody(body);
+    if (body !== undefined && !rawBody) {
       headers["Content-Type"] = "application/json";
     }
 
@@ -183,11 +218,7 @@ export function createApiClient(options: ApiClientOptions) {
       const response = await fetch(url, {
         method,
         headers,
-        body: body !== undefined
-          ? body instanceof FormData
-            ? body
-            : JSON.stringify(body)
-          : undefined,
+        body: body !== undefined ? (rawBody ? body : JSON.stringify(body)) : undefined,
         signal: combinedSignal,
       });
 

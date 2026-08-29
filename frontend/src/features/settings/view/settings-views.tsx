@@ -35,6 +35,7 @@ import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
+import { isFeatureEnabled } from "@/config/feature-flags.config";
 
 import {
   AvatarUpload,
@@ -727,20 +728,14 @@ export function PrivacySettingsView() {
                 description="Content is owner-scoped. We cannot read your private thoughts."
               />
 
-              <Toggle
-                checked={
-                  form.facialAnalysisEnabled
-                }
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    facialAnalysisEnabled:
-                      value,
-                  })
-                }
-                label="Facial Check-ins"
-                description="Enable camera-based emotion tracking during reflections."
-              />
+              {isFeatureEnabled("facialAnalysis") ? (
+                <Toggle
+                  checked={form.facialAnalysisEnabled}
+                  onChange={(value) => setForm({ ...form, facialAnalysisEnabled: value })}
+                  label="Facial Check-ins"
+                  description="Enable camera-based emotion tracking during reflections."
+                />
+              ) : null}
 
               <Toggle
                 checked={
@@ -1730,4 +1725,4 @@ export function ExportSettingsView() {
       </div>
     </SettingsShell>
   );
-}
+}

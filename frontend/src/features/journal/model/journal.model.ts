@@ -3,7 +3,7 @@
 export type JournalMood = "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
 export type JournalPrivacyStatus = "private" | "shared";
 export type JournalRiskBand = "low" | "mild" | "moderate" | "high" | "severe";
-export type JournalSortOption = "newest" | "oldest" | "highest-risk" | "lowest-risk";
+export type JournalSortOption = "newest" | "oldest";
 
 // ─── Domain Interfaces ───────────────────────────────
 

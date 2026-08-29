@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OwnedDatabase } from "@echo/service-core";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import {
   AuthorizationError,
@@ -156,7 +156,7 @@ function extensionForMimeType(mimeType: string): string {
 
 export class VerificationService {
   constructor(
-    private readonly database: SupabaseClient,
+    private readonly database: OwnedDatabase,
     private readonly encryption: EncryptionService,
   ) {}
 

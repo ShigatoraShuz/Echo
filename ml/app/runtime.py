@@ -13,6 +13,12 @@ class ModelRuntime:
     ready: bool
     blocker: str
 
+    def infer_phq8(self, journal_text: str, language: str) -> int:
+        del journal_text, language
+        raise RuntimeError(
+            "Validated model inference is unavailable; no reviewed loader is configured."
+        )
+
     @classmethod
     def load(cls, settings: Settings) -> "ModelRuntime":
         path = Path(settings.lora_adapter_path)

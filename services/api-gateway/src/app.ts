@@ -9,6 +9,7 @@ import type { GatewayConfig } from "./config.js";
 
 type User = { id: string };
 type TokenVerifier = (token: string) => Promise<User | null>;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type ServiceUrlKey = keyof Pick<GatewayConfig,
   "USER_SERVICE_URL" | "JOURNAL_SERVICE_URL" | "ASSESSMENT_SERVICE_URL" | "ANALYSIS_SERVICE_URL" |
@@ -49,7 +50,7 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
   app.use(cors({ origin: config.FRONTEND_URL, credentials: true }));
   app.use((request, response, next) => {
     const incoming = request.header("x-request-id");
-    request.requestId = incoming && /^[0-9a-f-]{36}$/i.test(incoming) ? incoming : randomUUID();
+    request.requestId = incoming && UUID.test(incoming) ? incoming : randomUUID();
     response.setHeader("x-request-id", request.requestId);
     response.setHeader("cache-control", "no-store");
     next();

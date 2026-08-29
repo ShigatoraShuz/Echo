@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OwnedDatabase } from "@echo/service-core";
 import { ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
 
 export type ThemeVariant = "echo-calm" | "echo-night" | "echo-soft" | "echo-focus";
@@ -58,7 +58,7 @@ function nullableString(value: unknown): string | null {
 }
 
 export class SettingsService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(private readonly database: OwnedDatabase) {}
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
@@ -210,7 +210,7 @@ export class SettingsService {
       .update(updatePayload)
       .eq("id", userId);
     if (error) throw databaseError("Your profile settings could not be saved.");
-    return this.get(userId);
+    return (await this.get(userId)).profile;
   }
 
   async updatePrivacy(userId: string, input: PrivacySettingsInput) {
@@ -224,7 +224,7 @@ export class SettingsService {
       })
       .eq("user_id", userId);
     if (error) throw databaseError("Your privacy settings could not be saved.");
-    return this.get(userId);
+    return (await this.get(userId)).privacy;
   }
 
   async updateNotifications(userId: string, input: NotificationSettingsInput) {
@@ -243,7 +243,7 @@ export class SettingsService {
       })
       .eq("user_id", userId);
     if (error) throw databaseError("Your notification settings could not be saved.");
-    return this.get(userId);
+    return (await this.get(userId)).notifications;
   }
 
   async createContact(userId: string, input: TrustedContactInput) {
@@ -254,7 +254,7 @@ export class SettingsService {
         .eq("user_id", userId);
       if (error) throw databaseError("Your trusted contacts could not be updated.");
     }
-    const { error } = await this.database.from("trusted_contacts").insert({
+    const { data, error } = await this.database.from("trusted_contacts").insert({
       user_id: userId,
       contact_name: input.contactName,
       contact_email: input.contactEmail,
@@ -262,9 +262,11 @@ export class SettingsService {
       relationship: input.relationship,
       is_primary: input.isPrimary,
       permission_acknowledged_at: input.permissionAcknowledged ? new Date().toISOString() : null,
-    });
-    if (error) throw databaseError("The trusted contact could not be added.");
-    return this.get(userId);
+    }).select("id").single();
+    if (error || !data) throw databaseError("The trusted contact could not be added.");
+    const contact = (await this.get(userId)).trustedContacts.find((item) => item.id === data.id);
+    if (!contact) throw databaseError("The trusted contact could not be loaded after it was added.");
+    return contact;
   }
 
   async updateContact(userId: string, contactId: string, input: TrustedContactInput) {
@@ -292,7 +294,9 @@ export class SettingsService {
       .maybeSingle();
     if (error) throw databaseError("The trusted contact could not be updated.");
     if (!data) throw new NotFoundError("The trusted contact was not found.");
-    return this.get(userId);
+    const contact = (await this.get(userId)).trustedContacts.find((item) => item.id === contactId);
+    if (!contact) throw databaseError("The trusted contact could not be loaded after it was updated.");
+    return contact;
   }
 
   async removeContact(userId: string, contactId: string) {
@@ -305,7 +309,7 @@ export class SettingsService {
       .maybeSingle();
     if (error) throw databaseError("The trusted contact could not be removed.");
     if (!data) throw new NotFoundError("The trusted contact was not found.");
-    return this.get(userId);
+    return undefined;
   }
 
   async requestExport(userId: string) {
@@ -323,7 +327,9 @@ export class SettingsService {
         .insert({ user_id: userId, request_status: "requested" });
       if (error) throw databaseError("Your export request could not be created.");
     }
-    return this.get(userId);
+    const exportRequest = (await this.get(userId)).latestExport;
+    if (!exportRequest) throw databaseError("Your export request could not be loaded.");
+    return exportRequest;
   }
 
   async requestDeletion(userId: string) {
@@ -343,7 +349,9 @@ export class SettingsService {
       });
       if (error) throw databaseError("Your deletion request could not be created.");
     }
-    return this.get(userId);
+    const deletionRequest = (await this.get(userId)).deletionRequest;
+    if (!deletionRequest) throw databaseError("Your deletion request could not be loaded.");
+    return deletionRequest;
   }
 
   async cancelDeletion(userId: string, requestId: string) {
@@ -357,7 +365,9 @@ export class SettingsService {
       .maybeSingle();
     if (error) throw databaseError("Your deletion request could not be cancelled.");
     if (!data) throw new NotFoundError("No pending deletion request was found.");
-    return this.get(userId);
+    const deletionRequest = (await this.get(userId)).deletionRequest;
+    if (!deletionRequest) throw databaseError("Your deletion request could not be loaded.");
+    return deletionRequest;
   }
 }
 

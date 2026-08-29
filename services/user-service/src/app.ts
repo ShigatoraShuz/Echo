@@ -46,6 +46,25 @@ export function createUserApp(dependencies: UserServiceDependencies, options: { 
     await dependencies.verification.assertAiAccess(req.auth!.id);
     sendData(res, { approved: true }, req.requestId);
   }));
+  router.get("/internal/analysis-access", internal, user, asyncRoute(async (req, res) => {
+    await dependencies.verification.assertAiAccess(req.auth!.id);
+    const { data, error } = await dependencies.database
+      .from("user_consents")
+      .select("id")
+      .eq("user_id", req.auth!.id)
+      .eq("consent_type", "journal_analysis")
+      .eq("accepted", true)
+      .is("revoked_at", null)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Analysis consent could not be checked.");
+    }
+    if (!data) {
+      throw new ServiceError(403, "ANALYSIS_CONSENT_REQUIRED", "Active journal analysis consent is required.");
+    }
+    sendData(res, { approved: true }, req.requestId);
+  }));
   router.post("/internal/notifications", internal, asyncRoute(async (req, res) => {
     const parsed = z.object({ userId: z.string().uuid(), notificationType: z.string().min(1).max(80), title: z.string().min(1).max(200), message: z.string().min(1).max(1000), resourceType: z.string().max(80).optional(), resourceId: z.string().uuid().optional() }).safeParse(req.body);
     if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "The notification is invalid.");

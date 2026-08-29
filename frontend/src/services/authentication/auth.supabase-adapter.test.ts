@@ -5,6 +5,7 @@ import { createAuthSupabaseAdapter } from "@/services/authentication/auth.supaba
 const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
   signInWithPassword: vi.fn(),
+  signUp: vi.fn(),
 }));
 
 vi.mock("@/infrastructure/supabase/browser-client", () => ({
@@ -12,6 +13,7 @@ vi.mock("@/infrastructure/supabase/browser-client", () => ({
     auth: {
       signOut: mocks.signOut,
       signInWithPassword: mocks.signInWithPassword,
+      signUp: mocks.signUp,
     },
   }),
 }));
@@ -148,5 +150,65 @@ describe("createAuthSupabaseAdapter volatile session", () => {
     expect(result.success).toBe(false);
     fireBeforeUnload();
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("createAuthSupabaseAdapter signup", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.signUp.mockResolvedValue({ data: { session }, error: null });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("persists protected profile data through the authenticated Gateway", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: { success: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createAuthSupabaseAdapter().signup({
+      email: "mira@test.com",
+      password: "password123",
+      confirmPassword: "password123",
+      name: "Mira",
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/v1/onboarding/profile");
+    expect((options.headers as Record<string, string>).Authorization).toBe("Bearer token");
+    expect(JSON.parse(String(options.body))).toMatchObject({ displayName: "Mira" });
+  });
+
+  it("keeps the authenticated session when profile persistence is temporarily unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await createAuthSupabaseAdapter().signup({
+      email: "mira@test.com",
+      password: "password123",
+      confirmPassword: "password123",
+      name: "Mira",
+      termsAccepted: true,
+      privacyAcknowledged: true,
+      dataProcessingAcknowledged: true,
+      aiFeatureAcknowledged: true,
+      journalAnalysisConsent: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[auth.supabase] Could not persist signup profile through User Service."
+    );
   });
 });

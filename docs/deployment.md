@@ -30,11 +30,45 @@ The corrective migration creates/uses custom non-login roles. For each role, cre
 
 Do not put any of these values in `NEXT_PUBLIC_*`. The general Supabase service-role key is used only by API Gateway to validate Supabase Auth sessions.
 
+For a fresh local stack, `supabase status -o env` reports the local API URL,
+anon/publishable key, service-role key, and JWT secret. Export the JWT secret
+only in the current shell, then generate seven-day local role JWTs plus all
+service HMAC tokens and a new local AES key:
+
+```powershell
+Copy-Item .env.example .env
+supabase start
+supabase status -o env
+$env:SUPABASE_JWT_SECRET = "paste-local-JWT-secret"
+npm run local:secrets
+Remove-Item Env:SUPABASE_JWT_SECRET
+```
+
+```bash
+cp .env.example .env
+supabase start
+supabase status -o env
+SUPABASE_JWT_SECRET='paste-local-JWT-secret' npm run local:secrets
+```
+
+Copy the printed values into `.env`, along with:
+
+- `SUPABASE_URL` from the local API URL (normally `http://127.0.0.1:54321`)
+- `SUPABASE_PUBLISHABLE_KEY` from the local anon/publishable key
+- `SUPABASE_SERVICE_ROLE_KEY` from the local service-role key
+
+The generator never writes secrets. Its role JWTs expire after seven days;
+rerun it with the same local JWT secret and update only the five database-key
+variables when they expire. Do not rotate `JOURNAL_ENCRYPTION_KEY_BASE64` for
+an existing database without a planned re-encryption migration.
+
 If the corrective migration reports a non-empty experimental schema or compatibility table, stop and reconcile that data into the documented canonical table. The migration deliberately refuses destructive automatic guessing.
 
 ## Environment
 
 Copy `.env.example` to an untracked `.env` and set all blank secrets/keys. Compose supplies internal URLs through Docker DNS. Individual service examples live beside each service.
+
+For native (non-Docker) development, copy the relevant service's `.env.example` to an ignored `.env` in that service directory. Those examples use `localhost` dependency URLs and distinct ports. In Compose, do not copy those URLs: `docker-compose.yml` supplies service DNS names such as `http://journal-service:4202`.
 
 Important public configuration:
 
@@ -60,9 +94,37 @@ docker compose up -d
 docker compose ps
 ```
 
+Then verify the edge routes:
+
+```bash
+curl --fail http://localhost:3000/
+curl --fail http://localhost:3000/api/v1/health
+```
+
+Only the edge publishes a host port. To inspect internal health without
+publishing ports, use Compose:
+
+```bash
+docker compose exec frontend wget --spider -q http://127.0.0.1:3000/
+docker compose exec api-gateway wget --spider -q http://127.0.0.1:4200/api/v1/health
+docker compose exec analysis-service python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+docker compose exec ml-service python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"
+```
+
+ML readiness is expected to fail with 503 until validated artifacts and a
+reviewed loader exist:
+
+```bash
+docker compose exec ml-service python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready')"
+```
+
+That single expected 503 does not make the application startup fail.
+
 Only NGINX publishes a host port (`http://localhost:3000`). Domain services are exposed only on the Compose network.
 
 Individual Node services can be started with their package scripts, for example `npm run dev -w @echo/journal-service`. Analysis starts from `ai-service/`; ML starts from `ml/` using the commands in the architecture catalog.
+
+For a clean end-to-end check, open the edge URL and exercise: signup/login → onboarding/profile → journal create/read → dashboard mood check-in → Buddy or grounding → dashboard/insights. Analysis additionally requires approved identity verification, active account-level journal-analysis consent, per-entry analysis consent, and an available validated ML runtime.
 
 ## Health and failure behavior
 

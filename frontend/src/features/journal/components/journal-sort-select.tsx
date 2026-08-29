@@ -9,8 +9,6 @@ interface JournalSortProps {
 const OPTIONS: Array<{ value: JournalSortOption; label: string }> = [
   { value: "newest", label: "Newest first" },
   { value: "oldest", label: "Oldest first" },
-  { value: "highest-risk", label: "Highest risk" },
-  { value: "lowest-risk", label: "Lowest risk" },
 ];
 
 export function JournalSortSelect({ value, onChange }: JournalSortProps) {
