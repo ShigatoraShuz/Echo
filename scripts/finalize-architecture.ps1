@@ -2,6 +2,18 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "ECHO microservices verification" -ForegroundColor Cyan
 
+function Invoke-NativeChecked {
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    [Parameter(Mandatory = $true)][string[]]$Arguments
+  )
+
+  & $Command @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Command $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+  }
+}
+
 $required = @(
   "services/api-gateway/src/server.ts",
   "services/user-service/src/server.ts",
@@ -26,28 +38,28 @@ foreach ($path in $required) {
   if (-not (Test-Path -LiteralPath $path)) { throw "Required architecture file is missing: $path" }
 }
 
-npm run architecture:check
-npm run environment:check
-npm run typecheck
-npm run lint
-npm run test
-npm run build
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "architecture:check")
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "environment:check")
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "typecheck")
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "lint")
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "test")
+Invoke-NativeChecked -Command "npm" -Arguments @("run", "build")
 
 Push-Location ai-service
 try {
-  uv run --isolated --locked ruff check .
-  uv run --isolated --locked pytest -p no:cacheprovider
+  Invoke-NativeChecked -Command "uv" -Arguments @("run", "--isolated", "--locked", "ruff", "check", ".")
+  Invoke-NativeChecked -Command "uv" -Arguments @("run", "--isolated", "--locked", "pytest", "-p", "no:cacheprovider")
 } finally { Pop-Location }
 
 Push-Location ml
 try {
-  uv run --isolated --locked ruff check .
-  uv run --isolated --locked pytest -p no:cacheprovider
+  Invoke-NativeChecked -Command "uv" -Arguments @("run", "--isolated", "--locked", "ruff", "check", ".")
+  Invoke-NativeChecked -Command "uv" -Arguments @("run", "--isolated", "--locked", "pytest", "-p", "no:cacheprovider")
 } finally { Pop-Location }
 
 if (Get-Command docker -ErrorAction SilentlyContinue) {
-  docker compose config --quiet
+  Invoke-NativeChecked -Command "docker" -Arguments @("compose", "config", "--quiet")
 }
 
 Write-Host "Repository-controlled verification passed." -ForegroundColor Green
-git status --short
+Invoke-NativeChecked -Command "git" -Arguments @("status", "--short")
