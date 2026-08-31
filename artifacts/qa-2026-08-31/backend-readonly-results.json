@@ -1,0 +1,59 @@
+{
+  "recordedAt": "2026-08-31T02:16:00.617Z",
+  "scope": "Read-only PostgREST/service checks; no inference, no journal reads, no writes",
+  "checks": [
+    {
+      "check": "journals: ciphertext sentinel coverage",
+      "status": "NEEDS_BACKFILL",
+      "total": 2,
+      "pendingLegacyTitle": 2,
+      "errorCode": null
+    },
+    {
+      "check": "journal_drafts: ciphertext sentinel coverage",
+      "status": "NEEDS_BACKFILL",
+      "total": 1,
+      "pendingLegacyTitle": 1,
+      "errorCode": null
+    },
+    {
+      "check": "External-worker protocol read-only storage health",
+      "status": "PASS",
+      "result": {
+        "protocol": "available",
+        "storage": "available",
+        "authentication": "required",
+        "claims": "enabled",
+        "leases": "enabled",
+        "modelHealth": "not_asserted"
+      }
+    },
+    {
+      "check": "Retention dry run through PostgREST",
+      "status": "PASS",
+      "result": {
+        "audits": 0,
+        "dryRun": true,
+        "safety": 0,
+        "handoffs": 0,
+        "journals": 0,
+        "callbacks": 0,
+        "idempotency": 0,
+        "legacyJournals": 0
+      },
+      "errorCode": null
+    },
+    {
+      "check": "Anonymous private job access denied",
+      "status": "PASS",
+      "httpStatus": 401,
+      "errorCode": null
+    },
+    {
+      "check": "Anonymous public status access denied",
+      "status": "PASS",
+      "httpStatus": 401,
+      "errorCode": null
+    }
+  ]
+}

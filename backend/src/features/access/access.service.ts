@@ -72,14 +72,18 @@ export class AccessService {
       .eq("user_id", userId);
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Age eligibility could not be saved.");
   }
-  async acceptCurrentPolicies(userId: string): Promise<void> {
+  async acceptCurrentPolicies(userId: string, reviewedDocumentIds: string[]): Promise<void> {
     const { data: active, error } = await this.database
       .schema("auth_provisioning")
       .from("policy_documents")
-      .select("document_type,version")
+      .select("id,document_type,version")
       .eq("is_active", true);
     if (error || !active || active.length !== 3)
       throw new ExternalServiceError("POLICIES_UNAVAILABLE", "Current policies are unavailable.");
+    if (new Set(reviewedDocumentIds).size !== 3 || active.some((policy) => !reviewedDocumentIds.includes(policy.id)))
+      throw new ValidationError({
+        reviewedDocumentIds: ["The policies changed. Reload and review the current documents before accepting."],
+      });
     const recordedAt = new Date().toISOString();
     const rows = active.map((policy) => ({
       user_id: userId,

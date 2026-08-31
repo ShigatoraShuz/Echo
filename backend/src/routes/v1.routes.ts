@@ -18,6 +18,8 @@ import { createRegistrationRouter } from "../features/registration/registration.
 import type { AccessService } from "../features/access/access.service.js";
 import { createAccessGuard, createAccessRouter } from "../features/access/access.routes.js";
 import { createAuthMiddleware } from "../shared/middleware/auth.middleware.js";
+import type { LocalWorkerService } from "../features/analysis/local-worker.service.js";
+import { createLocalWorkerRouter } from "../features/analysis/local-worker.routes.js";
 
 export interface V1RouterOptions {
   registration?: { service: RegistrationService; allowedOrigin: string };
@@ -48,11 +50,13 @@ export interface V1RouterOptions {
     service: NotificationService;
     verifier: AccessTokenVerifier;
   };
+  localWorker?: { service: LocalWorkerService };
 }
 
 export function createV1Router(options: V1RouterOptions = {}): Router {
   const router = Router();
   router.use(createHealthRouter());
+  if (options.localWorker) router.use(createLocalWorkerRouter(options.localWorker.service));
   if (options.registration)
     router.use(createRegistrationRouter(options.registration.service, options.registration.allowedOrigin));
   if (options.access) {

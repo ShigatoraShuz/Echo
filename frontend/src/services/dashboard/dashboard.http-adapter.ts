@@ -7,6 +7,7 @@ import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-to
 import type { JournalEntryResponseDTO } from "@/features/journal/model/journal.dto";
 import { mapEntryResponseToDomain } from "@/features/journal/model/journal.mapper";
 import type { DashboardData } from "@/features/dashboard/model/dashboard.model";
+import type { DashboardInsights } from "@echo/contracts";
 
 export function createDashboardHttpAdapter(): DashboardService {
   const client = createApiClient({
@@ -23,16 +24,18 @@ export function createDashboardHttpAdapter(): DashboardService {
     async getDashboardData(timeRange?: string) {
       try {
         const queryParam = timeRange ? `?range=${encodeURIComponent(timeRange)}` : "";
-        const response = await client.get<{
-          success: true;
-          data: DashboardResponse;
-        }>(`/dashboard${queryParam}`);
+        const [response, insightsResponse] = await Promise.all([
+          client.get<{
+            success: true;
+            data: DashboardResponse;
+          }>(`/dashboard${queryParam}`),
+          client.get<{ success: true; data: DashboardInsights }>("/dashboard/insights"),
+        ]);
         return successResult({
           ...response.data,
-          latestEntry: response.data.latestEntry
-            ? mapEntryResponseToDomain(response.data.latestEntry)
-            : null,
+          latestEntry: response.data.latestEntry ? mapEntryResponseToDomain(response.data.latestEntry) : null,
           journalEntries: response.data.journalEntries.map(mapEntryResponseToDomain),
+          analysisInsights: insightsResponse.data,
         });
       } catch (error) {
         return failureResult(normalizeError(error));

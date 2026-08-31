@@ -12,58 +12,61 @@ import type { JournalService } from "@/services/journal/journal.service";
 function createStore() {
   let nextId = 100;
   const entries: JournalEntry[] = [
-  {
-    id: "morning-static",
-    title: "Morning static",
-    body: "Woke up feeling heavy. The sky was grey and I could hear the rain outside. I made coffee and sat by the window for a while. My mind kept circling back to the same worries about work and family. I tried to focus on my breathing for a few minutes. It helped a little, but the weight is still there. I think I need to talk to someone about this soon.",
-    excerpt: "Woke up feeling heavy. The sky was grey and I could hear the rain outside...",
-    mood: "anxious",
-    emotions: ["overwhelmed", "worried"],
-    tags: ["morning", "anxiety", "rain"],
-    privacyStatus: "private",
-    analysisConsent: true,
-    riskScore: 41,
-    riskBand: "moderate",
-    summary: "Anxious morning with persistent worries.",
-    perspective: "Morning anxiety often feels heavier than it becomes later. Notice how you already took steps: making coffee, sitting by the window, focusing on your breath. Those are real coping actions.",
-    createdAt: "2026-07-10",
-    updatedAt: "2026-07-10",
-  },
-  {
-    id: "meeting-aftercare",
-    title: "Meeting aftercare",
-    body: "Had a difficult meeting today. I felt defensive and spoke too quickly. Afterward, I took a short walk around the block to reset. I noticed the air felt cooler and the breeze helped me slow down. I wish I had handled the conversation better, but I'm trying not to dwell on it too much.",
-    excerpt: "Had a difficult meeting today. I felt defensive and spoke too quickly...",
-    mood: "sad",
-    emotions: ["frustrated", "regretful"],
-    tags: ["work", "meeting", "walk"],
-    privacyStatus: "private",
-    analysisConsent: true,
-    riskScore: 33,
-    riskBand: "mild",
-    summary: "Post-meeting frustration with self-compassion attempt.",
-    perspective: "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time — not as criticism, but as preparation.",
-    createdAt: "2026-07-11",
-    updatedAt: "2026-07-11",
-  },
-  {
-    id: "evening-window",
-    title: "Evening window",
-    body: "The evening light came through the window and I felt a moment of calm. I sat with a cup of tea and watched the sky change color. I thought about what I was grateful for today: a kind message from a friend, a good lunch, the sound of rain earlier. It was a quiet ending to an otherwise busy day.",
-    excerpt: "The evening light came through the window and I felt a moment of calm...",
-    mood: "calm",
-    emotions: ["grateful", "peaceful"],
-    tags: ["evening", "calm", "gratitude"],
-    privacyStatus: "private",
-    analysisConsent: true,
-    riskScore: 12,
-    riskBand: "low",
-    summary: "Calm evening with gratitude reflection.",
-    perspective: "This entry shows a pattern of finding calm in small moments. The transition from a busy day to intentional quiet is a skill worth protecting.",
-    createdAt: "2026-07-12",
-    updatedAt: "2026-07-12",
-  },
-];
+    {
+      id: "morning-static",
+      title: "Morning static",
+      body: "Woke up feeling heavy. The sky was grey and I could hear the rain outside. I made coffee and sat by the window for a while. My mind kept circling back to the same worries about work and family. I tried to focus on my breathing for a few minutes. It helped a little, but the weight is still there. I think I need to talk to someone about this soon.",
+      excerpt: "Woke up feeling heavy. The sky was grey and I could hear the rain outside...",
+      mood: "anxious",
+      emotions: ["overwhelmed", "worried"],
+      tags: ["morning", "anxiety", "rain"],
+      privacyStatus: "private",
+      analysisConsent: true,
+      riskScore: 41,
+      riskBand: "moderate",
+      summary: "Anxious morning with persistent worries.",
+      perspective:
+        "Morning anxiety often feels heavier than it becomes later. Notice how you already took steps: making coffee, sitting by the window, focusing on your breath. Those are real coping actions.",
+      createdAt: "2026-07-10",
+      updatedAt: "2026-07-10",
+    },
+    {
+      id: "meeting-aftercare",
+      title: "Meeting aftercare",
+      body: "Had a difficult meeting today. I felt defensive and spoke too quickly. Afterward, I took a short walk around the block to reset. I noticed the air felt cooler and the breeze helped me slow down. I wish I had handled the conversation better, but I'm trying not to dwell on it too much.",
+      excerpt: "Had a difficult meeting today. I felt defensive and spoke too quickly...",
+      mood: "sad",
+      emotions: ["frustrated", "regretful"],
+      tags: ["work", "meeting", "walk"],
+      privacyStatus: "private",
+      analysisConsent: true,
+      riskScore: 33,
+      riskBand: "mild",
+      summary: "Post-meeting frustration with self-compassion attempt.",
+      perspective:
+        "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time — not as criticism, but as preparation.",
+      createdAt: "2026-07-11",
+      updatedAt: "2026-07-11",
+    },
+    {
+      id: "evening-window",
+      title: "Evening window",
+      body: "The evening light came through the window and I felt a moment of calm. I sat with a cup of tea and watched the sky change color. I thought about what I was grateful for today: a kind message from a friend, a good lunch, the sound of rain earlier. It was a quiet ending to an otherwise busy day.",
+      excerpt: "The evening light came through the window and I felt a moment of calm...",
+      mood: "calm",
+      emotions: ["grateful", "peaceful"],
+      tags: ["evening", "calm", "gratitude"],
+      privacyStatus: "private",
+      analysisConsent: true,
+      riskScore: 12,
+      riskBand: "low",
+      summary: "Calm evening with gratitude reflection.",
+      perspective:
+        "This entry shows a pattern of finding calm in small moments. The transition from a busy day to intentional quiet is a skill worth protecting.",
+      createdAt: "2026-07-12",
+      updatedAt: "2026-07-12",
+    },
+  ];
 
   const drafts: JournalDraft[] = [];
 
@@ -141,7 +144,7 @@ export function createJournalMockAdapter(): JournalService {
           (e) =>
             e.title.toLowerCase().includes(q) ||
             e.body.toLowerCase().includes(q) ||
-            e.tags.some((t) => t.toLowerCase().includes(q))
+            e.tags.some((t) => t.toLowerCase().includes(q)),
         );
       }
 
@@ -157,10 +160,18 @@ export function createJournalMockAdapter(): JournalService {
       }
 
       switch (filters.sort) {
-        case "newest": filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt)); break;
-        case "oldest": filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt)); break;
-        case "highest-risk": filtered.sort((a, b) => b.riskScore - a.riskScore); break;
-        case "lowest-risk": filtered.sort((a, b) => a.riskScore - b.riskScore); break;
+        case "newest":
+          filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          break;
+        case "oldest":
+          filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          break;
+        case "highest-risk":
+          filtered.sort((a, b) => b.riskScore - a.riskScore);
+          break;
+        case "lowest-risk":
+          filtered.sort((a, b) => a.riskScore - b.riskScore);
+          break;
       }
 
       const totalItems = filtered.length;
@@ -301,6 +312,14 @@ export function createJournalMockAdapter(): JournalService {
         createdAt: entry.createdAt,
       };
       return { success: true, data: analysis };
+    },
+
+    async getAnalysisStatus() {
+      return { success: false, error: { code: "NOT_FOUND", message: "No active simulated job" } };
+    },
+
+    async resolveSupportResources() {
+      return { success: true, data: [] };
     },
 
     async exportEntry(id) {

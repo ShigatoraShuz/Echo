@@ -1,0 +1,15 @@
+:root{--font-echo-sans:Arial,sans-serif;--font-echo-display:Georgia,serif}
+body{margin:0;font-family:var(--font-echo-sans)}
+.qa-banner{padding:12px 24px;background:#163e32;color:#fff;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;font-size:12px;position:relative;z-index:90}
+.qa-controls{padding:12px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid #cad4c7;background:#f9faf5}
+.qa-controls button,.qa-footer button{border:1px solid #b8c6b4;border-radius:8px;padding:6px 12px;background:white;font-size:12px;color:#234637}
+.qa-controls button[aria-pressed=true]{background:#28513f;color:white}
+.qa-controls label{font-size:12px;display:flex;align-items:center;gap:6px;margin-left:8px}
+.qa-controls select{padding:5px;border:1px solid #b8c6b4;border-radius:8px;background:white}
+.qa-main{max-width:1280px;margin:auto;padding:24px}
+.qa-main>h1{font:600 34px Georgia,serif;color:#193b2f;margin-bottom:16px}
+.qa-description{margin-bottom:16px;color:#566457}
+.qa-footer{padding:20px 24px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#506355}
+.qa-draft{display:block;margin-top:24px;font-size:14px}
+.qa-draft textarea{display:block;background:white;border:1px solid #c4cebe;width:100%;min-height:90px;margin:8px 0;padding:16px;border-radius:16px}
+@media(max-width:600px){.qa-main{padding:16px}.qa-banner,.qa-controls{padding:10px 16px}.qa-main>h1{font-size:28px}}

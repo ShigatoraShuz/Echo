@@ -46,7 +46,12 @@ export interface JournalAnalysis {
   riskIndication: string;
   isDemoData: boolean;
   createdAt: string;
+  result?: import("@echo/contracts").JournalAnalysisResult;
 }
+
+export type JournalCreationOutcome =
+  | JournalEntry
+  | (Partial<JournalEntry> & { kind: "analysis"; submission: import("@echo/contracts").JournalSubmissionResponse });
 
 // ─── Input Types ─────────────────────────────────────
 
@@ -98,13 +103,7 @@ export interface JournalPagination {
 // ─── Service Error ────────────────────────────────────
 
 export type JournalServiceErrorCode =
-  | "NOT_FOUND"
-  | "VALIDATION"
-  | "UNAUTHORIZED"
-  | "FORBIDDEN"
-  | "CONFLICT"
-  | "NETWORK"
-  | "UNKNOWN";
+  "NOT_FOUND" | "VALIDATION" | "UNAUTHORIZED" | "FORBIDDEN" | "CONFLICT" | "NETWORK" | "UNKNOWN";
 
 export interface JournalServiceError {
   code: JournalServiceErrorCode;

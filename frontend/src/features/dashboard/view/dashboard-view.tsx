@@ -22,6 +22,7 @@ import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
 import { settingsService } from "@/services/settings/settings.service";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
+import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 
 function DashboardCard({
   children,
@@ -282,6 +283,8 @@ export function DashboardView() {
             </Link>
           </div>
         </header>
+
+        <AnalysisInsightsDashboard insights={data.analysisInsights} />
 
         {/* DASHBOARD GRID */}
         <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">

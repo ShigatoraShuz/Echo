@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   defaultEchoTheme,
   ECHO_THEME_STORAGE_KEY,
@@ -19,6 +11,7 @@ import {
   isEchoThemeVariant,
   normalizeThemePreferences,
 } from "./theme";
+import { AnalysisStatusExperience } from "@/features/journal/components/analysis-status-experience";
 
 type ThemeContextValue = EchoThemePreferences & {
   resolvedMode: "light" | "dark";
@@ -137,7 +130,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [preferences, resolvedMode, setMode, setTheme, setVariant],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      {children}
+      <AnalysisStatusExperience />
+    </ThemeContext.Provider>
+  );
 }
 
 export function useEchoTheme() {

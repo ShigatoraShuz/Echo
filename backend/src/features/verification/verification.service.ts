@@ -24,14 +24,7 @@ export const documentKinds = [
 
 export type VerificationDocumentKind = (typeof documentKinds)[number];
 export type VerificationStatus =
-  | "not_started"
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "needs_changes"
-  | "approved"
-  | "rejected"
-  | "expired";
+  "not_started" | "draft" | "submitted" | "under_review" | "needs_changes" | "approved" | "rejected" | "expired";
 
 export interface VerificationAddress {
   line1: string;
@@ -97,11 +90,7 @@ function encryptedColumns(payload: EncryptedPayload, prefix = ""): Record<string
   };
 }
 
-function decryptColumns(
-  encryption: EncryptionService,
-  row: Row,
-  prefix = "",
-): string | null {
+function decryptColumns(encryption: EncryptionService, row: Row, prefix = ""): string | null {
   const ciphertext = row[`${prefix}ciphertext`];
   if (ciphertext == null) return null;
   return encryption.decrypt({
@@ -132,19 +121,14 @@ export function calculateAge(dateOfBirth: string, now = new Date()): number {
   if (!birth) throw new ValidationError({ dateOfBirth: ["Enter a valid date of birth."] });
   let age = now.getUTCFullYear() - birth.getUTCFullYear();
   const monthDifference = now.getUTCMonth() - birth.getUTCMonth();
-  if (
-    monthDifference < 0 ||
-    (monthDifference === 0 && now.getUTCDate() < birth.getUTCDate())
-  ) {
+  if (monthDifference < 0 || (monthDifference === 0 && now.getUTCDate() < birth.getUTCDate())) {
     age -= 1;
   }
   return age;
 }
 
 export function requiredDocumentKinds(isMinor: boolean): VerificationDocumentKind[] {
-  return isMinor
-    ? ["user_age_document", "guardian_government_id", "guardianship_document"]
-    : ["user_government_id"];
+  return isMinor ? ["user_age_document", "guardian_government_id", "guardianship_document"] : ["user_government_id"];
 }
 
 function extensionForMimeType(mimeType: string): string {
@@ -351,18 +335,14 @@ export class VerificationService {
     return this.getStatus(userId);
   }
 
-  async uploadDocument(
-    userId: string,
-    kind: VerificationDocumentKind,
-    mimeType: string,
-    contents: Buffer,
-  ) {
+  async uploadDocument(userId: string, kind: VerificationDocumentKind, mimeType: string, contents: Buffer) {
     const extension = extensionForMimeType(mimeType);
     if (contents.byteLength < 1 || contents.byteLength > 8 * 1024 * 1024) {
       throw new ValidationError({ document: ["Upload a document no larger than 8 MB."] });
     }
     const application = await this.applicationRowForUser(userId);
-    if (!application) throw new ConflictError("VERIFICATION_APPLICATION_REQUIRED", "Complete your details before uploading documents.");
+    if (!application)
+      throw new ConflictError("VERIFICATION_APPLICATION_REQUIRED", "Complete your details before uploading documents.");
     const status = stringValue(application.verification_status);
     if (!["draft", "needs_changes", "rejected"].includes(status)) {
       throw new ConflictError("VERIFICATION_LOCKED", "Documents cannot be changed in the current verification state.");
@@ -381,7 +361,8 @@ export class VerificationService {
     const upload = await this.database.storage
       .from(VERIFICATION_BUCKET)
       .upload(storagePath, contents, { contentType: mimeType, upsert: false });
-    if (upload.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
+    if (upload.error)
+      throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
 
     const { data: previous, error: previousError } = await this.database
       .schema("verification_service")
@@ -453,15 +434,18 @@ export class VerificationService {
       })
       .eq("id", application.id);
     if (error) throw databaseError("Your verification application could not be submitted.");
-    await this.database.schema("user_service").from("audit_events").insert({
-      user_id: userId,
-      actor_user_id: userId,
-      event_type: "verification.submitted",
-      resource_type: "identity_verification",
-      resource_id: application.id,
-      request_id: randomUUID(),
-      metadata: { is_minor: isMinor, document_count: documents.length },
-    });
+    await this.database
+      .schema("user_service")
+      .from("audit_events")
+      .insert({
+        user_id: userId,
+        actor_user_id: userId,
+        event_type: "verification.submitted",
+        resource_type: "identity_verification",
+        resource_id: application.id,
+        request_id: randomUUID(),
+        metadata: { is_minor: isMinor, document_count: documents.length },
+      });
     return this.getStatus(userId);
   }
 
@@ -479,7 +463,9 @@ export class VerificationService {
     let query = this.database
       .schema("verification_service")
       .from("identity_verifications")
-      .select("id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at")
+      .select(
+        "id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at",
+      )
       .order("submitted_at", { ascending: true, nullsFirst: false })
       .limit(100);
     if (status && status !== "all") query = query.eq("verification_status", status);
@@ -513,7 +499,8 @@ export class VerificationService {
       documents.map(async (document) => {
         const path = stringValue(document.storage_path);
         const signed = await this.database.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
-        if (signed.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
+        if (signed.error)
+          throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
         return {
           ...this.documentResponse(document),
           signedUrl: signed.data.signedUrl,
@@ -542,12 +529,15 @@ export class VerificationService {
       .from("identity_verifications")
       .update({ verification_status: "under_review" })
       .eq("id", verificationId)
+      .neq("user_id", adminUserId)
       .eq("verification_status", "submitted")
       .select("id")
       .maybeSingle();
     if (error) throw databaseError("The verification application could not be claimed.");
     if (!data) {
       const detail = await this.getForAdmin(adminUserId, verificationId);
+      if (detail.userId === adminUserId)
+        throw new AuthorizationError("Another administrator must review your own application.");
       if (detail.status !== "under_review") {
         throw new ConflictError("VERIFICATION_ALREADY_REVIEWED", "This application is no longer awaiting review.");
       }
@@ -570,8 +560,21 @@ export class VerificationService {
       .maybeSingle();
     if (currentError) throw databaseError("The verification application could not be loaded.");
     if (!current) throw new NotFoundError("The verification application was not found.");
-    if (!["submitted", "under_review"].includes(current.verification_status)) {
+    if (current.user_id === adminUserId)
+      throw new AuthorizationError("You cannot approve or decide your own verification application.");
+    if (current.verification_status !== "under_review") {
       throw new ConflictError("VERIFICATION_ALREADY_REVIEWED", "This application is no longer awaiting review.");
+    }
+    if (input.decision === "approved") {
+      const documents = await this.documentsForVerification(verificationId);
+      const kinds = new Set(documents.map((document) => stringValue(document.document_kind)));
+      if (
+        !this.applicationDetails(current) ||
+        requiredDocumentKinds(current.is_minor === true).some((kind) => !kinds.has(kind))
+      )
+        throw new ValidationError({
+          evidence: ["The required identity application and supporting evidence must be available before approval."],
+        });
     }
 
     const now = new Date();
@@ -586,16 +589,14 @@ export class VerificationService {
       review_note_auth_tag: note ? bytea(note.authenticationTag) : null,
       review_note_key_version: note?.keyVersion ?? null,
       approved_expires_at:
-        input.decision === "approved"
-          ? new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000).toISOString()
-          : null,
+        input.decision === "approved" ? new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000).toISOString() : null,
     };
     const { data: updated, error } = await this.database
       .schema("verification_service")
       .from("identity_verifications")
       .update(update)
       .eq("id", verificationId)
-      .in("verification_status", ["submitted", "under_review"])
+      .eq("verification_status", "under_review")
       .select("id")
       .maybeSingle();
     if (error) throw databaseError("The verification decision could not be saved.");
@@ -607,16 +608,19 @@ export class VerificationService {
     }
 
     const reviewNote = input.note ? this.encryption.encrypt(input.note) : null;
-    const { error: reviewError } = await this.database.schema("verification_service").from("verification_reviews").insert({
-      verification_id: verificationId,
-      admin_user_id: adminUserId,
-      decision: input.decision,
-      reason_code: input.reasonCode,
-      note_ciphertext: reviewNote ? bytea(reviewNote.ciphertext) : null,
-      note_iv: reviewNote ? bytea(reviewNote.iv) : null,
-      note_auth_tag: reviewNote ? bytea(reviewNote.authenticationTag) : null,
-      note_key_version: reviewNote?.keyVersion ?? null,
-    });
+    const { error: reviewError } = await this.database
+      .schema("verification_service")
+      .from("verification_reviews")
+      .insert({
+        verification_id: verificationId,
+        admin_user_id: adminUserId,
+        decision: input.decision,
+        reason_code: input.reasonCode,
+        note_ciphertext: reviewNote ? bytea(reviewNote.ciphertext) : null,
+        note_iv: reviewNote ? bytea(reviewNote.iv) : null,
+        note_auth_tag: reviewNote ? bytea(reviewNote.authenticationTag) : null,
+        note_key_version: reviewNote?.keyVersion ?? null,
+      });
     if (reviewError) {
       await this.database
         .schema("verification_service")
@@ -638,26 +642,32 @@ export class VerificationService {
 
     const userId = stringValue(current.user_id);
     await Promise.all([
-      this.database.schema("notification_service").from("notifications").insert({
-        user_id: userId,
-        notification_type: "verification_status",
-        title: input.decision === "approved" ? "Your account is verified" : "Verification update",
-        message:
-          input.decision === "approved"
-            ? "Buddy and AI-supported features are now available."
-            : input.decision === "needs_changes"
-              ? "An administrator requested changes to your verification application."
-              : "Your verification application was not approved. Review the reason before resubmitting.",
-      }),
-      this.database.schema("user_service").from("audit_events").insert({
-        user_id: userId,
-        actor_user_id: adminUserId,
-        event_type: `verification.${input.decision}`,
-        resource_type: "identity_verification",
-        resource_id: verificationId,
-        request_id: randomUUID(),
-        metadata: { decision: input.decision, reason_code: input.reasonCode },
-      }),
+      this.database
+        .schema("notification_service")
+        .from("notifications")
+        .insert({
+          user_id: userId,
+          notification_type: "verification_status",
+          title: input.decision === "approved" ? "Your account is verified" : "Verification update",
+          message:
+            input.decision === "approved"
+              ? "Your verification was approved. Optional features still require your consent and service availability."
+              : input.decision === "needs_changes"
+                ? "An administrator requested changes to your verification application."
+                : "Your verification application was not approved. Review the reason before resubmitting.",
+        }),
+      this.database
+        .schema("user_service")
+        .from("audit_events")
+        .insert({
+          user_id: userId,
+          actor_user_id: adminUserId,
+          event_type: `verification.${input.decision}`,
+          resource_type: "identity_verification",
+          resource_id: verificationId,
+          request_id: randomUUID(),
+          metadata: { decision: input.decision, reason_code: input.reasonCode },
+        }),
     ]);
     return this.getForAdmin(adminUserId, verificationId);
   }

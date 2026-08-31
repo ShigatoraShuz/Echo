@@ -520,9 +520,7 @@ export function LandingHowItWorks() {
                   onKeyDown={(event) => onKeyDown(event, index)}
                   className="echo-how-step relative z-10 inline-flex min-h-12 shrink-0 items-center gap-3 overflow-hidden rounded-full border border-[#b9c7ad] bg-[#f7f3ea] px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 active:scale-[0.98]"
                 >
-                  <span
-                    className="echo-how-step__number relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[#cdd5c5] bg-[#fbf8f1] text-[#173b2b]"
-                  >
+                  <span className="echo-how-step__number relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[#cdd5c5] bg-[#fbf8f1] text-[#173b2b]">
                     {step.number}
                   </span>
                   <span className="relative z-10">{step.tab}</span>
@@ -536,63 +534,63 @@ export function LandingHowItWorks() {
             id={`echo-step-panel-${active.id}`}
             role="tabpanel"
             aria-labelledby={`echo-step-tab-${active.id}`}
-            className="mt-4 grid gap-7 rounded-[22px] border border-[#d9d8cc] bg-[#fbf8f1] p-5 shadow-[0_18px_48px_rgba(23,59,43,0.05)] sm:p-7 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8"
+            className="mt-4 grid gap-7 rounded-[22px] border border-[#d9d8cc] bg-[#fbf8f1] p-5 shadow-[0_24px_64px_rgba(23,59,43,0.11),0_4px_14px_rgba(23,59,43,0.05)] sm:p-7 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8"
           >
-          <div className="flex flex-col justify-center py-2 lg:py-5">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[#315b38]">{active.eyebrow}</p>
-            <h3 className="mt-4 font-[family-name:var(--font-echo-display)] text-[clamp(2.5rem,3.5vw,3.25rem)] leading-[0.95] tracking-[-0.04em]">
-              {active.heading}
-            </h3>
-            <p className="mt-4 text-sm leading-6 text-[#58695f]">{active.description}</p>
-            <ul className="mt-4 space-y-2.5">
-              {active.bullets.map((bullet, index) => (
-                <li key={bullet} className="flex items-center gap-3 text-xs">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#e7ecdf] text-[#315b38]">
-                    {index === 0 ? (
-                      <CircleGauge className="h-4 w-4" aria-hidden="true" />
-                    ) : index === 1 ? (
-                      <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                    )}
-                  </span>
-                  {bullet}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href={active.href}
-              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[#17452b] px-6 text-xs font-bold text-white transition hover:bg-[#0d2e20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 active:scale-[0.98]"
-            >
-              {active.cta}
-            </Link>
-            {activeIndex < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveIndex(activeIndex + 1);
-                  refs.current[activeIndex + 1]?.focus();
-                }}
-                className="mt-2 inline-flex min-h-11 items-center gap-1 self-start px-2 text-xs font-bold text-[#315b38] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b]"
-              >
-                Next: {next.tab} <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : (
+            <div className="flex flex-col justify-center py-2 lg:py-5">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[#315b38]">{active.eyebrow}</p>
+              <h3 className="mt-4 font-[family-name:var(--font-echo-display)] text-[clamp(2.5rem,3.5vw,3.25rem)] leading-[0.95] tracking-[-0.04em]">
+                {active.heading}
+              </h3>
+              <p className="mt-4 text-sm leading-6 text-[#58695f]">{active.description}</p>
+              <ul className="mt-4 space-y-2.5">
+                {active.bullets.map((bullet, index) => (
+                  <li key={bullet} className="flex items-center gap-3 text-xs">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#e7ecdf] text-[#315b38]">
+                      {index === 0 ? (
+                        <CircleGauge className="h-4 w-4" aria-hidden="true" />
+                      ) : index === 1 ? (
+                        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </span>
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
               <Link
-                href={ROUTES.auth.signup}
-                className="mt-2 inline-flex min-h-11 items-center gap-1 self-start px-2 text-xs font-bold text-[#315b38] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b]"
+                href={active.href}
+                className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[#17452b] px-6 text-xs font-bold text-white transition hover:bg-[#0d2e20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 active:scale-[0.98]"
               >
-                Start privately <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                {active.cta}
               </Link>
-            )}
-          </div>
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
-            <Preview step={active.id} />
-            <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-1 xl:self-center">
-              <MiniPreview step={next} />
-              <MiniPreview step={afterNext} />
+              {activeIndex < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveIndex(activeIndex + 1);
+                    refs.current[activeIndex + 1]?.focus();
+                  }}
+                  className="mt-2 inline-flex min-h-11 items-center gap-1 self-start px-2 text-xs font-bold text-[#315b38] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b]"
+                >
+                  Next: {next.tab} <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : (
+                <Link
+                  href={ROUTES.auth.signup}
+                  className="mt-2 inline-flex min-h-11 items-center gap-1 self-start px-2 text-xs font-bold text-[#315b38] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b]"
+                >
+                  Start privately <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
             </div>
-          </div>
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+              <Preview step={active.id} />
+              <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-1 xl:self-center">
+                <MiniPreview step={next} />
+                <MiniPreview step={afterNext} />
+              </div>
+            </div>
           </div>
         </EchoReveal>
         <EchoReveal variant="card" delay={195}>

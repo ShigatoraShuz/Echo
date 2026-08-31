@@ -11,27 +11,41 @@ export function useDashboardViewModel(initialTimeRange = "7d") {
   const [error, setError] = useState<string | null>(null);
   const service = getDashboardService();
 
-  const load = useCallback(async (range?: string) => {
-    setIsLoading(true);
-    setError(null);
-    const targetRange = range ?? timeRange;
-    const result = await service.getDashboardData(targetRange);
-    if (result.success) {
-      setData(result.data);
-    } else {
-      setError(result.error.message);
-    }
-    setIsLoading(false);
-  }, [service, timeRange]);
+  const load = useCallback(
+    async (range?: string) => {
+      setIsLoading(true);
+      setError(null);
+      const targetRange = range ?? timeRange;
+      const result = await service.getDashboardData(targetRange);
+      if (result.success) {
+        setData(result.data);
+      } else {
+        setError(result.error.message);
+      }
+      setIsLoading(false);
+    },
+    [service, timeRange],
+  );
 
-  const handleSetTimeRange = useCallback((newRange: string) => {
-    setTimeRange(newRange);
-    void load(newRange);
-  }, [load]);
+  const handleSetTimeRange = useCallback(
+    (newRange: string) => {
+      setTimeRange(newRange);
+      void load(newRange);
+    },
+    [load],
+  );
 
   useEffect(() => {
     void load(timeRange);
   }, [timeRange]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void load(timeRange);
+    };
+    window.addEventListener("echo:analysis-completed", refresh);
+    return () => window.removeEventListener("echo:analysis-completed", refresh);
+  }, [load, timeRange]);
 
   return {
     data,

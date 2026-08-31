@@ -44,7 +44,10 @@ function contentSecurityPolicy(nonce: string): string {
     // inline theme-init script. Development keeps 'unsafe-inline' for HMR
     // bootstrapping; the local dev server is not a production surface.
     `script-src 'self' 'nonce-${nonce}' https://accounts.google.com${isDevelopment ? " 'unsafe-inline' 'unsafe-eval'" : ""}`,
-    "style-src 'self' 'unsafe-inline'",
+    // Google Identity Services injects its own stylesheet when the sign-in
+    // prompt is opened. Keep the allow-list scoped to that provider rather
+    // than weakening the policy for arbitrary third-party styles.
+    "style-src 'self' 'unsafe-inline' https://accounts.google.com",
     "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
     "font-src 'self' data:",
     `connect-src 'self' https://accounts.google.com${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
@@ -59,11 +62,18 @@ function contentSecurityPolicy(nonce: string): string {
   ].join("; ");
 }
 
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+  // Static referrer/popup headers live in next.config.ts so private pages and
+  // public Google sign-in pages cannot receive conflicting policies.
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const nonce = generateNonce();
   request.headers.set("x-nonce", nonce);
   const response = NextResponse.next({ request });
-  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+  applySecurityHeaders(response, nonce);
 
   if (!getSupabasePublicConfig()) {
     if (process.env.NODE_ENV !== "production") return response;
@@ -78,7 +88,7 @@ export async function proxy(request: NextRequest) {
     destination.search = "";
     destination.searchParams.set("error", "auth_not_configured");
     const redirect = NextResponse.redirect(destination);
-    redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+    applySecurityHeaders(redirect, nonce);
     return redirect;
   }
 
@@ -92,7 +102,7 @@ export async function proxy(request: NextRequest) {
     destination.pathname = "/login";
     destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
     const redirect = NextResponse.redirect(destination);
-    redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+    applySecurityHeaders(redirect, nonce);
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
   }
@@ -116,7 +126,7 @@ export async function proxy(request: NextRequest) {
         if (isProtected(request.nextUrl.pathname))
           destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
         const redirect = NextResponse.redirect(destination);
-        redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+        applySecurityHeaders(redirect, nonce);
         response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
         return redirect;
       }
@@ -127,7 +137,7 @@ export async function proxy(request: NextRequest) {
       if (isProtected(request.nextUrl.pathname)) {
         const destination = new URL("/login?error=access_check_unavailable", request.url);
         const redirect = NextResponse.redirect(destination);
-        redirect.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+        applySecurityHeaders(redirect, nonce);
         return redirect;
       }
     }

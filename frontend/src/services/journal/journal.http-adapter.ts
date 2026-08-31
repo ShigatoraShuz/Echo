@@ -1,7 +1,4 @@
-import type {
-  JournalService,
-  JournalServiceResult,
-} from "@/services/journal/journal.service";
+import type { JournalService, JournalServiceResult } from "@/services/journal/journal.service";
 import type {
   JournalEntry,
   JournalDraft,
@@ -28,9 +25,13 @@ import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
+import type { AnalysisProgress, JournalSubmissionResponse } from "@echo/contracts";
 
 function toServiceError(error: unknown): JournalServiceError {
   const normalized = normalizeError(error);
+  if (normalized.statusCode === 401) return { code: "UNAUTHORIZED", message: normalized.userMessage };
+  if (normalized.statusCode === 403) return { code: "FORBIDDEN", message: normalized.userMessage };
+  if (normalized.statusCode === 409) return { code: "CONFLICT", message: normalized.userMessage };
   switch (normalized.code) {
     case "NOT_FOUND":
       return { code: "NOT_FOUND", message: normalized.userMessage };
@@ -96,22 +97,31 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async getEntry(id, signal) {
       try {
-        const response = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
-          `/journals/${id}`,
-          { signal },
-        );
+        const response = await client.get<{ success: true; data: JournalEntryResponseDTO }>(`/journals/${id}`, {
+          signal,
+        });
         return { success: true, data: mapEntryResponseToDomain(response.data) };
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }
     },
-    async createEntry(input) {
+    async createEntry(input, options) {
       try {
-        const response = await client.post<{ success: true; data: JournalEntryResponseDTO }, CreateJournalRequestDTO>(
-          "/journals",
-          mapCreateInputToRequest(input),
+        const response = await client.post<
+          { success: true; data: { journalId: string; status: "saved" } | JournalSubmissionResponse },
+          CreateJournalRequestDTO
+        >("/journals", mapCreateInputToRequest(input), {
+          headers: {
+            "Idempotency-Key": options?.idempotencyKey ?? crypto.randomUUID(),
+            ...(options?.fixture ? { "X-ECHO-ANALYSIS-FIXTURE": options.fixture } : {}),
+          },
+        });
+        if ("analysisJobId" in response.data)
+          return { success: true, data: { kind: "analysis" as const, submission: response.data } };
+        const entry = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
+          `/journals/${response.data.journalId}`,
         );
-        return { success: true, data: mapEntryResponseToDomain(response.data) };
+        return { success: true, data: mapEntryResponseToDomain(entry.data) };
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }
@@ -148,10 +158,9 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async getDraft(_id: string, signal?: AbortSignal) {
       try {
-        const response = await client.get<{ success: true; data: JournalDraftResponseDTO | null }>(
-          "/journals/draft",
-          { signal },
-        );
+        const response = await client.get<{ success: true; data: JournalDraftResponseDTO | null }>("/journals/draft", {
+          signal,
+        });
         return { success: true, data: response.data ? mapDraftResponseToDomain(response.data) : null };
       } catch (error) {
         return { success: false, error: toServiceError(error) };
@@ -181,6 +190,36 @@ export function createJournalHttpAdapter(): JournalService {
           `/journals/${entryId}/analyses`,
         );
         return { success: true, data: response.data ? mapAnalysisResponseToDomain(response.data) : null };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async getAnalysisStatus(jobId) {
+      try {
+        const response = await client.get<{ success: true; data: AnalysisProgress }>(`/analysis-jobs/${jobId}/status`);
+        return { success: true, data: response.data };
+      } catch (error) {
+        return { success: false, error: toServiceError(error) };
+      }
+    },
+    async resolveSupportResources(countryCode, regionCode) {
+      try {
+        const response = await client.post<
+          {
+            success: true;
+            data: Array<{
+              id: string;
+              resource_name: string;
+              organization_name: string;
+              phone_number?: string;
+              sms_number?: string;
+              website_url?: string;
+              availability_text?: string;
+            }>;
+          },
+          { countryCode: string; regionCode?: string }
+        >("/support-resources/resolve", { countryCode, ...(regionCode ? { regionCode } : {}) });
+        return { success: true, data: response.data };
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }

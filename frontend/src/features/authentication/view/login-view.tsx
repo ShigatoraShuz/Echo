@@ -55,7 +55,7 @@ export function LoginView({ title, description }: LoginViewProps) {
 
   return (
     <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
-      <EchoReveal direction="up">
+      <EchoReveal direction="down" duration={260}>
         <section className="rounded-[1.75rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-5 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.16)] backdrop-blur-md sm:px-6 sm:py-6 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
           <header className="text-center">
             <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] shadow-[0_10px_24px_rgba(41,49,27,0.1)]">

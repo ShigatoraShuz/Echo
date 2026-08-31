@@ -44,7 +44,7 @@ const summaryCards: Array<{ title: string; body: string; icon: LucideIcon }> = [
 ];
 
 const trustPoints: Array<{ title: string; body: string; icon: LucideIcon }> = [
-  { title: "Your entries are private", body: "Only you can access your journal.", icon: LockKeyhole },
+  { title: "Your entries are private", body: "Protected by account permissions and authorized service access.", icon: LockKeyhole },
   { title: "AI analysis is optional", body: "Use AI insights only if you choose to.", icon: Sparkles },
   { title: "You stay in control", body: "Review, export, or delete anytime.", icon: Settings2 },
 ];

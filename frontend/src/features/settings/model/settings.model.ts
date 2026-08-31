@@ -10,6 +10,7 @@ export interface ProfileSettings {
 }
 
 export interface PrivacySettings {
+  journalAiAnalysisEnabled?: boolean;
   journalPrivate: true;
   facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;
@@ -75,4 +76,3 @@ export interface SettingsSnapshot {
   exportHistory: ExportRequest[];
   deletionRequest: DeletionRequest | null;
 }
-

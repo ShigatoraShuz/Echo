@@ -13,7 +13,7 @@ describe("JournalMockAdapter", () => {
     const result = await adapter.listEntries(
       { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     expect(result.success).toBe(true);
     if (result.success) {
@@ -26,7 +26,7 @@ describe("JournalMockAdapter", () => {
     const result = await adapter.listEntries(
       { query: "", mood: "calm", dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     expect(result.success).toBe(true);
     if (result.success) {
@@ -38,7 +38,7 @@ describe("JournalMockAdapter", () => {
     const result = await adapter.listEntries(
       { query: "morning", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     expect(result.success).toBe(true);
     if (result.success) {
@@ -50,7 +50,7 @@ describe("JournalMockAdapter", () => {
     const result = await adapter.listEntries(
       { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     expect(result.success).toBe(true);
     if (result.success && result.data.entries.length > 1) {
@@ -64,7 +64,7 @@ describe("JournalMockAdapter", () => {
     const result = await adapter.listEntries(
       { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      1
+      1,
     );
     expect(result.success).toBe(true);
     if (result.success) {
@@ -119,7 +119,7 @@ describe("JournalMockAdapter", () => {
     const before = await adapter.listEntries(
       { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     const countBefore = before.success ? before.data.pagination.totalItems : 0;
 
@@ -128,7 +128,7 @@ describe("JournalMockAdapter", () => {
     const after = await adapter.listEntries(
       { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       1,
-      9
+      9,
     );
     expect(after.success).toBe(true);
     if (after.success) {
@@ -189,6 +189,7 @@ describe("JournalMockAdapter", () => {
     });
     expect(createResult.success).toBe(true);
     if (!createResult.success) return;
+    if ("kind" in createResult.data) throw new Error("The mock adapter should return a private journal entry.");
 
     const result = await adapter.requestAnalysis(createResult.data.id);
     expect(result.success).toBe(true);

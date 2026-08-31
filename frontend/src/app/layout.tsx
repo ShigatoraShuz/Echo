@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import { ThemeProvider } from "@/shared/theme";
 import { SmoothScrollProvider } from "@/shared/components/providers/smooth-scroll-provider";
+import { EchoPageFade } from "@/shared/components/react-bits/echo-page-fade";
 import "lenis/dist/lenis.css";
 import "./globals.css";
 
@@ -52,7 +53,9 @@ export default async function RootLayout({
       </head>
       <body className={`${echoSans.variable} ${echoDisplay.variable}`} suppressHydrationWarning>
         <SmoothScrollProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <EchoPageFade>{children}</EchoPageFade>
+          </ThemeProvider>
         </SmoothScrollProvider>
       </body>
     </html>

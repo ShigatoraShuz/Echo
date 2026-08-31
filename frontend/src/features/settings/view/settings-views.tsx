@@ -649,6 +649,7 @@ export function PrivacySettingsView() {
   useEffect(() => {
     if (settings) {
       setForm({
+        journalAiAnalysisEnabled: settings.privacy.journalAiAnalysisEnabled ?? false,
         facialAnalysisEnabled:
           settings.privacy
             .facialAnalysisEnabled,
@@ -729,7 +730,14 @@ export function PrivacySettingsView() {
                 disabled
                 onChange={() => {}}
                 label="Encrypted Records"
-                description="Content is owner-scoped. We cannot read your private thoughts."
+                description="Your entries are encrypted at rest and read through authenticated ECHO services."
+              />
+
+              <Toggle
+                checked={form.journalAiAnalysisEnabled ?? false}
+                onChange={(value) => setForm({ ...form, journalAiAnalysisEnabled: value })}
+                label="Journal analysis consent"
+                description="Allow analysis only when you also request it for a new entry. Existing private journals are never analyzed automatically."
               />
 
               <Toggle

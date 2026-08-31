@@ -13,6 +13,7 @@ const profileSchema = z.object({
 });
 
 const privacySchema = z.object({
+  journalAiAnalysisEnabled: z.boolean().optional(),
   facialAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
   lockScreenPrivate: z.boolean(),
@@ -26,7 +27,10 @@ const notificationSchema = z
     journalRemindersEnabled: z.boolean(),
     wellbeingRemindersEnabled: z.boolean(),
     insightNotificationsEnabled: z.boolean(),
-    reminderTime: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    reminderTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable(),
     reminderTimezone: z.string().trim().min(1).max(100).nullable(),
   })
   .refine(
@@ -101,7 +105,10 @@ export function createSettingsController(service: SettingsService) {
       sendSuccess(response, await service.updateProfile(userId(request), parse(profileSchema, request.body)));
     },
     async uploadAvatar(request: Request, response: Response) {
-      const mimeType = String(request.header("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      const mimeType = String(request.header("content-type") ?? "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
       const body = request.body;
       if (!allowedAvatarTypes.has(mimeType)) {
         throw new ValidationError({ avatar: ["Upload a JPEG, PNG, WebP, or GIF image."] });
@@ -112,11 +119,14 @@ export function createSettingsController(service: SettingsService) {
       if (body.length > maxAvatarBytes) {
         throw new ValidationError({ avatar: ["Profile photo must be no larger than 5 MB."] });
       }
-      sendSuccess(response, await service.uploadAvatar(userId(request), {
-        contents: body,
-        mimeType,
-        sizeBytes: body.length,
-      }));
+      sendSuccess(
+        response,
+        await service.uploadAvatar(userId(request), {
+          contents: body,
+          mimeType,
+          sizeBytes: body.length,
+        }),
+      );
     },
     async updatePrivacy(request: Request, response: Response) {
       sendSuccess(response, await service.updatePrivacy(userId(request), parse(privacySchema, request.body)));
@@ -128,11 +138,7 @@ export function createSettingsController(service: SettingsService) {
       );
     },
     async createContact(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.createContact(userId(request), parse(contactSchema, request.body)),
-        201,
-      );
+      sendSuccess(response, await service.createContact(userId(request), parse(contactSchema, request.body)), 201);
     },
     async updateContact(request: Request, response: Response) {
       sendSuccess(
@@ -145,10 +151,7 @@ export function createSettingsController(service: SettingsService) {
       );
     },
     async removeContact(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.removeContact(userId(request), requireUuidParam(request, "contactId")),
-      );
+      sendSuccess(response, await service.removeContact(userId(request), requireUuidParam(request, "contactId")));
     },
     async requestExport(request: Request, response: Response) {
       sendSuccess(response, await service.requestExport(userId(request)), 201);
@@ -157,24 +160,26 @@ export function createSettingsController(service: SettingsService) {
       sendSuccess(response, await service.requestDeletion(userId(request)), 201);
     },
     async cancelDeletion(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")),
-      );
+      sendSuccess(response, await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")));
     },
     async changePassword(request: Request, response: Response) {
       const input = parse(changePasswordSchema, request.body);
-      sendSuccess(response, await service.changePassword(userId(request), request.auth?.email, {
-        currentPassword: input.currentPassword,
-        newPassword: input.newPassword,
-      }));
+      sendSuccess(
+        response,
+        await service.changePassword(userId(request), request.auth?.email, {
+          currentPassword: input.currentPassword,
+          newPassword: input.newPassword,
+        }),
+      );
     },
     async listSecurityAuditEvents(request: Request, response: Response) {
-      sendSuccess(response, await service.listSecurityAuditEvents(userId(request), parse(auditQuerySchema, request.query).limit));
+      sendSuccess(
+        response,
+        await service.listSecurityAuditEvents(userId(request), parse(auditQuerySchema, request.query).limit),
+      );
     },
     async signOutAllDevices(request: Request, response: Response) {
       sendSuccess(response, await service.signOutAllDevices(userId(request), accessToken(request)));
     },
   };
 }
-

@@ -9,6 +9,7 @@ export interface EnvironmentConfig {
   enableRiskInsights: boolean;
   enableNotifications: boolean;
   enableDataExport: boolean;
+  enableAnalysisFixtures: boolean;
 }
 
 function parseBoolean(value: string | undefined): boolean {
@@ -27,7 +28,7 @@ function validateAdapter(value: string | undefined): DataAdapter {
   }
   if (process.env.NODE_ENV === "development") {
     console.warn(
-      `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "http".`
+      `[ECHO Environment] Invalid NEXT_PUBLIC_DATA_ADAPTER value "${value}". Expected "mock" or "http". Falling back to "http".`,
     );
   }
   return "http";
@@ -41,4 +42,6 @@ export const env: EnvironmentConfig = {
   enableRiskInsights: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_RISK_INSIGHTS),
   enableNotifications: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS),
   enableDataExport: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_DATA_EXPORT),
+  enableAnalysisFixtures:
+    process.env.NODE_ENV === "development" && parseBoolean(process.env.NEXT_PUBLIC_ENABLE_ANALYSIS_FIXTURES),
 };

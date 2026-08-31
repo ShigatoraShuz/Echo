@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { RegistrationService, DraftCredentials } from "./registration.service.js";
 import { ValidationError } from "../../shared/errors/app-error.js";
@@ -21,8 +22,33 @@ function credentials(request: Request) {
   const values = cookies(request);
   return { token: values.echo_signup_draft ?? "", csrf: request.header("x-echo-csrf") ?? "" };
 }
-function setCredentials(response: Response, value: DraftCredentials): void {
-  const security = `SameSite=Lax; Secure; Max-Age=1800`;
+function cookieSecurity(request: Request, maxAge: number): string {
+  // Permit HTTP cookies only for direct loopback development traffic. Never
+  // trust forwarding headers or NODE_ENV alone to relax the production flag.
+  const loopback = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "::ffff:127.0.0.1"]);
+  let localOrigin = false;
+  try {
+    const origin = new URL(request.header("origin") ?? "");
+    localOrigin = origin.protocol === "http:" && loopback.has(origin.hostname);
+  } catch {
+    /* An invalid origin must keep Secure enabled. */
+  }
+  const localHttp =
+    process.env.NODE_ENV === "development" &&
+    request.protocol === "http" &&
+    localOrigin &&
+    loopback.has(request.hostname) &&
+    loopback.has(request.socket.remoteAddress ?? "");
+  return `SameSite=Lax; ${localHttp ? "" : "Secure; "}Max-Age=${maxAge}`;
+}
+
+function googleLoginCookieName(nonce: string): string {
+  // Independent challenges must survive other tabs, retries, and HMR reloads.
+  return `echo_google_login_${createHash("sha256").update(nonce).digest("hex")}`;
+}
+
+function setCredentials(request: Request, response: Response, value: DraftCredentials): void {
+  const security = cookieSecurity(request, 1800);
   response.append(
     "Set-Cookie",
     `echo_signup_draft=${encodeURIComponent(value.token)}; Path=${COOKIE_PATH}; ${security}; HttpOnly`,
@@ -62,7 +88,7 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
     try {
       const input = parse(z.object({ birthday: z.string() }), request.body);
       const result = await service.startEligibility(input.birthday);
-      if (result.credentials) setCredentials(response, result.credentials);
+      if (result.credentials) setCredentials(request, response, result.credentials);
       sendSuccess(response, { eligible: result.eligible, ruleVersion: "echo-adult-18-v1" });
     } catch (error) {
       next(error);
@@ -82,7 +108,7 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
       );
       const auth = credentials(request);
       const nextCredentials = await service.acceptAgreements(auth.token, auth.csrf, input);
-      setCredentials(response, nextCredentials);
+      setCredentials(request, response, nextCredentials);
       sendSuccess(response, { nextStep: "account" });
     } catch (error) {
       next(error);
@@ -101,7 +127,7 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
       );
       const auth = credentials(request);
       const nextCredentials = await service.registerEmail(auth.token, auth.csrf, input.email, input.password);
-      setCredentials(response, nextCredentials);
+      setCredentials(request, response, nextCredentials);
       sendSuccess(response, { nextStep: "verify", verificationPending: true }, 201);
     } catch (error) {
       next(error);
@@ -127,7 +153,7 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
     try {
       const auth = credentials(request);
       const result = await service.createGoogleNonce(auth.token, auth.csrf);
-      setCredentials(response, result.credentials);
+      setCredentials(request, response, result.credentials);
       sendSuccess(response, { nonce: result.nonce, hashedNonce: result.hashedNonce });
     } catch (error) {
       next(error);
@@ -138,8 +164,17 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
       const input = parse(z.object({ idToken: z.string().min(100), nonce: z.string().min(16) }), request.body);
       const auth = credentials(request);
       const result = await service.bindGoogleSignup(auth.token, auth.csrf, input.idToken, input.nonce);
-      setCredentials(response, result.credentials);
+      setCredentials(request, response, result.credentials);
       sendSuccess(response, { reservation: result.reservation, email: result.identity.email });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post("/registration/google/login-challenge", (request, response, next) => {
+    try {
+      const input = parse(z.object({ nonce: z.string().min(16) }), request.body);
+      service.verifyGoogleLoginProof(cookies(request)[googleLoginCookieName(input.nonce)] ?? "", input.nonce);
+      sendSuccess(response, { ready: true });
     } catch (error) {
       next(error);
     }
@@ -147,18 +182,21 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
   router.post("/registration/google/login-status", async (request, response, next) => {
     try {
       const input = parse(z.object({ idToken: z.string().min(100), nonce: z.string().min(16) }), request.body);
-      service.verifyGoogleLoginProof(cookies(request).echo_google_login ?? "", input.nonce);
-      sendSuccess(response, await service.googleLoginStatus(input.idToken, input.nonce));
+      const cookieName = googleLoginCookieName(input.nonce);
+      service.verifyGoogleLoginProof(cookies(request)[cookieName] ?? "", input.nonce);
+      const result = await service.googleLoginStatus(input.idToken, input.nonce);
+      response.append("Set-Cookie", `${cookieName}=; Path=${COOKIE_PATH}; ${cookieSecurity(request, 0)}; HttpOnly`);
+      sendSuccess(response, result);
     } catch (error) {
       next(error);
     }
   });
-  router.post("/registration/google/login-nonce", async (_request, response, next) => {
+  router.post("/registration/google/login-nonce", async (request, response, next) => {
     try {
       const value = service.createGoogleLoginNonce();
       response.append(
         "Set-Cookie",
-        `echo_google_login=${encodeURIComponent(value.proof)}; Path=${COOKIE_PATH}; SameSite=Lax; Secure; HttpOnly; Max-Age=300`,
+        `${googleLoginCookieName(value.nonce)}=${encodeURIComponent(value.proof)}; Path=${COOKIE_PATH}; ${cookieSecurity(request, 300)}; HttpOnly`,
       );
       sendSuccess(response, { nonce: value.nonce, hashedNonce: value.hashedNonce });
     } catch (error) {

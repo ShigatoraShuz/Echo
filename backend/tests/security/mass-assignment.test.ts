@@ -83,19 +83,16 @@ describe("mass-assignment and privilege-escalation defense (ECHO-012)", () => {
   it("strips user_id from journal create payloads instead of trusting the client", async () => {
     const { app, journals } = createHarness();
 
-    const response = await request(app)
-      .post("/api/v1/journals")
-      .set("Authorization", "Bearer valid-token")
-      .send({
-        title: "A reflection",
-        body: "Body text",
-        mood: "calm",
-        user_id: "victim-user",
-        role: "admin",
-      });
+    const response = await request(app).post("/api/v1/journals").set("Authorization", "Bearer valid-token").send({
+      title: "A reflection",
+      body: "Body text",
+      mood: "calm",
+      user_id: "victim-user",
+      role: "admin",
+    });
 
     expect(response.status).toBe(201);
-    expect(journals.create).toHaveBeenCalledWith("user-1", expect.any(Object));
+    expect(journals.create).toHaveBeenCalledWith("user-1", expect.any(Object), undefined, undefined);
     const input = journals.create.mock.calls[0][1];
     expect(input).not.toHaveProperty("user_id");
     expect(input).not.toHaveProperty("role");
@@ -161,6 +158,6 @@ describe("mass-assignment and privilege-escalation defense (ECHO-012)", () => {
       .send({ title: "A", body: "B", mood: "calm", owner_id: "victim-user" });
 
     expect(response.status).toBe(201);
-    expect(journals.create).toHaveBeenCalledWith("user-1", expect.any(Object));
+    expect(journals.create).toHaveBeenCalledWith("user-1", expect.any(Object), undefined, undefined);
   });
 });

@@ -5,6 +5,7 @@ import { ArrowUpRight, BadgeCheck, Bot, HeartHandshake, History, Leaf, LockKeyho
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
+import { BuddyAnalysisHandoff } from "../components/buddy-analysis-handoff";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { moodStyles } from "@/shared/theme";
 
@@ -59,6 +60,7 @@ export function BuddyView() {
 
   return (
     <div className="space-y-6">
+      <BuddyAnalysisHandoff onChoose={setDraft} />
       <EchoMotionSurface as="div" tilt={false} className="relative mb-6 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.74))] p-6 shadow-[0_18px_50px_rgba(30,53,34,0.08)] sm:p-8">
         <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-white/60 blur-3xl" aria-hidden="true" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

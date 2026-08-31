@@ -1,28 +1,61 @@
-export type AnalysisSeverity = "minimal" | "mild" | "moderate" | "moderately_severe" | "severe";
+import type { AnalysisFixture, AnalysisStatus, JournalAnalysisResult } from "@echo/contracts";
 
-export interface AnalysisProviderInput {
+export interface JournalAnalysisInput {
   requestId: string;
+  journalId: string;
   journalText: string;
-  language: string;
+  fixture: AnalysisFixture;
+  reviewedResume?: boolean;
 }
-
-export interface AnalysisProviderResult {
-  requestId: string;
-  phq8Score: number;
-  severity: AnalysisSeverity;
-  urgentLanguageDetected: boolean;
-  provider: "mock";
-  modelVersion: "mock-analysis-v1";
-  processingTimeMs: number;
+export interface AnalysisProgressUpdate {
+  status: Exclude<AnalysisStatus, "queued" | "waiting_for_provider" | "completed" | "failed" | "retrying">;
 }
-
-export interface AnalysisProviderHealth {
-  status: "ok";
-  provider: "mock";
+export interface AiProviderHealth {
+  available: boolean;
+  mode: "disabled" | "development_stub";
+  detail: "disabled" | "development fixture runner ready";
 }
-
-export interface AnalysisProvider {
-  analyze(input: AnalysisProviderInput): Promise<AnalysisProviderResult>;
-  healthCheck(): Promise<AnalysisProviderHealth>;
-  getProviderInfo(): { provider: "mock"; version: "mock-analysis-v1"; developmentOnly: true };
+export interface AiAnalysisProvider {
+  healthCheck(): Promise<AiProviderHealth>;
+  analyze(
+    input: JournalAnalysisInput,
+    options: {
+      signal?: AbortSignal;
+      onProgress?: (update: AnalysisProgressUpdate) => Promise<void> | void;
+    },
+  ): Promise<{ safetyActionRequired: boolean; result?: JournalAnalysisResult }>;
+}
+export interface LocalWorkerProtocol {
+  protocolHealth(): Promise<unknown>;
+  reportHealth(workerId: string, acceptingJobs: boolean, modelStatus?: string, modelVersion?: string): Promise<unknown>;
+  claim(workerId: string): Promise<unknown>;
+  heartbeat(jobId: string, workerId: string, leaseToken: string, key?: string): Promise<unknown>;
+  progress(
+    jobId: string,
+    workerId: string,
+    leaseToken: string,
+    key: string | undefined,
+    payload: unknown,
+  ): Promise<unknown>;
+  safetyResult(
+    jobId: string,
+    workerId: string,
+    leaseToken: string,
+    key: string | undefined,
+    payload: unknown,
+  ): Promise<unknown>;
+  finalResult(
+    jobId: string,
+    workerId: string,
+    leaseToken: string,
+    key: string | undefined,
+    payload: unknown,
+  ): Promise<unknown>;
+  failure(
+    jobId: string,
+    workerId: string,
+    leaseToken: string,
+    key: string | undefined,
+    payload: unknown,
+  ): Promise<unknown>;
 }

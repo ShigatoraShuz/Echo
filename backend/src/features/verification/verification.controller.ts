@@ -3,10 +3,7 @@ import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
-import {
-  documentKinds,
-  type VerificationService,
-} from "./verification.service.js";
+import { documentKinds, type VerificationService } from "./verification.service.js";
 
 const addressSchema = z.object({
   line1: z.string().trim().min(3).max(200),
@@ -14,7 +11,11 @@ const addressSchema = z.object({
   city: z.string().trim().min(2).max(100),
   province: z.string().trim().min(2).max(100),
   postalCode: z.string().trim().min(3).max(20),
-  countryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()),
+  countryCode: z
+    .string()
+    .trim()
+    .length(2)
+    .transform((value) => value.toUpperCase()),
 });
 
 const guardianSchema = z.object({
@@ -29,7 +30,10 @@ const guardianSchema = z.object({
 
 const applicationSchema = z.object({
   legalName: z.string().trim().min(2).max(200),
-  dateOfBirth: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dateOfBirth: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/),
   phoneNumber: z.string().trim().min(7).max(40),
   address: addressSchema,
   governmentIdType: z.string().trim().min(2).max(80),
@@ -80,16 +84,17 @@ function parameter(request: Request, name: string): string {
 
 export function createVerificationController(service: VerificationService) {
   return {
+    async reviewerAccess(request: Request, response: Response) {
+      response.setHeader("Cache-Control", "no-store");
+      sendSuccess(response, { canReview: await service.isAdmin(authenticatedUserId(request)) });
+    },
     async status(request: Request, response: Response) {
       sendSuccess(response, await service.getStatus(authenticatedUserId(request)));
     },
     async saveApplication(request: Request, response: Response) {
       sendSuccess(
         response,
-        await service.saveApplication(
-          authenticatedUserId(request),
-          parse(applicationSchema, request.body),
-        ),
+        await service.saveApplication(authenticatedUserId(request), parse(applicationSchema, request.body)),
       );
     },
     async uploadDocument(request: Request, response: Response) {
@@ -118,19 +123,13 @@ export function createVerificationController(service: VerificationService) {
     async adminDetail(request: Request, response: Response) {
       sendSuccess(
         response,
-        await service.getForAdmin(
-          authenticatedUserId(request),
-          requireUuidParam(request, "verificationId"),
-        ),
+        await service.getForAdmin(authenticatedUserId(request), requireUuidParam(request, "verificationId")),
       );
     },
     async adminClaim(request: Request, response: Response) {
       sendSuccess(
         response,
-        await service.claimForReview(
-          authenticatedUserId(request),
-          requireUuidParam(request, "verificationId"),
-        ),
+        await service.claimForReview(authenticatedUserId(request), requireUuidParam(request, "verificationId")),
       );
     },
     async adminDecision(request: Request, response: Response) {

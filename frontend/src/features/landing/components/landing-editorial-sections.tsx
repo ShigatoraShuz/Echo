@@ -194,7 +194,12 @@ function FlipMediaCard({
             compact ? "left-5 right-5 top-[24%] p-3" : "right-7 top-[18%] w-[54%] p-4 sm:p-5",
           )}
         >
-          <div className={cn("flex items-center justify-between gap-3 border-white/10", compact ? "pb-1" : "border-b pb-3")}>
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 border-white/10",
+              compact ? "pb-1" : "border-b pb-3",
+            )}
+          >
             <span className="inline-flex items-center gap-2 text-[10px] font-extrabold tracking-[0.12em] text-white/90">
               <span className={cn("grid place-items-center rounded-full bg-white/15", compact ? "h-6 w-6" : "h-7 w-7")}>
                 <Leaf className="h-3.5 w-3.5" />
@@ -312,7 +317,7 @@ export function MindfulnessOfferingsSection() {
     >
       <div className="mx-auto grid w-full max-w-[1440px] gap-5 lg:grid-cols-12 lg:items-stretch">
         <EchoReveal variant="card" className="h-full lg:col-span-3">
-          <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8 lg:min-h-[690px]">
+          <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 shadow-[0_18px_52px_rgba(29,52,34,.11)] sm:p-8 lg:min-h-[690px]">
             <div>
               <p className="inline-flex rounded-full bg-[var(--landing-inverse)] px-3 py-1.5 text-xs font-bold shadow-sm">
                 Grounding tools
@@ -390,7 +395,7 @@ export function MindfulnessOfferingsSection() {
 
         <div className="grid gap-5 lg:col-span-3 lg:grid-rows-[auto_1fr]">
           <EchoReveal variant="card" delay={120}>
-            <div className="rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8">
+            <div className="rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 shadow-[0_16px_44px_rgba(29,52,34,.10)] sm:p-8">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">
                 Explore ECHO
               </p>

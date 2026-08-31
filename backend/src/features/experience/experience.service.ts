@@ -87,8 +87,26 @@ export class ExperienceService {
         .eq("user_id", userId)
         .maybeSingle(),
     ]);
-    throwIfDatabaseError(profileResult.error, { module: "experience.dashboard", schema: "user_service", table: "profiles", operation: "select dashboard profile" }, "Your dashboard is temporarily unavailable.");
-    throwIfDatabaseError(preferenceResult.error, { module: "experience.dashboard", schema: "user_service", table: "notification_preferences", operation: "select dashboard notification preferences" }, "Your dashboard is temporarily unavailable.");
+    throwIfDatabaseError(
+      profileResult.error,
+      {
+        module: "experience.dashboard",
+        schema: "user_service",
+        table: "profiles",
+        operation: "select dashboard profile",
+      },
+      "Your dashboard is temporarily unavailable.",
+    );
+    throwIfDatabaseError(
+      preferenceResult.error,
+      {
+        module: "experience.dashboard",
+        schema: "user_service",
+        table: "notification_preferences",
+        operation: "select dashboard notification preferences",
+      },
+      "Your dashboard is temporarily unavailable.",
+    );
     const profile = profileResult.data;
     const preferences = preferenceResult.data;
 
@@ -167,7 +185,7 @@ export class ExperienceService {
       latestEntry: entries[0] ?? null,
       journalEntries: entries,
       moodTrend,
-      riskTrend: moodTrend.map((point) => ({ label: point.label, value: Math.max(0, 100 - point.value) })),
+      riskTrend: [],
       weeklyDigest,
       quickActions: [
         { href: "/journal/new", title: "Write a reflection", description: "Private journal entry" },
@@ -192,7 +210,16 @@ export class ExperienceService {
       .order("last_message_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    throwIfDatabaseError(error, { module: "experience.buddy", schema: "buddy_service", table: "buddy_conversations", operation: "select active conversation" }, "Buddy is temporarily unavailable.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_conversations",
+        operation: "select active conversation",
+      },
+      "Buddy is temporarily unavailable.",
+    );
     if (data) return data as DatabaseRow;
 
     const { data: created, error: createError } = await this.database
@@ -205,7 +232,16 @@ export class ExperienceService {
       })
       .select("*")
       .single();
-    throwIfDatabaseError(createError, { module: "experience.buddy", schema: "buddy_service", table: "buddy_conversations", operation: "insert active conversation" }, "Buddy could not start a private conversation.");
+    throwIfDatabaseError(
+      createError,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_conversations",
+        operation: "insert active conversation",
+      },
+      "Buddy could not start a private conversation.",
+    );
     if (!created) {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy could not start a private conversation.");
     }
@@ -222,7 +258,16 @@ export class ExperienceService {
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
-    throwIfDatabaseError(error, { module: "experience.buddy", schema: "buddy_service", table: "buddy_messages", operation: "select conversation messages" }, "Buddy messages could not be loaded.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_messages",
+        operation: "select conversation messages",
+      },
+      "Buddy messages could not be loaded.",
+    );
     const messages = ((data ?? []) as DatabaseRow[]).map((row) => ({
       id: asString(row.id),
       role: row.role === "user" ? "user" : "buddy",
@@ -249,40 +294,73 @@ export class ExperienceService {
     const urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm)\b/i.test(content);
     const reply = buddyReply(content, urgent);
     const now = new Date().toISOString();
-    const { error } = await this.database.schema("buddy_service").from("buddy_messages").insert([
+    const { error } = await this.database
+      .schema("buddy_service")
+      .from("buddy_messages")
+      .insert([
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "user",
+          content,
+          is_flagged: urgent,
+        },
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          role: "assistant",
+          content: reply,
+          is_flagged: urgent,
+        },
+      ]);
+    throwIfDatabaseError(
+      error,
       {
-        conversation_id: conversationId,
-        user_id: userId,
-        role: "user",
-        content,
-        is_flagged: urgent,
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_messages",
+        operation: "insert buddy exchange",
       },
-      {
-        conversation_id: conversationId,
-        user_id: userId,
-        role: "assistant",
-        content: reply,
-        is_flagged: urgent,
-      },
-    ]);
-    throwIfDatabaseError(error, { module: "experience.buddy", schema: "buddy_service", table: "buddy_messages", operation: "insert buddy exchange" }, "Buddy could not save this conversation.");
+      "Buddy could not save this conversation.",
+    );
     const { error: updateError } = await this.database
       .schema("buddy_service")
       .from("buddy_conversations")
       .update({ last_message_at: now })
       .eq("id", conversationId)
       .eq("user_id", userId);
-    throwIfDatabaseError(updateError, { module: "experience.buddy", schema: "buddy_service", table: "buddy_conversations", operation: "update last message time" }, "Buddy could not save this conversation.");
+    throwIfDatabaseError(
+      updateError,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_conversations",
+        operation: "update last message time",
+      },
+      "Buddy could not save this conversation.",
+    );
     if (urgent) {
-      const { error: auditError } = await this.database.schema("user_service").from("audit_events").insert({
-        user_id: userId,
-        event_type: "buddy.urgent_language_detected",
-        resource_type: "buddy_conversation",
-        resource_id: conversationId,
-        request_id: randomUUID(),
-        metadata: { support_resources_shown: true },
-      });
-      throwIfDatabaseError(auditError, { module: "experience.buddy", schema: "user_service", table: "audit_events", operation: "insert urgent language audit event" }, "Buddy could not save this conversation.");
+      const { error: auditError } = await this.database
+        .schema("user_service")
+        .from("audit_events")
+        .insert({
+          user_id: userId,
+          event_type: "buddy.urgent_language_detected",
+          resource_type: "buddy_conversation",
+          resource_id: conversationId,
+          request_id: randomUUID(),
+          metadata: { support_resources_shown: true },
+        });
+      throwIfDatabaseError(
+        auditError,
+        {
+          module: "experience.buddy",
+          schema: "user_service",
+          table: "audit_events",
+          operation: "insert urgent language audit event",
+        },
+        "Buddy could not save this conversation.",
+      );
     }
     return this.buddySession(userId);
   }
@@ -320,10 +398,7 @@ export class ExperienceService {
     };
   }
 
-  async completeGrounding(
-    userId: string,
-    input: { technique: string; durationSeconds: number; pace: string },
-  ) {
+  async completeGrounding(userId: string, input: { technique: string; durationSeconds: number; pace: string }) {
     const { data, error } = await this.database
       .schema("grounding_service")
       .from("grounding_sessions")
@@ -337,7 +412,16 @@ export class ExperienceService {
       })
       .select("id, completed_at")
       .single();
-    throwIfDatabaseError(error, { module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "insert completed grounding session" }, "The grounding session could not be recorded.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.grounding",
+        schema: "grounding_service",
+        table: "grounding_sessions",
+        operation: "insert completed grounding session",
+      },
+      "The grounding session could not be recorded.",
+    );
     if (!data) {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The grounding session could not be recorded.");
     }
@@ -347,7 +431,16 @@ export class ExperienceService {
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("completed", true);
-    throwIfDatabaseError(countError, { module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "count completed grounding sessions" }, "Grounding history could not be loaded.");
+    throwIfDatabaseError(
+      countError,
+      {
+        module: "experience.grounding",
+        schema: "grounding_service",
+        table: "grounding_sessions",
+        operation: "count completed grounding sessions",
+      },
+      "Grounding history could not be loaded.",
+    );
     return { id: data.id, completedAt: data.completed_at, completedSessions: count ?? 1 };
   }
 
@@ -369,7 +462,16 @@ export class ExperienceService {
       }
     }
     const { data, error } = await builder;
-    throwIfDatabaseError(error, { module: "experience.supportResources", schema: "grounding_service", table: "support_resources", operation: "select verified support resources" }, "Support resources are temporarily unavailable.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.supportResources",
+        schema: "grounding_service",
+        table: "support_resources",
+        operation: "select verified support resources",
+      },
+      "Support resources are temporarily unavailable.",
+    );
     return ((data ?? []) as DatabaseRow[]).map((row) => ({
       id: asString(row.id),
       type: asString(row.support_resource_type),
@@ -393,7 +495,16 @@ export class ExperienceService {
       .select("id, archived, last_message_at, created_at")
       .eq("user_id", userId)
       .order("last_message_at", { ascending: false });
-    throwIfDatabaseError(error, { module: "experience.buddy", schema: "buddy_service", table: "buddy_conversations", operation: "select conversation history" }, "Buddy history could not be loaded.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_conversations",
+        operation: "select conversation history",
+      },
+      "Buddy history could not be loaded.",
+    );
     return data ?? [];
   }
 
@@ -405,7 +516,16 @@ export class ExperienceService {
       .eq("id", conversationId)
       .eq("user_id", userId)
       .maybeSingle();
-    throwIfDatabaseError(error, { module: "experience.buddy", schema: "buddy_service", table: "buddy_conversations", operation: "select owned conversation" }, "Buddy is temporarily unavailable.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.buddy",
+        schema: "buddy_service",
+        table: "buddy_conversations",
+        operation: "select owned conversation",
+      },
+      "Buddy is temporarily unavailable.",
+    );
     if (!data) throw new NotFoundError("The Buddy conversation was not found.");
   }
 }

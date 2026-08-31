@@ -29,7 +29,12 @@ export function createAccessRouter(service: AccessService, verifier: AccessToken
   });
   router.post("/access/policies", authenticate, async (request, response, next) => {
     try {
-      await service.acceptCurrentPolicies(request.auth!.id);
+      const parsed = z
+        .object({ reviewedDocumentIds: z.array(z.string().uuid()).length(3) })
+        .strict()
+        .safeParse(request.body);
+      if (!parsed.success) throw new ValidationError();
+      await service.acceptCurrentPolicies(request.auth!.id, parsed.data.reviewedDocumentIds);
       sendSuccess(response, { accepted: true });
     } catch (error) {
       next(error);
@@ -39,7 +44,16 @@ export function createAccessRouter(service: AccessService, verifier: AccessToken
 }
 
 export function createAccessGuard(service: AccessService) {
-  const allowedPrefixes = ["/access/", "/onboarding/", "/verification"];
+  // Private journals and existing analysis status have their own scoped gates.
+  // Declining AI must not remove access to ordinary journaling.
+  const allowedPrefixes = [
+    "/access/",
+    "/onboarding/",
+    "/verification",
+    "/journals",
+    "/analysis-jobs",
+    "/support-resources",
+  ];
   return async (request: Request, _response: Response, next: NextFunction) => {
     try {
       if (allowedPrefixes.some((prefix) => request.path.startsWith(prefix))) return next();

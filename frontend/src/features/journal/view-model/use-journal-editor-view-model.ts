@@ -1,10 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { JournalMood, JournalPrivacyStatus, CreateJournalInput, JournalEntry, JournalDraft } from "../model/journal.model";
+import type {
+  JournalMood,
+  JournalPrivacyStatus,
+  CreateJournalInput,
+  JournalEntry,
+  JournalDraft,
+} from "../model/journal.model";
 import { JOURNAL_AUTOSAVE_INTERVAL_MS } from "../model/journal.constants";
 import { validateCreateJournalInput } from "../model/journal.schema";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import type { AnalysisFixture, JournalSubmissionResponse } from "@echo/contracts";
+import { env } from "@/config/environment";
 
 export type AutosaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
@@ -22,6 +30,8 @@ interface EditorState {
   autosaveStatus: AutosaveStatus;
   error: string | null;
   savedEntry: JournalEntry | null;
+  analysisSubmission: JournalSubmissionResponse | null;
+  fixture: AnalysisFixture;
   fieldErrors: Record<string, string[]>;
 }
 
@@ -33,6 +43,8 @@ type EditorAction =
   | { type: "UPDATE_COUNTS" }
   | { type: "SAVE_START" }
   | { type: "SAVE_SUCCESS"; entry: JournalEntry }
+  | { type: "ANALYSIS_SUBMITTED"; submission: JournalSubmissionResponse }
+  | { type: "SET_FIXTURE"; fixture: AnalysisFixture }
   | { type: "SAVE_ERROR"; error: string }
   | { type: "SET_FIELD_ERRORS"; fieldErrors: Record<string, string[]> }
   | { type: "SET_AUTOSAVE_STATUS"; status: AutosaveStatus }
@@ -70,6 +82,10 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, isSaving: true, error: null, fieldErrors: {} };
     case "SAVE_SUCCESS":
       return { ...state, isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
+    case "ANALYSIS_SUBMITTED":
+      return { ...state, isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
+    case "SET_FIXTURE":
+      return { ...state, fixture: action.fixture, autosaveStatus: "unsaved" };
     case "SAVE_ERROR":
       return { ...state, isSaving: false, autosaveStatus: "error", error: action.error };
     case "SET_FIELD_ERRORS":
@@ -99,6 +115,8 @@ const initialEditorState: EditorState = {
   autosaveStatus: "idle",
   error: null,
   savedEntry: null,
+  analysisSubmission: null,
+  fixture: "standard_low_distress",
   fieldErrors: {},
 };
 
@@ -108,18 +126,55 @@ export function useJournalEditorViewModel() {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isAutosavingRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
-  const setField = useCallback((field: "title" | "body" | "mood" | "privacyStatus", value: string) => {
-    dispatch({ type: "SET_FIELD", field, value });
+  const requestChanged = useCallback(() => {
+    idempotencyKeyRef.current = null;
   }, []);
+
+  const setField = useCallback(
+    (field: "title" | "body" | "mood" | "privacyStatus", value: string) => {
+      requestChanged();
+      dispatch({ type: "SET_FIELD", field, value });
+    },
+    [requestChanged],
+  );
 
   const setTitle = useCallback((title: string) => setField("title", title), [setField]);
   const setBody = useCallback((body: string) => setField("body", body), [setField]);
   const setMood = useCallback((mood: JournalMood) => setField("mood", mood), [setField]);
-  const setPrivacyStatus = useCallback((privacyStatus: JournalPrivacyStatus) => setField("privacyStatus", privacyStatus), [setField]);
-  const setEmotions = useCallback((emotions: string[]) => dispatch({ type: "SET_EMOTIONS", emotions }), []);
-  const setTags = useCallback((tags: string[]) => dispatch({ type: "SET_TAGS", tags }), []);
-  const setAnalysisConsent = useCallback((analysisConsent: boolean) => dispatch({ type: "SET_ANALYSIS_CONSENT", analysisConsent }), []);
+  const setPrivacyStatus = useCallback(
+    (privacyStatus: JournalPrivacyStatus) => setField("privacyStatus", privacyStatus),
+    [setField],
+  );
+  const setEmotions = useCallback(
+    (emotions: string[]) => {
+      requestChanged();
+      dispatch({ type: "SET_EMOTIONS", emotions });
+    },
+    [requestChanged],
+  );
+  const setTags = useCallback(
+    (tags: string[]) => {
+      requestChanged();
+      dispatch({ type: "SET_TAGS", tags });
+    },
+    [requestChanged],
+  );
+  const setAnalysisConsent = useCallback(
+    (analysisConsent: boolean) => {
+      requestChanged();
+      dispatch({ type: "SET_ANALYSIS_CONSENT", analysisConsent });
+    },
+    [requestChanged],
+  );
+  const setFixture = useCallback(
+    (fixture: AnalysisFixture) => {
+      requestChanged();
+      dispatch({ type: "SET_FIXTURE", fixture });
+    },
+    [requestChanged],
+  );
 
   const performAutosave = useCallback(async () => {
     if (isAutosavingRef.current) return;
@@ -155,7 +210,17 @@ export function useJournalEditorViewModel() {
       isAutosavingRef.current = false;
       abortControllerRef.current = null;
     }
-  }, [state.title, state.body, state.mood, state.emotions, state.tags, state.privacyStatus, state.analysisConsent, state.savedEntry?.id, service]);
+  }, [
+    state.title,
+    state.body,
+    state.mood,
+    state.emotions,
+    state.tags,
+    state.privacyStatus,
+    state.analysisConsent,
+    state.savedEntry?.id,
+    service,
+  ]);
 
   // Debounced autosave
   useEffect(() => {
@@ -208,19 +273,42 @@ export function useJournalEditorViewModel() {
       privacyStatus: state.privacyStatus,
       analysisConsent: state.analysisConsent,
     };
-    const result = await service.createEntry(createInput);
+    idempotencyKeyRef.current ??= crypto.randomUUID();
+    const result = await service.createEntry(createInput, {
+      idempotencyKey: idempotencyKeyRef.current,
+      ...(env.enableAnalysisFixtures && state.analysisConsent ? { fixture: state.fixture } : {}),
+    });
     if (result.success) {
-      dispatch({ type: "SAVE_SUCCESS", entry: result.data });
+      const data = result.data;
+      if ("kind" in data && data.kind === "analysis") {
+        dispatch({ type: "ANALYSIS_SUBMITTED", submission: data.submission });
+        localStorage.setItem("echo:active-analysis", JSON.stringify(data.submission));
+        window.dispatchEvent(new CustomEvent("echo:analysis-submitted", { detail: data.submission }));
+      } else {
+        dispatch({ type: "SAVE_SUCCESS", entry: data as JournalEntry });
+      }
+      await service.deleteDraft("current");
     } else {
       dispatch({ type: "SAVE_ERROR", error: result.error.message });
     }
-  }, [state.title, state.body, state.mood, state.emotions, state.tags, state.privacyStatus, state.analysisConsent, service]);
+  }, [
+    state.title,
+    state.body,
+    state.mood,
+    state.emotions,
+    state.tags,
+    state.privacyStatus,
+    state.analysisConsent,
+    state.fixture,
+    service,
+  ]);
 
   const clearError = useCallback(() => {
     dispatch({ type: "CLEAR_ERROR" });
   }, []);
 
   const reset = useCallback(() => {
+    idempotencyKeyRef.current = null;
     dispatch({ type: "RESET" });
   }, []);
 
@@ -245,6 +333,8 @@ export function useJournalEditorViewModel() {
     error: state.error,
     fieldErrors: state.fieldErrors,
     savedEntry: state.savedEntry,
+    analysisSubmission: state.analysisSubmission,
+    fixture: state.fixture,
     setTitle,
     setBody,
     setMood,
@@ -252,6 +342,7 @@ export function useJournalEditorViewModel() {
     setTags,
     setPrivacyStatus,
     setAnalysisConsent,
+    setFixture,
     save,
     clearError,
     reset,

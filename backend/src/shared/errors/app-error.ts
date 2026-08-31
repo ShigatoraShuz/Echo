@@ -32,6 +32,17 @@ export class AuthorizationError extends AppError {
   }
 }
 
+export class AnalysisGateError extends AppError {
+  constructor(message: string, gate = "current_eligibility") {
+    super({
+      statusCode: 403,
+      code: "ANALYSIS_GATE_FAILED",
+      message,
+      details: { gate, journalSaved: false, draftPreserved: true, privateSaveRequiresExplicitResubmission: true },
+    });
+  }
+}
+
 export class VerificationRequiredError extends AppError {
   constructor(status: string) {
     super({

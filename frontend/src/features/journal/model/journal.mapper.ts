@@ -72,6 +72,7 @@ export function mapAnalysisResponseToDomain(dto: JournalAnalysisResponseDTO): Jo
     riskIndication: dto.risk_indication,
     isDemoData: dto.is_demo_data,
     createdAt: dto.created_at,
+    result: dto.result,
   };
 }
 

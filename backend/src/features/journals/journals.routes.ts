@@ -17,6 +17,13 @@ export function createJournalsRouter(
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
   router.get("/journals", authenticate, controller.list);
   router.post("/journals", authenticate, controller.create);
+  router.get("/analysis-jobs/:jobId/status", authenticate, controller.status);
+  router.get("/dashboard/insights", authenticate, controller.dashboardInsights);
+  router.post("/support-resources/resolve", authenticate, controller.supportResources);
+  router.post("/support-contact-requests", authenticate, controller.supportContact);
+  router.post("/buddy/handoffs", authenticate, controller.buddyHandoff);
+  router.get("/buddy/handoffs/:handoffId", authenticate, controller.getBuddyHandoff);
+  router.post("/analysis-jobs/:jobId/safety-review", authenticate, controller.safetyReview);
   router.get("/journals/draft", authenticate, controller.getDraft);
   router.put("/journals/draft", authenticate, controller.saveDraft);
   router.delete("/journals/draft", authenticate, controller.deleteDraft);

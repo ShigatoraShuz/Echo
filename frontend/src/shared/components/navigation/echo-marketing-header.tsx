@@ -67,8 +67,8 @@ export function EchoMarketingHeader() {
           "border border-[var(--landing-sand)]/60",
           "will-change-[width,max-width,border-radius,transform] transition-[width,max-width,border-radius,box-shadow,background-color,border-color,transform] duration-[480ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
           scrolled
-            ? "w-[min(92%,1380px)] translate-y-4 rounded-[2rem] shadow-[0_14px_42px_rgba(49,55,36,0.14)]"
-            : "w-full translate-y-0 rounded-none border-x-transparent border-t-transparent shadow-[0_2px_16px_rgba(49,55,36,0.05)]",
+            ? "w-[min(92%,1380px)] translate-y-4 rounded-[2rem] shadow-[0_20px_56px_rgba(38,50,31,0.18),0_3px_12px_rgba(38,50,31,0.08)]"
+            : "w-full translate-y-0 rounded-none border-x-transparent border-t-transparent shadow-[0_6px_24px_rgba(49,55,36,0.09)]",
         )}
       >
         <div className="mx-auto flex h-[84px] w-full max-w-[1380px] items-center justify-between px-8 2xl:px-12">
@@ -163,8 +163,8 @@ export function EchoMarketingHeader() {
           "border border-[var(--landing-sand)]/60",
           "will-change-[width,max-width,border-radius,transform] transition-[width,max-width,border-radius,box-shadow,background-color,border-color,transform] duration-[480ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
           scrolled
-            ? "w-[calc(100%-1.5rem)] max-w-[520px] translate-y-3 rounded-[2rem] shadow-[0_12px_36px_rgba(49,55,36,0.14)]"
-            : "w-full max-w-[100vw] translate-y-0 rounded-none border-x-transparent border-t-transparent shadow-[0_2px_16px_rgba(49,55,36,0.05)]",
+            ? "w-[calc(100%-1.5rem)] max-w-[520px] translate-y-3 rounded-[2rem] shadow-[0_18px_48px_rgba(38,50,31,0.17),0_3px_10px_rgba(38,50,31,0.07)]"
+            : "w-full max-w-[100vw] translate-y-0 rounded-none border-x-transparent border-t-transparent shadow-[0_6px_24px_rgba(49,55,36,0.09)]",
         )}
       >
         <div className="flex h-[72px] items-center justify-between px-5">

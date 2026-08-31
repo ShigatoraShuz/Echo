@@ -15,6 +15,7 @@ export interface ProfileSettingsInput {
 }
 
 export interface PrivacySettingsInput {
+  journalAiAnalysisEnabled?: boolean;
   facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;
   lockScreenPrivate: boolean;
@@ -97,7 +98,7 @@ function nullableString(value: unknown): string | null {
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 export class SettingsService {
@@ -108,14 +109,17 @@ export class SettingsService {
     eventType: string,
     options: { resourceType?: string; resourceId?: string; metadata?: Record<string, unknown> } = {},
   ): Promise<void> {
-    const { error } = await this.database.schema("user_service").from("audit_events").insert({
-      user_id: userId,
-      actor_user_id: userId,
-      event_type: eventType,
-      resource_type: options.resourceType ?? null,
-      resource_id: options.resourceId ?? null,
-      metadata: options.metadata ?? {},
-    });
+    const { error } = await this.database
+      .schema("user_service")
+      .from("audit_events")
+      .insert({
+        user_id: userId,
+        actor_user_id: userId,
+        event_type: eventType,
+        resource_type: options.resourceType ?? null,
+        resource_id: options.resourceId ?? null,
+        metadata: options.metadata ?? {},
+      });
     if (!error) return;
     logSupabaseError(
       { module: "settings.audit", schema: "user_service", table: "audit_events", operation: `insert ${eventType}` },
@@ -125,20 +129,34 @@ export class SettingsService {
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
-      this.database.schema("user_service").from("profiles")
+      this.database
+        .schema("user_service")
+        .from("profiles")
         .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
-      this.database.schema("user_service").from("notification_preferences").upsert(
-        { user_id: userId },
-        { onConflict: "user_id", ignoreDuplicates: true },
-      ),
-      this.database.schema("user_service").from("privacy_preferences").upsert(
-        { user_id: userId },
-        { onConflict: "user_id", ignoreDuplicates: true },
-      ),
+      this.database
+        .schema("user_service")
+        .from("notification_preferences")
+        .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
+      this.database
+        .schema("user_service")
+        .from("privacy_preferences")
+        .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true }),
     ]);
-    throwIfDatabaseError(profile.error, { module: "settings", schema: "user_service", table: "profiles", operation: "upsert defaults" }, "Your settings could not be prepared.");
-    throwIfDatabaseError(notifications.error, { module: "settings", schema: "user_service", table: "notification_preferences", operation: "upsert defaults" }, "Your settings could not be prepared.");
-    throwIfDatabaseError(privacy.error, { module: "settings", schema: "user_service", table: "privacy_preferences", operation: "upsert defaults" }, "Your settings could not be prepared.");
+    throwIfDatabaseError(
+      profile.error,
+      { module: "settings", schema: "user_service", table: "profiles", operation: "upsert defaults" },
+      "Your settings could not be prepared.",
+    );
+    throwIfDatabaseError(
+      notifications.error,
+      { module: "settings", schema: "user_service", table: "notification_preferences", operation: "upsert defaults" },
+      "Your settings could not be prepared.",
+    );
+    throwIfDatabaseError(
+      privacy.error,
+      { module: "settings", schema: "user_service", table: "privacy_preferences", operation: "upsert defaults" },
+      "Your settings could not be prepared.",
+    );
   }
 
   async get(userId: string) {
@@ -191,12 +209,56 @@ export class SettingsService {
           .maybeSingle(),
       ]);
 
-    throwIfDatabaseError(profileResult.error, { module: "settings", schema: "user_service", table: "profiles", operation: "select settings profile" }, "Your settings could not be loaded.");
-    throwIfDatabaseError(notificationResult.error, { module: "settings", schema: "user_service", table: "notification_preferences", operation: "select notification preferences" }, "Your settings could not be loaded.");
-    throwIfDatabaseError(privacyResult.error, { module: "settings", schema: "user_service", table: "privacy_preferences", operation: "select privacy preferences" }, "Your settings could not be loaded.");
-    throwIfDatabaseError(contactsResult.error, { module: "settings", schema: "user_service", table: "trusted_contacts", operation: "select trusted contacts" }, "Your settings could not be loaded.");
-    throwIfDatabaseError(exportResult.error, { module: "settings", schema: "user_service", table: "data_export_requests", operation: "select export requests" }, "Your settings could not be loaded.");
-    throwIfDatabaseError(deletionResult.error, { module: "settings", schema: "user_service", table: "account_deletion_requests", operation: "select latest deletion request" }, "Your settings could not be loaded.");
+    throwIfDatabaseError(
+      profileResult.error,
+      { module: "settings", schema: "user_service", table: "profiles", operation: "select settings profile" },
+      "Your settings could not be loaded.",
+    );
+    throwIfDatabaseError(
+      notificationResult.error,
+      {
+        module: "settings",
+        schema: "user_service",
+        table: "notification_preferences",
+        operation: "select notification preferences",
+      },
+      "Your settings could not be loaded.",
+    );
+    throwIfDatabaseError(
+      privacyResult.error,
+      {
+        module: "settings",
+        schema: "user_service",
+        table: "privacy_preferences",
+        operation: "select privacy preferences",
+      },
+      "Your settings could not be loaded.",
+    );
+    throwIfDatabaseError(
+      contactsResult.error,
+      { module: "settings", schema: "user_service", table: "trusted_contacts", operation: "select trusted contacts" },
+      "Your settings could not be loaded.",
+    );
+    throwIfDatabaseError(
+      exportResult.error,
+      {
+        module: "settings",
+        schema: "user_service",
+        table: "data_export_requests",
+        operation: "select export requests",
+      },
+      "Your settings could not be loaded.",
+    );
+    throwIfDatabaseError(
+      deletionResult.error,
+      {
+        module: "settings",
+        schema: "user_service",
+        table: "account_deletion_requests",
+        operation: "select latest deletion request",
+      },
+      "Your settings could not be loaded.",
+    );
 
     const profile = profileResult.data as Row | null;
     const notifications = notificationResult.data as Row | null;
@@ -223,6 +285,7 @@ export class SettingsService {
       privacy: {
         journalPrivate: true,
         facialAnalysisEnabled: booleanValue(privacy?.facial_analysis_enabled),
+        journalAiAnalysisEnabled: booleanValue(privacy?.journal_ai_analysis_enabled),
         crisisSupportVisible: booleanValue(privacy?.crisis_support_visible, true),
         lockScreenPrivate: booleanValue(privacy?.lock_screen_private, true),
       },
@@ -288,12 +351,10 @@ export class SettingsService {
     if (!extension) throw databaseError("Your profile photo type is not supported.");
 
     const storagePath = `${userId}/profile.${extension}`;
-    const { error: uploadError } = await this.database.storage
-      .from(AVATAR_BUCKET)
-      .upload(storagePath, input.contents, {
-        contentType: input.mimeType,
-        upsert: true,
-      });
+    const { error: uploadError } = await this.database.storage.from(AVATAR_BUCKET).upload(storagePath, input.contents, {
+      contentType: input.mimeType,
+      upsert: true,
+    });
     if (uploadError) {
       logSupabaseError(
         { module: "settings.avatar", schema: "storage", table: AVATAR_BUCKET, operation: "upload profile avatar" },
@@ -325,6 +386,9 @@ export class SettingsService {
       .from("privacy_preferences")
       .update({
         facial_analysis_enabled: input.facialAnalysisEnabled,
+        ...(input.journalAiAnalysisEnabled !== undefined
+          ? { journal_ai_analysis_enabled: input.journalAiAnalysisEnabled }
+          : {}),
         crisis_support_visible: input.crisisSupportVisible,
         lock_screen_private: input.lockScreenPrivate,
       })
@@ -364,20 +428,29 @@ export class SettingsService {
         .eq("user_id", userId);
       if (error) throw databaseError("Your trusted contacts could not be updated.");
     }
-    const { data, error } = await this.database.schema("user_service").from("trusted_contacts").insert({
-      user_id: userId,
-      contact_name: input.contactName,
-      contact_email: input.contactEmail,
-      contact_phone: input.contactPhone,
-      relationship: input.relationship,
-      is_primary: input.isPrimary,
-      permission_acknowledged_at: input.permissionAcknowledged ? new Date().toISOString() : null,
-    }).select("id").maybeSingle();
+    const { data, error } = await this.database
+      .schema("user_service")
+      .from("trusted_contacts")
+      .insert({
+        user_id: userId,
+        contact_name: input.contactName,
+        contact_email: input.contactEmail,
+        contact_phone: input.contactPhone,
+        relationship: input.relationship,
+        is_primary: input.isPrimary,
+        permission_acknowledged_at: input.permissionAcknowledged ? new Date().toISOString() : null,
+      })
+      .select("id")
+      .maybeSingle();
     if (error) throw databaseError("The trusted contact could not be added.");
     await this.recordAudit(userId, "settings.trusted_contact_created", {
       resourceType: "trusted_contact",
       resourceId: stringValue((data as Row | null)?.id) || undefined,
-      metadata: { isPrimary: input.isPrimary, hasEmail: Boolean(input.contactEmail), hasPhone: Boolean(input.contactPhone) },
+      metadata: {
+        isPrimary: input.isPrimary,
+        hasEmail: Boolean(input.contactEmail),
+        hasPhone: Boolean(input.contactPhone),
+      },
     });
     return this.get(userId);
   }
@@ -412,7 +485,11 @@ export class SettingsService {
     await this.recordAudit(userId, "settings.trusted_contact_updated", {
       resourceType: "trusted_contact",
       resourceId: contactId,
-      metadata: { isPrimary: input.isPrimary, hasEmail: Boolean(input.contactEmail), hasPhone: Boolean(input.contactPhone) },
+      metadata: {
+        isPrimary: input.isPrimary,
+        hasEmail: Boolean(input.contactEmail),
+        hasPhone: Boolean(input.contactPhone),
+      },
     });
     return this.get(userId);
   }
@@ -467,11 +544,14 @@ export class SettingsService {
       .maybeSingle();
     if (activeError) throw databaseError("Your deletion request status could not be checked.");
     if (!active) {
-      const { error } = await this.database.schema("user_service").from("account_deletion_requests").insert({
-        user_id: userId,
-        request_status: "pending",
-        scheduled_for: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      });
+      const { error } = await this.database
+        .schema("user_service")
+        .from("account_deletion_requests")
+        .insert({
+          user_id: userId,
+          request_status: "pending",
+          scheduled_for: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        });
       if (error) throw databaseError("Your deletion request could not be created.");
     }
     await this.recordAudit(userId, "settings.account_deletion_requested", { resourceType: "account_deletion_request" });
@@ -497,7 +577,11 @@ export class SettingsService {
     return this.get(userId);
   }
 
-  async changePassword(userId: string, email: string | undefined, input: ChangePasswordInput): Promise<{ passwordChanged: true }> {
+  async changePassword(
+    userId: string,
+    email: string | undefined,
+    input: ChangePasswordInput,
+  ): Promise<{ passwordChanged: true }> {
     if (!email) throw new ExternalServiceError("AUTH_UNAVAILABLE", "Your account email could not be verified.");
 
     const { error: verifyError } = await this.database.auth.signInWithPassword({
@@ -529,7 +613,16 @@ export class SettingsService {
       .or(`user_id.eq.${userId},actor_user_id.eq.${userId}`)
       .order("created_at", { ascending: false })
       .limit(limit);
-    throwIfDatabaseError(error, { module: "settings.security", schema: "user_service", table: "audit_events", operation: "select security audit events" }, "Security history could not be loaded.");
+    throwIfDatabaseError(
+      error,
+      {
+        module: "settings.security",
+        schema: "user_service",
+        table: "audit_events",
+        operation: "select security audit events",
+      },
+      "Security history could not be loaded.",
+    );
     return {
       auditEvents: ((data ?? []) as Row[]).map((row) => ({
         id: stringValue(row.id),
@@ -549,4 +642,3 @@ export class SettingsService {
     return { signedOut: true };
   }
 }
-

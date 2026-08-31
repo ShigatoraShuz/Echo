@@ -18,8 +18,9 @@ import {
 
 import { getAuthService } from "@/services/authentication/auth-service.factory";
 import { settingsService } from "@/services/settings/settings.service";
+import { verificationApi } from "@/services/verification/verification-api";
 
-const profileLinks = [
+const defaultProfileLinks = [
   { href: "/settings/profile#profile-overview", label: "Profile", icon: UserRound },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/settings/verification", label: "Account verification", icon: BadgeCheck },
@@ -31,6 +32,25 @@ const profileLinks = [
 export function AppProfileMenu() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [canReview, setCanReview] = useState(false);
+  const profileLinks = canReview
+    ? [...defaultProfileLinks, { href: "/admin/verifications", label: "Admin verification reviews", icon: ShieldCheck }]
+    : defaultProfileLinks;
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    void verificationApi
+      .reviewerAccess()
+      .then((result) => {
+        if (active) setCanReview(result.canReview);
+      })
+      .catch(() => {
+        if (active) setCanReview(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
   const [displayName, setDisplayName] = useState("Mira");
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -181,13 +201,20 @@ export function AppProfileMenu() {
         className="flex items-center gap-2 rounded-full p-1 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
       >
         {avatar ? (
-          <img src={avatar} alt={`${displayName}'s profile`} className="h-9 w-9 rounded-full border-2 border-card object-cover" />
+          <img
+            src={avatar}
+            alt={`${displayName}'s profile`}
+            className="h-9 w-9 rounded-full border-2 border-card object-cover"
+          />
         ) : (
           <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-card bg-primary/10 text-xs font-bold text-primary">
             {initials || <UserRound className="h-4 w-4" />}
           </div>
         )}
-        <ChevronDown className={`hidden h-4 w-4 text-muted-foreground transition-transform duration-150 sm:block ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+        <ChevronDown
+          className={`hidden h-4 w-4 text-muted-foreground transition-transform duration-150 sm:block ${isOpen ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
         <span className="sr-only">Open profile menu</span>
       </button>
 

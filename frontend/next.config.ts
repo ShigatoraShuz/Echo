@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
+import { localRegistrationTarget } from "./src/shared/lib/local-registration";
 
 function readBackendDevelopmentEnvironment(): Record<string, string> {
   if (process.env.NODE_ENV === "production") return {};
@@ -22,6 +23,10 @@ function readBackendDevelopmentEnvironment(): Record<string, string> {
 const backendDevelopmentEnvironment = readBackendDevelopmentEnvironment();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+const registrationProxyTarget = localRegistrationTarget(
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
+  process.env.NODE_ENV === "development",
+);
 const securityHeaders = [
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -34,26 +39,17 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  ...(process.env.NEXT_DIST_DIR
-    ? { distDir: process.env.NEXT_DIST_DIR }
-    : {}),
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   outputFileTracingRoot: path.join(__dirname, ".."),
   // Local monorepo development reuses only the public Supabase values from
   // backend/.env. The service-role and encryption keys are never exposed.
   env: {
-    NEXT_PUBLIC_SUPABASE_URL:
-      process.env.NEXT_PUBLIC_SUPABASE_URL ??
-      backendDevelopmentEnvironment.SUPABASE_URL ??
-      "",
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? backendDevelopmentEnvironment.SUPABASE_URL ?? "",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      backendDevelopmentEnvironment.SUPABASE_PUBLISHABLE_KEY ??
-      "",
-    NEXT_PUBLIC_API_BASE_URL:
-      process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? backendDevelopmentEnvironment.SUPABASE_PUBLISHABLE_KEY ?? "",
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
     NEXT_PUBLIC_DATA_ADAPTER:
-      process.env.NEXT_PUBLIC_DATA_ADAPTER ??
-      (backendDevelopmentEnvironment.SUPABASE_URL ? "http" : "mock"),
+      process.env.NEXT_PUBLIC_DATA_ADAPTER ?? (backendDevelopmentEnvironment.SUPABASE_URL ? "http" : "mock"),
   },
   images: {
     remotePatterns: [
@@ -67,6 +63,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return registrationProxyTarget
+      ? [
+          {
+            source: "/api/v1/registration/:path*",
+            destination: `${registrationProxyTarget}/:path*`,
+          },
+        ]
+      : [];
+  },
   async headers() {
     return [
       {
@@ -74,8 +80,15 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source:
-          "/(dashboard|journal|buddy|insights|tools|settings|admin)/:path*",
+        source: "/(login|signup)",
+        headers: [
+          // GIS must see the requesting origin. Private pages retain no-referrer.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
+      {
+        source: "/(dashboard|journal|buddy|insights|tools|settings|admin)/:path*",
         headers: [
           {
             key: "Cache-Control",

@@ -1,4 +1,5 @@
 import { env } from "@/config/environment";
+import { registrationBaseUrl } from "@/shared/lib/local-registration";
 
 export interface PolicyDocument {
   id: string;
@@ -19,7 +20,8 @@ function csrfCookie(): string {
   );
 }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${env.apiBaseUrl}/registration${path}`, {
+  const baseUrl = registrationBaseUrl(env.apiBaseUrl, process.env.NODE_ENV === "development");
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     credentials: "include",
     headers: { "content-type": "application/json", "x-echo-csrf": csrfCookie(), ...(init?.headers ?? {}) },
@@ -50,8 +52,19 @@ export const registrationApi = {
       method: "POST",
       body: JSON.stringify({ idToken, nonce }),
     }),
-  googleLoginNonce: () =>
-    request<{ nonce: string; hashedNonce: string }>("/google/login-nonce", { method: "POST", body: "{}" }),
+  googleLoginNonce: async () => {
+    const challenge = await request<{ nonce: string; hashedNonce: string }>("/google/login-nonce", {
+      method: "POST",
+      body: "{}",
+    });
+    // Prove the browser accepted and returned the HttpOnly challenge cookie
+    // before asking the user to select a Google account. Never bypass proof.
+    await request<{ ready: true }>("/google/login-challenge", {
+      method: "POST",
+      body: JSON.stringify({ nonce: challenge.nonce }),
+    });
+    return challenge;
+  },
   googleLoginStatus: (idToken: string, nonce: string) =>
     request<{ status: "existing_google_identity" | "password_account_requires_link" | "no_existing_account" }>(
       "/google/login-status",

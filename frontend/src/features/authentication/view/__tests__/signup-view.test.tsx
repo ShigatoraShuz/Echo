@@ -50,6 +50,7 @@ describe("SignupView", () => {
   it("requires eligibility and document review before creating an email account", async () => {
     const user = userEvent.setup();
     render(<SignupView title="Create account" description="Join ECHO" />);
+    expect(screen.getByRole("link", { name: "Sign as an admin" })).toHaveAttribute("href", "/admin-login");
     fireEvent.change(screen.getByLabelText(/birthday/i), { target: { value: "1990-01-01" } });
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await screen.findByText("Know what you're agreeing to");

@@ -9,6 +9,8 @@ import journalLandscape from "../../../../assets/growth-doorway-hill.png";
 import type { JournalEntry } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import { env } from "@/config/environment";
+import { analysisFixtureSchema } from "@echo/contracts";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
 import { JournalMoodSelector } from "../components/journal-mood-selector";
 import { JournalAutosaveStatus } from "../components/journal-autosave-status";
@@ -170,8 +172,8 @@ export function JournalEditorView() {
   const {
     title, body, mood, tags, analysisConsent,
     wordCount, charCount, isSaving, autosaveStatus, error, fieldErrors,
-    savedEntry,
-    setTitle, setBody, setMood, setTags, setAnalysisConsent,
+    savedEntry, fixture,
+    setTitle, setBody, setMood, setTags, setAnalysisConsent, setFixture,
     save, reset,
   } = useJournalEditorViewModel();
 
@@ -318,6 +320,14 @@ export function JournalEditorView() {
                   <label htmlFor="journal-tags" className="sr-only">Tags</label>
                   <input id="journal-tags" value={tagText} onChange={(event) => setTags(event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean))} placeholder="tags: rest, work" className="h-9 rounded-xl border border-border/70 bg-card px-3 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary focus:ring-4 focus:ring-primary/10" />
                 </div>
+                {env.enableAnalysisFixtures && analysisConsent ? (
+                  <label className="mt-3 grid gap-1 text-xs text-muted-foreground">
+                    Development fixture
+                    <select value={fixture} onChange={(event) => setFixture(analysisFixtureSchema.parse(event.target.value))} className="h-10 rounded-xl border border-border/70 bg-card px-3 text-foreground outline-none focus:ring-4 focus:ring-primary/10">
+                      {analysisFixtureSchema.options.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}
+                    </select>
+                  </label>
+                ) : null}
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Write from wherever you are.</span><EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={save}><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
                 </section>

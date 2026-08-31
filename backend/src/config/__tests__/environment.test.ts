@@ -9,17 +9,17 @@ const validEnvironment = {
   SUPABASE_SERVICE_ROLE_KEY: "service-role-test-key",
   JOURNAL_ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 3).toString("base64"),
   JOURNAL_ENCRYPTION_KEY_VERSION: "1",
-  ANALYSIS_PROVIDER: "mock",
-  ALLOW_MOCK_ANALYSIS: "true",
+  AI_ANALYSIS_MODE: "development_stub",
+  IDEMPOTENCY_HMAC_KEYS_JSON: JSON.stringify({ v1: "test-idempotency-secret-32-characters-long" }),
 };
 
 describe("backend environment", () => {
   it("validates a non-production mock-analysis configuration", () => {
-    expect(loadEnvironment(validEnvironment).ANALYSIS_PROVIDER).toBe("mock");
+    expect(loadEnvironment(validEnvironment).AI_ANALYSIS_MODE).toBe("development_stub");
   });
 
   it("rejects invalid keys and mock analysis in production", () => {
     expect(() => loadEnvironment({ ...validEnvironment, JOURNAL_ENCRYPTION_KEY_BASE64: "invalid" })).toThrow();
-    expect(() => loadEnvironment({ ...validEnvironment, NODE_ENV: "production" })).toThrow("Mock analysis");
+    expect(() => loadEnvironment({ ...validEnvironment, NODE_ENV: "production" })).toThrow("Development stub");
   });
 });

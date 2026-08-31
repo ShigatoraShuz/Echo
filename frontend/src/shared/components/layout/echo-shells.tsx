@@ -223,16 +223,26 @@ export function FloatingActionButton({ href, label }: { href: string; label: str
 
 export function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const usesImmersive = pathname === "/login" || pathname === "/signup";
+  const usesImmersive = pathname === "/login" || pathname === "/signup" || pathname === "/admin-login";
   if (!usesImmersive) return <div className="mx-auto max-w-md px-4 py-12">{children}</div>;
   return (
-    <div className="grid min-h-[100svh] overflow-hidden lg:h-[100svh] lg:grid-cols-[44%_56%]">
+    <div className="grid min-h-[100svh] lg:h-[100svh] lg:grid-cols-[44%_56%] lg:overflow-hidden">
       {/* Left – full-bleed image, no scroll */}
       <aside className="relative hidden lg:block">
-        <Image src={authMountainLandscape} alt="A quiet mountain and forest landscape" fill sizes="44vw" className="object-cover" priority />
+        <Image
+          src={authMountainLandscape}
+          alt="A quiet mountain and forest landscape"
+          fill
+          sizes="44vw"
+          className="object-cover"
+          priority
+        />
       </aside>
       {/* Right – scrolls internally if form grows, never overflows page */}
-      <main className="flex min-h-[100svh] items-start justify-center overflow-y-auto bg-[#fbf8f1] px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:items-start lg:px-12 lg:py-8 xl:px-16">
+      <main
+        data-lenis-prevent
+        className="flex min-h-[100svh] items-start justify-center bg-[#fbf8f1] px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:items-start lg:overflow-y-auto lg:overscroll-contain lg:px-12 lg:py-8 xl:px-16"
+      >
         {children}
       </main>
     </div>

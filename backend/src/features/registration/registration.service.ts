@@ -1,7 +1,7 @@
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OAuth2Client } from "google-auth-library";
-import { ConflictError, ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
+import { AppError, ConflictError, ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
 
 export const ELIGIBILITY_RULE_VERSION = "echo-adult-18-v1";
 export const PASSWORD_POLICY_VERSION = "supabase-echo-v1";
@@ -231,7 +231,16 @@ export class RegistrationService {
       throw new ExternalServiceError("GOOGLE_NOT_CONFIGURED", "Google authentication is not configured.");
     const ticket = await this.google.verifyIdToken({ idToken, audience: this.googleClientId });
     const payload = ticket.getPayload();
-    if (!payload || !payload.sub || !payload.email || payload.email_verified !== true || payload.nonce !== nonce) {
+    // GIS receives SHA-256(raw nonce); Supabase and our proof receive the raw
+    // nonce. Validate the signed Google claim against the value GIS received.
+    const expectedNonce = createHash("sha256").update(nonce).digest("hex");
+    if (
+      !payload ||
+      !payload.sub ||
+      !payload.email ||
+      payload.email_verified !== true ||
+      payload.nonce !== expectedNonce
+    ) {
       throw new ValidationError({ google: ["The Google identity response could not be verified."] });
     }
     return { sub: payload.sub, email: payload.email.toLowerCase() };
@@ -271,16 +280,34 @@ export class RegistrationService {
     return { nonce, hashedNonce: createHash("sha256").update(nonce).digest("hex"), proof: `${body}.${mac}` };
   }
   verifyGoogleLoginProof(proof: string, nonce: string): void {
-    const [expires, nonceHash, mac] = proof.split(".");
+    if (!proof)
+      throw new AppError({
+        statusCode: 400,
+        code: "GOOGLE_CHALLENGE_MISSING",
+        message: "The Google sign-in cookie was not received. Retry Google sign-in and allow cookies for ECHO.",
+      });
+    const parts = proof.split(".");
+    const [expires, nonceHash, mac] = parts;
     const body = `${expires}.${nonceHash}`;
     if (
-      !expires ||
-      !nonceHash ||
-      !mac ||
-      Number(expires) <= Date.now() ||
-      mac !== this.hash(body) ||
-      nonceHash !== this.hash(nonce)
+      parts.length !== 3 ||
+      !/^\d+$/.test(expires ?? "") ||
+      !Number.isSafeInteger(Number(expires)) ||
+      !/^[a-f0-9]{64}$/.test(nonceHash ?? "") ||
+      !/^[a-f0-9]{64}$/.test(mac ?? "") ||
+      !timingSafeEqual(Buffer.from(mac, "hex"), Buffer.from(this.hash(body), "hex")) ||
+      !timingSafeEqual(Buffer.from(nonceHash, "hex"), Buffer.from(this.hash(nonce), "hex"))
     )
-      throw new ValidationError({ google: ["Google login challenge expired or did not match."] });
+      throw new AppError({
+        statusCode: 400,
+        code: "GOOGLE_CHALLENGE_INVALID",
+        message: "The Google sign-in challenge no longer matches this attempt. Retry Google sign-in.",
+      });
+    if (Number(expires) <= Date.now())
+      throw new AppError({
+        statusCode: 400,
+        code: "GOOGLE_CHALLENGE_EXPIRED",
+        message: "The Google sign-in challenge expired. Retry Google sign-in to start a fresh attempt.",
+      });
   }
 }

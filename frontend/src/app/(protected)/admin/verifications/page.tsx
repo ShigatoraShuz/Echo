@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -70,43 +70,67 @@ export default function AdminVerificationsPage() {
   const [decision, setDecision] = useState<"approved" | "needs_changes" | "rejected">("approved");
   const [reasonCode, setReasonCode] = useState("");
   const [note, setNote] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [checkedEvidence, setCheckedEvidence] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const listRequest = useRef(0);
 
   const loadList = useCallback(async () => {
+    const requestId = ++listRequest.current;
     setLoading(true);
     setError(null);
     try {
       const next = await verificationApi.adminList(filter);
+      if (requestId !== listRequest.current) return;
+      setForbidden(false);
       setItems(next);
-      setSelectedId((current) =>
-        current && next.some((item) => item.id === current) ? current : next[0]?.id ?? null,
-      );
     } catch (reason) {
+      if (requestId !== listRequest.current) return;
       const normalized = normalizeError(reason);
-      setForbidden(normalized.statusCode === 403 || normalized.code === "AUTHORIZATION_ERROR");
+      setForbidden(normalized.statusCode === 401 || normalized.statusCode === 403);
+      setItems([]);
+      setSelectedId(null);
+      setDetail(null);
       setError(normalized.userMessage);
     } finally {
-      setLoading(false);
+      if (requestId === listRequest.current) setLoading(false);
     }
   }, [filter]);
 
   useEffect(() => {
     void loadList();
+    const requests = listRequest;
+    return () => {
+      requests.current++;
+    };
   }, [loadList]);
 
   useEffect(() => {
+    setDetail(null);
+    setCheckedEvidence(false);
+    setConfirmed(false);
+    setReasonCode("");
+    setNote("");
     if (!selectedId) {
-      setDetail(null);
+      setDetailLoading(false);
       return;
     }
     let active = true;
+    setDetailLoading(true);
     setError(null);
     void verificationApi
       .adminDetail(selectedId)
       .then((next) => {
+        if (!next.application)
+          throw new Error("The protected application is unavailable. No decision can be recorded.");
         if (active) setDetail(next);
       })
       .catch((reason) => {
         if (active) setError(normalizeError(reason).userMessage);
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
       });
     return () => {
       active = false;
@@ -114,7 +138,7 @@ export default function AdminVerificationsPage() {
   }, [selectedId]);
 
   async function claim() {
-    if (!selectedId) return;
+    if (!selectedId || detail?.id !== selectedId || busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -128,7 +152,15 @@ export default function AdminVerificationsPage() {
   }
 
   async function recordDecision() {
-    if (!selectedId) return;
+    if (
+      !selectedId ||
+      detail?.id !== selectedId ||
+      detail.status !== "under_review" ||
+      !checkedEvidence ||
+      !confirmed ||
+      busy
+    )
+      return;
     if (decision !== "approved" && (!reasonCode.trim() || !note.trim())) {
       setError("Select a reason and write a helpful note for changes or rejection.");
       return;
@@ -136,17 +168,19 @@ export default function AdminVerificationsPage() {
     setBusy(true);
     setError(null);
     try {
-      setDetail(
-        await verificationApi.adminDecide(selectedId, {
-          decision,
-          reasonCode: decision === "approved" ? reasonCode.trim() || null : reasonCode.trim(),
-          note: note.trim() || null,
-        }),
-      );
+      await verificationApi.adminDecide(selectedId, {
+        decision,
+        reasonCode: decision === "approved" ? reasonCode.trim() || null : reasonCode.trim(),
+        note: note.trim() || null,
+      });
+      setNotice(`Decision saved: ${statusLabel(decision)}.`);
+      setSelectedId(null);
+      setDetail(null);
       setReasonCode("");
       setNote("");
       await loadList();
     } catch (reason) {
+      setConfirmed(false);
       setError(normalizeError(reason).userMessage);
     } finally {
       setBusy(false);
@@ -162,9 +196,13 @@ export default function AdminVerificationsPage() {
           </span>
           <h1 className="mt-5 font-serif text-3xl">Administrator access required</h1>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-            Verification records contain sensitive identity and guardian information. Access is granted explicitly in the database and is never inferred from browser state.
+            Verification records contain sensitive identity and guardian information. Access is granted explicitly in
+            the database and is never inferred from browser state.
           </p>
-          <Link href="/settings/verification" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+          <Link
+            href="/settings/verification"
+            className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline"
+          >
             <ArrowLeft className="h-4 w-4" /> Return to account verification
           </Link>
         </div>
@@ -177,27 +215,59 @@ export default function AdminVerificationsPage() {
       <header className="mb-5 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(115deg,rgba(251,247,238,0.97),rgba(220,232,214,0.78))] p-6 shadow-card sm:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">Restricted administrator workspace</p>
-            <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] text-[var(--landing-ink)]">Identity verification reviews</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--landing-muted)]">Review the minimum evidence needed for age and identity assurance, document the decision, and keep a clear audit trail.</p>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-primary">
+              ECHO · Admin workspace
+            </p>
+            <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] text-foreground">Verification reviews</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+              One application at a time. Review the evidence, then approve or explain what needs to change.
+            </p>
           </div>
           <div className="flex gap-2">
-            <EchoButton type="button" variant="outline" onClick={() => void loadList()}>
+            <EchoButton
+              type="button"
+              variant="outline"
+              disabled={busy || loading}
+              onClick={() => {
+                setSelectedId(null);
+                setDetail(null);
+                void loadList();
+              }}
+            >
               <RefreshCw className="h-4 w-4" /> Refresh
             </EchoButton>
-            <Link href="/settings/verification" className="inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">
+            <Link
+              href="/settings/verification"
+              className="inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
+            >
               My verification
             </Link>
           </div>
         </div>
       </header>
 
+      {notice && (
+        <p
+          role="status"
+          className="mb-5 rounded-2xl border border-primary/15 bg-secondary p-4 text-sm font-semibold text-primary"
+        >
+          {notice}
+        </p>
+      )}
+
       <div className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label="Application filters">
         {filters.map((item) => (
           <button
             key={item.value}
             type="button"
-            onClick={() => setFilter(item.value)}
+            disabled={busy}
+            aria-pressed={filter === item.value}
+            onClick={() => {
+              setSelectedId(null);
+              setDetail(null);
+              setNotice(null);
+              setFilter(item.value);
+            }}
             className={cn(
               "shrink-0 rounded-full border px-4 py-2 text-xs font-bold outline-none transition-[background-color,color,transform] duration-150 focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[0.97]",
               filter === item.value
@@ -210,60 +280,96 @@ export default function AdminVerificationsPage() {
         ))}
       </div>
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <section className="self-start overflow-hidden rounded-[1.6rem] border border-border/65 bg-card/90 shadow-card xl:sticky xl:top-[108px]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <section className="self-start overflow-hidden rounded-[1.6rem] border border-border/65 bg-card/90 shadow-card lg:sticky lg:top-[108px]">
           <div className="border-b border-border px-5 py-4">
             <h2 className="font-semibold">Review queue</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{loading ? "Loading…" : `${items.length} application${items.length === 1 ? "" : "s"}`}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {loading ? "Loading…" : `${items.length} shown · up to 100 per filter`}
+            </p>
           </div>
-          <div className="max-h-[680px] overflow-y-auto p-2">
+          <div className="max-h-[680px] overflow-y-auto p-2" data-lenis-prevent>
+            {loading && (
+              <p role="status" className="p-6 text-sm text-muted-foreground">
+                Loading review queue…
+              </p>
+            )}
             {!loading && items.length === 0 ? (
-              <div className="px-4 py-12 text-center text-sm text-muted-foreground">No applications match this filter.</div>
+              <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+                No applications match this filter.
+              </div>
             ) : null}
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelectedId(item.id)}
-                className={cn(
-                  "mb-1 w-full rounded-2xl border p-4 text-left outline-none transition-[background-color,border-color,transform] duration-150 hover:bg-secondary/70 focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[0.99]",
-                  selectedId === item.id ? "border-primary/30 bg-secondary" : "border-transparent",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
-                    <UserRoundCheck className="h-4 w-4" />
-                  </span>
-                  <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold capitalize", statusStyles[item.status])}>
-                    {statusLabel(item.status)}
-                  </span>
-                </div>
-                <p className="mt-3 truncate text-sm font-semibold">Applicant {item.userId.slice(0, 8)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{item.isMinor ? `Minor · age ${item.ageAtSubmission}` : `Adult · age ${item.ageAtSubmission}`}</p>
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "Draft application"}
-                </p>
-              </button>
-            ))}
+            {!loading &&
+              items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={selectedId === item.id}
+                  onClick={() => {
+                    setDetail(null);
+                    setSelectedId(item.id);
+                    setNotice(null);
+                  }}
+                  className={cn(
+                    "mb-1 w-full rounded-2xl border p-4 text-left outline-none transition-[background-color,border-color,transform] duration-150 hover:bg-secondary/70 focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[0.99]",
+                    selectedId === item.id ? "border-primary/30 bg-secondary" : "border-transparent",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                      <UserRoundCheck className="h-4 w-4" />
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-[10px] font-bold capitalize",
+                        statusStyles[item.status],
+                      )}
+                    >
+                      {statusLabel(item.status)}
+                    </span>
+                  </div>
+                  <p className="mt-3 truncate text-sm font-semibold">Applicant {item.userId.slice(0, 8)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.isMinor ? `Minor · age ${item.ageAtSubmission}` : `Adult · age ${item.ageAtSubmission}`}
+                  </p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "Draft application"}
+                  </p>
+                </button>
+              ))}
           </div>
         </section>
 
         <section className="min-w-0 rounded-[1.6rem] border border-border/65 bg-card/90 p-5 shadow-card sm:p-6">
-          {!detail ? (
+          {!detail || detail.id !== selectedId ? (
             <div className="grid min-h-[440px] place-items-center text-center">
               <div>
                 <LockKeyhole className="mx-auto h-8 w-8 text-primary" />
-                <p className="mt-4 font-semibold">Select an application to begin.</p>
-                <p className="mt-1 text-sm text-muted-foreground">Sensitive details are only decrypted for authorized reviewers.</p>
+                <p role="status" className="mt-4 font-semibold">
+                  {detailLoading ? "Opening protected application…" : "Select an application to begin."}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Sensitive details are only decrypted for authorized reviewers.
+                </p>
               </div>
             </div>
           ) : (
-            <div key={detail.id} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div key={detail.id}>
               <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className={cn("rounded-full px-3 py-1 text-[10px] font-bold capitalize", statusStyles[detail.status])}>{statusLabel(detail.status)}</span>
-                    <span className="text-xs text-muted-foreground">{detail.isMinor ? "Minor path" : "Adult path"}</span>
+                    <span
+                      className={cn(
+                        "rounded-full px-3 py-1 text-[10px] font-bold capitalize",
+                        statusStyles[detail.status],
+                      )}
+                    >
+                      {statusLabel(detail.status)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {detail.isMinor ? "Minor path" : "Adult path"}
+                    </span>
                   </div>
                   <h2 className="mt-3 font-serif text-3xl tracking-[-0.035em]">{detail.application.legalName}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">Application {detail.id}</p>
@@ -281,7 +387,10 @@ export default function AdminVerificationsPage() {
                 <DetailField label="Mobile number" value={detail.application.phoneNumber} />
                 <DetailField label="Government ID type" value={detail.application.governmentIdType} />
                 <DetailField label="Government ID number" value={detail.application.governmentIdNumber} />
-                <DetailField label="Address" value={`${detail.application.address.line1}, ${detail.application.address.city}, ${detail.application.address.province} ${detail.application.address.postalCode}`} />
+                <DetailField
+                  label="Address"
+                  value={`${detail.application.address.line1}, ${detail.application.address.city}, ${detail.application.address.province} ${detail.application.address.postalCode}`}
+                />
               </div>
 
               {detail.application.guardian ? (
@@ -303,19 +412,26 @@ export default function AdminVerificationsPage() {
 
               <div className="mt-5">
                 <h3 className="font-semibold">Protected evidence</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Links expire after five minutes. Do not download or copy documents unless an approved review procedure requires it.</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Links expire after five minutes. Refresh the queue and reopen the application for fresh links. Do not
+                  copy or share identity documents.
+                </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {detail.documents.map((document) => (
                     <a
                       key={document.id}
                       href={document.signedUrl}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="group flex items-center gap-3 rounded-2xl border border-border bg-background/70 p-4 outline-none transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-white focus-visible:ring-4 focus-visible:ring-primary/15"
                     >
-                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary"><FileText className="h-4 w-4" /></span>
+                      <span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">
+                        <FileText className="h-4 w-4" />
+                      </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold capitalize">{document.kind.replaceAll("_", " ")}</span>
+                        <span className="block truncate text-sm font-semibold capitalize">
+                          {document.kind.replaceAll("_", " ")}
+                        </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">{document.mimeType}</span>
                       </span>
                       <ExternalLink className="h-4 w-4 text-primary" />
@@ -324,7 +440,7 @@ export default function AdminVerificationsPage() {
                 </div>
               </div>
 
-              {["submitted", "under_review"].includes(detail.status) ? (
+              {detail.status === "under_review" ? (
                 <div className="mt-6 rounded-[1.35rem] border border-[var(--landing-primary-15)] bg-[linear-gradient(135deg,rgba(251,247,238,0.95),rgba(220,232,214,0.65))] p-5">
                   <h3 className="font-semibold">Record the decision</h3>
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -338,10 +454,19 @@ export default function AdminVerificationsPage() {
                         <button
                           key={option.value}
                           type="button"
-                          onClick={() => setDecision(option.value)}
+                          disabled={busy}
+                          aria-pressed={decision === option.value}
+                          onClick={() => {
+                            setDecision(option.value);
+                            setConfirmed(false);
+                            setReasonCode("");
+                            setNote("");
+                          }}
                           className={cn(
                             "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-xs font-bold transition-[background-color,color,transform] active:scale-[0.97]",
-                            decision === option.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white/70",
+                            decision === option.value
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-white/70",
                           )}
                         >
                           <Icon className="h-4 w-4" /> {option.label}
@@ -351,8 +476,18 @@ export default function AdminVerificationsPage() {
                   </div>
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <label>
-                      <span className="mb-2 block text-sm font-semibold">Reason code {decision !== "approved" ? "*" : ""}</span>
-                      <select className="echo-input h-11 w-full rounded-xl border border-border bg-white/75 px-3 text-sm" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)}>
+                      <span className="mb-2 block text-sm font-semibold">
+                        Reason code {decision !== "approved" ? "*" : ""}
+                      </span>
+                      <select
+                        disabled={busy}
+                        className="echo-input h-11 w-full rounded-xl border border-border bg-white/75 px-3 text-sm"
+                        value={reasonCode}
+                        onChange={(event) => {
+                          setReasonCode(event.target.value);
+                          setConfirmed(false);
+                        }}
+                      >
                         <option value="">Select a reason</option>
                         <option value="identity_confirmed">Identity confirmed</option>
                         <option value="age_confirmed">Age confirmed</option>
@@ -363,20 +498,79 @@ export default function AdminVerificationsPage() {
                       </select>
                     </label>
                     <label>
-                      <span className="mb-2 block text-sm font-semibold">Applicant note {decision !== "approved" ? "*" : ""}</span>
-                      <textarea className="echo-input min-h-24 w-full resize-y rounded-xl border border-border bg-white/75 p-3 text-sm" maxLength={2000} placeholder="Give specific, respectful next steps." value={note} onChange={(event) => setNote(event.target.value)} />
+                      <span className="mb-2 block text-sm font-semibold">
+                        Applicant note {decision !== "approved" ? "*" : ""}
+                      </span>
+                      <textarea
+                        disabled={busy}
+                        className="echo-input min-h-24 w-full resize-y rounded-xl border border-border bg-white/75 p-3 text-sm"
+                        maxLength={2000}
+                        placeholder="Give specific, respectful next steps. Do not repeat private ID numbers."
+                        value={note}
+                        onChange={(event) => {
+                          setNote(event.target.value);
+                          setConfirmed(false);
+                        }}
+                      />
                     </label>
                   </div>
+                  <label className="mt-5 flex items-start gap-3 text-sm leading-6">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 accent-primary"
+                      disabled={busy}
+                      checked={checkedEvidence}
+                      onChange={(event) => {
+                        setCheckedEvidence(event.target.checked);
+                        setConfirmed(false);
+                      }}
+                    />
+                    I reviewed the identity, age, and required supporting documents.
+                  </label>
+                  {detail.documents.length === 0 && (
+                    <p className="mt-3 text-sm text-danger">No evidence is available. Approval is disabled.</p>
+                  )}
+                  {confirmed && (
+                    <div className="mt-4 rounded-2xl border border-primary/25 bg-card p-4" role="status">
+                      <p className="font-semibold">
+                        Confirm {statusLabel(decision)} for {detail.application.legalName}?
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        This records your decision and notifies the applicant. Approval satisfies verification only; it
+                        does not enable AI consent or guarantee that a model is available.
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-4 flex justify-end">
-                    <EchoButton type="button" isLoading={busy} loadingText="Recording…" onClick={() => void recordDecision()}>
-                      <BadgeCheck className="h-4 w-4" /> Confirm decision
+                    <EchoButton
+                      type="button"
+                      disabled={
+                        !checkedEvidence ||
+                        (decision === "approved" && detail.documents.length === 0) ||
+                        (decision !== "approved" && (!reasonCode || note.trim().length < 2))
+                      }
+                      isLoading={busy}
+                      loadingText="Recording…"
+                      onClick={() => {
+                        if (confirmed) void recordDecision();
+                        else setConfirmed(true);
+                      }}
+                    >
+                      <BadgeCheck className="h-4 w-4" /> {confirmed ? "Confirm decision" : "Review decision"}
                     </EchoButton>
                   </div>
                 </div>
               ) : null}
             </div>
           )}
-          {error ? <p role="alert" className="mt-4 rounded-2xl border border-danger/20 bg-crisis-soft/70 p-4 text-sm font-semibold text-danger">{error}</p> : null}
+          {error ? (
+            <p
+              role="alert"
+              className="mt-4 rounded-2xl border border-danger/20 bg-crisis-soft/70 p-4 text-sm font-semibold text-danger"
+            >
+              {error}
+            </p>
+          ) : null}
         </section>
       </div>
     </AppShell>

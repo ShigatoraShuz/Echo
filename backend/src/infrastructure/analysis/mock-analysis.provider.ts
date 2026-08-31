@@ -1,47 +1,96 @@
+import type { AnalysisFixture, JournalAnalysisResult } from "@echo/contracts";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
-import type { AnalysisProvider, AnalysisProviderInput, AnalysisProviderResult, AnalysisSeverity } from "./analysis-provider.types.js";
+import type { AiAnalysisProvider, AnalysisProgressUpdate } from "./analysis-provider.types.js";
 
-function severityForScore(score: number): AnalysisSeverity {
-  if (score <= 4) return "minimal";
-  if (score <= 9) return "mild";
-  if (score <= 14) return "moderate";
-  if (score <= 19) return "moderately_severe";
-  return "severe";
-}
+const wait = (milliseconds: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 
-function markerScore(text: string): number {
-  const match = /\[MOCK:SCORE=(\d{1,2})\]/.exec(text);
-  if (!match) return 0;
-  const score = Number(match[1]);
-  if (!Number.isInteger(score) || score < 0 || score > 24) {
-    throw new ExternalServiceError("MOCK_ANALYSIS_INVALID_MARKER", "The development analysis fixture is invalid.");
-  }
-  return score;
-}
-
-/** Development/test-only provider. It evaluates only explicit fixture markers, never journal semantics. */
-export function createMockAnalysisProvider(): AnalysisProvider {
+function fixtureResult(fixture: AnalysisFixture): JournalAnalysisResult {
+  const moderate = fixture === "standard_moderate_distress";
   return {
-    async analyze(input: AnalysisProviderInput): Promise<AnalysisProviderResult> {
-      if (input.journalText.includes("[MOCK:FAIL]")) {
-        throw new ExternalServiceError("MOCK_ANALYSIS_FAILED", "The development analysis fixture requested a failure.");
-      }
-      const score = markerScore(input.journalText);
-      return {
-        requestId: input.requestId,
-        phq8Score: score,
-        severity: severityForScore(score),
-        urgentLanguageDetected: input.journalText.includes("[MOCK:URGENT=true]"),
-        provider: "mock",
-        modelVersion: "mock-analysis-v1",
-        processingTimeMs: 1,
-      };
-    },
+    schemaVersion: "echo-journal-analysis-v1",
+    thresholdVersion: "echo-thresholds-v1",
+    providerName: "echo-development-stub",
+    modelVersion: "deterministic-fixtures-v1",
+    isSimulated: true,
+    emotionDistribution: moderate
+      ? [
+          { emotion: "joy", value: 0.08 },
+          { emotion: "calm", value: 0.12 },
+          { emotion: "sadness", value: 0.26 },
+          { emotion: "anxiety", value: 0.31 },
+          { emotion: "anger", value: 0.09 },
+          { emotion: "hope", value: 0.14 },
+        ]
+      : [
+          { emotion: "joy", value: 0.18 },
+          { emotion: "calm", value: 0.35 },
+          { emotion: "sadness", value: 0.08 },
+          { emotion: "anxiety", value: 0.11 },
+          { emotion: "anger", value: 0.05 },
+          { emotion: "hope", value: 0.23 },
+        ],
+    dominantEmotion: moderate ? "anxiety" : "calm",
+    emotionConfidence: moderate ? 0.82 : 0.86,
+    distressBand: moderate ? "moderate" : "low",
+    distressConfidence: moderate ? 0.84 : 0.88,
+    depressiveSymptomRange: moderate ? { lower: 10, upper: 14 } : { lower: 0, upper: 4 },
+    recommendationFeatures: moderate ? ["grounding", "behavioral_activation"] : ["paced_breathing"],
+  };
+}
+
+export function createDevelopmentStubProvider(): AiAnalysisProvider {
+  return {
     async healthCheck() {
-      return { status: "ok", provider: "mock" };
+      return { available: true, mode: "development_stub", detail: "development fixture runner ready" };
     },
-    getProviderInfo() {
-      return { provider: "mock", version: "mock-analysis-v1", developmentOnly: true };
+    async analyze(input, options) {
+      const emit = async (status: AnalysisProgressUpdate["status"]) => {
+        options.signal?.throwIfAborted();
+        await options.onProgress?.({ status });
+        await wait(input.fixture === "slow_processing" ? 250 : 1, options.signal);
+      };
+      if (!input.reviewedResume) {
+        await emit("safety_checking");
+        if (input.fixture === "safety_support_required") {
+          await emit("safety_action_required");
+          return { safetyActionRequired: true };
+        }
+      }
+      await emit("analyzing_emotions");
+      await emit("classifying_distress");
+      await emit("estimating_screening");
+      await emit("generating_recommendation");
+      if (input.fixture === "processing_failure")
+        throw new ExternalServiceError("DEVELOPMENT_FIXTURE_FAILURE", "The simulated analysis could not be completed.");
+      if (input.fixture === "invalid_output")
+        return { safetyActionRequired: false, result: { invalid: true } as never };
+      return { safetyActionRequired: false, result: fixtureResult(input.fixture) };
     },
   };
 }
+export function createDisabledAnalysisProvider(): AiAnalysisProvider {
+  return {
+    async healthCheck() {
+      return { available: false, mode: "disabled", detail: "disabled" };
+    },
+    async analyze() {
+      throw new ExternalServiceError("ANALYSIS_DISABLED", "AI insights are not available yet.");
+    },
+  };
+}
+export const createMockAnalysisProvider = createDevelopmentStubProvider;

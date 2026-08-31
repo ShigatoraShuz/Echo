@@ -1,4 +1,5 @@
 import type { JournalEntry } from "@/features/journal/model/journal.model";
+import type { DashboardInsights } from "@echo/contracts";
 
 export interface TrendPoint {
   label: string;
@@ -26,4 +27,5 @@ export interface DashboardData {
   riskTrend: TrendPoint[];
   weeklyDigest: string[];
   quickActions: QuickAction[];
+  analysisInsights?: DashboardInsights;
 }

@@ -5,27 +5,56 @@ import { Check, FileText, Loader2 } from "lucide-react";
 import { registrationApi, type PolicyDocument } from "@/services/authentication/registration-api";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { env } from "@/config/environment";
+import { PolicyReviewDialog } from "@/features/authentication/components/policy-review-dialog";
 export default function PolicyUpdatePage() {
   const router = useRouter();
   const [policies, setPolicies] = useState<PolicyDocument[]>([]);
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [active, setActive] = useState<PolicyDocument | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  async function loadPolicies() {
+    setLoading(true);
+    setError(null);
+    setReviewed([]);
+    try {
+      const documents = await registrationApi.policies();
+      if (documents.length !== 3) throw new Error("The complete policy set is unavailable. Please retry.");
+      setPolicies(documents);
+    } catch {
+      setError("The current documents could not be loaded. Check your connection and retry.");
+    } finally {
+      setLoading(false);
+    }
+  }
   useEffect(() => {
-    registrationApi.policies().then(setPolicies);
+    void loadPolicies();
   }, []);
   async function accept() {
+    if (!all || busy) return;
     setBusy(true);
-    const { data } = await createBrowserSupabaseClient().auth.getSession();
-    const response = await fetch(`${env.apiBaseUrl}/access/policies`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${data.session?.access_token ?? ""}`, "content-type": "application/json" },
-      body: "{}",
-    });
-    setBusy(false);
-    if (response.ok) {
+    setError(null);
+    try {
+      const { data } = await createBrowserSupabaseClient().auth.getSession();
+      if (!data.session) throw new Error("Your session expired. Sign in again before accepting.");
+      const response = await fetch(`${env.apiBaseUrl}/access/policies`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${data.session.access_token}`, "content-type": "application/json" },
+        body: JSON.stringify({ reviewedDocumentIds: policies.map((policy) => policy.id) }),
+      });
+      if (!response.ok)
+        throw new Error(
+          response.status === 400
+            ? "These policy versions could not be accepted. Reload the documents and review the current versions."
+            : "Your acknowledgements could not be saved. Please retry.",
+        );
       router.replace("/onboarding");
       router.refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Your acknowledgements could not be saved. Please retry.");
+    } finally {
+      setBusy(false);
     }
   }
   const all = policies.length === 3 && policies.every((p) => reviewed.includes(p.id));
@@ -35,6 +64,27 @@ export default function PolicyUpdatePage() {
         <p className="eyebrow">Policy update</p>
         <h1 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Review what changed</h1>
         <p className="mt-3 text-sm text-[#697168]">Review each current document before returning to your ECHO space.</p>
+        <p className="mt-2 text-sm leading-6 text-[#596255]">
+          Acknowledging the AI notice does not enable analysis. Your optional analysis preference remains separate.
+        </p>
+        {loading && (
+          <p role="status" className="mt-4 text-sm">
+            Loading current documents…
+          </p>
+        )}
+        {error && (
+          <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">
+            <p>{error}</p>
+            <button
+              type="button"
+              disabled={busy || loading}
+              onClick={() => void loadPolicies()}
+              className="mt-3 min-h-11 font-semibold underline"
+            >
+              Reload documents
+            </button>
+          </div>
+        )}
         <div className="mt-6 grid gap-3">
           {policies.map((p) => (
             <button
@@ -45,44 +95,24 @@ export default function PolicyUpdatePage() {
               <FileText className="size-5 text-[#526f35]" />
               <span className="flex-1">
                 <strong className="block">{p.title}</strong>
+                <span className="my-1 block text-sm leading-6 text-[#596255]">{p.summary}</span>
                 <small>Version {p.version}</small>
               </span>
               {reviewed.includes(p.id) && <Check className="size-5 text-[#526f35]" />}
             </button>
           ))}
         </div>
-        <button disabled={!all || busy} onClick={accept} className="auth-primary w-full">
+        <button disabled={!all || busy || loading} onClick={accept} className="auth-primary w-full">
           {busy ? <Loader2 className="size-4 animate-spin" /> : "Accept current policies"}
         </button>
       </section>
       {active && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#122018aa] p-3">
-          <section
-            role="dialog"
-            aria-modal="true"
-            className="flex max-h-[90svh] w-full max-w-2xl flex-col rounded-[2rem] bg-white p-6"
-          >
-            <h2 className="text-3xl [font-family:var(--font-echo-display)]">{active.title}</h2>
-            <div
-              onScroll={(e) => {
-                const n = e.currentTarget;
-                if (n.scrollTop + n.clientHeight >= n.scrollHeight - 8 && !reviewed.includes(active.id))
-                  setReviewed((v) => [...v, active.id]);
-              }}
-              className="mt-4 min-h-0 flex-1 overflow-y-auto whitespace-pre-line text-sm leading-7 text-[#596255]"
-            >
-              {active.sanitized_markdown}
-              <p className="mt-8 rounded-xl bg-[#edf2e7] p-4 font-bold">End of document</p>
-            </div>
-            <button
-              disabled={!reviewed.includes(active.id)}
-              onClick={() => setActive(null)}
-              className="auth-primary w-full"
-            >
-              Acknowledge and close
-            </button>
-          </section>
-        </div>
+        <PolicyReviewDialog
+          key={active.id}
+          policy={active}
+          onAcknowledge={(id) => setReviewed((current) => (current.includes(id) ? current : [...current, id]))}
+          onClose={() => setActive(null)}
+        />
       )}
     </main>
   );

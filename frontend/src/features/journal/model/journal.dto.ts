@@ -46,6 +46,7 @@ export interface JournalAnalysisResponseDTO {
   risk_indication: string;
   is_demo_data: boolean;
   created_at: string;
+  result?: import("@echo/contracts").JournalAnalysisResult;
 }
 
 // ─── API Request DTOs ─────────────────────────────────

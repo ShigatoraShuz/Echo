@@ -89,14 +89,23 @@ export function useJournalDetailViewModel(id: string) {
           }
         }
       } else {
-        dispatch({ type: "ENTRY_LOAD_ERROR", error: result.error.message, notFound: result.error.code === "NOT_FOUND" });
+        dispatch({
+          type: "ENTRY_LOAD_ERROR",
+          error: result.error.message,
+          notFound: result.error.code === "NOT_FOUND",
+        });
       }
     },
-    [service]
+    [service],
   );
 
   useEffect(() => {
     if (id) loadEntry(id);
+    const refresh = () => {
+      if (id) void loadEntry(id);
+    };
+    window.addEventListener("echo:analysis-completed", refresh);
+    return () => window.removeEventListener("echo:analysis-completed", refresh);
   }, [id, loadEntry]);
 
   const deleteEntry = useCallback(async () => {

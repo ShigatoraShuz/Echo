@@ -8,20 +8,10 @@ interface ApiEnvelope<T> {
 }
 
 export type VerificationStatus =
-  | "not_started"
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "needs_changes"
-  | "approved"
-  | "rejected"
-  | "expired";
+  "not_started" | "draft" | "submitted" | "under_review" | "needs_changes" | "approved" | "rejected" | "expired";
 
 export type VerificationDocumentKind =
-  | "user_government_id"
-  | "user_age_document"
-  | "guardian_government_id"
-  | "guardianship_document";
+  "user_government_id" | "user_age_document" | "guardian_government_id" | "guardianship_document";
 
 export interface VerificationAddress {
   line1: string;
@@ -116,41 +106,31 @@ function endpoint(path: string): string {
 }
 
 export const verificationApi = {
+  async reviewerAccess(): Promise<{ canReview: boolean }> {
+    return (await client.get<ApiEnvelope<{ canReview: boolean }>>("/verification/reviewer-access")).data;
+  },
   async getStatus(): Promise<VerificationSnapshot> {
     return (await client.get<ApiEnvelope<VerificationSnapshot>>("/verification")).data;
   },
   async saveApplication(input: VerificationApplication): Promise<VerificationSnapshot> {
     return (
-      await client.put<ApiEnvelope<VerificationSnapshot>, VerificationApplication>(
-        "/verification/application",
-        input,
-      )
+      await client.put<ApiEnvelope<VerificationSnapshot>, VerificationApplication>("/verification/application", input)
     ).data;
   },
-  async uploadDocument(
-    kind: VerificationDocumentKind,
-    file: File,
-  ): Promise<VerificationSnapshot> {
+  async uploadDocument(kind: VerificationDocumentKind, file: File): Promise<VerificationSnapshot> {
     const token = await supabaseAuthTokenProvider.getAccessToken();
-    const response = await fetch(
-      endpoint(`/verification/documents/${encodeURIComponent(kind)}`),
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: file,
+    const response = await fetch(endpoint(`/verification/documents/${encodeURIComponent(kind)}`), {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-    );
-    const body = (await response.json()) as
-      | ApiEnvelope<VerificationSnapshot>
-      | { error?: { message?: string } };
+      body: file,
+    });
+    const body = (await response.json()) as ApiEnvelope<VerificationSnapshot> | { error?: { message?: string } };
     if (!response.ok || !("data" in body)) {
       throw new Error(
-        "error" in body && body.error?.message
-          ? body.error.message
-          : "The document could not be uploaded.",
+        "error" in body && body.error?.message ? body.error.message : "The document could not be uploaded.",
       );
     }
     return body.data;
@@ -160,11 +140,7 @@ export const verificationApi = {
   },
   async adminList(status = "all"): Promise<AdminVerificationSummary[]> {
     const query = status === "all" ? "" : `?status=${encodeURIComponent(status)}`;
-    return (
-      await client.get<ApiEnvelope<AdminVerificationSummary[]>>(
-        `/admin/verifications${query}`,
-      )
-    ).data;
+    return (await client.get<ApiEnvelope<AdminVerificationSummary[]>>(`/admin/verifications${query}`)).data;
   },
   async adminDetail(verificationId: string): Promise<AdminVerificationDetail> {
     return (
