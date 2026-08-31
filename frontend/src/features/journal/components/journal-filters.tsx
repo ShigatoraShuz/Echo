@@ -3,7 +3,6 @@
 import { Search, ArrowUpDown, X } from "lucide-react";
 import type { JournalMood, JournalSortOption, JournalSearchFilters } from "../model/journal.model";
 import { SORT_LABELS } from "../model/journal.schema";
-import { MOOD_VISUAL_MAP } from "../utils/journal-formatters";
 
 interface JournalFiltersProps {
   filters: JournalSearchFilters;

@@ -7,10 +7,19 @@ $required = @(
   "services/user-service/src/server.ts",
   "services/journal-service/src/server.ts",
   "services/assessment-service/src/server.ts",
+  "services/recommendation-service/src/server.ts",
   "services/wellness-service/src/server.ts",
+  "services/insights-service/src/server.ts",
   "ai-service/app/main.py",
   "ml/app/main.py",
-  "docker-compose.yml"
+  "frontend/Dockerfile",
+  "packages/service-core/index.js",
+  "docs/architecture/service-map.json",
+  "supabase/migrations/20260828000000_canonical_public_service_ownership.sql",
+  "supabase/migrations/20260830000000_user_service_verification_storage_access.sql",
+  "supabase/tests/database/service-role-ownership.test.sql",
+  "docker-compose.yml",
+  "nginx.conf"
 )
 
 foreach ($path in $required) {

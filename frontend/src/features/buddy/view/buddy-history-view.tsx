@@ -46,7 +46,7 @@ export function BuddyHistoryView() {
                       <p className="text-sm font-semibold text-foreground">{conversation.title}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{conversation.lastMessageAt} · {conversation.messageCount} messages · {conversation.mood}</p>
                     </div>
-                    <Link href="/buddy" className="text-sm font-semibold text-primary">Open</Link>
+                    <Link href={`/buddy?conversationId=${encodeURIComponent(conversation.id)}`} className="text-sm font-semibold text-primary">Open</Link>
                   </div>
                 </div>
               ))}

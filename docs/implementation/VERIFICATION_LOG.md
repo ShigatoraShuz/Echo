@@ -1,5 +1,7 @@
 # Echo Verification Log
 
+> Historical modular-monolith verification log. Its commands and paths are not the current test procedure; use [`docs/testing.md`](../testing.md).
+
 Executable evidence per backlog item. Each entry: date, command(s) run with exact output summary (pass/fail counts), and the item(s) it evidences. Historical "complete" claims in other docs are NOT evidence.
 
 ## Baseline — 2026-08-15 (before any changes)

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { JournalEntry } from "../model/journal.model";
 
 interface JournalEditFormProps {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   patch: vi.fn(),
+  put: vi.fn(),
   post: vi.fn(),
   delete: vi.fn(),
 }));
@@ -74,6 +75,14 @@ describe("settingsService", () => {
       "/settings/trusted-contacts/contact%2Fwith%20spaces",
       contact,
     );
+  });
+
+  it("uploads avatar bytes to the dedicated binary endpoint", async () => {
+    const profile = { ...snapshot.profile, avatarPath: "https://signed.example/avatar" };
+    api.put.mockResolvedValueOnce({ success: true, data: profile });
+    const file = new File([new Uint8Array([1, 2, 3])], "avatar.png", { type: "image/png" });
+    await expect(settingsService.uploadAvatar(file)).resolves.toEqual(profile);
+    expect(api.put).toHaveBeenCalledWith("/settings/avatar", file, { headers: { "Content-Type": "image/png" } });
   });
 
   it("uses explicit endpoints for export and deletion recovery", async () => {

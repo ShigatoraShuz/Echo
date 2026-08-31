@@ -22,6 +22,9 @@ supabase test db
 
 The corrective migration creates/uses custom non-login roles. For each role, create a server-only Supabase JWT/API key signed by the project's JWT signing key and containing that exact `role` claim:
 
+- `user_storage_role` -> `USER_STORAGE_KEY` (private `verification-documents` and `avatars` buckets only; no `BYPASSRLS`)
+- `recommendation_service_role` -> `RECOMMENDATION_SERVICE_DATABASE_KEY` (read-only `support_resources`)
+
 - `user_service_role` → `USER_SERVICE_DATABASE_KEY`
 - `journal_service_role` → `JOURNAL_SERVICE_DATABASE_KEY`
 - `assessment_service_role` → `ASSESSMENT_SERVICE_DATABASE_KEY`
@@ -58,7 +61,7 @@ Copy the printed values into `.env`, along with:
 - `SUPABASE_SERVICE_ROLE_KEY` from the local service-role key
 
 The generator never writes secrets. Its role JWTs expire after seven days;
-rerun it with the same local JWT secret and update only the five database-key
+rerun it with the same local JWT secret and update only the seven role-key
 variables when they expire. Do not rotate `JOURNAL_ENCRYPTION_KEY_BASE64` for
 an existing database without a planned re-encryption migration.
 
@@ -77,7 +80,7 @@ Important public configuration:
 
 Important internal configuration:
 
-- the five service database keys above
+- the seven role-scoped database/storage keys above
 - `SUPABASE_SERVICE_ROLE_KEY` for gateway auth validation
 - the eight distinct `*_SERVICE_TOKEN` values from the root example; never reuse a value
 - `JOURNAL_ENCRYPTION_KEY_BASE64` and version
@@ -124,7 +127,17 @@ Only NGINX publishes a host port (`http://localhost:3000`). Domain services are 
 
 Individual Node services can be started with their package scripts, for example `npm run dev -w @echo/journal-service`. Analysis starts from `ai-service/`; ML starts from `ml/` using the commands in the architecture catalog.
 
-For a clean end-to-end check, open the edge URL and exercise: signup/login → onboarding/profile → journal create/read → dashboard mood check-in → Buddy or grounding → dashboard/insights. Analysis additionally requires approved identity verification, active account-level journal-analysis consent, per-entry analysis consent, and an available validated ML runtime.
+For a clean end-to-end check, open the edge URL and exercise:
+
+1. authentication: signup, login, session restoration, and logout;
+2. onboarding and profile creation, then profile/privacy/notification/trusted-contact settings;
+3. identity-verification draft, document upload, submission, and the administrator review flow with an explicitly provisioned local verification administrator;
+4. journal draft save/reload/delete, followed by journal create/read/update/delete;
+5. dashboard mood check-in and the optional PHQ-8 calculation; the direct PHQ-8 result is session-only and no assessment-history endpoint is currently implemented;
+6. Buddy messaging and grounding-session completion;
+7. dashboard and emotion insights sourced from the saved data.
+
+Analysis additionally requires approved identity verification, active account-level journal-analysis consent, per-entry analysis consent, and an available validated ML runtime. Without validated ML artifacts, confirm the documented controlled unavailable response; do not treat fabricated or placeholder inference as success.
 
 ## Health and failure behavior
 

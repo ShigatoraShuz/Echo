@@ -1,10 +1,9 @@
 export { EditableProfileForm } from "./editable-profile-form";
 export { AvatarUpload } from "./avatar-upload";
-export { PrivacyControlsSection } from "./privacy-controls";
 export { ChangePasswordForm } from "./change-password-form";
 export { TwoFactorStatus } from "./two-factor-status";
 export { ActiveSessionsList } from "./active-sessions";
-export { SettingsHeader, SettingsRow, SettingsSection, SettingsShell, SettingsSidebar } from "./settings-shell";
+export { SettingsHeader, SettingsSection, SettingsShell, SettingsSidebar } from "./settings-shell";
 export { NotificationToggles } from "./notification-toggles";
 export { QuietHoursSelector } from "./quiet-hours";
 export { ExportDataSection } from "./export-data";

@@ -43,14 +43,14 @@ describe("buddy HTTP adapter", () => {
     if (result.success) expect(result.data.canAccessAi).toBe(false);
   });
 
-  it("loads the authenticated session and maps messages", async () => {
+  it("loads the selected authenticated conversation and maps messages", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         jsonResponse({
           success: true,
           data: {
-            conversationId: "conv-1",
+            conversationId: "00000000-0000-4000-8000-000000000041",
             messages: [
               { id: "m1", role: "user", content: "Long day.", timestamp: "7:05 PM" },
               { id: "m2", role: "buddy", content: "I am here with you.", timestamp: "7:05 PM" },
@@ -61,7 +61,7 @@ describe("buddy HTTP adapter", () => {
     );
 
     const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
-    const result = await createBuddyHttpAdapter().getConversation("conv-1");
+    const result = await createBuddyHttpAdapter().getConversation("00000000-0000-4000-8000-000000000041");
 
     expect(result.success).toBe(true);
     if (result.success) {
@@ -69,7 +69,7 @@ describe("buddy HTTP adapter", () => {
       expect(result.data.messages[1]).toMatchObject({ role: "buddy", content: "I am here with you." });
     }
     expect(fetch).toHaveBeenCalledWith(
-      "http://api.example.test/api/v1/buddy/session",
+      "http://api.example.test/api/v1/buddy/conversations/00000000-0000-4000-8000-000000000041",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer access-token" }),
       }),
@@ -84,7 +84,7 @@ describe("buddy HTTP adapter", () => {
           {
             success: true,
             data: {
-              conversationId: "conv-1",
+              conversationId: "00000000-0000-4000-8000-000000000041",
               messages: [
                 { id: "m1", role: "user", content: "Hello", timestamp: "7:05 PM" },
                 { id: "m2", role: "buddy", content: "Hello there.", timestamp: "7:05 PM" },
@@ -97,17 +97,14 @@ describe("buddy HTTP adapter", () => {
     );
 
     const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
-    const result = await createBuddyHttpAdapter().sendMessage({ conversationId: "conv-1", content: "Hello" });
+    const result = await createBuddyHttpAdapter().sendMessage({ conversationId: "00000000-0000-4000-8000-000000000041", content: "Hello" });
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.content).toBe("Hello there.");
+    expect(fetch).toHaveBeenCalledWith(
+      "http://api.example.test/api/v1/buddy/conversations/00000000-0000-4000-8000-000000000041/messages",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ content: "Hello" }) }),
+    );
   });
 
-  it("marks conversation management as unsupported instead of fabricating data", async () => {
-    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
-    const result = await createBuddyHttpAdapter().createConversation({ title: "New" });
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.code).toBe("UNKNOWN");
-  });
 });

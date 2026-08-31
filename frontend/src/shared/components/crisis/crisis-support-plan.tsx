@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CheckCircle2, ExternalLink, HeartHandshake, MessageCircle, Phone, ShieldAlert, Wind } from "lucide-react";
-import { experienceApi, type SupportResource } from "@/services/experience/experience-api";
+import { supportResourcesApi, type SupportResource } from "@/services/support-resources/support-resources-api";
 
 const immediateSteps = [
   "Call local emergency services now if someone may be in immediate danger.",
@@ -21,7 +21,7 @@ export function CrisisSupportPlan() {
 
   useEffect(() => {
     let isActive = true;
-    void experienceApi.getSupportResources({ type: "crisis_hotline" })
+    void supportResourcesApi.list({ type: "crisis_hotline" })
       .then((items) => { if (isActive) setResources(items.slice(0, 3)); })
       .catch(() => { if (isActive) setResourceError(true); });
     return () => { isActive = false; };

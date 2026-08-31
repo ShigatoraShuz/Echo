@@ -15,7 +15,6 @@
   },
   "privacy": {
     "title": "Privacy Controls",
-    "facialAnalysis": "Facial analysis consent",
     "dataProcessing": "Data processing consent",
     "crisisSupportVisibility": "Show crisis support resources"
   },

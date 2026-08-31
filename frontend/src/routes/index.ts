@@ -11,7 +11,6 @@ export const ROUTES = {
   buddy: "/buddy",
   buddyHistory: "/buddy/history",
   emotionInsights: "/insights/emotion",
-  riskInsights: "/insights/risk",
   profileSettings: "/settings/profile",
   notificationSettings: "/settings/notifications",
   privacySettings: "/settings/privacy",

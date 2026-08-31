@@ -18,9 +18,11 @@ function roleJwt(role) {
 
 const values = {
   USER_SERVICE_DATABASE_KEY: roleJwt("user_service_role"),
+  USER_STORAGE_KEY: roleJwt("user_storage_role"),
   JOURNAL_SERVICE_DATABASE_KEY: roleJwt("journal_service_role"),
   ASSESSMENT_SERVICE_DATABASE_KEY: roleJwt("assessment_service_role"),
   ANALYSIS_SERVICE_DATABASE_KEY: roleJwt("analysis_service_role"),
+  RECOMMENDATION_SERVICE_DATABASE_KEY: roleJwt("recommendation_service_role"),
   WELLNESS_SERVICE_DATABASE_KEY: roleJwt("wellness_service_role"),
   USER_SERVICE_TOKEN: token(),
   JOURNAL_SERVICE_TOKEN: token(),

@@ -1,10 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BuddyView } from "../buddy-view";
 import { useBuddyViewModel } from "@/features/buddy/view-model/use-buddy-view-model";
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/buddy");
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     value: vi.fn(),
     configurable: true,
@@ -34,19 +35,9 @@ function setupMock() {
     sendMessage: vi.fn().mockResolvedValue(undefined),
     loadConversations: vi.fn(),
     selectConversation: vi.fn(),
-    createConversation: vi.fn(),
-    renameConversation: vi.fn(),
-    deleteConversation: vi.fn(),
-    retryMessage: vi.fn(),
-    sendFeedback: vi.fn(),
     conversations: [],
-    searchConversations: vi.fn(),
     isLoadingList: false,
-    selectedConversation: null,
-    searchQuery: "",
     pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
-    isStreaming: false,
-    streamingContent: "",
   };
 }
 
@@ -67,5 +58,16 @@ describe("BuddyView", () => {
     await user.click(screen.getByRole("button", { name: /send message/i }));
 
     expect(mock.sendMessage).toHaveBeenCalledWith("conv-1", expect.any(String));
+  });
+
+  it("opens the conversation requested by the history link", async () => {
+    const conversationId = "00000000-0000-4000-8000-000000000042";
+    window.history.replaceState({}, "", `/buddy?conversationId=${conversationId}`);
+    const mock = setupMock();
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+
+    render(<BuddyView />);
+
+    await waitFor(() => expect(mock.selectConversation).toHaveBeenCalledWith(conversationId));
   });
 });

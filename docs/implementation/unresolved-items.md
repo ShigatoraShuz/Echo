@@ -1,5 +1,7 @@
 # Unresolved items
 
+> Historical pre-microservices issue list retained for provenance. These are not current blockers; use [`docs/deployment.md`](../deployment.md) and [`docs/testing.md`](../testing.md) for current limitations and verification.
+
 1. Docker Desktop's engine is unavailable, so `supabase db reset`, pgTAP, type generation, and local end-to-end database verification remain unexecuted.
 2. Existing legacy plaintext journal/mood records need a separately approved backfill and removal migration. The new backend does not write them.
 3. Settings, onboarding, dashboard, privacy requests, contacts, notifications, and Buddy UI remain connected to their existing presentation/mock flows; only the existing journal feature received API integration in this incremental pass.

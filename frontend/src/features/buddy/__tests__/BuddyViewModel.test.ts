@@ -20,7 +20,6 @@ function createMockService() {
         pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
       },
     }),
-    searchConversations: vi.fn().mockResolvedValue({ success: true, data: [] }),
     getConversation: vi.fn().mockResolvedValue({
       success: true,
       data: {
@@ -29,15 +28,10 @@ function createMockService() {
         ],
       },
     }),
-    createConversation: vi.fn(),
-    renameConversation: vi.fn(),
-    deleteConversation: vi.fn().mockResolvedValue({ success: true, data: undefined }),
     sendMessage: vi.fn().mockResolvedValue({
       success: true,
       data: { id: "m2", conversationId: "conv-1", role: "buddy", content: "Thank you for sharing.", timestamp: "8:20 PM" },
     }),
-    retryMessage: vi.fn(),
-    sendFeedback: vi.fn().mockResolvedValue({ success: true, data: undefined }),
   };
 }
 

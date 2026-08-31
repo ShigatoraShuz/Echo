@@ -58,12 +58,4 @@ describe("grounding HTTP adapter", () => {
     });
     expect(requestInit.headers).toEqual(expect.objectContaining({ Authorization: "Bearer access-token" }));
   });
-
-  it("reports history as unsupported instead of fabricating sessions", async () => {
-    const { createGroundingHttpAdapter } = await import("@/services/grounding/grounding.http-adapter");
-    const result = await createGroundingHttpAdapter().getHistory();
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.code).toBe("UNKNOWN");
-  });
 });

@@ -16,10 +16,6 @@ vi.mock("./auth.supabase-adapter", () => ({
   createAuthSupabaseAdapter: () => ({ kind: "supabase" }),
 }));
 
-vi.mock("./auth.http-adapter", () => ({
-  createAuthHttpAdapter: () => ({ kind: "http" }),
-}));
-
 describe("getAuthService adapter selection", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -43,12 +39,16 @@ describe("getAuthService adapter selection", () => {
     expect(getAuthService()).toEqual({ kind: "supabase" });
   });
 
-  it("selects the http adapter in non-production when Supabase is not configured", async () => {
+  it("fails closed in development when Supabase is not configured", async () => {
     vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "http");
     mocks.getSupabasePublicConfig.mockReturnValue(null);
 
     const { getAuthService } = await import("@/services/authentication/auth-service.factory");
-    expect(getAuthService()).toEqual({ kind: "http" });
+    await expect(getAuthService().login({ email: "mira@test.com", password: "password123", rememberSession: false }))
+      .resolves.toEqual({
+        success: false,
+        error: { code: "UNKNOWN", message: "Authentication is not configured. Contact the application administrator." },
+      });
   });
 
   it("returns an unavailable service in production without an identity provider", async () => {

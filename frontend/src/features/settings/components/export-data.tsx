@@ -110,7 +110,7 @@ export function ExportDataSection({
             {
               icon: BarChart3,
               label: "Distress & mood trends",
-              sub: "PHQ-8 scores & risk bands",
+              sub: "Journal mood and distress trends",
             },
           ].map(({ icon: Icon, label, sub }) => (
             <div

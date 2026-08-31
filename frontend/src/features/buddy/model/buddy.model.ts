@@ -16,20 +16,11 @@ export interface BuddyMessage {
   role: "user" | "buddy";
   content: string;
   timestamp: string;
-  isStreaming?: boolean;
-  isError?: boolean;
-  retryCount?: number;
-  feedback?: "positive" | "negative" | null;
 }
 
 export interface BuddySession {
   conversation: BuddyConversation;
   messages: BuddyMessage[];
-}
-
-export interface CreateConversationInput {
-  title: string;
-  initialMood?: BuddyMood;
 }
 
 export interface SendMessageInput {

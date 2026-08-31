@@ -14,7 +14,6 @@ function createMockService() {
       success: true,
       data: { id: "gs-1", type: "box-breathing", duration: 120, pace: "slow", completedAt: "2026-07-12T00:00:00Z", progress: 100, state: "completed" },
     }),
-    getHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
   };
 }
 

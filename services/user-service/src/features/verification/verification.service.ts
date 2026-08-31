@@ -157,6 +157,7 @@ function extensionForMimeType(mimeType: string): string {
 export class VerificationService {
   constructor(
     private readonly database: OwnedDatabase,
+    private readonly storage: OwnedDatabase["storage"],
     private readonly encryption: EncryptionService,
   ) {}
 
@@ -373,7 +374,7 @@ export class VerificationService {
 
     const verificationId = stringValue(application.id);
     const storagePath = `${userId}/${verificationId}/${kind}-${randomUUID()}.${extension}`;
-    const upload = await this.database.storage
+    const upload = await this.storage
       .from(VERIFICATION_BUCKET)
       .upload(storagePath, contents, { contentType: mimeType, upsert: false });
     if (upload.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
@@ -385,7 +386,7 @@ export class VerificationService {
       .eq("document_kind", kind)
       .maybeSingle();
     if (previousError) {
-      await this.database.storage.from(VERIFICATION_BUCKET).remove([storagePath]);
+      await this.storage.from(VERIFICATION_BUCKET).remove([storagePath]);
       throw databaseError("The previous verification document could not be checked.");
     }
 
@@ -404,12 +405,12 @@ export class VerificationService {
       { onConflict: "verification_id,document_kind" },
     );
     if (error) {
-      await this.database.storage.from(VERIFICATION_BUCKET).remove([storagePath]);
+      await this.storage.from(VERIFICATION_BUCKET).remove([storagePath]);
       throw databaseError("The verification document could not be recorded.");
     }
     const previousPath = previous ? stringValue((previous as Row).storage_path) : "";
     if (previousPath && previousPath !== storagePath) {
-      await this.database.storage.from(VERIFICATION_BUCKET).remove([previousPath]);
+      await this.storage.from(VERIFICATION_BUCKET).remove([previousPath]);
     }
     return this.getStatus(userId);
   }
@@ -503,7 +504,7 @@ export class VerificationService {
     const reviewedDocuments = await Promise.all(
       documents.map(async (document) => {
         const path = stringValue(document.storage_path);
-        const signed = await this.database.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
+        const signed = await this.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
         if (signed.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
         return {
           ...this.documentResponse(document),

@@ -110,6 +110,19 @@ export function EmotionInsightsView() {
           A private, reflective view built from your saved journal moods. This is a supportive
           tool for self-discovery, not a clinical diagnosis.
         </p>
+        <label className="mt-3 w-fit text-xs font-semibold text-[var(--landing-muted)]">
+          Insight period
+          <select
+            value={vm.timeRange}
+            onChange={(event) => vm.setTimeRange(event.target.value as "7d" | "30d" | "90d")}
+            className="ml-2 rounded-xl border border-[var(--landing-sage-soft)] bg-white px-3 py-2 text-sm text-[var(--landing-ink)]"
+            aria-label="Choose emotion insight period"
+          >
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+          </select>
+        </label>
       </div>
 
       {/* ── Error banner ─────────────────────────────────────────────────── */}

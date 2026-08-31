@@ -25,6 +25,12 @@ export function createUserApp(dependencies: UserServiceDependencies, options: { 
   router.post("/onboarding/complete", user, onboarding.completeOnboarding);
   router.get("/settings", user, settings.get);
   router.patch("/settings/profile", user, settings.updateProfile);
+  router.put(
+    "/settings/avatar",
+    user,
+    express.raw({ type: ["image/jpeg", "image/png", "image/webp", "image/gif"], limit: "5mb" }),
+    settings.uploadAvatar,
+  );
   router.patch("/settings/privacy", user, settings.updatePrivacy);
   router.patch("/settings/notifications", user, settings.updateNotifications);
   router.post("/settings/trusted-contacts", user, settings.createContact);

@@ -1,5 +1,5 @@
 import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
-import type { BuddyConversation, BuddyMessage, BuddySession, CreateConversationInput, SendMessageInput, BuddyPagination } from "@/features/buddy/model/buddy.model";
+import type { BuddyConversation, BuddyMessage } from "@/features/buddy/model/buddy.model";
 import type { BuddyServiceError } from "@/features/buddy/model/buddy.model";
 
 function delay(ms: number): Promise<void> {
@@ -33,8 +33,6 @@ export function createBuddyMockAdapter(): BuddyService {
   const conversations = [...seedConversations];
   const messages: Record<string, BuddyMessage[]> = {};
   Object.entries(seedMessages).forEach(([key, value]) => { messages[key] = [...value]; });
-  let nextConvId = 4;
-
 const service: BuddyService = {
     async getAccessStatus(signal) {
       await delay(80 + Math.random() * 80);
@@ -52,53 +50,12 @@ const service: BuddyService = {
       return { success: true, data: { conversations: paged, pagination: { page, pageSize, totalItems, totalPages } } };
     },
 
-    async searchConversations(query, signal) {
-      await delay(100);
-      if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
-      const q = query.toLowerCase();
-      const filtered = conversations.filter((c) => c.title.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
-      return { success: true, data: filtered };
-    },
-
     async getConversation(id, signal) {
       await delay(100 + Math.random() * 100);
       if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
       const conversation = conversations.find((c) => c.id === id);
       if (!conversation) return toServiceError("NOT_FOUND", "Conversation not found");
       return { success: true, data: { conversation, messages: messages[id] ?? [] } };
-    },
-
-    async createConversation(input) {
-      await delay(200 + Math.random() * 200);
-      const conversation: BuddyConversation = {
-        id: `conv-${nextConvId++}`,
-        title: input.title,
-        lastMessage: "",
-        lastMessageAt: "Just now",
-        messageCount: 0,
-        mood: input.initialMood ?? "neutral",
-        createdAt: new Date().toISOString(),
-      };
-      conversations.unshift(conversation);
-      messages[conversation.id] = [];
-      return { success: true, data: conversation };
-    },
-
-    async renameConversation(id, title) {
-      await delay(150);
-      const conv = conversations.find((c) => c.id === id);
-      if (!conv) return toServiceError("NOT_FOUND", "Conversation not found");
-      conv.title = title;
-      return { success: true, data: conv };
-    },
-
-    async deleteConversation(id) {
-      await delay(150);
-      const idx = conversations.findIndex((c) => c.id === id);
-      if (idx === -1) return toServiceError("NOT_FOUND", "Conversation not found");
-      conversations.splice(idx, 1);
-      delete messages[id];
-      return { success: true, data: undefined as unknown as void };
     },
 
     async sendMessage(input) {
@@ -128,31 +85,6 @@ const service: BuddyService = {
       return { success: true, data: buddyMsg };
     },
 
-    async retryMessage(conversationId, messageId) {
-      await delay(300 + Math.random() * 300);
-      const convMsgs = messages[conversationId];
-      if (!convMsgs) return toServiceError("NOT_FOUND", "Message not found");
-      const msg = convMsgs.find((m) => m.id === messageId);
-      if (!msg) return toServiceError("NOT_FOUND", "Message not found");
-      const buddyMsg: BuddyMessage = {
-        id: generateId("msg"),
-        conversationId,
-        role: "buddy",
-        content: "Let me try again. I hear you, and I want to make sure I understand what you are going through. Can you tell me a bit more about how you are feeling?",
-        timestamp: "Just now",
-      };
-      convMsgs.push(buddyMsg);
-      return { success: true, data: buddyMsg };
-    },
-
-    async sendFeedback(messageId, feedback) {
-      await delay(100);
-      for (const convMsgs of Object.values(messages)) {
-        const msg = convMsgs?.find((m) => m.id === messageId);
-        if (msg) { msg.feedback = feedback; break; }
-      }
-      return { success: true, data: undefined as unknown as void };
-    },
   };
 
   return service;

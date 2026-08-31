@@ -99,6 +99,24 @@ paths:
     post:
       summary: Send a Buddy message
       responses: { "201": { description: Updated session }, "403": { description: Verification required } }
+  /buddy/conversations/{conversationId}:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get one owner-scoped Buddy conversation
+      responses: { "200": { description: Conversation and messages }, "404": { description: Conversation not owned by the user } }
+  /buddy/conversations/{conversationId}/messages:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Send a message to the selected owner-scoped Buddy conversation
+      responses: { "201": { description: Updated conversation }, "404": { description: Conversation not owned by the user } }
   /buddy/history:
     get:
       summary: List Buddy conversations
@@ -115,10 +133,18 @@ paths:
   /dashboard:
     get:
       summary: Get the API-composed dashboard
+      parameters:
+        - name: range
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d], default: 7d }
       responses: { "200": { description: Dashboard } }
   /insights/emotions:
     get:
       summary: Get derived emotion patterns
+      parameters:
+        - name: range
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d], default: 30d }
       responses: { "200": { description: Emotion insights } }
   /settings:
     get:
@@ -126,15 +152,26 @@ paths:
       responses: { "200": { description: Settings } }
   /settings/profile:
     patch:
-      summary: Update profile settings
+      summary: Partially update supplied profile settings; omitted fields remain unchanged
       responses: { "200": { description: Profile updated } }
+  /settings/avatar:
+    put:
+      summary: Upload a private avatar image and return a signed display URL
+      requestBody:
+        required: true
+        content:
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+          image/gif: { schema: { type: string, format: binary } }
+      responses: { "200": { description: Profile with signed avatar URL }, "400": { description: Invalid image } }
   /settings/privacy:
     patch:
-      summary: Update privacy settings
+      summary: Partially update supplied privacy settings; omitted fields remain unchanged
       responses: { "200": { description: Privacy settings updated } }
   /settings/notifications:
     patch:
-      summary: Update notification settings
+      summary: Partially update supplied notification settings; omitted fields remain unchanged
       responses: { "200": { description: Notification settings updated } }
   /settings/trusted-contacts:
     post:

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, FileText, Lock } from "lucide-react";
+import { ArrowRight, FileText } from "lucide-react";
 import type { JournalEntry } from "../model/journal.model";
 import {
   formatJournalDate,
@@ -14,7 +14,7 @@ interface JournalCardProps {
 }
 
 export function JournalCard({ entry }: JournalCardProps) {
-  const { fullDate, timeString, relativeTime } = formatJournalDate(entry.createdAt);
+  const { timeString, relativeTime } = formatJournalDate(entry.createdAt);
   const moodVisual = getMoodVisual(entry.mood);
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 

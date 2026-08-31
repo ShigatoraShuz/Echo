@@ -1,5 +1,5 @@
 "use client";
-import { Wind, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoBreathingVisual } from "@/shared/components/react-bits/echo-breathing-visual";

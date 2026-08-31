@@ -1,33 +1,35 @@
+import { randomUUID } from "node:crypto";
 import type { OwnedDatabase } from "@echo/service-core";
-import { ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
+import { ExternalServiceError, NotFoundError, ValidationError } from "../../shared/errors/app-error.js";
+
+export const AVATAR_BUCKET = "avatars";
+export const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 export type ThemeVariant = "echo-calm" | "echo-night" | "echo-soft" | "echo-focus";
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface ProfileSettingsInput {
-  displayName: string;
-  timezone: string;
-  themeVariant: ThemeVariant;
-  themeMode: ThemeMode;
-  /** Optional public URL or storage path for the user's avatar image */
-  avatarPath?: string | null;
+  displayName?: string;
+  timezone?: string;
+  themeVariant?: ThemeVariant;
+  themeMode?: ThemeMode;
 }
 
 export interface PrivacySettingsInput {
-  facialAnalysisEnabled: boolean;
-  crisisSupportVisible: boolean;
-  lockScreenPrivate: boolean;
+  facialAnalysisEnabled?: boolean;
+  crisisSupportVisible?: boolean;
+  lockScreenPrivate?: boolean;
 }
 
 export interface NotificationSettingsInput {
-  emailEnabled: boolean;
-  pushEnabled: boolean;
-  inAppEnabled: boolean;
-  journalRemindersEnabled: boolean;
-  wellbeingRemindersEnabled: boolean;
-  insightNotificationsEnabled: boolean;
-  reminderTime: string | null;
-  reminderTimezone: string | null;
+  emailEnabled?: boolean;
+  pushEnabled?: boolean;
+  inAppEnabled?: boolean;
+  journalRemindersEnabled?: boolean;
+  wellbeingRemindersEnabled?: boolean;
+  insightNotificationsEnabled?: boolean;
+  reminderTime?: string | null;
+  reminderTimezone?: string | null;
 }
 
 export interface TrustedContactInput {
@@ -57,8 +59,36 @@ function nullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function hasAvatarSignature(mimeType: string, contents: Buffer): boolean {
+  if (mimeType === "image/jpeg") {
+    return contents.length >= 3 && contents[0] === 0xff && contents[1] === 0xd8 && contents[2] === 0xff;
+  }
+  if (mimeType === "image/png") {
+    return contents.length >= 8 && contents.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (mimeType === "image/gif") {
+    const signature = contents.subarray(0, 6).toString("ascii");
+    return signature === "GIF87a" || signature === "GIF89a";
+  }
+  if (mimeType === "image/webp") {
+    return contents.length >= 12
+      && contents.subarray(0, 4).toString("ascii") === "RIFF"
+      && contents.subarray(8, 12).toString("ascii") === "WEBP";
+  }
+  return false;
+}
+
 export class SettingsService {
-  constructor(private readonly database: OwnedDatabase) {}
+  constructor(
+    private readonly database: OwnedDatabase,
+    private readonly storage: OwnedDatabase["storage"],
+  ) {}
+
+  private async signedAvatar(path: string | null): Promise<string | null> {
+    if (!path) return null;
+    const { data, error } = await this.storage.from(AVATAR_BUCKET).createSignedUrl(path, 3600);
+    return error || !data ? null : data.signedUrl;
+  }
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
@@ -138,13 +168,15 @@ export class SettingsService {
     const notifications = notificationResult.data as Row;
     const privacy = privacyResult.data as Row;
 
+    const avatarPath = await this.signedAvatar(nullableString(profile.avatar_path));
+
     return {
       profile: {
         displayName: stringValue(profile.display_name),
         timezone: stringValue(profile.timezone, "Asia/Manila"),
         themeVariant: stringValue(profile.theme_variant, "echo-calm"),
         themeMode: stringValue(profile.theme_mode, "system"),
-        avatarPath: nullableString(profile.avatar_path),
+        avatarPath,
       },
       privacy: {
         journalPrivate: true,
@@ -196,53 +228,93 @@ export class SettingsService {
 
   async updateProfile(userId: string, input: ProfileSettingsInput) {
     await this.ensureDefaults(userId);
-    const updatePayload: Record<string, unknown> = {
-      display_name: input.displayName,
-      timezone: input.timezone,
-      theme_variant: input.themeVariant,
-      theme_mode: input.themeMode,
-    };
-    if (input.avatarPath !== undefined) {
-      updatePayload.avatar_path = input.avatarPath;
+    const updatePayload: Record<string, unknown> = {};
+    if (input.displayName !== undefined) updatePayload.display_name = input.displayName;
+    if (input.timezone !== undefined) updatePayload.timezone = input.timezone;
+    if (input.themeVariant !== undefined) updatePayload.theme_variant = input.themeVariant;
+    if (input.themeMode !== undefined) updatePayload.theme_mode = input.themeMode;
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await this.database.from("profiles").update(updatePayload).eq("id", userId);
+      if (error) throw databaseError("Your profile settings could not be saved.");
     }
-    const { error } = await this.database
+    return (await this.get(userId)).profile;
+  }
+
+  async uploadAvatar(userId: string, mimeType: string, contents: Buffer) {
+    const extension = ({
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/gif": "gif",
+    } as Record<string, string>)[mimeType];
+    if (!extension) throw new ValidationError({ avatar: ["Upload a JPEG, PNG, WebP, or GIF image."] });
+    if (contents.byteLength < 1 || contents.byteLength > MAX_AVATAR_BYTES) {
+      throw new ValidationError({ avatar: ["Upload an image no larger than 5 MB."] });
+    }
+    if (!hasAvatarSignature(mimeType, contents)) {
+      throw new ValidationError({ avatar: ["The uploaded file does not match its declared image type."] });
+    }
+
+    await this.ensureDefaults(userId);
+    const { data: current, error: currentError } = await this.database
       .from("profiles")
-      .update(updatePayload)
-      .eq("id", userId);
-    if (error) throw databaseError("Your profile settings could not be saved.");
+      .select("avatar_path")
+      .eq("id", userId)
+      .single();
+    if (currentError) throw databaseError("Your current profile photo could not be checked.");
+
+    const storagePath = `${userId}/avatar-${randomUUID()}.${extension}`;
+    const uploaded = await this.storage
+      .from(AVATAR_BUCKET)
+      .upload(storagePath, contents, { contentType: mimeType, upsert: false });
+    if (uploaded.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "Your profile photo could not be uploaded.");
+
+    const { error } = await this.database.from("profiles").update({ avatar_path: storagePath }).eq("id", userId);
+    if (error) {
+      await this.storage.from(AVATAR_BUCKET).remove([storagePath]);
+      throw databaseError("Your profile photo could not be saved.");
+    }
+
+    const previousPath = nullableString((current as Row | null)?.avatar_path);
+    if (previousPath && previousPath !== storagePath) {
+      await this.storage.from(AVATAR_BUCKET).remove([previousPath]);
+    }
     return (await this.get(userId)).profile;
   }
 
   async updatePrivacy(userId: string, input: PrivacySettingsInput) {
     await this.ensureDefaults(userId);
-    const { error } = await this.database
-      .from("privacy_preferences")
-      .update({
-        facial_analysis_enabled: input.facialAnalysisEnabled,
-        crisis_support_visible: input.crisisSupportVisible,
-        lock_screen_private: input.lockScreenPrivate,
-      })
-      .eq("user_id", userId);
-    if (error) throw databaseError("Your privacy settings could not be saved.");
+    const updatePayload: Record<string, unknown> = {};
+    if (input.facialAnalysisEnabled !== undefined) updatePayload.facial_analysis_enabled = input.facialAnalysisEnabled;
+    if (input.crisisSupportVisible !== undefined) updatePayload.crisis_support_visible = input.crisisSupportVisible;
+    if (input.lockScreenPrivate !== undefined) updatePayload.lock_screen_private = input.lockScreenPrivate;
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await this.database.from("privacy_preferences").update(updatePayload).eq("user_id", userId);
+      if (error) throw databaseError("Your privacy settings could not be saved.");
+    }
     return (await this.get(userId)).privacy;
   }
 
   async updateNotifications(userId: string, input: NotificationSettingsInput) {
     await this.ensureDefaults(userId);
-    const { error } = await this.database
-      .from("notification_preferences")
-      .update({
-        email_enabled: input.emailEnabled,
-        push_enabled: input.pushEnabled,
-        in_app_enabled: input.inAppEnabled,
-        journal_reminders_enabled: input.journalRemindersEnabled,
-        wellbeing_reminders_enabled: input.wellbeingRemindersEnabled,
-        insight_notifications_enabled: input.insightNotificationsEnabled,
-        reminder_time: input.reminderTime,
-        reminder_timezone: input.reminderTimezone,
-      })
-      .eq("user_id", userId);
-    if (error) throw databaseError("Your notification settings could not be saved.");
+    const current = (await this.get(userId)).notifications;
+    const next = { ...current, ...input };
+    if ((next.journalRemindersEnabled || next.wellbeingRemindersEnabled) && (!next.reminderTime || !next.reminderTimezone)) {
+      throw new ValidationError({ reminderTime: ["A reminder time and timezone are required when reminders are enabled."] });
+    }
+    const updatePayload: Record<string, unknown> = {};
+    if (input.emailEnabled !== undefined) updatePayload.email_enabled = input.emailEnabled;
+    if (input.pushEnabled !== undefined) updatePayload.push_enabled = input.pushEnabled;
+    if (input.inAppEnabled !== undefined) updatePayload.in_app_enabled = input.inAppEnabled;
+    if (input.journalRemindersEnabled !== undefined) updatePayload.journal_reminders_enabled = input.journalRemindersEnabled;
+    if (input.wellbeingRemindersEnabled !== undefined) updatePayload.wellbeing_reminders_enabled = input.wellbeingRemindersEnabled;
+    if (input.insightNotificationsEnabled !== undefined) updatePayload.insight_notifications_enabled = input.insightNotificationsEnabled;
+    if (input.reminderTime !== undefined) updatePayload.reminder_time = input.reminderTime;
+    if (input.reminderTimezone !== undefined) updatePayload.reminder_timezone = input.reminderTimezone;
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await this.database.from("notification_preferences").update(updatePayload).eq("user_id", userId);
+      if (error) throw databaseError("Your notification settings could not be saved.");
+    }
     return (await this.get(userId)).notifications;
   }
 

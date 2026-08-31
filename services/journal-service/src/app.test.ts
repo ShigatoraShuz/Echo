@@ -46,4 +46,48 @@ describe("journal service boundary", () => {
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
     expect(get).not.toHaveBeenCalled();
   });
+
+  it("routes owner-scoped journal read, update, and delete operations", async () => {
+    const token = "x".repeat(32);
+    const requestId = "00000000-0000-4000-8000-000000000016";
+    const userId = "00000000-0000-4000-8000-000000000017";
+    const journalId = "00000000-0000-4000-8000-000000000018";
+    const get = vi.fn().mockResolvedValue({ id: journalId });
+    const update = vi.fn().mockResolvedValue({ id: journalId, mood: "calm" });
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const app = createJournalApp({ ...service, get, update, remove } as any, { internalToken: token });
+    const headers = gatewayUserHeaders({ requestId, userId, secret: token });
+
+    expect((await request(app).get(`/api/v1/journals/${journalId}`).set(headers)).status).toBe(200);
+    const updated = await request(app)
+      .patch(`/api/v1/journals/${journalId}`)
+      .set(headers)
+      .send({ mood: "calm", userId: "attacker", riskScore: 100 });
+    expect(updated.status).toBe(200);
+    expect(update).toHaveBeenCalledWith(userId, journalId, { mood: "calm" });
+    expect((await request(app).delete(`/api/v1/journals/${journalId}`).set(headers)).status).toBe(204);
+    expect(get).toHaveBeenCalledWith(userId, journalId);
+    expect(remove).toHaveBeenCalledWith(userId, journalId);
+  });
+
+  it("routes owner-scoped draft save, read, and delete operations", async () => {
+    const token = "x".repeat(32);
+    const requestId = "00000000-0000-4000-8000-000000000019";
+    const userId = "00000000-0000-4000-8000-000000000020";
+    const saveDraft = vi.fn().mockResolvedValue({ id: userId, body: "draft" });
+    const getDraft = vi.fn().mockResolvedValue({ id: userId, body: "draft" });
+    const deleteDraft = vi.fn().mockResolvedValue(undefined);
+    const app = createJournalApp({ ...service, saveDraft, getDraft, deleteDraft } as any, { internalToken: token });
+    const headers = gatewayUserHeaders({ requestId, userId, secret: token });
+    const saved = await request(app)
+      .put("/api/v1/journals/draft")
+      .set(headers)
+      .send({ title: "", body: "draft", mood: "neutral", emotions: [], tags: [], privacy_status: "private", analysis_consent: false, userId: "attacker" });
+    expect(saved.status).toBe(200);
+    expect(saveDraft).toHaveBeenCalledWith(userId, expect.not.objectContaining({ userId: "attacker" }));
+    expect((await request(app).get("/api/v1/journals/draft").set(headers)).status).toBe(200);
+    expect((await request(app).delete("/api/v1/journals/draft").set(headers)).status).toBe(204);
+    expect(getDraft).toHaveBeenCalledWith(userId);
+    expect(deleteDraft).toHaveBeenCalledWith(userId);
+  });
 });

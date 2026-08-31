@@ -1,5 +1,7 @@
 # Echo Backlog Progress Ledger
 
+> Historical modular-monolith delivery ledger. It is retained as implementation provenance, but current architecture and validation live in [`docs/architecture/microservices.md`](../architecture/microservices.md) and [`docs/testing.md`](../testing.md).
+
 Authoritative backlog: `docs/ECHO_REQUIREMENTS_QA_AND_110_SCRUM_BACKLOG.md` (110 items, ECHO-001..ECHO-110, verified present exactly once on 2026-08-15).
 
 Status legend:

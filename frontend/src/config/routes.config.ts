@@ -30,8 +30,6 @@ export const ROUTES = {
   },
   insights: {
     emotion: "/insights/emotion",
-    facial: "/insights/facial",
-    risk: "/insights/risk",
   },
   settings: {
     profile: "/settings/profile",

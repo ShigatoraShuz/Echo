@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import type { TrustedContact } from "../model/settings.model";
 
 interface EditContactPanelProps {

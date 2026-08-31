@@ -24,7 +24,17 @@ const database = createOwnedDatabase({
     "audit_events",
   ],
 });
+const storage = createOwnedDatabase({
+  url: env("SUPABASE_URL"),
+  key: env("USER_STORAGE_KEY"),
+  tables: [],
+}).storage;
 const encryption = createEncryptionService(env("JOURNAL_ENCRYPTION_KEY_BASE64"), positiveIntegerEnv("JOURNAL_ENCRYPTION_KEY_VERSION", 1));
-const dependencies = { onboarding: new OnboardingService(database), settings: new SettingsService(database), verification: new VerificationService(database, encryption), database };
+const dependencies = {
+  onboarding: new OnboardingService(database),
+  settings: new SettingsService(database, storage),
+  verification: new VerificationService(database, storage, encryption),
+  database,
+};
 const port = positiveIntegerEnv("PORT", 4201);
 listen(createUserApp(dependencies, { internalToken: secretEnv("USER_SERVICE_TOKEN"), allowedOrigin: process.env.FRONTEND_URL }), { name: "user-service", port });

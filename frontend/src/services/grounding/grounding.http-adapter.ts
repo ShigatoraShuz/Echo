@@ -1,5 +1,5 @@
-import type { GroundingService, GroundingServiceResult } from "@/services/grounding/grounding.service";
-import type { GroundingSession, PaceType } from "@/features/grounding/model/grounding.model";
+import type { GroundingService } from "@/services/grounding/grounding.service";
+import type { PaceType } from "@/features/grounding/model/grounding.model";
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -20,8 +20,6 @@ const BACKEND_PACES: Record<PaceType, "gentle" | "slower" | "steady"> = {
   medium: "slower",
   fast: "steady",
 };
-
-const NOT_SUPPORTED_MESSAGE = "Grounding history is not available in this build of the backend.";
 
 export function createGroundingHttpAdapter(): GroundingService {
   const client = createApiClient({
@@ -52,13 +50,9 @@ export function createGroundingHttpAdapter(): GroundingService {
             state: "completed",
           },
         };
-      } catch (error) {
+      } catch {
         return { success: false, error: { code: "UNKNOWN", message: "The grounding session could not be saved." } };
       }
-    },
-
-    async getHistory() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
     },
   };
 }

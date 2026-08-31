@@ -1,18 +1,10 @@
-export {
-  EmotionOverviewCard, TimeRangeSelector, EmotionTrendChart, EmotionDistributionWheel,
-  JournalSourceBreakdownChart, MostFrequentEmotions, PositiveDifficultBalance,
-  InsightExplanation, InsightsPrivacyBanner, InsightsEmptyState, FacialCameraWidget,
-  CameraPermissionDenied, CameraUnavailable, RiskCurrentSignal, RiskBandHistory,
-  SupportingFactors,
-} from "./components";
+export { EmotionTrendChart } from "./components";
 
-export { EmotionInsightsView, RiskInsightsView, FacialInsightsView } from "./view";
+export { EmotionInsightsView } from "./view";
 export { useInsightsViewModel } from "./view-model";
 export { getInsightsService, resetInsightsService } from "@/services/insights";
 export type { InsightsService, InsightsServiceResult } from "@/services/insights";
 export type {
-  InsightTimeRange, RiskBand, MoodLevel, EmotionDistribution,
-  MoodTrendPoint, EmotionInsightSummary, JournalSourceBreakdown,
-  RiskSignal, CameraSettings,
+  InsightTimeRange, MoodLevel, EmotionDistribution,
+  MoodTrendPoint, EmotionInsightSummary,
 } from "./model";
-export { TIME_RANGE_LABELS, RISK_COLORS, MOOD_COLORS } from "./model";

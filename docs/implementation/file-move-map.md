@@ -1,5 +1,7 @@
 # File move map
 
+> Historical pre-microservices plan. Paths and decisions below are not active implementation guidance; see [`docs/architecture/responsibility-migration.md`](../architecture/responsibility-migration.md).
+
 No files are moved or deleted in this phase. Existing feature directories already provide a safer incremental boundary than a broad rename.
 
 | Current path | Target path | Reason | Import impact | Risk |

@@ -18,7 +18,7 @@ export function LandingHowItWorks() {
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">A gentle, four-step practice for everyday wellbeing.</p>
         </div>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((step, i) => {
+          {STEPS.map((step) => {
             const Icon = step.icon;
             return (
               <div key={step.title} className="text-center">

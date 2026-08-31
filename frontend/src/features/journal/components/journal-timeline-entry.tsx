@@ -15,7 +15,7 @@ interface JournalTimelineEntryProps {
 }
 
 export function JournalTimelineEntry({ entry, isLast = false }: JournalTimelineEntryProps) {
-  const { fullDate, timeString, relativeTime, dayNumber, monthName, weekday } = formatJournalDate(entry.createdAt);
+  const { timeString, relativeTime, dayNumber, monthName, weekday } = formatJournalDate(entry.createdAt);
   const moodVisual = getMoodVisual(entry.mood);
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 

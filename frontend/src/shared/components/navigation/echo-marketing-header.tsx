@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Leaf, Menu, ShieldAlert, X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -16,7 +15,6 @@ const navLinks = [
 export function EchoMarketingHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const pathname = usePathname();
 
   // Shrink shadow slightly when user has not scrolled
   useEffect(() => {

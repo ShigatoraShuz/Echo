@@ -10,17 +10,15 @@ const profileSchema = z.object({
   timezone: z.string().trim().min(1).max(100),
   themeVariant: z.enum(["echo-calm", "echo-night", "echo-soft", "echo-focus"]),
   themeMode: z.enum(["light", "dark", "system"]),
-  avatarPath: z.string().trim().max(500).nullable().optional(),
-});
+}).partial();
 
 const privacySchema = z.object({
   facialAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
   lockScreenPrivate: z.boolean(),
-});
+}).partial();
 
-const notificationSchema = z
-  .object({
+const notificationSchema = z.object({
     emailEnabled: z.boolean(),
     pushEnabled: z.boolean(),
     inAppEnabled: z.boolean(),
@@ -29,13 +27,7 @@ const notificationSchema = z
     insightNotificationsEnabled: z.boolean(),
     reminderTime: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
     reminderTimezone: z.string().trim().min(1).max(100).nullable(),
-  })
-  .refine(
-    (value) =>
-      (!value.journalRemindersEnabled && !value.wellbeingRemindersEnabled) ||
-      Boolean(value.reminderTime && value.reminderTimezone),
-    { message: "A reminder time and timezone are required when reminders are enabled." },
-  );
+  }).partial();
 
 const contactSchema = z
   .object({
@@ -77,6 +69,15 @@ export function createSettingsController(service: SettingsService) {
     },
     async updateProfile(request: Request, response: Response) {
       sendSuccess(response, await service.updateProfile(userId(request), parse(profileSchema, request.body)));
+    },
+    async uploadAvatar(request: Request, response: Response) {
+      if (!Buffer.isBuffer(request.body)) {
+        throw new ValidationError({ avatar: ["Upload a JPEG, PNG, WebP, or GIF image."] });
+      }
+      sendSuccess(
+        response,
+        await service.uploadAvatar(userId(request), request.header("content-type") ?? "", request.body),
+      );
     },
     async updatePrivacy(request: Request, response: Response) {
       sendSuccess(response, await service.updatePrivacy(userId(request), parse(privacySchema, request.body)));

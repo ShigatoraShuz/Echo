@@ -9,12 +9,10 @@ export {
 export {
   EditableProfileForm,
   AvatarUpload,
-  PrivacyControlsSection,
   ChangePasswordForm,
   TwoFactorStatus,
   ActiveSessionsList,
   SettingsHeader,
-  SettingsRow,
   SettingsSection,
   SettingsShell,
   SettingsSidebar,

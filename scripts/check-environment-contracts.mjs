@@ -17,6 +17,16 @@ const expectedTokens = {
   "frontend/.env.example": [],
 };
 
+const expectedDatabaseKeys = {
+  ".env.example": ["USER_SERVICE_DATABASE_KEY", "USER_STORAGE_KEY", "JOURNAL_SERVICE_DATABASE_KEY", "ASSESSMENT_SERVICE_DATABASE_KEY", "ANALYSIS_SERVICE_DATABASE_KEY", "RECOMMENDATION_SERVICE_DATABASE_KEY", "WELLNESS_SERVICE_DATABASE_KEY"],
+  "services/user-service/.env.example": ["SUPABASE_DATABASE_KEY", "USER_STORAGE_KEY"],
+  "services/journal-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+  "services/assessment-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+  "services/recommendation-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+  "services/wellness-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+  "ai-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+};
+
 function variables(file) {
   const result = new Map();
   for (const line of readFileSync(resolve(root, file), "utf8").split(/\r?\n/)) {
@@ -40,6 +50,13 @@ for (const [file, prefixes] of Object.entries(expectedTokens)) {
   if (values.has("INTERNAL_SERVICE_TOKEN")) violations.push(`${file}: deprecated shared INTERNAL_SERVICE_TOKEN is forbidden`);
 }
 
+for (const [file, expected] of Object.entries(expectedDatabaseKeys)) {
+  const actual = [...variables(file).keys()].filter((name) => name === "USER_STORAGE_KEY" || name.endsWith("_DATABASE_KEY")).sort();
+  if (actual.join("\n") !== [...expected].sort().join("\n")) {
+    violations.push(`${file}: database-key scope is ${actual.join(", ") || "empty"}; expected ${[...expected].sort().join(", ")}`);
+  }
+}
+
 const rootValues = variables(".env.example");
 if (rootValues.get("JOURNAL_ENCRYPTION_KEY_VERSION") !== "1") {
   violations.push(".env.example: JOURNAL_ENCRYPTION_KEY_VERSION must preserve compatibility version 1");
@@ -55,9 +72,11 @@ if (!compose.includes("SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}")
 const composeReferenceCounts = {
   SUPABASE_SERVICE_ROLE_KEY: 1,
   USER_SERVICE_DATABASE_KEY: 1,
+  USER_STORAGE_KEY: 1,
   JOURNAL_SERVICE_DATABASE_KEY: 1,
   ASSESSMENT_SERVICE_DATABASE_KEY: 1,
   ANALYSIS_SERVICE_DATABASE_KEY: 1,
+  RECOMMENDATION_SERVICE_DATABASE_KEY: 1,
   WELLNESS_SERVICE_DATABASE_KEY: 1,
   USER_SERVICE_TOKEN: 5,
   JOURNAL_SERVICE_TOKEN: 4,

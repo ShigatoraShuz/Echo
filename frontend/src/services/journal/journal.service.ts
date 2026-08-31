@@ -24,5 +24,4 @@ export interface JournalService {
   deleteDraft(id: string): Promise<JournalServiceResult<void>>;
   requestAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis>>;
   getAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis | null>>;
-  exportEntry(id: string): Promise<JournalServiceResult<{ markdown: string }>>;
 }

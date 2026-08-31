@@ -1,5 +1,7 @@
 # Echo Architecture and Security Decisions (ADR-style ledger)
 
+> Historical decision ledger for the removed modular monolith. The accepted current topology is the microservices architecture in [`docs/architecture/microservices.md`](../architecture/microservices.md); conflicting entries below are superseded.
+
 Rule: record every architectural, security, or product decision that affects backlog items. Each entry: date, decision, rationale, alternatives considered, consequences, status. Backlog ACs and executable code override these notes if they conflict.
 
 ## ADR-001 — Modular monolith with canonical Express API (2026-08-15)

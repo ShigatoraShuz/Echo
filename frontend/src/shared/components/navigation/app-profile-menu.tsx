@@ -181,7 +181,7 @@ export function AppProfileMenu() {
         className="flex items-center gap-2 rounded-full p-1 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
       >
         {avatar ? (
-          <img src={avatar} alt={`${displayName}'s profile`} className="h-9 w-9 rounded-full border-2 border-card object-cover" />
+          <Image src={avatar} alt={`${displayName}'s profile`} width={36} height={36} unoptimized className="h-9 w-9 rounded-full border-2 border-card object-cover" />
         ) : (
           <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-card bg-primary/10 text-xs font-bold text-primary">
             {initials || <UserRound className="h-4 w-4" />}

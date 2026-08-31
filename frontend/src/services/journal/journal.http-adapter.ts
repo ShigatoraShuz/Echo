@@ -1,14 +1,7 @@
+import type { JournalService } from "@/services/journal/journal.service";
 import type {
-  JournalService,
-  JournalServiceResult,
-} from "@/services/journal/journal.service";
-import type {
-  JournalEntry,
   JournalDraft,
-  JournalAnalysis,
-  CreateJournalInput,
   UpdateJournalInput,
-  JournalSearchFilters,
   JournalServiceError,
 } from "@/features/journal/model/journal.model";
 import type {
@@ -184,9 +177,6 @@ export function createJournalHttpAdapter(): JournalService {
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }
-    },
-    async exportEntry() {
-      return { success: false, error: { code: "UNKNOWN", message: "Export not available" } };
     },
   };
 }

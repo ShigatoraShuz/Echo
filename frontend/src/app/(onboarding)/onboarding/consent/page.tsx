@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
 import { PrivacyNotice } from "@/shared/components/echo";

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -10,7 +9,6 @@ import {
   KeyRound,
   LoaderCircle,
   Mail,
-  MapPin,
   Pencil,
   Phone,
   Plus,
@@ -31,17 +29,14 @@ import {
   useState,
 } from "react";
 
-import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
-import { isFeatureEnabled } from "@/config/feature-flags.config";
 
 import {
   AvatarUpload,
   ExportDataSection,
   SettingsHeader,
-  SettingsRow,
   SettingsSection,
   SettingsShell,
 } from "../components";
@@ -73,15 +68,6 @@ const timezoneOptions = [
   "America/New_York",
   "America/Los_Angeles",
 ];
-
-const emptyContact: TrustedContactInput = {
-  contactName: "",
-  contactEmail: null,
-  contactPhone: null,
-  relationship: "",
-  isPrimary: false,
-  permissionAcknowledged: false,
-};
 
 // -----------------------------------------------------------------------------
 // UI UTILITIES
@@ -403,34 +389,31 @@ export function ProfileSettingsView() {
     if (settings) {
       setForm(settings.profile);
     }
-  }, [settings?.profile]);
+  }, [settings]);
 
   const handleAvatarUpload = useCallback(
     async (file: File) => {
       setIsUploadingAvatar(true);
       try {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        setForm((prev) => prev ? { ...prev, avatarPath: dataUrl } : prev);
-        if (form) {
-          await settingsService.updateProfile({ ...form, avatarPath: dataUrl });
-        }
+        const profile = await settingsService.uploadAvatar(file);
+        setForm(profile);
       } finally {
         setIsUploadingAvatar(false);
       }
     },
-    [form],
+    [],
   );
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (form) {
       await run(
-        () => settingsService.updateProfile(form),
+        () => settingsService.updateProfile({
+          displayName: form.displayName,
+          timezone: form.timezone,
+          themeVariant: form.themeVariant,
+          themeMode: form.themeMode,
+        }),
         "Profile updated.",
       );
     }
@@ -727,15 +710,6 @@ export function PrivacySettingsView() {
                 label="Encrypted Records"
                 description="Content is owner-scoped. We cannot read your private thoughts."
               />
-
-              {isFeatureEnabled("facialAnalysis") ? (
-                <Toggle
-                  checked={form.facialAnalysisEnabled}
-                  onChange={(value) => setForm({ ...form, facialAnalysisEnabled: value })}
-                  label="Facial Check-ins"
-                  description="Enable camera-based emotion tracking during reflections."
-                />
-              ) : null}
 
               <Toggle
                 checked={
@@ -1084,7 +1058,7 @@ export function NotificationSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function SecuritySettingsView() {
-  const supabase = createBrowserSupabaseClient();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -1093,7 +1067,7 @@ export function SecuritySettingsView() {
     supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? null);
     });
-  }, []);
+  }, [supabase]);
 
   async function sendPasswordReset() {
     if (!email) return;

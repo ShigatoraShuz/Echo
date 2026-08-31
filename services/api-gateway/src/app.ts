@@ -32,6 +32,7 @@ function publicRoute(request: Request): boolean {
 }
 
 async function rawRequestBody(request: Request): Promise<Buffer | undefined> {
+  if (Buffer.isBuffer(request.body)) return request.body;
   if (request.body !== undefined) return Buffer.from(JSON.stringify(request.body));
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -56,6 +57,14 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
     next();
   });
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
+  app.use("/api/v1/settings/avatar", express.raw({
+    type: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+    limit: "5mb",
+  }));
+  app.use("/api/v1/verification/documents", express.raw({
+    type: ["image/jpeg", "image/png", "application/pdf"],
+    limit: "8mb",
+  }));
   app.use(express.json({ limit: "1mb", type: ["application/json", "application/*+json"] }));
   app.get("/api/v1/health", (_request, response) => response.json({ status: "ok", service: "api-gateway" }));
 
@@ -101,7 +110,16 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
     } catch (error) { next(error); }
   });
   app.use((error: unknown, request: Request, response: express.Response, _next: express.NextFunction) => {
-    const known = error instanceof ServiceError ? error : new ServiceError(500, "INTERNAL_SERVER_ERROR", "Something went wrong. Please try again later.");
+    const parserStatus = typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: unknown }).status)
+      : undefined;
+    const known = error instanceof ServiceError
+      ? error
+      : parserStatus === 413
+        ? new ServiceError(413, "PAYLOAD_TOO_LARGE", "The uploaded file is too large.")
+        : parserStatus === 400
+          ? new ServiceError(400, "INVALID_REQUEST_BODY", "The request body is invalid.")
+          : new ServiceError(500, "INTERNAL_SERVER_ERROR", "Something went wrong. Please try again later.");
     response.status(known.statusCode).json({ success: false, error: { code: known.code, message: known.message }, meta: { requestId: request.requestId } });
   });
   return app;

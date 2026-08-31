@@ -1,5 +1,5 @@
-import type { GroundingService, GroundingServiceResult } from "@/services/grounding/grounding.service";
-import type { GroundingSession, ExerciseType, PaceType } from "@/features/grounding/model/grounding.model";
+import type { GroundingService } from "@/services/grounding/grounding.service";
+import type { GroundingSession } from "@/features/grounding/model/grounding.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,10 +19,6 @@ export function createGroundingMockAdapter(): GroundingService {
       };
       sessions.push(session);
       return { success: true, data: session };
-    },
-    async getHistory(limit = 10) {
-      await delay(100);
-      return { success: true, data: sessions.slice(-limit).reverse() };
     },
   };
 }

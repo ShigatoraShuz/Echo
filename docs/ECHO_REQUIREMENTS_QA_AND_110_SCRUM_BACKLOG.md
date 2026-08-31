@@ -1,5 +1,7 @@
 # Echo App — Architecture QA, Product Requirements, and 110-Item Scrum Backlog
 
+> Historical baseline/backlog retained for product provenance. Its modular-monolith recommendation was superseded by the implemented microservices architecture in [`docs/architecture/microservices.md`](architecture/microservices.md).
+
 **Document status:** Implementation baseline  
 **Assessment date:** 2026-08-15  
 **Scope:** Next.js frontend, Express API, FastAPI AI service, Supabase/PostgreSQL, CI/CD, privacy, safety, accessibility, and release readiness  

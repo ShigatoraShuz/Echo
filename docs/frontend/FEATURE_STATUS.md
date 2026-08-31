@@ -1,5 +1,7 @@
 # ECHO Frontend — Feature Status (Phase 0 Audit)
 
+> **HISTORICAL / SUPERSEDED:** This Phase 0 audit is a pre-microservices baseline. Its missing/static labels are not current release claims; current verification is documented in [`../testing.md`](../testing.md).
+>
 > Audit date: 2026-07-13  
 > Status: `📐 static-ui` = presentational, no interactivity  
 > `❌ missing` = not implemented  

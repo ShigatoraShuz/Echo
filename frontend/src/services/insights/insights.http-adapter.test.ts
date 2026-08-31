@@ -48,13 +48,10 @@ describe("insights HTTP adapter", () => {
       expect(result.data.positiveVsDifficult).toEqual({ positive: 40, difficult: 10 });
       expect(result.data.mostFrequentEmotions[0]).toEqual({ emotion: "Calm", count: 40 });
     }
+    expect(fetch).toHaveBeenCalledWith(
+      "http://api.example.test/api/v1/insights/emotions?range=30d",
+      expect.any(Object),
+    );
   });
 
-  it("reports backend gaps explicitly instead of returning fabricated risk data", async () => {
-    const { createInsightsHttpAdapter } = await import("@/services/insights/insights.http-adapter");
-    const result = await createInsightsHttpAdapter().getRiskSignal();
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.code).toBe("UNKNOWN");
-  });
 });

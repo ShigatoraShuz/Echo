@@ -1,5 +1,7 @@
 # ECHO MVVM Migration Status
 
+> **HISTORICAL / SUPERSEDED:** This July 2026 migration snapshot predates the current microservices implementation. Use [`../architecture/microservices.md`](../architecture/microservices.md) and [`../testing.md`](../testing.md) for current behavior and validation.
+>
 > Generated: 2026-07-14
 > Status: LEGACY | FOUNDATION ONLY | PARTIALLY MIGRATED | MVVM MIGRATED | BACKEND DEPENDENT
 

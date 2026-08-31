@@ -1,8 +1,7 @@
-import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
+import type { BuddyService } from "@/services/buddy/buddy.service";
 import type {
   BuddyConversation,
   BuddyMessage,
-  BuddySession,
   BuddyServiceError,
 } from "@/features/buddy/model/buddy.model";
 import { env } from "@/config/environment";
@@ -31,9 +30,6 @@ interface BuddyHistoryRow {
   last_message_at: string;
   created_at: string;
 }
-
-const NOT_SUPPORTED_MESSAGE =
-  "Conversation management is not available in this build of the backend.";
 
 function toBuddyError(error: unknown): BuddyServiceError {
   const normalized = normalizeError(error);
@@ -124,27 +120,17 @@ export function createBuddyHttpAdapter(): BuddyService {
       }
     },
 
-    async searchConversations(query, signal) {
-      try {
-        const response = await client.get<ApiEnvelope<BuddyHistoryRow[]>>("/buddy/history", { signal });
-        const q = query.toLowerCase();
-        const filtered = response.data
-          .map(mapConversation)
-          .filter((conversation) => conversation.id.toLowerCase().includes(q));
-        return { success: true, data: filtered };
-      } catch (error) {
-        return { success: false, error: toBuddyError(error) };
-      }
-    },
-
     async getConversation(id, signal) {
       try {
-        const response = await client.get<ApiEnvelope<BuddySessionResponse>>("/buddy/session", { signal });
+        const response = await client.get<ApiEnvelope<BuddySessionResponse>>(
+          `/buddy/conversations/${encodeURIComponent(id)}`,
+          { signal },
+        );
         const { conversationId, messages } = response.data;
         return {
           success: true,
           data: {
-            conversation: { ...mapConversation({ id: conversationId, conversation_status: "active", last_message_at: "", created_at: "" }), id },
+            conversation: mapConversation({ id: conversationId, conversation_status: "active", last_message_at: "", created_at: "" }),
             messages: mapMessages(conversationId, messages),
           },
         };
@@ -153,22 +139,10 @@ export function createBuddyHttpAdapter(): BuddyService {
       }
     },
 
-    async createConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async renameConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async deleteConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
     async sendMessage(input) {
       try {
         const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string }>(
-          "/buddy/messages",
+            `/buddy/conversations/${encodeURIComponent(input.conversationId)}/messages`,
           { content: input.content },
         );
         const messages = mapMessages(response.data.conversationId, response.data.messages);
@@ -181,12 +155,5 @@ export function createBuddyHttpAdapter(): BuddyService {
       }
     },
 
-    async retryMessage() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async sendFeedback() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
   };
 }

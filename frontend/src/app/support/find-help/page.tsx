@@ -13,9 +13,9 @@ import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { AppShell } from "@/shared/components/layout/echo-shells";
 import {
-  experienceApi,
+  supportResourcesApi,
   type SupportResource,
-} from "@/services/experience/experience-api";
+} from "@/services/support-resources/support-resources-api";
 import { normalizeError } from "@/shared/errors/normalize-error";
 
 export default function FindHelpPage() {
@@ -29,7 +29,7 @@ export default function FindHelpPage() {
     setIsLoading(true);
     setError(null);
     try {
-      setResources(await experienceApi.getSupportResources({ query: query.trim(), type }));
+      setResources(await supportResourcesApi.list({ query: query.trim(), type }));
     } catch (reason) {
       setError(normalizeError(reason).userMessage);
     } finally {

@@ -1,5 +1,3 @@
-import { colors } from "./colors";
-
 export const contrastRatios = {
   normalText: "4.5:1",
   largeText: "3:1",

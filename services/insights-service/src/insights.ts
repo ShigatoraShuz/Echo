@@ -1,7 +1,60 @@
 type Entry = { id: string; mood: string; tags: string[]; created_at: string } & Record<string, unknown>;
+
 const moodScores: Record<string, number> = { calm: 85, happy: 95, neutral: 60, anxious: 35, sad: 25, angry: 20 };
 const day = (value: Date | string) => new Date(value).toISOString().slice(0, 10);
 const start = () => { const value = new Date(); value.setUTCHours(0, 0, 0, 0); return value; };
 const streak = (entries: Entry[]) => { const dates = new Set(entries.map((entry) => day(entry.created_at))); const cursor = start(); if (!dates.has(day(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1); let count = 0; while (dates.has(day(cursor))) { count += 1; cursor.setUTCDate(cursor.getUTCDate() - 1); } return count; };
-export function emotionInsights(entries: Entry[]) { const moods = ["calm", "happy", "neutral", "anxious", "sad", "angry"]; const counts = new Map(moods.map((mood) => [mood, 0])); for (const entry of entries) counts.set(entry.mood, (counts.get(entry.mood) ?? 0) + 1); const total = Math.max(entries.length, 1); const emotionWheel = moods.map((mood) => ({ label: mood[0]!.toUpperCase() + mood.slice(1), mood, value: Math.round(((counts.get(mood) ?? 0) / total) * 100) })); const today = start(); const moodTrend = Array.from({ length: 7 }, (_, index) => { const date = new Date(today); date.setUTCDate(date.getUTCDate() - (6 - index)); const matches = entries.filter((entry) => day(entry.created_at) === day(date)); return { label: date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), value: matches.length ? Math.round(matches.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matches.length) : 0 }; }); const strongest = [...emotionWheel].sort((a, b) => b.value - a.value)[0]!; return { emotionWheel, moodTrend, summary: entries.length ? `${strongest.label} is the most frequent signal across ${entries.length} recent reflection${entries.length === 1 ? "" : "s"}.` : "No patterns are shown until you save a reflection." }; }
-export function dashboard(entries: Entry[], settings: any) { const insight = emotionInsights(entries); const topMood = [...new Map(entries.map((entry) => [entry.mood, entries.filter((item) => item.mood === entry.mood).length]))].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calm"; return { userProfile: { name: settings?.profile?.displayName || "Friend", streakDays: streak(entries), nextCheckIn: settings?.notifications?.reminderTime || "Whenever you are ready", privacyStatus: "Private" }, latestEntry: entries[0] ?? null, journalEntries: entries, moodTrend: insight.moodTrend, riskTrend: insight.moodTrend.map((point) => ({ label: point.label, value: Math.max(0, 100 - point.value) })), weeklyDigest: entries.length ? [`You kept ${entries.length} private reflection${entries.length === 1 ? "" : "s"} close.`, `${topMood[0]?.toUpperCase() ?? ""}${topMood.slice(1)} appeared most often in your recent entries.`, entries.some((entry) => entry.tags.length) ? "Your saved tags can help you revisit recurring themes." : "Adding a small tag can make recurring themes easier to revisit."] : ["Your reflection space is ready when you are.", "A few honest words are enough for a first entry.", "Your entries remain private by design."], quickActions: [{ href: "/journal/new", title: "Write a reflection", description: "Private journal entry" }, { href: "/buddy", title: "Talk with Buddy", description: "Gentle check-in conversation" }, { href: "/tools/grounding", title: "Grounding exercise", description: "Breathing or sensory" }, { href: "/insights/emotion", title: "Review patterns", description: "Mood and emotion trends" }] }; }
+
+function trend(entries: Entry[], rangeDays: number) {
+  const pointCount = rangeDays <= 7 ? rangeDays : rangeDays <= 30 ? 10 : 13;
+  const bucketDays = Math.ceil(rangeDays / pointCount);
+  const today = start();
+  return Array.from({ length: pointCount }, (_, index) => {
+    const bucketEnd = new Date(today);
+    bucketEnd.setUTCDate(today.getUTCDate() - ((pointCount - 1 - index) * bucketDays));
+    const bucketStart = new Date(bucketEnd);
+    bucketStart.setUTCDate(bucketEnd.getUTCDate() - (bucketDays - 1));
+    const endExclusive = new Date(bucketEnd);
+    endExclusive.setUTCDate(bucketEnd.getUTCDate() + 1);
+    const matches = entries.filter((entry) => {
+      const value = new Date(entry.created_at);
+      return value >= bucketStart && value < endExclusive;
+    });
+    return {
+      label: rangeDays <= 7
+        ? bucketEnd.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
+        : bucketEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+      value: matches.length
+        ? Math.round(matches.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matches.length)
+        : 0,
+    };
+  });
+}
+
+export function emotionInsights(entries: Entry[], rangeDays = 7) {
+  const moods = ["calm", "happy", "neutral", "anxious", "sad", "angry"];
+  const counts = new Map(moods.map((mood) => [mood, 0]));
+  for (const entry of entries) counts.set(entry.mood, (counts.get(entry.mood) ?? 0) + 1);
+  const total = Math.max(entries.length, 1);
+  const emotionWheel = moods.map((mood) => ({ label: mood[0]!.toUpperCase() + mood.slice(1), mood, value: Math.round(((counts.get(mood) ?? 0) / total) * 100) }));
+  const strongest = [...emotionWheel].sort((a, b) => b.value - a.value)[0]!;
+  return {
+    emotionWheel,
+    moodTrend: trend(entries, rangeDays),
+    summary: entries.length ? `${strongest.label} is the most frequent signal across ${entries.length} reflection${entries.length === 1 ? "" : "s"} in this period.` : "No patterns are shown until you save a reflection in this period.",
+  };
+}
+
+export function dashboard(entries: Entry[], settings: any, rangeDays = 7) {
+  const insight = emotionInsights(entries, rangeDays);
+  const topMood = [...new Map(entries.map((entry) => [entry.mood, entries.filter((item) => item.mood === entry.mood).length]))].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calm";
+  return {
+    userProfile: { name: settings?.profile?.displayName || "Friend", streakDays: streak(entries), nextCheckIn: settings?.notifications?.reminderTime || "Whenever you are ready", privacyStatus: "Private" },
+    latestEntry: entries[0] ?? null,
+    journalEntries: entries,
+    moodTrend: insight.moodTrend,
+    riskTrend: insight.moodTrend.map((point) => ({ label: point.label, value: Math.max(0, 100 - point.value) })),
+    weeklyDigest: entries.length ? [`You kept ${entries.length} private reflection${entries.length === 1 ? "" : "s"} close in this period.`, `${topMood[0]?.toUpperCase() ?? ""}${topMood.slice(1)} appeared most often in this period.`, entries.some((entry) => entry.tags.length) ? "Your saved tags can help you revisit recurring themes." : "Adding a small tag can make recurring themes easier to revisit."] : ["Your reflection space is ready when you are.", "A few honest words are enough for a first entry.", "Your entries remain private by design."],
+    quickActions: [{ href: "/journal/new", title: "Write a reflection", description: "Private journal entry" }, { href: "/buddy", title: "Talk with Buddy", description: "Gentle check-in conversation" }, { href: "/tools/grounding", title: "Grounding exercise", description: "Breathing or sensory" }, { href: "/insights/emotion", title: "Review patterns", description: "Mood and emotion trends" }],
+  };
+}

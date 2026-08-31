@@ -42,6 +42,33 @@ describe("API gateway", () => {
       .post("/api/v1/journals/00000000-0000-4000-8000-000000000002/analyze").set("authorization", "Bearer user-token");
     expect(String(upstream.mock.calls[0]?.[0])).toContain("http://analysis/");
   });
+  it("forwards avatar bytes unchanged with the original content type", async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", upstream);
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
+    const response = await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .put("/api/v1/settings/avatar")
+      .set("authorization", "Bearer user-token")
+      .set("content-type", "image/png")
+      .send(bytes);
+    expect(response.status).toBe(200);
+    const init = upstream.mock.calls[0]?.[1] as RequestInit;
+    expect(init.headers).toBeInstanceOf(Headers);
+    expect((init.headers as Headers).get("content-type")).toBe("image/png");
+    expect(Buffer.from(init.body as Uint8Array)).toEqual(bytes);
+  });
+  it("rejects oversized avatar uploads before calling User Service", async () => {
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .put("/api/v1/settings/avatar")
+      .set("authorization", "Bearer user-token")
+      .set("content-type", "image/png")
+      .send(Buffer.alloc((5 * 1024 * 1024) + 1));
+    expect(response.status).toBe(413);
+    expect(response.body.error.code).toBe("PAYLOAD_TOO_LARGE");
+    expect(upstream).not.toHaveBeenCalled();
+  });
   it("preserves a valid caller request id end to end", async () => {
     const requestId = "00000000-0000-4000-8000-000000000099";
     const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: [] }), { status: 200, headers: { "content-type": "application/json" } }));

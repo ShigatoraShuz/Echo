@@ -1,12 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createElement } from "react";
 import { JournalEditorView } from "../journal-editor-view";
 import { useJournalEditorViewModel } from "@/features/journal/view-model/use-journal-editor-view-model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
 vi.mock("next/image", () => ({
-  default: (props: { alt: string }) => <img alt={props.alt} />,
+  default: (props: { alt: string }) => createElement("img", { alt: props.alt }),
 }));
 
 vi.mock("next/navigation", () => ({

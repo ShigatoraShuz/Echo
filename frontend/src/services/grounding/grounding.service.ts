@@ -6,5 +6,4 @@ export type GroundingServiceResult<T> =
 
 export interface GroundingService {
   saveSession(session: { type: ExerciseType; duration: number; pace: PaceType; completedAt: string }): Promise<GroundingServiceResult<GroundingSession>>;
-  getHistory(limit?: number): Promise<GroundingServiceResult<GroundingSession[]>>;
 }

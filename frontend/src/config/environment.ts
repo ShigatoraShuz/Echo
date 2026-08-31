@@ -5,8 +5,6 @@ export interface EnvironmentConfig {
   apiBaseUrl: string;
   dataAdapter: DataAdapter;
   enableBuddy: boolean;
-  enableFacialAnalysis: boolean;
-  enableRiskInsights: boolean;
   enableNotifications: boolean;
   enableDataExport: boolean;
 }
@@ -37,8 +35,6 @@ export const env: EnvironmentConfig = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1",
   dataAdapter: validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
   enableBuddy: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_BUDDY),
-  enableFacialAnalysis: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS),
-  enableRiskInsights: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_RISK_INSIGHTS),
   enableNotifications: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS),
   enableDataExport: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_DATA_EXPORT),
 };

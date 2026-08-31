@@ -1,4 +1,4 @@
-import type { InsightsService, InsightsServiceResult } from "@/services/insights/insights.service";
+import type { InsightsService } from "@/services/insights/insights.service";
 import type {
   EmotionInsightSummary,
   EmotionDistribution,
@@ -38,8 +38,6 @@ const MOOD_COLORS: Record<string, string> = {
   angry: "hsl(0, 45%, 60%)",
 };
 
-const NOT_SUPPORTED_MESSAGE = "This insight is not available in the current build of the backend.";
-
 function mapEmotionWheel(wheel: EmotionInsightsResponse["emotionWheel"]): EmotionDistribution[] {
   return wheel.map((entry) => ({
     label: entry.label,
@@ -77,42 +75,14 @@ export function createInsightsHttpAdapter(): InsightsService {
   });
 
   return {
-    async getEmotionSummary(_timeRange: InsightTimeRange, signal) {
+    async getEmotionSummary(timeRange: InsightTimeRange, signal) {
       try {
-        const response = await client.get<ApiEnvelope<EmotionInsightsResponse>>("/insights/emotions", { signal });
+        const response = await client.get<ApiEnvelope<EmotionInsightsResponse>>(`/insights/emotions?range=${encodeURIComponent(timeRange)}`, { signal });
         return { success: true, data: mapSummary(response.data) };
-      } catch (error) {
+      } catch {
         return { success: false, error: { code: "UNKNOWN", message: "Failed to load emotion insights." } };
       }
     },
 
-    async getMoodTrend(_timeRange: InsightTimeRange, signal) {
-      try {
-        const response = await client.get<ApiEnvelope<EmotionInsightsResponse>>("/insights/emotions", { signal });
-        return {
-          success: true,
-          data: { points: response.data.moodTrend.map((point) => ({ label: point.label, value: point.value, date: point.label })) },
-        };
-      } catch (error) {
-        return { success: false, error: { code: "UNKNOWN", message: "Failed to load the mood trend." } };
-      }
-    },
-
-    async getJournalBreakdown() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async getRiskSignal() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async getFacialTrend() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
-    },
-
-    async getCameraSettings() {
-      // Camera-based mood tracking is not part of the current product surface.
-      return { success: true, data: { isAvailable: false, hasPermission: false } };
-    },
   };
 }

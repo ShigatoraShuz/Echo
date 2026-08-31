@@ -16,12 +16,20 @@ const promptChips = [
 
 export function BuddyView() {
   const vm = useBuddyViewModel();
+  const { activeConversationId, selectConversation } = vm;
   const [draft, setDraft] = useState("");
   const conversationEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [vm.messages]);
+
+  useEffect(() => {
+    const requestedConversationId = new URLSearchParams(window.location.search).get("conversationId");
+    if (requestedConversationId && requestedConversationId !== activeConversationId) {
+      void selectConversation(requestedConversationId);
+    }
+  }, [activeConversationId, selectConversation]);
 
   if (vm.accessStatus === "loading") {
     return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70" />;

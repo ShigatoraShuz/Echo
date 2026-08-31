@@ -81,4 +81,14 @@ describe("dashboard HTTP adapter", () => {
       }),
     );
   });
+
+  it("sends the selected dashboard range", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      data: { userProfile: { name: "Mira", streakDays: 0, nextCheckIn: "Any time", privacyStatus: "Private" }, latestEntry: null, journalEntries: [], moodTrend: [], riskTrend: [], weeklyDigest: [], quickActions: [] },
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    const { createDashboardHttpAdapter } = await import("@/services/dashboard/dashboard.http-adapter");
+    await createDashboardHttpAdapter().getDashboardData("90d");
+    expect(fetch).toHaveBeenCalledWith("http://api.example.test/api/v1/dashboard?range=90d", expect.any(Object));
+  });
 });

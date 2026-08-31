@@ -1,5 +1,4 @@
 import { ReactNode } from "react";
-import { VisuallyHidden } from "./VisuallyHidden";
 
 interface AriaLabelProps {
   label: string;

@@ -1,5 +1,7 @@
 # ECHO Backend Integration Architecture
 
+> **HISTORICAL / SUPERSEDED.** This pre-microservices proposal is retained for thesis history. Use `docs/architecture/microservices.md` and `docs/api.yaml` for the current implementation.
+
 > Version 1.0 — Planned architecture. The backend is not yet implemented.
 > This document defines the target backend contract for the ECHO frontend.
 

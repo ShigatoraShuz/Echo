@@ -1,5 +1,7 @@
 ﻿# ECHO Architecture Verification Report
 
+> Historical pre-microservices report. The current implemented topology is documented in [`docs/architecture/microservices.md`](../architecture/microservices.md).
+
 Generated: 2026-08-26 08:17:59
 Git branch: feature/backend-security-hardening
 

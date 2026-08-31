@@ -1,33 +1,24 @@
 "use client";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { getInsightsService } from "@/services/insights/insights-service.factory";
-import type { InsightTimeRange, EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, FacialTrendPoint } from "../model/insights.model";
-import type { TrendPoint } from "@/shared/types";
+import type { InsightTimeRange, EmotionInsightSummary } from "../model/insights.model";
 
 interface InsightsState {
   timeRange: InsightTimeRange;
   emotionSummary: EmotionInsightSummary | null;
-  journalBreakdown: JournalSourceBreakdown[];
-  riskSignal: RiskSignal | null;
-  facialTrend: FacialTrendPoint[];
-  riskTrend: TrendPoint[];
   isLoading: boolean;
   error: string | null;
 }
 
 type InsightsAction =
   | { type: "LOAD_START" }
-  | { type: "LOAD_SUCCESS"; summary: EmotionInsightSummary; breakdown: JournalSourceBreakdown[]; risk: RiskSignal; facialTrend: FacialTrendPoint[]; riskTrend: TrendPoint[] }
+  | { type: "LOAD_SUCCESS"; summary: EmotionInsightSummary }
   | { type: "LOAD_ERROR"; error: string }
   | { type: "SET_TIME_RANGE"; range: InsightTimeRange };
 
 const initialState: InsightsState = {
   timeRange: "30d",
   emotionSummary: null,
-  journalBreakdown: [],
-  riskSignal: null,
-  facialTrend: [],
-  riskTrend: [],
   isLoading: true,
   error: null,
 };
@@ -35,7 +26,7 @@ const initialState: InsightsState = {
 function reducer(state: InsightsState, action: InsightsAction): InsightsState {
   switch (action.type) {
     case "LOAD_START": return { ...state, isLoading: true, error: null };
-    case "LOAD_SUCCESS": return { ...state, emotionSummary: action.summary, journalBreakdown: action.breakdown, riskSignal: action.risk, facialTrend: action.facialTrend, riskTrend: action.riskTrend, isLoading: false };
+    case "LOAD_SUCCESS": return { ...state, emotionSummary: action.summary, isLoading: false };
     case "LOAD_ERROR": return { ...state, error: action.error, isLoading: false };
     case "SET_TIME_RANGE": return { ...state, timeRange: action.range };
     default: return state;
@@ -59,17 +50,12 @@ export function useInsightsViewModel() {
     dispatch({
       type: "LOAD_SUCCESS",
       summary: summaryResult.data,
-      breakdown: [],
-      risk: { score: 0, band: "low", label: "Unavailable", history: [], supportingFactors: [] },
-      facialTrend: [],
-      riskTrend: [],
     });
   }, [service]);
 
   const setTimeRange = useCallback((range: InsightTimeRange) => {
     dispatch({ type: "SET_TIME_RANGE", range });
-    load(range);
-  }, [load]);
+  }, []);
 
   useEffect(() => { load(state.timeRange); }, [load, state.timeRange]);
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Bell, UserRound, Clock, Heart, Loader2 } from "lucide-react";
+import { ArrowRight, Bell, UserRound, Clock, Loader2 } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { MoodSelector } from "@/features/onboarding";
@@ -11,9 +11,9 @@ import { getOnboardingService } from "@/services/onboarding/onboarding-service.f
 export default function ProfileOnboardingPage() {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
-  const [timezone, setTimezone] = useState("UTC");
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [checkInTime, setCheckInTime] = useState("20:30");
-  const [selectedMood, setSelectedMood] = useState("calm");
+  const [, setSelectedMood] = useState("calm");
   const [buddyTone, setBuddyTone] = useState("gentle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

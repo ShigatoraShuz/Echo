@@ -47,13 +47,13 @@ function createMockService() {
   ];
 
   return {
-    listEntries: vi.fn().mockResolvedValue({
+    listEntries: vi.fn().mockImplementation(async (_filters: unknown, page = 1) => ({
       success: true,
       data: {
         entries,
-        pagination: { page: 1, pageSize: 9, totalItems: 2, totalPages: 1 },
+        pagination: { page, pageSize: 9, totalItems: 2, totalPages: 1 },
       },
-    }),
+    })),
     getEntry: vi.fn(),
     createEntry: vi.fn(),
     updateEntry: vi.fn(),
@@ -63,7 +63,6 @@ function createMockService() {
     deleteDraft: vi.fn(),
     requestAnalysis: vi.fn(),
     getAnalysis: vi.fn(),
-    exportEntry: vi.fn(),
   };
 }
 
@@ -201,6 +200,10 @@ describe("useJournalListViewModel", () => {
     });
 
     expect(result.current.filters.sort).toBe("oldest");
+    await waitFor(() => {
+      expect(mockService.listEntries).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
   it("updates page", async () => {
@@ -218,6 +221,10 @@ describe("useJournalListViewModel", () => {
     });
 
     expect(result.current.pagination.page).toBe(2);
+    await waitFor(() => {
+      expect(mockService.listEntries).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
   it("deletes entry from list", async () => {

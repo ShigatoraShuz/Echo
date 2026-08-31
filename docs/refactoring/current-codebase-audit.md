@@ -1,5 +1,7 @@
 # Current codebase audit
 
+> Historical pre-microservices audit retained for provenance. See [`docs/architecture/microservices.md`](../architecture/microservices.md) for the active system.
+
 Audit date: 2026-07-24  
 Scope: non-generated repository files; `node_modules`, `.next`, Git metadata, and test artefacts excluded.
 

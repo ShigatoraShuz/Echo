@@ -18,7 +18,6 @@ vi.mock("../components", () => ({
       {children}
     </section>
   ),
-  SettingsRow: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AvatarUpload: ({ displayName }: { displayName: string }) => <div>Avatar for {displayName}</div>,
 }));
 

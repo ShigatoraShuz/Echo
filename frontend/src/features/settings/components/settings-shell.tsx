@@ -11,7 +11,6 @@ import {
   KeyRound,
   Lock,
   Shield,
-  SlidersHorizontal,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -39,7 +38,6 @@ export function SettingsShell({ children }: { children: ReactNode }) {
     </AppShell>
   );
 }
-
 export function SettingsSidebar() {
   const pathname = usePathname();
 
@@ -167,44 +165,5 @@ export function SettingsSection({
       </div>
       <div className="space-y-4">{children}</div>
     </section>
-  );
-}
-
-export function SettingsRow({
-  icon,
-  title,
-  description,
-  action,
-}: {
-  icon: "profile" | "verification" | "privacy" | "notifications" | "controls" | "contacts" | "security" | "export";
-  title: string;
-  description: string;
-  action: ReactNode;
-}) {
-  const iconMap = {
-    profile: UserRound,
-    verification: BadgeCheck,
-    privacy: Lock,
-    notifications: Bell,
-    controls: SlidersHorizontal,
-    contacts: UsersRound,
-    security: KeyRound,
-    export: Download,
-  };
-  const Icon = iconMap[icon];
-
-  return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-background/72 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-secondary text-primary">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 pt-0.5">
-          <p className="text-sm font-semibold text-foreground">{title}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      <div className="shrink-0 sm:max-w-[58%]">{action}</div>
-    </div>
   );
 }

@@ -1,5 +1,7 @@
 # Current system audit
 
+> Historical pre-microservices snapshot. It is not current setup or architecture guidance; use [`docs/architecture/microservices.md`](../architecture/microservices.md) and [`docs/deployment.md`](../deployment.md).
+
 Date: 2026-07-24  
 Scope: non-AI integration phase. This audit is based on repository files and migration history. The local Supabase database could not be inspected because Docker is unavailable on this machine.
 

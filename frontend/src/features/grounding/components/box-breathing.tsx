@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { PACE_INTERVALS } from "../model/grounding.constants";
 import type { PaceType } from "../model/grounding.model";
 
@@ -17,28 +17,32 @@ const PHASE_LABELS: Record<Phase, string> = {
   rest: "Rest",
 };
 
+const PHASES: Phase[] = ["inhale", "hold", "exhale", "rest"];
+
 export function BoxBreathing({ pace = "medium", onComplete }: BoxBreathingProps) {
   const [phase, setPhase] = useState<Phase>("inhale");
   const [progress, setProgress] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const intervals = PACE_INTERVALS[pace];
-  const phases: Phase[] = ["inhale", "hold", "exhale", "rest"];
-  const phaseDurations = [intervals.inhale, intervals.hold, intervals.exhale, intervals.hold];
+  const phaseDurations = useMemo(
+    () => [intervals.inhale, intervals.hold, intervals.exhale, intervals.hold],
+    [intervals],
+  );
 
   const tick = useCallback(() => {
     setProgress((prev) => {
-      const currentPhaseIndex = phases.indexOf(phase);
+      const currentPhaseIndex = PHASES.indexOf(phase);
       const maxDuration = phaseDurations[currentPhaseIndex];
       const next = prev + 50;
       if (next >= maxDuration) {
-        const nextPhaseIndex = (currentPhaseIndex + 1) % phases.length;
+        const nextPhaseIndex = (currentPhaseIndex + 1) % PHASES.length;
         if (nextPhaseIndex === 0) onComplete();
-        setPhase(phases[nextPhaseIndex]);
+        setPhase(PHASES[nextPhaseIndex]);
         return 0;
       }
       return next;
     });
-  }, [phase, pace, onComplete]);
+  }, [phase, phaseDurations, onComplete]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -46,7 +50,7 @@ export function BoxBreathing({ pace = "medium", onComplete }: BoxBreathingProps)
     return () => clearInterval(id);
   }, [isActive, tick]);
 
-  const currentPhaseIndex = phases.indexOf(phase);
+  const currentPhaseIndex = PHASES.indexOf(phase);
   const currentDuration = phaseDurations[currentPhaseIndex];
   const pct = (progress / currentDuration) * 100;
 

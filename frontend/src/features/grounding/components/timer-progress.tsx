@@ -8,7 +8,6 @@ interface TimerProgressProps {
 
 export function TimerProgress({ elapsed, total, state }: TimerProgressProps) {
   const remaining = Math.max(0, total - elapsed);
-  const remainingSec = Math.ceil(remaining / 1000);
   const progress = total > 0 ? (elapsed / total) * 100 : 0;
 
   function formatTime(ms: number): string {

@@ -43,7 +43,7 @@ Primary security boundaries: **Express API** (application-level authorization) a
 | Admin identity | `verification_admins` | High |
 | API credentials | gateway-only `SUPABASE_SERVICE_ROLE_KEY`, role-scoped database keys, unique `*_SERVICE_TOKEN` values, `JOURNAL_ENCRYPTION_KEY_BASE64` | Critical |
 
-Facial data: **not collected or stored** — facial analysis is client-side only and feature-flagged off. No raw facial images exist server-side.
+Facial data: **not collected or stored**. Facial analysis is not part of the current product surface, and no raw facial images exist server-side. The legacy consent column remains for migration compatibility only.
 
 ## Threat actors
 

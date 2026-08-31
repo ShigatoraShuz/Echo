@@ -7,7 +7,6 @@ import {
   BookOpen,
   CalendarDays,
   LayoutGrid,
-  ListFilter,
   ListTree,
   PenLine,
   Sparkles,

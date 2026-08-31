@@ -23,6 +23,7 @@ import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activ
 import { settingsService } from "@/services/settings/settings.service";
 import { assessmentService } from "@/services/assessment/assessment.service";
 import { MoodCheckIn, type QuickMood } from "../components/mood-checkin";
+import { Phq8CheckIn } from "../components/phq8-check-in";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 
 function DashboardCard({
@@ -141,7 +142,7 @@ function buildWellbeingActivity(
 export function DashboardView() {
   const { data, isLoading, error, timeRange, setTimeRange } = useDashboardViewModel("7d");
 
-  const [activityWeeks, setActivityWeeks] = useState(26);
+  const activityWeeks = timeRange === "90d" ? 13 : timeRange === "30d" ? 4 : 1;
   const [hoveredMoodPoint, setHoveredMoodPoint] = useState<{
     point: { label: string; value: number };
     left: number;
@@ -310,6 +311,10 @@ export function DashboardView() {
             {moodSaveStatus === "error" &&
               "Your check-in could not be saved. Please try again."}
           </p>
+        </section>
+
+        <section aria-label="Optional PHQ-8 self-check">
+          <Phq8CheckIn />
         </section>
 
         {/* DASHBOARD GRID */}
@@ -733,45 +738,13 @@ export function DashboardView() {
                 </p>
               </div>
 
-              <label className="relative inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-background/80 px-3 text-xs font-semibold text-foreground shadow-subtle">
+              <div className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-background/80 px-3 text-xs font-semibold text-foreground shadow-subtle">
                 <CalendarRange
                   className="h-4 w-4 text-primary"
                   aria-hidden="true"
                 />
-
-                <span className="sr-only">
-                  Activity range
-                </span>
-
-                <select
-                  value={activityWeeks}
-                  onChange={(event) =>
-                    setActivityWeeks(
-                      Number(event.target.value),
-                    )
-                  }
-                  className="cursor-pointer appearance-none bg-transparent pr-5 outline-none"
-                  aria-label="Choose wellbeing activity range"
-                >
-                  <option value={4}>
-                    Last 30 days
-                  </option>
-                  <option value={13}>
-                    Last 3 months
-                  </option>
-                  <option value={26}>
-                    Last 6 months
-                  </option>
-                  <option value={52}>
-                    Last 1 year
-                  </option>
-                </select>
-
-                <ChevronRight
-                  className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 rotate-90 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </label>
+                <span>Last {rangeDays} days</span>
+              </div>
             </div>
 
             <div className="mt-5 grid gap-3 border-y border-border/60 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">

@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Mail, Smartphone, BookOpen, BarChart3 } from "lucide-react";
+import { Mail, Smartphone, BookOpen, BarChart3 } from "lucide-react";
 
 interface NotificationSettingsProps {
   email: boolean;

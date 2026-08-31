@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Trash2, Tag, Calendar, Info } from "lucide-react";
+import { ArrowLeft, Trash2, Tag, Calendar, Info } from "lucide-react";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 import { JournalAnalysisPanel } from "../components/journal-analysis-panel";
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
 import { EchoCard } from "@/shared/components/ui/echo-card";
 import { EchoBadge } from "@/shared/components/ui/echo-badge";
 import { EchoButton } from "@/shared/components/ui/echo-button";
-import { EchoPageHeading } from "@/shared/components/data-display/echo-page-heading";
 import { EchoLoadingState } from "@/shared/components/feedback/echo-loading-state";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 
@@ -20,9 +19,9 @@ interface JournalDetailViewProps {
 export function JournalDetailView({ id }: JournalDetailViewProps) {
   const router = useRouter();
   const {
-    entry, analysis, isLoading, isDeleting, isExporting,
+    entry, analysis, isLoading, isDeleting, isAnalyzing, analysisError,
     showDeleteDialog, error, notFound,
-    deleteEntry, exportEntry, openDeleteDialog: setShowDeleteDialog, retry,
+    deleteEntry, requestAnalysis, openDeleteDialog: setShowDeleteDialog, retry,
   } = useJournalDetailViewModel(id);
 
   if (isLoading) return <EchoLoadingState variant="skeleton" count={6} />;
@@ -60,9 +59,6 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <EchoButton variant="outline" onClick={exportEntry} isLoading={isExporting} className="rounded-xl">
-            <Download className="h-4 w-4 mr-2" /> Export
-          </EchoButton>
           <EchoButton variant="danger" onClick={() => setShowDeleteDialog(true)} className="rounded-xl">
             <Trash2 className="h-4 w-4 mr-2" /> Delete
           </EchoButton>
@@ -107,7 +103,13 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
             </div>
           </EchoCard>
 
-          <JournalAnalysisPanel analysis={analysis} />
+          <JournalAnalysisPanel
+            analysis={analysis}
+            isLoading={isAnalyzing}
+            canAnalyze={entry.analysisConsent}
+            error={analysisError}
+            onAnalyze={() => void requestAnalysis()}
+          />
         </div>
 
         {/* RIGHT COLUMN: Metadata & Signal */}

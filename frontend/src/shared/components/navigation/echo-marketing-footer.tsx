@@ -15,8 +15,6 @@ const defaultFooterGroups = [
     title: "Understand",
     links: [
       { label: "Emotion patterns", href: "/insights/emotion" },
-      { label: "Distress signals", href: "/insights/risk" },
-      { label: "Facial trend privacy", href: "/insights/facial" },
       { label: "Find professional help", href: "/support/find-help" },
     ],
   },

@@ -111,15 +111,7 @@ export function createDashboardMockAdapter(): DashboardService {
             updatedAt: "2026-07-08",
           },
         ],
-        moodTrend: [
-          { label: "Mon", value: 65 },
-          { label: "Tue", value: 42 },
-          { label: "Wed", value: 78 },
-          { label: "Thu", value: 55 },
-          { label: "Fri", value: 88 },
-          { label: "Sat", value: 70 },
-          { label: "Sun", value: 60 },
-        ],
+        moodTrend,
         riskTrend: [
           { label: "Mon", value: 30 },
           { label: "Tue", value: 45 },

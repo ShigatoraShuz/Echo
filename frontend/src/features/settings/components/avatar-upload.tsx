@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, User, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface AvatarUploadProps {
@@ -24,6 +25,12 @@ export function AvatarUpload({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadDone, setUploadDone] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   const initials = displayName
     .split(" ")
@@ -88,9 +95,12 @@ export function AvatarUpload({
         onDrop={handleDrop}
       >
         {avatarSrc ? (
-          <img
+          <Image
             src={avatarSrc}
             alt={displayName}
+            width={96}
+            height={96}
+            unoptimized
             className="h-24 w-24 rounded-full object-cover shadow-md"
           />
         ) : (

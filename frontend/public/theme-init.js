@@ -14,7 +14,7 @@
     root.dataset.echoTheme = variant;
     root.dataset.echoMode = mode;
     root.classList.toggle("dark", resolvedMode === "dark" || variant === "echo-night");
-  } catch (error) {
+  } catch {
     document.documentElement.dataset.echoTheme = "echo-calm";
     document.documentElement.dataset.echoMode = "light";
   }

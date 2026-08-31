@@ -20,6 +20,8 @@ npm run test -w @echo/api-gateway
 npm run test -w @echo/journal-service
 ```
 
+The active microservice regression coverage replaces the removed monolith suites. It includes fail-closed user and internal authentication, mass-assignment filtering, UUID validation, onboarding against canonical `profiles.id`, settings and verification boundaries, journal CRUD/drafts/encryption, gateway routing and request-ID propagation, canonical success/error envelopes, unavailable-dependency mapping, and executable architecture/database-ownership rules. Historical `backend/tests` references under archived reports are not runnable current tests.
+
 Run both Python projects independently with Python 3.12 and `uv`:
 
 ```bash
@@ -43,7 +45,7 @@ supabase db lint
 supabase test db
 ```
 
-The database suite includes `ownership-isolation.test.sql`, `service-role-ownership.test.sql`, and `rls-policy.test.sql`. Never point these reset/test commands at production.
+The database suite includes `ownership-isolation.test.sql`, `service-role-ownership.test.sql`, and `rls-policy.test.sql`. The service-role suite executes effective-access checks for the non-BYPASS `user_storage_role`: allowed private verification/avatar bucket operations succeed, unrelated bucket access is denied or filtered by RLS, and browser/app-table roles cannot read verification objects. It also proves Recommendation has read-only `support_resources` access. Never point these reset/test commands at production.
 
 Container validation:
 

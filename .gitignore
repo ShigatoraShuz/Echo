@@ -33,6 +33,7 @@ frontend/outputs/*
 # Workspace service artefacts and local credentials
 !.env.example
 __pycache__/
+*.pyc
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -48,6 +49,8 @@ ml/datasets/processed/*
 !ml/datasets/processed/.gitkeep
 ml/outputs/*
 !ml/outputs/.gitkeep
+ml/model-artifacts/*
+!ml/model-artifacts/.gitkeep
 ai-service/model-artifacts/*
 !ai-service/model-artifacts/.gitkeep
 *.safetensors

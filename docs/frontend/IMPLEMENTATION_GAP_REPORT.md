@@ -1,5 +1,7 @@
 # ECHO Implementation Gap Report
 
+> **HISTORICAL / SUPERSEDED:** This July 2026 gap inventory is preserved for thesis provenance and does not describe the current application. Use [`../architecture/microservices.md`](../architecture/microservices.md) for the active design.
+>
 > Generated: 2026-07-14
 
 ---

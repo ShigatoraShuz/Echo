@@ -1,5 +1,7 @@
 # ECHO — Security Testing
 
+> Historical modular-monolith test inventory. The active microservice suites and commands are documented in [`docs/testing.md`](../testing.md); do not run the removed `backend/` commands below as current guidance.
+
 ## Backend (`backend/tests`)
 
 Run: `npm test -w backend` (53 tests)
@@ -37,7 +39,7 @@ Run: `ai-service\.venv\Scripts\python.exe -m pytest tests -q` (9 tests)
 
 Run in CI: `supabase test db` (no local Docker/supabase CLI in dev environment)
 
-`supabase/tests/database/ownership-isolation.test.sql` asserts per-table RLS isolation for journals, buddy conversations/messages, journal analyses, PHQ-8 results, emotion results, risk information, trusted contacts, export requests, deletion requests, and profile settings.
+`supabase/tests/database/ownership-isolation.test.sql` asserts per-table RLS isolation for journals, buddy conversations/messages, journal analyses, PHQ-8 results, emotion results, risk information, trusted contacts, export requests, deletion requests, and profile settings. `service-role-ownership.test.sql` adds executable least-privilege checks: the separate non-BYPASS Storage role can use only the verification/avatar buckets, app and browser roles cannot read verification objects, and Recommendation can read but cannot mutate verified support resources.
 
 ## Live Smoke Checks (manual, documented in gates)
 

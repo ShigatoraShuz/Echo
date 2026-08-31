@@ -1,5 +1,7 @@
 # Migration report — foundation increment
 
+> Historical foundation-increment report. Its `backend/` topology was superseded by the implemented microservices architecture in [`docs/architecture/microservices.md`](../architecture/microservices.md).
+
 Date: 2026-07-24
 
 ## Created

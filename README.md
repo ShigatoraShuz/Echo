@@ -23,12 +23,19 @@ See [the implemented architecture](docs/architecture/microservices.md), [respons
 
 ## Clean setup
 
-1. Clone `refactor/backend-architecture-stabilization` and enter the repository.
+1. Clone the configured GitHub repository and switch to the stabilization branch:
+
+   ```bash
+   git clone https://github.com/ShigatoraShuz/Echo.git
+   cd Echo
+   git switch refactor/backend-architecture-stabilization
+   ```
 2. Install Node.js 24+, npm 11+, Python 3.12, `uv`, Docker with Compose, and Supabase CLI.
-3. Run `npm ci`, `supabase start`, `supabase db reset`, `supabase db lint`, and `supabase test db`.
-4. Copy `.env.example` to the ignored `.env`. Use `supabase status -o env` for the local URL, publishable/anon key, service-role key, and JWT secret. Temporarily export `SUPABASE_JWT_SECRET`, then run `npm run local:secrets` to generate distinct service tokens, custom-role JWTs, and a new local encryption key. Copy the output into `.env`; never commit it.
-5. Run `docker compose config`, `docker compose up --build -d`, and `docker compose ps`.
-6. Open `http://localhost:3000`; `http://localhost:3000/api/v1/health` must return 200.
+3. Run `npm ci`, then install the locked Python environments with `cd ai-service && uv sync --all-groups --locked` and `cd ../ml && uv sync --all-groups --locked` before returning to the repository root.
+4. Run `supabase start`, `supabase db reset`, `supabase db lint`, and `supabase test db`.
+5. Copy `.env.example` to the ignored `.env`. Use `supabase status -o env` for the local URL, publishable/anon key, service-role key, and JWT secret. Temporarily export `SUPABASE_JWT_SECRET`, then run `npm run local:secrets` to generate distinct service tokens, custom-role JWTs, and a new local encryption key. Copy the output into `.env`; never commit it.
+6. Run `docker compose config`, `docker compose up --build -d`, and `docker compose ps`.
+7. Open `http://localhost:3000`; `http://localhost:3000/api/v1/health` must return 200.
 
 The exact PowerShell/Bash commands, native-service startup options, expected health results, and role mapping are in [the deployment guide](docs/deployment.md). Preserve the encryption key when reusing any existing ciphertext.
 

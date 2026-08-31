@@ -9,7 +9,8 @@ interface DetailState {
   analysis: JournalAnalysis | null;
   isLoading: boolean;
   isDeleting: boolean;
-  isExporting: boolean;
+  isAnalyzing: boolean;
+  analysisError: string | null;
   showDeleteDialog: boolean;
   error: string | null;
   notFound: boolean;
@@ -20,12 +21,11 @@ type DetailAction =
   | { type: "ENTRY_LOAD_SUCCESS"; entry: JournalEntry }
   | { type: "ENTRY_LOAD_ERROR"; error: string; notFound: boolean }
   | { type: "ANALYSIS_LOAD_SUCCESS"; analysis: JournalAnalysis | null }
+  | { type: "ANALYSIS_START" }
+  | { type: "ANALYSIS_ERROR"; error: string }
   | { type: "DELETE_START" }
   | { type: "DELETE_SUCCESS" }
   | { type: "DELETE_ERROR"; error: string }
-  | { type: "EXPORT_START" }
-  | { type: "EXPORT_SUCCESS" }
-  | { type: "EXPORT_ERROR"; error: string }
   | { type: "SHOW_DELETE_DIALOG"; show: boolean }
   | { type: "RETRY"; id: string };
 
@@ -38,19 +38,17 @@ function reducer(state: DetailState, action: DetailAction): DetailState {
     case "ENTRY_LOAD_ERROR":
       return { ...state, isLoading: false, error: action.error, notFound: action.notFound };
     case "ANALYSIS_LOAD_SUCCESS":
-      return { ...state, analysis: action.analysis };
+      return { ...state, analysis: action.analysis, isAnalyzing: false, analysisError: null };
+    case "ANALYSIS_START":
+      return { ...state, isAnalyzing: true, analysisError: null };
+    case "ANALYSIS_ERROR":
+      return { ...state, isAnalyzing: false, analysisError: action.error };
     case "DELETE_START":
       return { ...state, isDeleting: true };
     case "DELETE_SUCCESS":
       return { ...state, isDeleting: false, showDeleteDialog: false };
     case "DELETE_ERROR":
       return { ...state, isDeleting: false, error: action.error };
-    case "EXPORT_START":
-      return { ...state, isExporting: true };
-    case "EXPORT_SUCCESS":
-      return { ...state, isExporting: false };
-    case "EXPORT_ERROR":
-      return { ...state, isExporting: false, error: action.error };
     case "SHOW_DELETE_DIALOG":
       return { ...state, showDeleteDialog: action.show, error: null };
     case "RETRY":
@@ -65,7 +63,8 @@ const initialState: DetailState = {
   analysis: null,
   isLoading: true,
   isDeleting: false,
-  isExporting: false,
+  isAnalyzing: false,
+  analysisError: null,
   showDeleteDialog: false,
   error: null,
   notFound: false,
@@ -109,22 +108,16 @@ export function useJournalDetailViewModel(id: string) {
     }
   }, [id, service]);
 
-  const exportEntry = useCallback(async () => {
-    dispatch({ type: "EXPORT_START" });
-    const result = await service.exportEntry(id);
-    if (result.success) {
-      const blob = new Blob([result.data.markdown], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `journal-${id}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-      dispatch({ type: "EXPORT_SUCCESS" });
-    } else {
-      dispatch({ type: "EXPORT_ERROR", error: result.error.message });
+  const requestAnalysis = useCallback(async () => {
+    if (!state.entry?.analysisConsent) {
+      dispatch({ type: "ANALYSIS_ERROR", error: "Enable analysis consent on this reflection before requesting an ECHO perspective." });
+      return;
     }
-  }, [id, service]);
+    dispatch({ type: "ANALYSIS_START" });
+    const result = await service.requestAnalysis(id);
+    if (result.success) dispatch({ type: "ANALYSIS_LOAD_SUCCESS", analysis: result.data });
+    else dispatch({ type: "ANALYSIS_ERROR", error: result.error.message });
+  }, [id, service, state.entry?.analysisConsent]);
 
   const showDeleteDialog = useCallback((show: boolean) => {
     dispatch({ type: "SHOW_DELETE_DIALOG", show });
@@ -139,12 +132,13 @@ export function useJournalDetailViewModel(id: string) {
     analysis: state.analysis,
     isLoading: state.isLoading,
     isDeleting: state.isDeleting,
-    isExporting: state.isExporting,
+    isAnalyzing: state.isAnalyzing,
+    analysisError: state.analysisError,
     showDeleteDialog: state.showDeleteDialog,
     error: state.error,
     notFound: state.notFound,
     deleteEntry,
-    exportEntry,
+    requestAnalysis,
     openDeleteDialog: showDeleteDialog,
     retry,
   };

@@ -301,30 +301,6 @@ export function createJournalMockAdapter(): JournalService {
       return { success: true, data: analysis };
     },
 
-    async exportEntry(id) {
-      await delay(100);
-      const entry = entries.find((e) => e.id === id);
-      if (!entry) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
-
-      const markdown = [
-        `# ${entry.title}`,
-        ``,
-        `**Date:** ${entry.createdAt}`,
-        `**Mood:** ${entry.mood}`,
-        `**Privacy:** ${entry.privacyStatus}`,
-        ``,
-        entry.body,
-        ``,
-        entry.perspective ? `*ECHO perspective: ${entry.perspective}*` : "",
-        ``,
-        `---`,
-        `*This is demonstration data. ECHO is not a diagnostic tool.*`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      return { success: true, data: { markdown } };
-    },
   };
 
   return service;

@@ -14,7 +14,8 @@ import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-to
 
 export interface SettingsService {
   get(): Promise<SettingsSnapshot>;
-  updateProfile(updates: Partial<ProfileSettings>): Promise<ProfileSettings>;
+  updateProfile(updates: ProfileSettingsPatch): Promise<ProfileSettings>;
+  uploadAvatar(file: File): Promise<ProfileSettings>;
   updatePrivacy(updates: Partial<PrivacySettings>): Promise<PrivacySettings>;
   updateNotifications(updates: Partial<NotificationSettings>): Promise<NotificationSettings>;
   createContact(input: TrustedContactInput): Promise<TrustedContact>;
@@ -24,6 +25,8 @@ export interface SettingsService {
   requestDeletion(): Promise<DeletionRequest>;
   cancelDeletion(id: string): Promise<DeletionRequest>;
 }
+
+export type ProfileSettingsPatch = Partial<Omit<ProfileSettings, "avatarPath">>;
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -48,7 +51,12 @@ export const settingsService: SettingsService = {
     return unwrap(client.get<ApiEnvelope<SettingsSnapshot>>("/settings"));
   },
   updateProfile(updates) {
-    return unwrap(client.patch<ApiEnvelope<ProfileSettings>, Partial<ProfileSettings>>("/settings/profile", updates));
+    return unwrap(client.patch<ApiEnvelope<ProfileSettings>, ProfileSettingsPatch>("/settings/profile", updates));
+  },
+  uploadAvatar(file) {
+    return unwrap(client.put<ApiEnvelope<ProfileSettings>, File>("/settings/avatar", file, {
+      headers: { "Content-Type": file.type },
+    }));
   },
   updatePrivacy(updates) {
     return unwrap(client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", updates));

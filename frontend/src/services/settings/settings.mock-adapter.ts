@@ -79,6 +79,11 @@ export function createSettingsMockAdapter(): SettingsService {
       profile = { ...profile, ...updates };
       return profile;
     },
+    async uploadAvatar(file) {
+      await delay(150);
+      profile = { ...profile, avatarPath: URL.createObjectURL(file) };
+      return profile;
+    },
     async updatePrivacy(updates) {
       await delay(150);
       privacy = { ...privacy, ...updates };
