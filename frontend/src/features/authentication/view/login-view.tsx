@@ -21,6 +21,16 @@ interface LoginViewProps {
   description: string;
 }
 
+const loginRouteMessages: Record<string, string> = {
+  login_required: "Please log in to continue. This page is only available to signed-in users.",
+  auth_not_configured: "Sign-in is temporarily unavailable because authentication is not configured.",
+  access_check_unavailable: "We could not verify access to your account. Please log in again.",
+  account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
+  email_verification_required: "Verify your email address before logging in.",
+  sign_in_session_expired: "Your sign-in session expired. Please log in again.",
+  google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
+};
+
 export function LoginView({ title, description }: LoginViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +62,7 @@ export function LoginView({ title, description }: LoginViewProps) {
   };
 
   const routeError = searchParams.get("error");
+  const routeMessage = routeError ? loginRouteMessages[routeError] : undefined;
 
   return (
     <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
@@ -67,18 +78,16 @@ export function LoginView({ title, description }: LoginViewProps) {
             <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-[var(--landing-muted)]">{description}</p>
           </header>
 
+          {routeMessage ? (
+            <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
+          ) : null}
+
           <div className="mt-4 space-y-2">
             <SecureGoogleLoginButton />
             <AuthDivider />
           </div>
 
           <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
-            {routeError === "google_account_exists" ? (
-              <EchoInlineMessage
-                variant="error"
-                message="This Google account already exists. Log in with Google from this page to continue."
-              />
-            ) : null}
             <AuthStatusMessage status={status} error={error} />
 
             <AuthFormField

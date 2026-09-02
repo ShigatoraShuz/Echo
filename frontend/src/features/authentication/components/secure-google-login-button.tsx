@@ -1,7 +1,9 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { SecureGoogleButton } from "./secure-google-button";
 
 export function SecureGoogleLoginButton() {
-  return <SecureGoogleButton intent="login" />;
+  const searchParams = useSearchParams();
+  return <SecureGoogleButton intent="login" successPath={searchParams.get("next")} />;
 }

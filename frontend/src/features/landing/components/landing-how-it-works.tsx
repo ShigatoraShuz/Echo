@@ -19,6 +19,7 @@ import {
   Users,
   Wind,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { KeyboardEvent, useRef, useState } from "react";
 
@@ -480,7 +481,18 @@ export function LandingHowItWorks() {
       aria-labelledby="how-echo-works-heading"
       className="relative z-30 scroll-mt-24 overflow-hidden bg-[#f7f3ea] px-5 py-20 text-[#173b2b] [font-family:var(--font-echo-sans)] sm:px-7 lg:py-24"
     >
-      <div className="mx-auto max-w-[1200px]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[520px] overflow-hidden" aria-hidden="true">
+        <Image
+          src="/landing/how-it-works-atmosphere.png"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover object-center opacity-[0.72]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(247,243,234,0.3)_0%,rgba(247,243,234,0.5)_54%,#f7f3ea_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(247,243,234,0.22)_0%,rgba(247,243,234,0.04)_52%,rgba(247,243,234,0.2)_100%)]" />
+      </div>
+      <div className="relative z-10 mx-auto max-w-[1200px]">
         <EchoReveal variant="text" direction="none" className="text-center">
           <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-[#315b38]">How ECHO works</p>
           <h2

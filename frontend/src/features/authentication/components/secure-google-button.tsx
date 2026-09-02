@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { registrationApi } from "@/services/authentication/registration-api";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 import { loadGoogleIdentity, type GoogleCredential } from "./google-identity";
 
-export function SecureGoogleButton({ intent }: { intent: "login" | "signup" }) {
+export function SecureGoogleButton({ intent, successPath }: { intent: "login" | "signup"; successPath?: string | null }) {
   const router = useRouter();
   const host = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
@@ -55,7 +56,7 @@ export function SecureGoogleButton({ intent }: { intent: "login" | "signup" }) {
             });
             if (result.error) throw result.error;
             if (!active) return;
-            router.replace(intent === "login" ? "/dashboard" : "/onboarding");
+            router.replace(intent === "login" ? safeRedirectPath(successPath) : "/onboarding");
             router.refresh();
           } catch (reason) {
             if (!active) return;
@@ -71,6 +72,8 @@ export function SecureGoogleButton({ intent }: { intent: "login" | "signup" }) {
           nonce: challenge.hashedNonce,
           callback: complete,
           ux_mode: "popup",
+          // FedCM button UX is optional and Brave may reject it as unsupported.
+          // The popup flow keeps the same one-time nonce verification.
           use_fedcm_for_button: false,
           auto_select: false,
         });
@@ -112,7 +115,7 @@ export function SecureGoogleButton({ intent }: { intent: "login" | "signup" }) {
       clearTimeout(expiry);
       element.replaceChildren();
     };
-  }, [attempt, clientId, intent, router]);
+  }, [attempt, clientId, intent, router, successPath]);
 
   return (
     <div className={intent === "signup" ? "mt-6" : undefined}>

@@ -2,10 +2,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createMiddlewareSupabaseClient } from "@/infrastructure/supabase/middleware-client";
 
-const protectedPrefixes = ["/dashboard", "/journal", "/buddy", "/insights", "/tools", "/settings", "/admin"];
+const authenticatedPrefixes = [
+  "/dashboard",
+  "/journal",
+  "/buddy",
+  "/insights",
+  "/tools",
+  "/settings",
+  "/admin",
+  "/onboarding",
+];
 
-function isProtected(pathname: string): boolean {
-  return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+function requiresAuthentication(pathname: string): boolean {
+  return authenticatedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 const accessDestinations: Record<string, string> = {
@@ -69,6 +78,25 @@ function applySecurityHeaders(response: NextResponse, nonce: string): NextRespon
   return response;
 }
 
+function redirectToLogin(
+  request: NextRequest,
+  response: NextResponse,
+  nonce: string,
+  error: "login_required" | "auth_not_configured" | "access_check_unavailable",
+): NextResponse {
+  const destination = request.nextUrl.clone();
+  destination.pathname = "/login";
+  destination.search = "";
+  destination.searchParams.set("error", error);
+  destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+
+  const redirect = NextResponse.redirect(destination);
+  redirect.headers.set("Cache-Control", "private, no-store, max-age=0");
+  applySecurityHeaders(redirect, nonce);
+  response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
+}
+
 export async function proxy(request: NextRequest) {
   const nonce = generateNonce();
   request.headers.set("x-nonce", nonce);
@@ -76,20 +104,13 @@ export async function proxy(request: NextRequest) {
   applySecurityHeaders(response, nonce);
 
   if (!getSupabasePublicConfig()) {
-    if (process.env.NODE_ENV !== "production") return response;
-
-    // A missing identity-provider configuration must never expose a protected
-    // production route. Redirect to the login surface, whose auth adapter will
-    // show a configuration-safe error instead of creating a mock session.
-    // Already on the login surface (e.g. after the redirect) -> let it render.
-    if (request.nextUrl.pathname === "/login") return response;
-    const destination = request.nextUrl.clone();
-    destination.pathname = "/login";
-    destination.search = "";
-    destination.searchParams.set("error", "auth_not_configured");
-    const redirect = NextResponse.redirect(destination);
-    applySecurityHeaders(redirect, nonce);
-    return redirect;
+    // Configuration failures are never allowed to make an authenticated route
+    // public, including in development. Public pages remain available so the
+    // login surface can explain the problem without creating a redirect loop.
+    if (requiresAuthentication(request.nextUrl.pathname)) {
+      return redirectToLogin(request, response, nonce, "auth_not_configured");
+    }
+    return response;
   }
 
   const supabase = createMiddlewareSupabaseClient(request, response);
@@ -97,17 +118,11 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && isProtected(request.nextUrl.pathname)) {
-    const destination = request.nextUrl.clone();
-    destination.pathname = "/login";
-    destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    const redirect = NextResponse.redirect(destination);
-    applySecurityHeaders(redirect, nonce);
-    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
-    return redirect;
+  if (!user && requiresAuthentication(request.nextUrl.pathname)) {
+    return redirectToLogin(request, response, nonce, "login_required");
   }
 
-  if (user && (isProtected(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/onboarding"))) {
+  if (user && requiresAuthentication(request.nextUrl.pathname)) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
@@ -123,7 +138,7 @@ export async function proxy(request: NextRequest) {
       const alreadyAtDestination = destinationPath && request.nextUrl.pathname === destinationPath.split("?")[0];
       if (destinationPath && !alreadyAtDestination) {
         const destination = new URL(destinationPath, request.url);
-        if (isProtected(request.nextUrl.pathname))
+        if (!request.nextUrl.pathname.startsWith("/onboarding"))
           destination.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
         const redirect = NextResponse.redirect(destination);
         applySecurityHeaders(redirect, nonce);
@@ -131,15 +146,13 @@ export async function proxy(request: NextRequest) {
         return redirect;
       }
       if (decision === "ACCESS_GRANTED" && request.nextUrl.pathname.startsWith("/onboarding")) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
-      }
-    } catch {
-      if (isProtected(request.nextUrl.pathname)) {
-        const destination = new URL("/login?error=access_check_unavailable", request.url);
-        const redirect = NextResponse.redirect(destination);
+        const redirect = NextResponse.redirect(new URL("/dashboard", request.url));
         applySecurityHeaders(redirect, nonce);
+        response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
         return redirect;
       }
+    } catch {
+      return redirectToLogin(request, response, nonce, "access_check_unavailable");
     }
   }
 

@@ -23,6 +23,7 @@ import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activ
 import { settingsService } from "@/services/settings/settings.service";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
+import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
 
 function DashboardCard({
   children,
@@ -138,14 +139,9 @@ function buildWellbeingActivity(
 }
 
 export function DashboardView() {
-  const { data, isLoading, error, timeRange, setTimeRange } = useDashboardViewModel("7d");
+  const { data, isLoading, error } = useDashboardViewModel("7d");
 
   const [activityWeeks, setActivityWeeks] = useState(26);
-  const [hoveredMoodPoint, setHoveredMoodPoint] = useState<{
-    point: { label: string; value: number };
-    left: number;
-    top: number;
-  } | null>(null);
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(
     null,
   );
@@ -186,33 +182,10 @@ export function DashboardView() {
     userProfile,
     journalEntries,
     latestEntry,
-    moodTrend,
     weeklyDigest,
   } = data;
 
   const riskScore = latestEntry?.riskScore ?? 0;
-
-  // Filter entries based on the selected mood rhythm time range
-  const now = new Date().getTime();
-  const rangeDays = timeRange === "30d" ? 30 : timeRange === "90d" ? 90 : 7;
-  const filteredEntries = journalEntries.filter((entry) => {
-    const entryTime = new Date(entry.createdAt).getTime();
-    return now - entryTime <= rangeDays * 24 * 60 * 60 * 1000;
-  });
-
-  const periodMoodCounts = new Map<string, number>();
-  for (const entry of filteredEntries) {
-    periodMoodCounts.set(entry.mood, (periodMoodCounts.get(entry.mood) ?? 0) + 1);
-  }
-  const periodTopMood =
-    [...periodMoodCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    latestEntry?.mood ??
-    "calm";
-
-  const highestMoodValue = Math.max(
-    ...moodTrend.map((point) => point.value),
-    100,
-  );
 
   const recentEntries = journalEntries.slice(0, 3);
 
@@ -289,159 +262,9 @@ export function DashboardView() {
         {/* DASHBOARD GRID */}
         <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">
 
-          {/* MOOD RHYTHM */}
+          {/* EMOTION WHEEL */}
           <DashboardCard className="bg-[linear-gradient(145deg,rgba(255,253,247,0.92),rgba(230,239,224,0.82))] lg:col-span-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
-                  Emotional balance
-                </p>
-
-                <h2 className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-                  Mood rhythm
-                </h2>
-              </div>
-
-              {/* Interactive Mood Rhythm Range Selector */}
-              <label className="relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--landing-primary-15)] bg-white/90 px-3 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-white focus-within:ring-2 focus-within:ring-primary/30">
-                <CalendarRange className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                <select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className="cursor-pointer appearance-none bg-transparent pr-4 text-xs font-semibold outline-none text-foreground"
-                  aria-label="Choose mood rhythm time range"
-                >
-                  <option value="7d">Last 7 days</option>
-                  <option value="30d">Previous month</option>
-                  <option value="90d">Last 90 days</option>
-                </select>
-                <ChevronRight className="pointer-events-none absolute right-2 h-3 w-3 rotate-90 text-muted-foreground" aria-hidden="true" />
-              </label>
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-xl bg-background/75 p-3 shadow-sm border border-black/5">
-                <p className="text-[10px] text-muted-foreground font-medium">
-                  Average mood
-                </p>
-
-                <p className="mt-1 text-sm font-bold capitalize text-primary">
-                  {periodTopMood}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-background/75 p-3 shadow-sm border border-black/5">
-                <p className="text-[10px] text-muted-foreground font-medium">
-                  Reflections
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-foreground">
-                  {filteredEntries.length}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-background/75 p-3 shadow-sm border border-black/5">
-                <p className="text-[10px] text-muted-foreground font-medium">
-                  Streak
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-foreground">
-                  {userProfile.streakDays} days
-                </p>
-              </div>
-            </div>
-
-            {/* Interactive Mood Rhythm Chart with Tooltips */}
-            <div
-              className="relative mt-5 flex h-24 items-end justify-between gap-2.5 sm:gap-3.5 px-1"
-              aria-label={`Mood rhythm over ${timeRange === "30d" ? "the previous month" : timeRange === "90d" ? "the last 90 days" : "the last seven days"}`}
-              onMouseLeave={() => setHoveredMoodPoint(null)}
-            >
-              {moodTrend.map((point, index) => {
-                const isHovered = hoveredMoodPoint?.point.label === point.label;
-                const barHeight = point.value > 0
-                  ? Math.max(18, Math.round((point.value / highestMoodValue) * 72))
-                  : 8;
-
-                const barColor =
-                  point.value >= 80
-                    ? "bg-[#536733]"
-                    : point.value >= 60
-                    ? "bg-[#8fc89a]"
-                    : point.value >= 40
-                    ? "bg-[#a9b89a]"
-                    : point.value > 0
-                    ? "bg-[#c98483]"
-                    : "bg-black/10";
-
-                return (
-                  <div
-                    key={`${point.label}-${index}`}
-                    className="group relative flex min-w-0 flex-1 max-w-[64px] flex-col items-center gap-1.5 cursor-pointer"
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredMoodPoint({
-                        point,
-                        left: rect.left + rect.width / 2,
-                        top: rect.top - 8,
-                      });
-                    }}
-                  >
-                    <div className="flex h-[72px] w-full items-end rounded-t-2xl bg-secondary/40 px-1 sm:px-1.5 transition-colors group-hover:bg-secondary/70">
-                      <div
-                        className={`w-full rounded-t-xl transition-all duration-300 ${barColor} ${
-                          isHovered ? "ring-2 ring-primary ring-offset-1" : ""
-                        }`}
-                        style={{
-                          height: `${barHeight}px`,
-                          opacity: point.value > 0 ? 1 : 0.45,
-                        }}
-                      />
-                    </div>
-
-                    <span className="truncate text-[10px] sm:text-[11px] font-bold text-muted-foreground group-hover:text-foreground">
-                      {point.label}
-                    </span>
-                  </div>
-                );
-              })}
-
-              {/* Floating Mood Point Tooltip */}
-              {hoveredMoodPoint ? (
-                <div
-                  role="tooltip"
-                  className="pointer-events-none fixed z-[160] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-2xl border border-white/20 bg-[#102718]/95 px-3.5 py-2 text-center text-xs font-medium text-[#fffaf0] shadow-xl backdrop-blur-md"
-                  style={{
-                    left: hoveredMoodPoint.left,
-                    top: hoveredMoodPoint.top,
-                  }}
-                >
-                  <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-[#fffaf0]">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{
-                        backgroundColor:
-                          hoveredMoodPoint.point.value >= 80
-                            ? "#536733"
-                            : hoveredMoodPoint.point.value >= 60
-                            ? "#8fc89a"
-                            : hoveredMoodPoint.point.value >= 40
-                            ? "#a9b89a"
-                            : hoveredMoodPoint.point.value > 0
-                            ? "#c98483"
-                            : "#888",
-                      }}
-                    />
-                    <span>{hoveredMoodPoint.point.label}</span>
-                  </div>
-                  <span className="text-[10px] text-[#fffaf0]/75">
-                    {hoveredMoodPoint.point.value > 0
-                      ? `Mood score: ${hoveredMoodPoint.point.value}/100`
-                      : "No reflections in this interval"}
-                  </span>
-                </div>
-              ) : null}
-            </div>
+            <DominantEmotionWheel entries={journalEntries} />
           </DashboardCard>
 
           {/* CURRENT DISTRESS */}

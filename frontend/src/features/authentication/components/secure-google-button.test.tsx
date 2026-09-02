@@ -49,6 +49,28 @@ describe("secure Google button flow", () => {
     mocks.bind.mockResolvedValue({ reservation: "test-reservation" });
     mocks.signIn.mockResolvedValue({ error: null });
   });
+
+  it("returns a Google login to the requested internal page", async () => {
+    render(<SecureGoogleButton intent="login" successPath="/journal?view=week" />);
+    const config = await ready();
+
+    await act(async () => {
+      await config.callback({ credential: "google-token" });
+    });
+
+    expect(mocks.router.replace).toHaveBeenCalledWith("/journal?view=week");
+  });
+
+  it("does not accept an external post-login redirect", async () => {
+    render(<SecureGoogleButton intent="login" successPath="https://evil.example" />);
+    const config = await ready();
+
+    await act(async () => {
+      await config.callback({ credential: "google-token" });
+    });
+
+    expect(mocks.router.replace).toHaveBeenCalledWith("/dashboard");
+  });
   afterEach(() => vi.unstubAllEnvs());
 
   it("uses the actual Google popup button and verifies the account before establishing a session", async () => {
@@ -59,7 +81,12 @@ describe("secure Google button flow", () => {
     );
     const config = await ready();
     expect(mocks.loginNonce).toHaveBeenCalledTimes(1);
-    expect(config).toMatchObject({ nonce: "hashed-challenge", ux_mode: "popup", use_fedcm_for_button: false });
+    expect(config).toMatchObject({
+      nonce: "hashed-challenge",
+      ux_mode: "popup",
+      use_fedcm_for_button: false,
+      auto_select: false,
+    });
     expect(mocks.prompt).not.toHaveBeenCalled();
     await act(async () => {
       await config.callback({ credential: "google-token" });
