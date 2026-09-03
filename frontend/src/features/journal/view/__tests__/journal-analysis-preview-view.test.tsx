@@ -19,7 +19,7 @@ describe("JournalAnalysisPreviewView", () => {
 
     // Switch to processing
     fireEvent.click(screen.getByRole("tab", { name: /Processing/i }));
-    expect(screen.getByText(/Preparing reflection summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/Processing is currently in progress/i)).toBeInTheDocument();
 
     // Switch to safety-attention
     fireEvent.click(screen.getByRole("tab", { name: /Safety attention required/i }));
