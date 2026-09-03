@@ -1,9 +1,9 @@
 import { z } from "zod";
+import { faceMeshCaptureSchema } from "./analysis.js";
 
 export const journalIdSchema = z.string().uuid();
 
-/** Canonical normalized Express submission; legacy snake-case is normalized at the edge. */
-export const journalSubmissionInputSchema = z.object({
+export const journalSubmissionObjectSchema = z.object({
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(20_000),
   mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]),
@@ -11,6 +11,25 @@ export const journalSubmissionInputSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   privacyStatus: z.enum(["private", "shared"]).default("private"),
   analysisConsent: z.boolean().default(false),
+  facialAnalysisRequested: z.boolean().default(false),
+  facialCapture: faceMeshCaptureSchema.optional(),
+});
+
+export const journalSubmissionInputSchema = journalSubmissionObjectSchema.superRefine((value, context) => {
+  if (value.facialAnalysisRequested && !value.analysisConsent) {
+    context.addIssue({
+      code: "custom",
+      path: ["facialAnalysisRequested"],
+      message: "Facial capture requires journal analysis consent.",
+    });
+  }
+  if (value.facialCapture && !value.facialAnalysisRequested) {
+    context.addIssue({
+      code: "custom",
+      path: ["facialCapture"],
+      message: "A facial capture must be explicitly requested.",
+    });
+  }
 });
 export type JournalSubmissionInput = z.infer<typeof journalSubmissionInputSchema>;
 

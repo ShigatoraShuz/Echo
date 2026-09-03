@@ -23,6 +23,7 @@ const result = {
   distressConfidence: 0.85,
   depressiveSymptomRange: { lower: 0, upper: 4 },
   recommendationFeatures: ["paced_breathing" as const],
+  facialExpressionAnalysis: null,
 };
 
 describe("analysis dashboard", () => {

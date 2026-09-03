@@ -12,6 +12,7 @@ import {
   normalizeThemePreferences,
 } from "./theme";
 import { AnalysisStatusExperience } from "@/features/journal/components/analysis-status-experience";
+import { AnalysisCompletionToast } from "@/features/journal/components/analysis-completion-toast";
 
 type ThemeContextValue = EchoThemePreferences & {
   resolvedMode: "light" | "dark";
@@ -134,6 +135,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     <ThemeContext.Provider value={value}>
       {children}
       <AnalysisStatusExperience />
+      <AnalysisCompletionToast />
     </ThemeContext.Provider>
   );
 }

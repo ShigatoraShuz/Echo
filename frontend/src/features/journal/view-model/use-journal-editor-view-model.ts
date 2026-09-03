@@ -11,7 +11,7 @@ import type {
 import { JOURNAL_AUTOSAVE_INTERVAL_MS } from "../model/journal.constants";
 import { validateCreateJournalInput } from "../model/journal.schema";
 import { getJournalService } from "@/services/journal/journal-service.factory";
-import type { AnalysisFixture, JournalSubmissionResponse } from "@echo/contracts";
+import type { AnalysisFixture, FaceMeshCapture, JournalSubmissionResponse } from "@echo/contracts";
 import { env } from "@/config/environment";
 
 export type AutosaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
@@ -250,7 +250,7 @@ export function useJournalEditorViewModel() {
     };
   }, []);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (facial?: { requested: boolean; capture?: FaceMeshCapture }) => {
     const input: Record<string, unknown> = {
       title: state.title,
       body: state.body,
@@ -272,6 +272,8 @@ export function useJournalEditorViewModel() {
       tags: state.tags,
       privacyStatus: state.privacyStatus,
       analysisConsent: state.analysisConsent,
+      facialAnalysisRequested: state.analysisConsent && facial?.requested === true,
+      ...(state.analysisConsent && facial?.capture ? { facialCapture: facial.capture } : {}),
     };
     idempotencyKeyRef.current ??= crypto.randomUUID();
     const result = await service.createEntry(createInput, {

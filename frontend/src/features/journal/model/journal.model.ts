@@ -46,6 +46,7 @@ export interface JournalAnalysis {
   riskIndication: string;
   isDemoData: boolean;
   createdAt: string;
+  facialStatus?: import("@echo/contracts").FacialAnalysisStatus;
   result?: import("@echo/contracts").JournalAnalysisResult;
 }
 
@@ -63,6 +64,8 @@ export interface CreateJournalInput {
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
   analysisConsent: boolean;
+  facialAnalysisRequested?: boolean;
+  facialCapture?: import("@echo/contracts").FaceMeshCapture;
 }
 
 export interface UpdateJournalInput {

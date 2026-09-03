@@ -9,6 +9,7 @@ export interface NotificationItem {
   message: string;
   resourceType: string | null;
   resourceId: string | null;
+  resourceLabel?: string | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -47,7 +48,23 @@ function mapNotification(row: Row): NotificationItem {
 }
 
 export class NotificationService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(
+    private readonly database: SupabaseClient,
+    private readonly journalTitleResolver?: (userId: string, journalIds: string[]) => Promise<Map<string, string>>,
+  ) {}
+
+  private async withResourceLabels(userId: string, notifications: NotificationItem[]): Promise<NotificationItem[]> {
+    if (!this.journalTitleResolver) return notifications;
+    const journalIds = notifications
+      .filter((item) => item.resourceType === "journal" && item.resourceId)
+      .map((item) => item.resourceId as string);
+    if (journalIds.length === 0) return notifications;
+    const titles = await this.journalTitleResolver(userId, journalIds);
+    return notifications.map((item) => ({
+      ...item,
+      resourceLabel: item.resourceType === "journal" && item.resourceId ? titles.get(item.resourceId) ?? null : null,
+    }));
+  }
 
   async list(userId: string, options: { status: "all" | "unread"; limit: number }) {
     let query = this.database
@@ -64,7 +81,7 @@ export class NotificationService {
 
     const { data, error } = await query;
     throwIfDatabaseError(error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "select notifications" }, "Notifications could not be loaded.");
-    return { notifications: ((data ?? []) as Row[]).map(mapNotification) };
+    return { notifications: await this.withResourceLabels(userId, ((data ?? []) as Row[]).map(mapNotification)) };
   }
 
   async markRead(userId: string, notificationId: string) {
@@ -78,7 +95,8 @@ export class NotificationService {
       .maybeSingle();
     throwIfDatabaseError(error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "mark notification read" }, "Notification could not be updated.");
     if (!data) throw new NotFoundError("Notification was not found.");
-    return { notification: mapNotification(data as Row) };
+    const [notification] = await this.withResourceLabels(userId, [mapNotification(data as Row)]);
+    return { notification };
   }
 
   async markAllRead(userId: string) {

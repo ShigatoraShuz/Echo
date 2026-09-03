@@ -1,8 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  analysisChecksFor,
   analysisFixtureSchema,
   journalAnalysisResultSchema,
   type AnalysisFixture,
+  type FaceMeshCapture,
+  type FacialAnalysisStatus,
   type AnalysisMode,
   type AnalysisStatus,
   type JournalAnalysisResult,
@@ -18,6 +21,10 @@ import {
 } from "../../shared/errors/app-error.js";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import type { AiAnalysisProvider } from "../../infrastructure/analysis/analysis-provider.types.js";
+import {
+  DisabledFacialAnalysisProvider,
+  type FacialAnalysisProvider,
+} from "../../infrastructure/analysis/facial-analysis-provider.types.js";
 import { DevelopmentAnalysisRunner } from "../../infrastructure/analysis/development-analysis.runner.js";
 import { analysisProgressFor, assertAnalysisTransition } from "../../infrastructure/analysis/analysis-state-machine.js";
 import type { IdempotencyIdentity, IdempotencyService } from "../../infrastructure/idempotency/idempotency.service.js";
@@ -31,6 +38,8 @@ export interface JournalInput {
   tags: string[];
   privacyStatus: "private" | "shared";
   analysisConsent: boolean;
+  facialAnalysisRequested: boolean;
+  facialCapture?: FaceMeshCapture;
 }
 
 export interface JournalResponse {
@@ -65,6 +74,7 @@ export interface AnalysisResponse {
   severity: string | null;
   urgent_language_detected: boolean;
   provider: string;
+  facial_status: FacialAnalysisStatus;
   result?: JournalAnalysisResult;
 }
 
@@ -146,9 +156,51 @@ export class JournalService {
       timeoutMs: 60_000,
     },
     private readonly runner = new DevelopmentAnalysisRunner(1),
+    private readonly facialAnalysisProvider: FacialAnalysisProvider = new DisabledFacialAnalysisProvider(),
   ) {}
 
-  private encryptJournal(input: JournalInput): EncryptedPayload {
+  private async hasGlobalFacialConsent(userId: string): Promise<boolean> {
+    const { data, error } = await this.database
+      .schema("user_service")
+      .from("privacy_preferences")
+      .select("facial_analysis_enabled")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Facial-analysis consent could not be checked.");
+    return (data as Record<string, unknown> | null)?.facial_analysis_enabled === true;
+  }
+
+  private async recordFacialMetadata(
+    userId: string,
+    journalId: string,
+    jobId: string,
+    requested: boolean,
+    capture?: FaceMeshCapture,
+  ): Promise<FacialAnalysisStatus> {
+    if (!requested) return "not_requested";
+    const facialStatus = await this.facialAnalysisProvider.submit({ userId, journalId, analysisJobId: jobId, capture });
+    const metadata = {
+      facial_analysis_requested: true,
+      facial_status: facialStatus,
+      facial_capture_received_at: capture?.capturedAt ?? null,
+      facial_capture_schema_version: capture?.schemaVersion ?? null,
+      facial_capture_model_version: capture?.modelVersion ?? null,
+    };
+    const [{ error: requestError }, { error: projectionError }] = await Promise.all([
+      this.database.schema("ai_analysis").from("analysis_requests").update(metadata).eq("id", jobId).eq("user_id", userId),
+      this.database.from("analysis_status_projection").update({ facial_status: facialStatus }).eq("job_id", jobId).eq("user_id", userId),
+    ]);
+    if (requestError || projectionError) {
+      throw databaseError(
+        requestError ?? projectionError,
+        { module: "journals", schema: "ai_analysis", table: "analysis_requests", operation: "record facial capture metadata" },
+        "Facial capture status could not be recorded.",
+      );
+    }
+    return facialStatus;
+  }
+
+  private encryptJournal(input: { title: string; body: string }): EncryptedPayload {
     return this.encryption.encrypt(JSON.stringify({ title: input.title, body: input.body }));
   }
 
@@ -249,6 +301,21 @@ export class JournalService {
     return this.toJournalResponse(row, await this.latestAnalysis(journalId, userId));
   }
 
+  async getJournalTitles(userId: string, journalIds: string[]): Promise<Map<string, string>> {
+    if (journalIds.length === 0) return new Map();
+    const { data, error } = await this.database
+      .schema("journal_service")
+      .from("journals")
+      .select("id,content_ciphertext,encryption_iv,encryption_auth_tag,encryption_key_version")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .in("id", [...new Set(journalIds)]);
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal notification labels could not be loaded.");
+    return new Map(
+      ((data ?? []) as JournalRow[]).map((row) => [asString(row.id), this.decryptJournal(row).title] as const),
+    );
+  }
+
   async create(
     userId: string,
     input: JournalInput,
@@ -259,6 +326,12 @@ export class JournalService {
       throw new ExternalServiceError("IDEMPOTENCY_UNAVAILABLE", "Secure journal submission is not configured.");
     }
     const fixture = this.authorizeFixture(userId, requestedFixture);
+    if (input.facialAnalysisRequested && !(await this.hasGlobalFacialConsent(userId))) {
+      throw new AnalysisGateError(
+        "Enable facial expression analysis in Privacy settings, or save without face capture.",
+        "global_consent",
+      );
+    }
     let identity = this.idempotency.identify(rawIdempotencyKey, { ...input, fixture: requestedFixture ?? null });
     const { data: recent, error: replayError } = await this.database
       .schema("ai_analysis")
@@ -284,12 +357,22 @@ export class JournalService {
         const stored = previous.response_payload as Record<string, unknown>;
         if (previous.response_status === 201)
           return { kind: "private", journalId: String(stored.journalId), replayed: true };
+        const journalId = String(stored.journalId);
+        const analysisJobId = String(stored.analysisJobId);
+        const facialStatus = await this.recordFacialMetadata(
+          userId,
+          journalId,
+          analysisJobId,
+          input.facialAnalysisRequested,
+          input.facialCapture,
+        );
         return {
           kind: "analysis",
           submission: {
-            journalId: String(stored.journalId),
-            analysisJobId: String(stored.analysisJobId),
+            journalId,
+            analysisJobId,
             status: stored.status as "queued" | "waiting_for_provider",
+            facialStatus,
           },
           replayed: true,
         };
@@ -357,10 +440,18 @@ export class JournalService {
     const jobId = asString(row.analysis_job_id);
     const replayed = row.replayed === true;
     if (!analysisRequested) return { kind: "private", journalId, replayed };
+    const facialStatus = await this.recordFacialMetadata(
+      userId,
+      journalId,
+      jobId,
+      input.facialAnalysisRequested,
+      input.facialCapture,
+    );
     const submission = {
       journalId,
       analysisJobId: jobId,
       status: asString(row.result_status, initialStatus) as "queued" | "waiting_for_provider",
+      facialStatus,
     };
     if (!replayed && this.runtime.mode === "development_stub" && initialStatus === "queued") {
       this.runner.enqueue(() => this.processDevelopmentJob(userId, journalId, jobId, input.body, fixture));
@@ -622,6 +713,8 @@ export class JournalService {
       tags: input.tags ?? current.tags,
       privacyStatus: input.privacyStatus ?? (current.privacy_status as JournalInput["privacyStatus"]),
       analysisConsent: input.analysisConsent ?? current.analysis_consent,
+      facialAnalysisRequested: input.facialAnalysisRequested ?? false,
+      facialCapture: input.facialCapture,
     };
     const encrypted = this.encryptJournal(next);
     const { data, error } = await this.database
@@ -733,18 +826,22 @@ export class JournalService {
   async getAnalysisStatus(userId: string, jobId: string) {
     const { data, error } = await this.database
       .from("analysis_status_projection")
-      .select("user_id,journal_id,job_id,status,progress,updated_at")
+      .select("user_id,journal_id,job_id,status,progress,facial_status,updated_at")
       .eq("job_id", jobId)
       .eq("user_id", userId)
       .maybeSingle();
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Analysis status is temporarily unavailable.");
     if (!data) throw new NotFoundError("The analysis job was not found.");
+    const status = data.status as AnalysisStatus;
+    const facialStatus = asString(data.facial_status, "not_requested") as FacialAnalysisStatus;
     return {
       userId: data.user_id,
       journalId: data.journal_id,
       jobId: data.job_id,
-      status: data.status,
+      status,
       progress: data.progress,
+      facialStatus,
+      checks: analysisChecksFor(status, facialStatus, data.progress),
       updatedAt: data.updated_at,
     };
   }
@@ -754,7 +851,7 @@ export class JournalService {
     const { data: request, error } = await this.database
       .schema("ai_analysis")
       .from("analysis_requests")
-      .select("id,journal_id,status,created_at")
+      .select("id,journal_id,status,facial_status,created_at")
       .eq("journal_id", journalId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -768,7 +865,12 @@ export class JournalService {
       .maybeSingle();
     if (resultError) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Analysis is temporarily unavailable.");
     return result
-      ? this.toAnalysisResponse({ ...(result as AnalysisRow), journal_id: journalId, status: request.status })
+      ? this.toAnalysisResponse({
+          ...(result as AnalysisRow),
+          journal_id: journalId,
+          status: request.status,
+          facial_status: request.facial_status,
+        })
       : null;
   }
 
@@ -1051,6 +1153,7 @@ export class JournalService {
       severity: typeof row.severity === "string" ? row.severity : null,
       urgent_language_detected: row.urgent_language_detected === true,
       provider: result?.providerName ?? "unavailable",
+      facial_status: asString(row.facial_status, "not_requested") as FacialAnalysisStatus,
       result,
     };
   }

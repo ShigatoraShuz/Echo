@@ -57,7 +57,10 @@ const settingsService = new SettingsService(supabaseAdmin);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService);
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
 const onboardingService = new OnboardingService(supabaseAdmin);
-const notificationService = new NotificationService(supabaseAdmin);
+const notificationService = new NotificationService(
+  supabaseAdmin,
+  (userId, journalIds) => journalService.getJournalTitles(userId, journalIds),
+);
 const registrationService = new RegistrationService(
   supabaseAdmin,
   createSupabasePublicServerClient(environment),

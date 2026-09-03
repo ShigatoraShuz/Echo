@@ -2,13 +2,33 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronUp, HeartHandshake, Leaf, Minus, X } from "lucide-react";
 import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Brain,
+  Check,
+  ChevronUp,
+  Circle,
+  ClipboardList,
+  HeartHandshake,
+  Leaf,
+  LoaderCircle,
+  Minus,
+  ScanFace,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  analysisChecksFor,
   journalSubmissionResponseSchema,
+  type AnalysisCheckId,
+  type AnalysisCheckProgress,
   type AnalysisProgress,
   type JournalSubmissionResponse,
 } from "@echo/contracts";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { env } from "@/config/environment";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 import { TrustedSupportRequest } from "./trusted-support-request";
 
@@ -24,9 +44,60 @@ const stageLabels: Record<string, string> = {
   generating_recommendation: "Preparing your reflection",
   aggregating_week: "Updating your dashboard",
   retrying: "Trying again safely",
-  completed: "Your reflection is ready",
+  completed: "Your analysis is ready",
   failed: "Analysis could not be completed",
 };
+
+const checkPresentation: Record<AnalysisCheckId, { label: string; icon: LucideIcon }> = {
+  safety_crisis: { label: "Safety and crisis-sign check", icon: HeartHandshake },
+  emotion: { label: "Emotion analysis", icon: Brain },
+  distress: { label: "Journal distress", icon: Activity },
+  phq8: { label: "PHQ-8 symptom estimate", icon: ClipboardList },
+  facial: { label: "Facial expression analysis", icon: ScanFace },
+};
+
+function CheckStatusIcon({ state }: { state: AnalysisCheckProgress["state"] }) {
+  if (state === "complete") return <Check className="h-4 w-4" aria-hidden="true" />;
+  if (state === "running") return <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />;
+  if (state === "attention_required" || state === "failed") return <AlertTriangle className="h-4 w-4" aria-hidden="true" />;
+  if (state === "partial" || state === "skipped") return <Minus className="h-4 w-4" aria-hidden="true" />;
+  return <Circle className="h-3.5 w-3.5" aria-hidden="true" />;
+}
+
+function AnalysisCheckList({ checks }: { checks: AnalysisCheckProgress[] }) {
+  return (
+    <ol className="mt-5 space-y-2" aria-label="Analysis checks">
+      {checks.map((check) => {
+        const presentation = checkPresentation[check.id];
+        const Icon = presentation.icon;
+        return (
+          <li key={check.id} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-[border-color,background-color] duration-200 ease-out ${
+            check.state === "running" ? "border-primary/25 bg-primary/[.07]" :
+            check.state === "complete" ? "border-emerald-700/10 bg-emerald-50/55" :
+            check.state === "attention_required" || check.state === "failed" ? "border-warning/25 bg-warning/[.08]" :
+            "border-border/55 bg-card/55"
+          }`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-card text-primary shadow-sm">
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">{presentation.label}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{check.detail}</p>
+            </div>
+            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
+              check.state === "complete" ? "bg-emerald-700 text-white" :
+              check.state === "running" ? "bg-primary text-primary-foreground" :
+              check.state === "attention_required" || check.state === "failed" ? "bg-warning text-white" :
+              check.state === "partial" ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"
+            }`} aria-label={check.state.replaceAll("_", " ")}>
+              <CheckStatusIcon state={check.state} />
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function storedSubmission(): JournalSubmissionResponse | null {
   try {
@@ -68,7 +139,10 @@ export function AnalysisStatusExperience() {
     setProgress(monotonic);
     if (next.status === "completed" && notifiedJob.current !== next.jobId) {
       notifiedJob.current = next.jobId;
-      window.dispatchEvent(new Event("echo:analysis-completed"));
+      window.dispatchEvent(new CustomEvent("echo:analysis-completed", {
+        detail: { journalId: next.journalId, analysisJobId: next.jobId },
+      }));
+      window.dispatchEvent(new Event("echo:notifications-changed"));
     }
   }, []);
 
@@ -202,6 +276,8 @@ export function AnalysisStatusExperience() {
   const status = progress?.status ?? submission.status;
   const value = progress?.progress ?? (status === "queued" ? 5 : 0);
   const label = status === "queued" && value >= 70 ? "Trying again safely" : stageLabels[status];
+  const facialStatus = progress?.facialStatus ?? submission.facialStatus;
+  const checks = progress?.checks ?? analysisChecksFor(status, facialStatus, value);
   if (minimized)
     return (
       <button
@@ -219,7 +295,7 @@ export function AnalysisStatusExperience() {
   const safety = status === "safety_action_required";
   return (
     <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-[rgba(16,42,36,.32)] p-4 backdrop-blur-sm"
+      className="analysis-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-[rgba(16,42,36,.32)] p-4 backdrop-blur-sm"
       role="presentation"
     >
       <div
@@ -228,7 +304,7 @@ export function AnalysisStatusExperience() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="analysis-dialog-title"
-        className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,253,247,.98),rgba(230,239,224,.96))] p-6 shadow-[0_30px_90px_rgba(16,42,36,.22)] outline-none sm:p-8"
+        className="analysis-modal-surface max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,253,247,.99),rgba(230,239,224,.97))] p-5 shadow-[0_30px_90px_rgba(16,42,36,.22)] outline-none sm:p-7"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
@@ -240,7 +316,7 @@ export function AnalysisStatusExperience() {
               <Leaf aria-hidden="true" />
             )}
           </div>
-          {!safety && !complete && !failed ? (
+          {!safety ? (
             <div className="flex gap-1">
               <button
                 type="button"
@@ -271,11 +347,7 @@ export function AnalysisStatusExperience() {
           >
             {label}
           </h2>
-          {waiting ? (
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Your journal was saved securely. AI insights are not available yet.
-            </p>
-          ) : null}
+          {waiting ? <p className="mt-3 text-sm leading-6 text-muted-foreground">Your journal was saved securely. Analysis will begin when the private provider is available.</p> : null}
           {failed ? (
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Your journal remains saved securely. You can return to it at any time.
@@ -306,7 +378,8 @@ export function AnalysisStatusExperience() {
               </button>
             </>
           ) : null}
-          {!waiting && !complete && !failed && !safety ? (
+          {!safety ? <AnalysisCheckList checks={checks} /> : null}
+          {!waiting && !failed && !safety ? (
             <>
               <div
                 role="progressbar"
@@ -324,31 +397,31 @@ export function AnalysisStatusExperience() {
               <p className="mt-2 text-right text-xs font-medium text-muted-foreground">{value}%</p>
             </>
           ) : null}
+          {!complete && !safety ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/10 bg-card/55 px-4 py-3">
+              <p className="text-xs leading-5 text-muted-foreground">You can safely close this window. Your analysis will continue in the background.</p>
+              {env.enableAnalysisPreview ? (
+                <Link href="/analysis-preview" onClick={() => setDismissed(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
+                  Preview analysis page <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
           {complete ? (
             <>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Your private dashboard has been refreshed. Simulated results are labeled clearly.
+                Your private reflection is ready. Any unavailable optional signal is labeled clearly.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-6">
                 <Link
                   onClick={() => {
                     setDismissed(true);
                     localStorage.removeItem(STORAGE_KEY);
                   }}
                   href={`/journal/${submission.journalId}`}
-                  className="echo-button bg-primary text-primary-foreground"
+                  className="echo-button inline-flex items-center gap-2 bg-primary text-primary-foreground transition-transform duration-150 ease-out active:scale-[.97]"
                 >
-                  View full insight
-                </Link>
-                <Link
-                  onClick={() => {
-                    setDismissed(true);
-                    localStorage.removeItem(STORAGE_KEY);
-                  }}
-                  href="/dashboard"
-                  className="echo-button border border-border bg-card text-foreground"
-                >
-                  Go to dashboard
+                  View full analysis <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </div>
             </>

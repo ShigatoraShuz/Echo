@@ -4,6 +4,7 @@ import { AnalysisStatusExperience } from "../components/analysis-status-experien
 
 const api = vi.hoisted(() => ({ getAnalysisStatus: vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => api }));
+vi.mock("@/config/environment", () => ({ env: { enableAnalysisPreview: true } }));
 vi.mock("@/infrastructure/supabase/browser-client", () => ({
   createBrowserSupabaseClient: () => {
     throw new Error("Realtime offline");
@@ -33,7 +34,11 @@ describe("backend-owned analysis progress", () => {
     await act(async () => {
       render(<AnalysisStatusExperience />);
     });
-    expect(screen.getByText(/AI insights are not available yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Analysis will begin when the private provider is available/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Preview analysis page/i })).toHaveAttribute(
+      "href",
+      "/analysis-preview",
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });

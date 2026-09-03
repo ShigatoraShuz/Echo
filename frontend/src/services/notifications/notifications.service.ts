@@ -9,6 +9,7 @@ export interface NotificationItem {
   message: string;
   resourceType: string | null;
   resourceId: string | null;
+  resourceLabel?: string | null;
   readAt: string | null;
   createdAt: string;
 }

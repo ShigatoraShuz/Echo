@@ -4,6 +4,7 @@ export type DataAdapter = (typeof VALID_ADAPTER_VALUES)[number];
 export interface EnvironmentConfig {
   apiBaseUrl: string;
   dataAdapter: DataAdapter;
+  enableAnalysisPreview: boolean;
   enableBuddy: boolean;
   enableFacialAnalysis: boolean;
   enableRiskInsights: boolean;
@@ -37,8 +38,10 @@ function validateAdapter(value: string | undefined): DataAdapter {
 export const env: EnvironmentConfig = {
   apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4200/api/v1",
   dataAdapter: validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
+  enableAnalysisPreview: process.env.NODE_ENV === "development",
   enableBuddy: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_BUDDY),
-  enableFacialAnalysis: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS),
+  enableFacialAnalysis:
+    process.env.NODE_ENV === "development" || parseBoolean(process.env.NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS),
   enableRiskInsights: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_RISK_INSIGHTS),
   enableNotifications: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS),
   enableDataExport: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_DATA_EXPORT),

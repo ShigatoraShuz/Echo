@@ -16,6 +16,11 @@ import { JournalMoodSelector } from "../components/journal-mood-selector";
 import { JournalAutosaveStatus } from "../components/journal-autosave-status";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
+import { settingsService } from "@/services/settings";
+import {
+  JournalFaceCapture,
+  type JournalFaceCaptureHandle,
+} from "../components/journal-face-capture";
 
 type TurnDirection = "older" | "newer";
 
@@ -172,7 +177,7 @@ export function JournalEditorView() {
   const {
     title, body, mood, tags, analysisConsent,
     wordCount, charCount, isSaving, autosaveStatus, error, fieldErrors,
-    savedEntry, fixture,
+    savedEntry, analysisSubmission, fixture,
     setTitle, setBody, setMood, setTags, setAnalysisConsent, setFixture,
     save, reset,
   } = useJournalEditorViewModel();
@@ -203,6 +208,33 @@ export function JournalEditorView() {
   const isTurning = pendingPageIndex !== null;
   const [photoPreviews, setPhotoPreviews] = useState<JournalPhotoPreview[]>([]);
   const photoPreviewsRef = useRef<JournalPhotoPreview[]>([]);
+  const faceCaptureRef = useRef<JournalFaceCaptureHandle>(null);
+  const [facialAllowed, setFacialAllowed] = useState(false);
+  const [facialRequested, setFacialRequested] = useState(false);
+
+  useEffect(() => {
+    if (!env.enableFacialAnalysis) return;
+    let active = true;
+    void settingsService.get().then((settings) => {
+      if (active) setFacialAllowed(settings.privacy.facialAnalysisEnabled);
+    }).catch(() => {
+      if (active) setFacialAllowed(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!analysisConsent) {
+      setFacialRequested(false);
+      faceCaptureRef.current?.stop();
+    }
+  }, [analysisConsent]);
+
+  useEffect(() => {
+    if (!analysisSubmission) return;
+    faceCaptureRef.current?.stop();
+    setFacialRequested(false);
+  }, [analysisSubmission]);
 
   useEffect(() => {
     photoPreviewsRef.current = photoPreviews;
@@ -250,6 +282,12 @@ export function JournalEditorView() {
       if (photoToRemove) URL.revokeObjectURL(photoToRemove.src);
       return currentPhotos.filter((photo) => photo.id !== photoId);
     });
+  };
+
+  const saveWithOptionalFaceMesh = () => {
+    const capture = faceCaptureRef.current?.getCapture();
+    faceCaptureRef.current?.stop();
+    void save({ requested: facialRequested, capture });
   };
 
   const pageLabel = currentEntry ? `Reflection ${pageIndex} of ${pages.length - 1}: ${currentEntry.title}` : "Today’s new reflection";
@@ -302,6 +340,25 @@ export function JournalEditorView() {
                 <input id="journal-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="Give this moment a name" className={`w-full bg-transparent font-[family-name:var(--font-echo-display)] text-2xl leading-8 text-foreground outline-none transition-colors placeholder:text-muted-foreground/55 focus:placeholder:text-muted-foreground/35 sm:text-3xl sm:leading-9 ${fieldErrors.title ? "text-danger" : ""}`} />
                 {fieldErrors.title ? <p className="mt-1 text-xs text-danger">{fieldErrors.title[0]}</p> : null}
               </div>
+              {analysisConsent && env.enableFacialAnalysis ? (
+                <div className="mt-4">
+                  {facialAllowed ? (
+                    <JournalFaceCapture
+                      ref={faceCaptureRef}
+                      requested={facialRequested}
+                      onRequestedChange={setFacialRequested}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/[.035] px-4 py-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Optional face mesh is off</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">Enable it in Privacy settings if you want to include a camera-based signal.</p>
+                      </div>
+                      <Link href="/settings/privacy" className="rounded-xl border border-border/70 bg-card px-3 py-2 text-xs font-semibold text-primary outline-none transition-transform duration-150 ease-out focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[.97]">Privacy settings</Link>
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div className="journal-notes-field mt-5 flex min-h-0 flex-1 flex-col">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <label htmlFor="journal-body" className="text-xs font-semibold text-primary/85">Start writing...</label>
@@ -329,7 +386,7 @@ export function JournalEditorView() {
                   </label>
                 ) : null}
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Write from wherever you are.</span><EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={save}><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><span className="inline-flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-4 w-4 text-primary" aria-hidden="true" /> Write from wherever you are.</span><EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={saveWithOptionalFaceMesh}><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
                 </section>
               )}
             </div>

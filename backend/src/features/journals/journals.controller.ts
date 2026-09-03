@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { journalSubmissionInputSchema } from "@echo/contracts";
+import { journalSubmissionInputSchema, journalSubmissionObjectSchema } from "@echo/contracts";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
@@ -8,7 +8,7 @@ import type { JournalService } from "./journals.service.js";
 
 const journalInputSchema = journalSubmissionInputSchema;
 
-const journalUpdateSchema = journalInputSchema.partial();
+const journalUpdateSchema = journalSubmissionObjectSchema.partial();
 
 const journalDraftSchema = z.object({
   title: z.string().trim().max(200).default(""),

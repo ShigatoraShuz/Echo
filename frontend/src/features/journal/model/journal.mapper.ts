@@ -72,6 +72,7 @@ export function mapAnalysisResponseToDomain(dto: JournalAnalysisResponseDTO): Jo
     riskIndication: dto.risk_indication,
     isDemoData: dto.is_demo_data,
     createdAt: dto.created_at,
+    facialStatus: dto.facial_status,
     result: dto.result,
   };
 }
@@ -85,5 +86,7 @@ export function mapCreateInputToRequest(input: CreateJournalInput): CreateJourna
     tags: input.tags,
     privacy_status: input.privacyStatus,
     analysis_consent: input.analysisConsent,
+    facialAnalysisRequested: input.facialAnalysisRequested,
+    facialCapture: input.facialCapture,
   };
 }

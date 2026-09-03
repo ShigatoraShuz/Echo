@@ -46,6 +46,7 @@ export interface JournalAnalysisResponseDTO {
   risk_indication: string;
   is_demo_data: boolean;
   created_at: string;
+  facial_status?: import("@echo/contracts").FacialAnalysisStatus;
   result?: import("@echo/contracts").JournalAnalysisResult;
 }
 
@@ -59,6 +60,8 @@ export interface CreateJournalRequestDTO {
   tags: string[];
   privacy_status: string;
   analysis_consent: boolean;
+  facialAnalysisRequested?: boolean;
+  facialCapture?: import("@echo/contracts").FaceMeshCapture;
 }
 
 export interface UpdateJournalRequestDTO {

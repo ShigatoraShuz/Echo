@@ -8,3 +8,17 @@ export const notificationPreferenceSchema = z.object({
 });
 
 export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>;
+
+export const notificationItemSchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  title: z.string(),
+  message: z.string(),
+  resourceType: z.string().nullable(),
+  resourceId: z.string().uuid().nullable(),
+  resourceLabel: z.string().nullable().optional(),
+  readAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+export type NotificationItem = z.infer<typeof notificationItemSchema>;

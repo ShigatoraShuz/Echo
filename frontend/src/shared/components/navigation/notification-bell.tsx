@@ -58,6 +58,12 @@ export function NotificationBell() {
   }, [load]);
 
   useEffect(() => {
+    const refresh = () => void load(filter);
+    window.addEventListener("echo:notifications-changed", refresh);
+    return () => window.removeEventListener("echo:notifications-changed", refresh);
+  }, [filter, load]);
+
+  useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -159,7 +165,11 @@ export function NotificationBell() {
                 const content = (
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-bold text-foreground">{item.title}</p>
+                      <p className="text-sm font-bold text-foreground">
+                        {item.type === "analysis_completed" && item.resourceLabel
+                          ? `Analysis ready: “${item.resourceLabel}”`
+                          : item.title}
+                      </p>
                       {!item.readAt ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Unread</span> : null}
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.message}</p>

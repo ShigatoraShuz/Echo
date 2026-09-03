@@ -50,6 +50,7 @@ function fixtureResult(fixture: AnalysisFixture): JournalAnalysisResult {
     distressConfidence: moderate ? 0.84 : 0.88,
     depressiveSymptomRange: moderate ? { lower: 10, upper: 14 } : { lower: 0, upper: 4 },
     recommendationFeatures: moderate ? ["grounding", "behavioral_activation"] : ["paced_breathing"],
+    facialExpressionAnalysis: null,
   };
 }
 
