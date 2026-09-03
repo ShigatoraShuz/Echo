@@ -11,9 +11,9 @@ beforeEach(() => {
   });
 });
 
-let recognitionInstance: MockRecognition | null = null;
-
 class MockRecognition {
+  static instance: MockRecognition | null = null;
+
   continuous = false;
   interimResults = false;
   lang = "en-US";
@@ -29,7 +29,7 @@ class MockRecognition {
   abort = vi.fn();
 
   constructor() {
-    recognitionInstance = this;
+    MockRecognition.instance = this;
   }
 
   emitFinal(transcript: string) {
@@ -85,7 +85,7 @@ function setupMock() {
 describe("BuddyView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    recognitionInstance = null;
+    MockRecognition.instance = null;
     vi.unstubAllGlobals();
   });
 
@@ -114,7 +114,7 @@ describe("BuddyView", () => {
 
     await user.click(screen.getByRole("button", { name: /start voice input/i }));
     act(() => {
-      recognitionInstance?.emitFinal("I feel tense");
+      MockRecognition.instance?.emitFinal("I feel tense");
     });
 
     await waitFor(() => expect(screen.getByLabelText(/message buddy/i)).toHaveValue("I feel tense"));

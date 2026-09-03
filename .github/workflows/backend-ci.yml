@@ -15,6 +15,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run build --workspace @echo/contracts
       - run: npm run typecheck --workspace @echo/backend
       - run: npm run lint --workspace @echo/backend
       - run: npm run test --workspace @echo/backend

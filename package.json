@@ -29,5 +29,11 @@
     "concurrently": "^8.2.2",
     "prettier": "^3.3.0",
     "typescript": "^5.5.0"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "0.28.1",
+    "@rolldown/binding-linux-x64-gnu": "1.1.5",
+    "@unrs/resolver-binding-linux-x64-gnu": "1.12.2",
+    "lightningcss-linux-x64-gnu": "1.33.0"
   }
 }
