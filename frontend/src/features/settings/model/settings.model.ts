@@ -10,8 +10,8 @@ export interface ProfileSettings {
 }
 
 export interface PrivacySettings {
+  journalAiAnalysisEnabled?: boolean;
   journalPrivate: true;
-  facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;
   lockScreenPrivate: boolean;
 }
@@ -57,6 +57,15 @@ export interface DeletionRequest {
   completedAt: string | null;
 }
 
+export interface SecurityAuditEvent {
+  id: string;
+  eventType: string;
+  resourceType: string | null;
+  resourceId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface SettingsSnapshot {
   profile: ProfileSettings;
   privacy: PrivacySettings;
@@ -65,4 +74,3 @@ export interface SettingsSnapshot {
   latestExport: ExportRequest | null;
   deletionRequest: DeletionRequest | null;
 }
-

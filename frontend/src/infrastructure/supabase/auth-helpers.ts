@@ -17,13 +17,3 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
   if (error) return null;
   return data.session?.access_token ?? null;
 }
-
-export async function signInWithGoogle(redirectTo: string): Promise<{ error: string | null }> {
-  const { data, error } = await createBrowserSupabaseClient().auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo },
-  });
-
-  if (!error && data.url) window.location.assign(data.url);
-  return { error: error?.message ?? null };
-}

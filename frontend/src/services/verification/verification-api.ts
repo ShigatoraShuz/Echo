@@ -112,6 +112,10 @@ const client = createApiClient({
 });
 
 export const verificationApi = {
+  async reviewerAccess(): Promise<{ canReview: boolean }> {
+    const snapshot = await this.getStatus();
+    return { canReview: snapshot.canReview };
+  },
   async getStatus(): Promise<VerificationSnapshot> {
     return (await client.get<ApiEnvelope<VerificationSnapshot>>("/verification")).data;
   },

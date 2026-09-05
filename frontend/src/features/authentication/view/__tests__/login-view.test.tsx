@@ -4,12 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { LoginView } from "../login-view";
 import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
 
-const push = vi.fn();
-const replace = vi.fn();
-const refresh = vi.fn();
+const navigation = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, replace, refresh }),
+  useRouter: () => navigation,
+  useSearchParams: () => navigation.searchParams,
 }));
 
 vi.mock("@/features/authentication/view-model/use-login-view-model", () => ({
@@ -37,6 +41,7 @@ function setupMock() {
 describe("LoginView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigation.searchParams = new URLSearchParams();
   });
 
   it("wires the main controls and submits the form", async () => {
@@ -57,5 +62,16 @@ describe("LoginView", () => {
     expect(mock.setRememberSession).toHaveBeenCalled();
     expect(mock.togglePasswordVisibility).toHaveBeenCalled();
     expect(mock.submit).toHaveBeenCalled();
+  });
+
+  it("explains why a signed-out user was sent to the login page", () => {
+    navigation.searchParams = new URLSearchParams("error=login_required&next=%2Fdashboard");
+    vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+
+    render(<LoginView title="Log in" description="Welcome back" />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Please log in to continue. This page is only available to signed-in users.",
+    );
   });
 });

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import get_settings
 from app.core.security import require_gateway_user
@@ -136,20 +136,6 @@ async def analyze(
             inference = InferenceResult.model_validate(
                 await checked_json(ml_response, "ml-service")
             )
-            completed_response = await client.patch(
-                f"{settings.supabase_url.rstrip('/')}/rest/v1/journal_analyses?id=eq.{pending_id}",
-                headers=db_headers("return=representation"),
-                json={
-                    "status": "completed",
-                    "phq8_score": inference.phq8_score,
-                    "severity": inference.severity,
-                    "urgent_language_detected": inference.urgent_language_detected,
-                    "processing_time_ms": inference.processing_time_ms,
-                    "analyzed_at": datetime.now(UTC).isoformat(),
-                    "completed_at": datetime.now(UTC).isoformat(),
-                },
-            )
-            completed = await checked_json(completed_response, "database")
             recommendation_response = await client.post(
                 f"{settings.recommendation_service_url.rstrip('/')}/api/v1/internal/recommendations",
                 headers={
@@ -164,6 +150,25 @@ async def analyze(
             recommendation = (
                 await checked_json(recommendation_response, "recommendation-service")
             )["data"]
+            # Validate the fields used below before committing a completed result.
+            if not isinstance(recommendation.get("title"), str) or not isinstance(
+                recommendation.get("clinicalDisclaimer"), str
+            ) or not recommendation.get("steps"):
+                raise HTTPException(status_code=502, detail="Invalid recommendation response.")
+            completed_response = await client.patch(
+                f"{settings.supabase_url.rstrip('/')}/rest/v1/journal_analyses?id=eq.{pending_id}",
+                headers=db_headers("return=representation"),
+                json={
+                    "status": "completed",
+                    "phq8_score": inference.phq8_score,
+                    "severity": inference.severity,
+                    "urgent_language_detected": inference.urgent_language_detected,
+                    "processing_time_ms": inference.processing_time_ms,
+                    "analyzed_at": datetime.now(UTC).isoformat(),
+                    "completed_at": datetime.now(UTC).isoformat(),
+                },
+            )
+            completed = await checked_json(completed_response, "database")
             row = completed[0]
             return {
                 "success": True,
@@ -185,8 +190,8 @@ async def analyze(
                 },
                 "meta": {"requestId": request_id},
             }
-        except HTTPException as error:
-            if pending_id and error.status_code >= 500:
+        except HTTPException:
+            if pending_id:
                 try:
                     await client.patch(
                         f"{settings.supabase_url.rstrip('/')}/rest/v1/journal_analyses?id=eq.{pending_id}",
@@ -200,7 +205,7 @@ async def analyze(
                 except httpx.HTTPError:
                     pass
             raise
-        except (httpx.TimeoutException, httpx.RequestError) as error:
+        except (httpx.TimeoutException, httpx.RequestError, ValidationError, KeyError, TypeError, IndexError) as error:
             if pending_id:
                 try:
                     await client.patch(
@@ -208,13 +213,13 @@ async def analyze(
                         headers=db_headers(),
                         json={
                             "status": "failed",
-                            "failure_code": "DEPENDENCY_UNAVAILABLE",
+                            "failure_code": "DEPENDENCY_UNAVAILABLE" if isinstance(error, httpx.HTTPError) else "INVALID_DEPENDENCY_RESPONSE",
                             "completed_at": datetime.now(UTC).isoformat(),
                         },
                     )
                 except httpx.HTTPError:
                     pass
-            code = 504 if isinstance(error, httpx.TimeoutException) else 503
+            code = 504 if isinstance(error, httpx.TimeoutException) else 503 if isinstance(error, httpx.HTTPError) else 502
             raise HTTPException(
                 status_code=code, detail="A dependent service is unavailable."
             ) from error
@@ -248,13 +253,14 @@ async def latest_analysis(
         "data": {
             "id": row["id"],
             "entry_id": str(journal_id),
-            "summary": "Analysis completed.",
-            "perspective": "Review this screening result with a qualified professional if you are concerned.",
-            "mood_insight": "Use the recommendation endpoint for structured next steps.",
+            "summary": "Analysis completed." if row["status"] == "completed" else "Analysis has not completed.",
+            "perspective": "Review this screening result with a qualified professional if you are concerned." if row["status"] == "completed" else "No screening result is available. Your journal remains saved.",
+            "mood_insight": "Use the recommendation endpoint for structured next steps." if row["status"] == "completed" else "",
             "risk_indication": row.get("severity"),
             "is_demo_data": False,
             "created_at": row["created_at"],
             "status": row["status"],
+            "failure_code": row.get("failure_code"),
             "phq8_score": row.get("phq8_score"),
             "severity": row.get("severity"),
             "urgent_language_detected": row.get("urgent_language_detected", False),

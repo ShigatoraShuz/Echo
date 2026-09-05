@@ -1,5 +1,7 @@
 # ECHO Frontend Architecture
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > **Version**: Consolidated Monorepo (MVVM with CRUD Bypass)  
 > **Last Updated**: 2026-08-23
 

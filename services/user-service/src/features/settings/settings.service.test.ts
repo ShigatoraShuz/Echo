@@ -23,7 +23,6 @@ function createFixture() {
     },
     privacy: {
       journalPrivate: true,
-      facialAnalysisEnabled: true,
       crisisSupportVisible: true,
       lockScreenPrivate: true,
     },

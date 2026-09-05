@@ -7,8 +7,12 @@ import { createSettingsController } from "./features/settings/settings.controlle
 import type { SettingsService } from "./features/settings/settings.service.js";
 import { createVerificationController } from "./features/verification/verification.controller.js";
 import type { VerificationService } from "./features/verification/verification.service.js";
+import { createRegistrationRouter } from "./features/registration/registration.routes.js";
+import type { RegistrationService } from "./features/registration/registration.service.js";
+import type { AccessService } from "./features/access/access.service.js";
+import type { NotificationsService } from "./features/notifications/notifications.service.js";
 
-export type UserServiceDependencies = { onboarding: OnboardingService; settings: SettingsService; verification: VerificationService; database: { from(table: string): any } };
+export type UserServiceDependencies = { onboarding: OnboardingService; settings: SettingsService; verification: VerificationService; registration: RegistrationService; access: AccessService; notifications: NotificationsService; database: { from(table: string): any } };
 
 export function createUserApp(dependencies: UserServiceDependencies, options: { internalToken: string; allowedOrigin?: string }) {
   const router = Router();
@@ -18,8 +22,24 @@ export function createUserApp(dependencies: UserServiceDependencies, options: { 
   const settings = createSettingsController(dependencies.settings);
   const verification = createVerificationController(dependencies.verification);
 
+  router.use(createRegistrationRouter(dependencies.registration, options.allowedOrigin ?? ""));
+  router.get("/access/status", user, asyncRoute(async (req, res) => {
+    sendData(res, await dependencies.access.decide(req.auth!.id), req.requestId);
+  }));
+  router.post("/access/age", user, asyncRoute(async (req, res) => {
+    const parsed = z.object({ birthday: z.string() }).strict().safeParse(req.body);
+    if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "The birthday is invalid.");
+    await dependencies.access.verifyLegacyAge(req.auth!.id, parsed.data.birthday);
+    sendData(res, { verified: true }, req.requestId);
+  }));
+  router.post("/access/policies", user, asyncRoute(async (req, res) => {
+    const parsed = z.object({ reviewedDocumentIds: z.array(z.string().uuid()).length(3) }).strict().safeParse(req.body);
+    if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "The reviewed policy set is invalid.");
+    await dependencies.access.acceptCurrentPolicies(req.auth!.id, parsed.data.reviewedDocumentIds);
+    sendData(res, { accepted: true }, req.requestId);
+  }));
+
   router.get("/onboarding/status", user, onboarding.getStatus);
-  router.post("/onboarding/consent", user, onboarding.saveConsent);
   router.post("/onboarding/profile", user, onboarding.saveProfile);
   router.post("/onboarding/setup", user, onboarding.saveSetup);
   router.post("/onboarding/complete", user, onboarding.completeOnboarding);
@@ -48,6 +68,20 @@ export function createUserApp(dependencies: UserServiceDependencies, options: { 
   router.post("/admin/verifications/:verificationId/claim", user, verification.adminClaim);
   router.post("/admin/verifications/:verificationId/decision", user, verification.adminDecision);
 
+  router.get("/notifications", user, asyncRoute(async (req, res) => {
+    const parsed = z.object({ status: z.enum(["all", "unread"]).default("all"), limit: z.coerce.number().int().min(1).max(100).default(20) }).safeParse(req.query);
+    if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "Notification filters are invalid.");
+    sendData(res, { notifications: await dependencies.notifications.list(req.auth!.id, parsed.data.status, parsed.data.limit) }, req.requestId);
+  }));
+  router.patch("/notifications/read-all", user, asyncRoute(async (req, res) => {
+    sendData(res, { notifications: await dependencies.notifications.markAllRead(req.auth!.id) }, req.requestId);
+  }));
+  router.patch("/notifications/:notificationId/read", user, asyncRoute(async (req, res) => {
+    const parsed = z.string().uuid().safeParse(req.params.notificationId);
+    if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "The notification identifier is invalid.");
+    sendData(res, { notification: await dependencies.notifications.markRead(req.auth!.id, parsed.data) }, req.requestId);
+  }));
+
   router.get("/internal/verification", internal, user, asyncRoute(async (req, res) => {
     await dependencies.verification.assertAiAccess(req.auth!.id);
     sendData(res, { approved: true }, req.requestId);
@@ -75,9 +109,7 @@ export function createUserApp(dependencies: UserServiceDependencies, options: { 
     const parsed = z.object({ userId: z.string().uuid(), notificationType: z.string().min(1).max(80), title: z.string().min(1).max(200), message: z.string().min(1).max(1000), resourceType: z.string().max(80).optional(), resourceId: z.string().uuid().optional() }).safeParse(req.body);
     if (!parsed.success) throw new ServiceError(400, "VALIDATION_ERROR", "The notification is invalid.");
     const value = parsed.data;
-    const { data, error } = await dependencies.database.from("notifications").insert({ user_id: value.userId, notification_type: value.notificationType, title: value.title, message: value.message, resource_type: value.resourceType, resource_id: value.resourceId }).select("*").single();
-    if (error || !data) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "The notification could not be saved.");
-    sendData(res, data, req.requestId, 201);
+    sendData(res, await dependencies.notifications.create(value), req.requestId, 201);
   }));
   router.post("/internal/audit-events", internal, asyncRoute(async (req, res) => {
     const parsed = z.object({ userId: z.string().uuid().nullable().optional(), eventType: z.string().min(1).max(120), resourceType: z.string().max(80).optional(), resourceId: z.string().uuid().optional(), metadata: z.record(z.string(), z.unknown()).default({}) }).safeParse(req.body);

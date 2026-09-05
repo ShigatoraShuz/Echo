@@ -28,6 +28,7 @@ vi.mock("@/features/settings/view-model/use-settings-view-model", () => ({
 vi.mock("@/services/settings/settings.service", () => ({
   settingsService: {
     updateProfile: vi.fn(),
+    uploadAvatar: vi.fn(),
   },
 }));
 
@@ -43,7 +44,6 @@ function setupMock() {
       },
       privacy: {
         journalPrivate: true,
-        facialAnalysisEnabled: false,
         crisisSupportVisible: true,
         lockScreenPrivate: true,
       },

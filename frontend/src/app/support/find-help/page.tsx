@@ -49,12 +49,13 @@ export default function FindHelpPage() {
         description="Search verified support resources. ECHO is not an emergency service or a substitute for professional care."
       />
 
+      <div className="mb-8">
       <EchoCard
         title="Search verified support"
         description="Results come from ECHO's reviewed support-resource directory."
       >
         <form
-          className="grid gap-3 lg:grid-cols-[1fr_260px_auto]"
+          className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto]"
           onSubmit={(event) => {
             event.preventDefault();
             void load();
@@ -84,13 +85,14 @@ export default function FindHelpPage() {
               <option value="counselling">Counselling</option>
             </select>
           </label>
-          <button type="submit" className="echo-button-primary justify-center px-6">
+          <button type="submit" className="echo-button-primary justify-center rounded-full px-6">
             Search
           </button>
         </form>
       </EchoCard>
+      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_350px]">
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_350px]">
         <section aria-live="polite">
           {isLoading ? (
             <div className="rounded-[1.5rem] border border-border/70 bg-card p-10 text-center text-sm text-muted-foreground">
@@ -108,11 +110,11 @@ export default function FindHelpPage() {
               <p className="mt-2 text-sm text-muted-foreground">Try a broader search or view all support types.</p>
             </div>
           ) : null}
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             {resources.map((resource) => (
               <article
                 key={resource.id}
-                className="rounded-[1.6rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(145deg,rgba(255,253,247,0.96),rgba(226,237,220,0.82))] p-6 shadow-[0_16px_42px_rgba(30,53,34,0.07)]"
+                className="rounded-[1.8rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(145deg,rgba(255,253,247,0.98),rgba(226,237,220,0.86))] p-6 shadow-[0_18px_46px_rgba(30,53,34,0.08)]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-primary">
@@ -129,7 +131,7 @@ export default function FindHelpPage() {
                 <h2 className="mt-2 text-2xl font-medium tracking-[-0.04em] text-foreground [font-family:var(--font-echo-display)]">
                   {resource.name}
                 </h2>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">{resource.description}</p>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{resource.description}</p>
                 {resource.availability ? (
                   <p className="mt-4 flex items-center gap-2 text-xs font-semibold text-primary">
                     <CalendarCheck2 className="h-4 w-4" />
@@ -163,11 +165,11 @@ export default function FindHelpPage() {
         </section>
 
         <aside className="space-y-6">
-          <EchoCard title="Before you reach out" description="A few details can help the call feel easier.">
+          <EchoCard title="Before you reach out" description="Keep it simple.">
             <ul className="space-y-3 text-sm leading-6 text-muted-foreground">
-              <li>• Choose a place where you feel as safe and private as possible.</li>
-              <li>• You can say only what you are ready to share.</li>
-              <li>• If there is immediate danger, contact local emergency services now.</li>
+              <li>• Move somewhere safer if you can.</li>
+              <li>• Share only what you are ready to say.</li>
+              <li>• In immediate danger, call emergency services.</li>
             </ul>
           </EchoCard>
           <PrivacyNotice />

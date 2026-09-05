@@ -20,6 +20,9 @@ function parseBoolean(value: string | undefined): boolean {
 function validateAdapter(value: string | undefined): DataAdapter {
   if (value === undefined) return "http";
   const lower = value.trim().toLowerCase();
+  if (lower === "mock" && process.env.NODE_ENV === "production") {
+    throw new Error("Mock data adapters are not permitted in production.");
+  }
   if (VALID_ADAPTER_VALUES.includes(lower as DataAdapter)) {
     return lower as DataAdapter;
   }

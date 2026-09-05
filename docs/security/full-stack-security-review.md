@@ -1,5 +1,7 @@
 # Full-stack security review
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 ## Fixed in this phase
 
 | Severity | Finding | Resolution |

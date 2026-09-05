@@ -1,5 +1,7 @@
 # ECHO Frontend — Current Architecture (Pre-MVVM Audit)
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > Audit date: 2026-07-13  
 > This document captures the baseline architecture **before** MVVM refactoring begins.
 

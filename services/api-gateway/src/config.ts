@@ -14,6 +14,7 @@ const schema = z.object({
   WELLNESS_SERVICE_TOKEN: z.string().min(32),
   INSIGHTS_SERVICE_TOKEN: z.string().min(32),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(5_000),
+  ANALYSIS_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(65_000),
   USER_SERVICE_URL: z.string().url(),
   JOURNAL_SERVICE_URL: z.string().url(),
   ASSESSMENT_SERVICE_URL: z.string().url(),

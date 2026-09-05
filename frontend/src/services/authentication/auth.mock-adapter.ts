@@ -29,48 +29,6 @@ export function createAuthMockAdapter(): AuthService {
       return { success: true, data: session };
     },
 
-    async signup(input) {
-      await delay(600 + Math.random() * 400);
-
-      const fieldErrors: Record<string, string[]> = {};
-      if (!input.name || input.name.trim().length < 2) {
-        fieldErrors.name = ["Name must be at least 2 characters."];
-      }
-      if (!input.email || !input.email.includes("@")) {
-        fieldErrors.email = ["Please enter a valid email address."];
-      }
-      if (!input.password || input.password.length < 8) {
-        fieldErrors.password = ["Password must be at least 8 characters."];
-      }
-      if (input.password !== input.confirmPassword) {
-        fieldErrors.confirmPassword = ["Passwords do not match."];
-      }
-      if (!input.termsAccepted) {
-        fieldErrors.termsAccepted = ["You must accept the terms of use."];
-      }
-      if (!input.privacyAcknowledged) {
-        fieldErrors.privacyAcknowledged = ["You must acknowledge the privacy policy."];
-      }
-      if (!input.dataProcessingAcknowledged) {
-        fieldErrors.dataProcessingAcknowledged = ["Please acknowledge how ECHO uses the information you provide."];
-      }
-      if (!input.aiFeatureAcknowledged) {
-        fieldErrors.aiFeatureAcknowledged = ["Please acknowledge the AI feature information."];
-      }
-
-      if (Object.keys(fieldErrors).length > 0) {
-        return { success: false, error: { code: "VALIDATION", message: "Please check the form for errors.", fieldErrors } };
-      }
-
-      const session: AuthSession = {
-        user: { id: "mock-user-new", name: input.name, email: input.email },
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        isMockSession: true,
-      };
-      currentSession = session;
-      return { success: true, data: session };
-    },
-
     async forgotPassword(input) {
       await delay(400 + Math.random() * 300);
       if (!input.email || !input.email.includes("@")) {

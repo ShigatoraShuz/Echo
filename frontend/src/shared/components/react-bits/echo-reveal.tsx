@@ -38,7 +38,7 @@ export function EchoReveal({
           setVisible(false);
         }
       },
-      { rootMargin: "0px 0px -6% 0px", threshold: 0.08 }
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
     );
 
     observer.observe(el);
@@ -46,14 +46,14 @@ export function EchoReveal({
   }, [once]);
 
   const directionStyles = {
-    up: variant === "text" ? "translate-y-6" : "translate-y-8",
-    down: variant === "text" ? "-translate-y-6" : "-translate-y-8",
-    left: variant === "text" ? "translate-x-6" : "translate-x-8",
-    right: variant === "text" ? "-translate-x-6" : "-translate-x-8",
+    up: variant === "text" ? "translate-y-4" : "translate-y-6",
+    down: variant === "text" ? "-translate-y-4" : "-translate-y-6",
+    left: variant === "text" ? "translate-x-4" : "translate-x-6",
+    right: variant === "text" ? "-translate-x-4" : "-translate-x-6",
     none: "",
   };
-  const resolvedDuration = duration ?? (variant === "text" ? 560 : 680);
-  const hiddenScale = variant === "text" ? "" : "scale-[0.975]";
+  const resolvedDuration = duration ?? (variant === "text" ? 620 : 720);
+  const hiddenScale = variant === "text" ? "" : "scale-[0.985]";
 
   return (
     <div

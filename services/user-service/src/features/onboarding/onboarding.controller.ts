@@ -4,24 +4,22 @@ import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { OnboardingService } from "./onboarding.service.js";
 
-const consentSchema = z.object({
-  terms: z.literal(true),
-  privacy: z.literal(true),
-  dataProcessing: z.literal(true),
-  aiInformation: z.boolean(),
-  journalAnalysis: z.boolean(),
-});
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
+  preferredName: z.string().trim().min(1).max(80).optional(),
   timezone: z.string().trim().min(1).max(100),
-  goals: z.string().trim().max(500).optional(),
-  buddyTone: z.string().trim().max(80).optional(),
-  startingMood: z.string().trim().max(80).optional(),
+  goals: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+  buddyTone: z.enum(["gentle", "grounded", "reflective"]).optional(),
+  preferredCheckInTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  startingMood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]).optional(),
 });
 const setupSchema = z.object({
   theme: z.enum(["light", "dark", "system"]).optional(),
   notifications: z.boolean().optional(),
-  facialAnalysis: z.boolean().optional(),
+  genderIdentity: z.enum(["woman", "man", "non_binary", "self_describe", "prefer_not_to_say"]).nullable().optional(),
+  genderSelfDescription: z.string().trim().max(80).nullable().optional(),
+  pronouns: z.enum(["she_her", "he_him", "they_them", "use_my_name", "self_describe", "prefer_not_to_say"]).nullable().optional(),
+  pronounsSelfDescription: z.string().trim().max(80).nullable().optional(),
 });
 
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -46,9 +44,6 @@ export function createOnboardingController(service: OnboardingService) {
   return {
     async getStatus(request: Request, response: Response) {
       sendSuccess(response, await service.getStatus(authenticatedUserId(request)));
-    },
-    async saveConsent(request: Request, response: Response) {
-      sendSuccess(response, await service.saveConsent(authenticatedUserId(request), parse(consentSchema, request.body)));
     },
     async saveProfile(request: Request, response: Response) {
       sendSuccess(response, await service.saveProfile(authenticatedUserId(request), parse(profileSchema, request.body)));

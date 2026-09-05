@@ -1,1 +1,0 @@
-export { useDashboardViewModel } from "./use-dashboard-view-model";

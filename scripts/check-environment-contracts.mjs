@@ -44,7 +44,7 @@ for (const [file, prefixes] of Object.entries(expectedTokens)) {
     violations.push(`${file}: service-token scope is ${actual.join(", ") || "empty"}; expected ${expected.join(", ") || "empty"}`);
   }
   for (const [name, value] of values) {
-    const privileged = /(?:SERVICE_ROLE_KEY|DATABASE_KEY|SERVICE_TOKEN|ENCRYPTION_KEY_BASE64)$/.test(name);
+    const privileged = /(?:SERVICE_ROLE_KEY|DATABASE_KEY|SERVICE_TOKEN|ENCRYPTION_KEY_BASE64|HMAC_SECRET)$/.test(name);
     if (privileged && value.trim()) violations.push(`${file}: privileged placeholder ${name} must be blank`);
   }
   if (values.has("INTERNAL_SERVICE_TOKEN")) violations.push(`${file}: deprecated shared INTERNAL_SERVICE_TOKEN is forbidden`);
@@ -86,6 +86,7 @@ const composeReferenceCounts = {
   RECOMMENDATION_SERVICE_TOKEN: 3,
   WELLNESS_SERVICE_TOKEN: 2,
   INSIGHTS_SERVICE_TOKEN: 2,
+  REGISTRATION_HMAC_SECRET: 1,
 };
 for (const [name, expected] of Object.entries(composeReferenceCounts)) {
   const actual = compose.split(`\${${name}}`).length - 1;

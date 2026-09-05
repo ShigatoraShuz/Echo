@@ -16,7 +16,7 @@ export interface ProfileSettingsInput {
 }
 
 export interface PrivacySettingsInput {
-  facialAnalysisEnabled?: boolean;
+  journalAiAnalysisEnabled?: boolean;
   crisisSupportVisible?: boolean;
   lockScreenPrivate?: boolean;
 }
@@ -110,7 +110,7 @@ export class SettingsService {
 
   async get(userId: string) {
     await this.ensureDefaults(userId);
-    const [profileResult, notificationResult, privacyResult, contactsResult, exportResult, deletionResult] =
+    const [profileResult, notificationResult, privacyResult, contactsResult, exportResult, deletionResult, consentResult] =
       await Promise.all([
         this.database
           .from("profiles")
@@ -126,7 +126,7 @@ export class SettingsService {
           .single(),
         this.database
           .from("privacy_preferences")
-          .select("facial_analysis_enabled, crisis_support_visible, lock_screen_private")
+          .select("crisis_support_visible, lock_screen_private")
           .eq("user_id", userId)
           .single(),
         this.database
@@ -151,6 +151,8 @@ export class SettingsService {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        this.database.from("user_consents").select("id").eq("user_id", userId)
+          .eq("consent_type", "journal_analysis").eq("accepted", true).is("revoked_at", null).limit(1),
       ]);
 
     if (
@@ -159,7 +161,7 @@ export class SettingsService {
       privacyResult.error ||
       contactsResult.error ||
       exportResult.error ||
-      deletionResult.error
+      deletionResult.error || consentResult.error
     ) {
       throw databaseError("Your settings could not be loaded.");
     }
@@ -179,8 +181,8 @@ export class SettingsService {
         avatarPath,
       },
       privacy: {
+        journalAiAnalysisEnabled: Boolean(consentResult.data?.length),
         journalPrivate: true,
-        facialAnalysisEnabled: booleanValue(privacy.facial_analysis_enabled),
         crisisSupportVisible: booleanValue(privacy.crisis_support_visible, true),
         lockScreenPrivate: booleanValue(privacy.lock_screen_private, true),
       },
@@ -284,8 +286,26 @@ export class SettingsService {
 
   async updatePrivacy(userId: string, input: PrivacySettingsInput) {
     await this.ensureDefaults(userId);
+    if (input.journalAiAnalysisEnabled !== undefined) {
+      const now = new Date().toISOString();
+      // Revoke every older version too, so a stale acceptance cannot authorize
+      // analysis after the user withdraws the current preference.
+      const revoked = await this.database.from("user_consents")
+        .update({ accepted: false, revoked_at: now })
+        .eq("user_id", userId).eq("consent_type", "journal_analysis");
+      if (revoked.error) throw databaseError("Analysis permission could not be updated.");
+      if (input.journalAiAnalysisEnabled) {
+        const policy = await this.database.from("registration_policy_documents").select("version")
+          .eq("document_type", "ai_analysis_notice").eq("is_active", true).single();
+        if (policy.error || !policy.data) throw databaseError("The current analysis notice is unavailable.");
+        const accepted = await this.database.from("user_consents").upsert({
+          user_id: userId, consent_type: "journal_analysis", consent_version: policy.data.version,
+          accepted: true, accepted_at: now, revoked_at: null, source: "settings",
+        }, { onConflict: "user_id,consent_type,consent_version" });
+        if (accepted.error) throw databaseError("Analysis permission could not be saved.");
+      }
+    }
     const updatePayload: Record<string, unknown> = {};
-    if (input.facialAnalysisEnabled !== undefined) updatePayload.facial_analysis_enabled = input.facialAnalysisEnabled;
     if (input.crisisSupportVisible !== undefined) updatePayload.crisis_support_visible = input.crisisSupportVisible;
     if (input.lockScreenPrivate !== undefined) updatePayload.lock_screen_private = input.lockScreenPrivate;
     if (Object.keys(updatePayload).length > 0) {

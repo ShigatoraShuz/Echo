@@ -24,9 +24,11 @@ export interface AesGcmEncryption { encrypt(plaintext: string): AesGcmPayload; d
 export function createAesGcmEncryption(keyBase64: string, keyVersion: number): AesGcmEncryption;
 export interface OwnedDatabase {
   from(table: string): ReturnType<SupabaseClient["from"]>;
+  rpc(functionName: string, args?: Record<string, unknown>): ReturnType<SupabaseClient["rpc"]>;
   storage: SupabaseClient["storage"];
 }
-export function createOwnedDatabase(options: { url: string; key: string; tables: readonly string[] }): OwnedDatabase;
+export function createOwnedDatabase(options: { url: string; key: string; tables: readonly string[]; functions?: readonly string[] }): OwnedDatabase;
+export function createAuthClient(url: string, publishableKey: string): SupabaseClient;
 export function signUserContext(options: { requestId: string; userId: string; timestamp: string; secret: string }): string;
 export function gatewayUserHeaders(options: { requestId: string; userId: string; secret: string }): Record<string, string>;
 export function requireGatewayUser(secret: string, maxAgeMs?: number): RequestHandler;

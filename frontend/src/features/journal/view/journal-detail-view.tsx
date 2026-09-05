@@ -75,7 +75,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
               <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
                 <Calendar className="h-3 w-3" /> {entry.createdAt}
               </span>
-              <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : "default"}>
+              <EchoBadge>
                 {entry.mood}
               </EchoBadge>
             </div>
@@ -115,40 +115,18 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         {/* RIGHT COLUMN: Metadata & Signal */}
         <aside className="space-y-6 lg:col-span-4">
           <EchoCard className="sticky top-6 border-slate-100 bg-slate-50/50">
-            <h2 className="mb-6 text-sm font-bold uppercase tracking-widest text-slate-400">Distress Signal</h2>
-            
-            <div className="flex flex-col items-center text-center">
-              <div
-                className="relative grid h-40 w-40 place-items-center rounded-full shadow-inner shadow-black/5"
-                style={{
-                  background: `conic-gradient(hsl(var(--risk-${entry.riskBand})) ${entry.riskScore * 3.6}deg, #e2e8f0 0deg)`,
-                }}
-              >
-                {/* Inner White Circle */}
-                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-2xl">
-                  <span className="text-4xl font-black text-slate-900 leading-none">{entry.riskScore}</span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">out of 100</span>
-                </div>
-              </div>
-
-              <div className="mt-8 space-y-3 px-4">
-                <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : entry.riskBand === "moderate" ? "warning" : "success"} className="px-4 py-1">
-                  Band: {entry.riskBand}
-                </EchoBadge>
-                <p className="text-xs leading-relaxed text-slate-500">
-                  This score is a private reflective signal to help you decide what might support you next. 
-                  <span className="mt-2 block font-bold text-slate-400 italic">Not a diagnosis.</span>
-                </p>
-              </div>
-            </div>
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-widest text-slate-400">Your reflection</h2>
+            <p className="text-sm leading-relaxed text-slate-500">
+              Your mood and emotion tags are self-reported. Optional analysis appears in the ECHO perspective panel only when a result is available. ECHO is not a diagnostic tool or emergency monitoring service.
+            </p>
           </EchoCard>
 
           {/* Quick Summary Card */}
-          <EchoCard title="Narrative Summary" className="border-slate-100">
+          {analysis && (!analysis.status || analysis.status === "completed") && <EchoCard title="Analysis summary" className="border-slate-100">
             <p className="text-sm leading-relaxed text-slate-600 italic">
-              &ldquo;{entry.summary}&rdquo;
+              &ldquo;{analysis.summary}&rdquo;
             </p>
-          </EchoCard>
+          </EchoCard>}
         </aside>
       </div>
 
@@ -157,8 +135,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         isDeleting={isDeleting}
         entryTitle={entry.title}
         onDelete={async () => {
-          await deleteEntry();
-          if (!isDeleting) router.push("/journal");
+          if (await deleteEntry()) router.push("/journal");
         }}
         onClose={() => setShowDeleteDialog(false)}
       />

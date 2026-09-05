@@ -1,1 +1,1 @@
-export { PolicyBlock, PublicTextPage } from "./components";
+export { AboutPageView, PolicyBlock, PrivacyPolicyView, PublicTextPage } from "./components";

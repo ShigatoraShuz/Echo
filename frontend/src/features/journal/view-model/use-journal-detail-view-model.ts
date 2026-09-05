@@ -85,6 +85,8 @@ export function useJournalDetailViewModel(id: string) {
           const analysisResult = await service.getAnalysis(entryId);
           if (analysisResult.success) {
             dispatch({ type: "ANALYSIS_LOAD_SUCCESS", analysis: analysisResult.data });
+          } else {
+            dispatch({ type: "ANALYSIS_ERROR", error: analysisResult.error.message });
           }
         }
       } else {
@@ -103,8 +105,10 @@ export function useJournalDetailViewModel(id: string) {
     const result = await service.deleteEntry(id);
     if (result.success) {
       dispatch({ type: "DELETE_SUCCESS" });
+      return true;
     } else {
       dispatch({ type: "DELETE_ERROR", error: result.error.message });
+      return false;
     }
   }, [id, service]);
 

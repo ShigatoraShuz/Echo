@@ -17,7 +17,6 @@ function createUnavailableAuthService(): AuthService {
 
   return {
     login: unavailable,
-    signup: unavailable,
     forgotPassword: unavailable,
     resetPassword: unavailable,
     getCurrentSession: unavailable,

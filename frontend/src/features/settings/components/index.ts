@@ -1,8 +1,5 @@
 export { EditableProfileForm } from "./editable-profile-form";
 export { AvatarUpload } from "./avatar-upload";
-export { ChangePasswordForm } from "./change-password-form";
-export { TwoFactorStatus } from "./two-factor-status";
-export { ActiveSessionsList } from "./active-sessions";
 export { SettingsHeader, SettingsSection, SettingsShell, SettingsSidebar } from "./settings-shell";
 export { NotificationToggles } from "./notification-toggles";
 export { QuietHoursSelector } from "./quiet-hours";

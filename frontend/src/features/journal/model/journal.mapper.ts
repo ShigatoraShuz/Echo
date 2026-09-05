@@ -23,9 +23,9 @@ function mapPrivacyStatus(status: string): JournalPrivacyStatus {
   return status === "shared" ? "shared" : "private";
 }
 
-function mapRiskBand(band: string): JournalRiskBand {
+function mapRiskBand(band: string | null): JournalRiskBand | null {
   const valid: JournalRiskBand[] = ["low", "mild", "moderate", "high", "severe"];
-  return valid.includes(band as JournalRiskBand) ? (band as JournalRiskBand) : "low";
+  return valid.includes(band as JournalRiskBand) ? (band as JournalRiskBand) : null;
 }
 
 export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalEntry {
@@ -64,6 +64,7 @@ export function mapDraftResponseToDomain(dto: JournalDraftResponseDTO): JournalD
 
 export function mapAnalysisResponseToDomain(dto: JournalAnalysisResponseDTO): JournalAnalysis {
   return {
+    status: dto.status,
     id: dto.id,
     entryId: dto.entry_id,
     summary: dto.summary,

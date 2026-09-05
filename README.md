@@ -39,7 +39,7 @@ See [the implemented architecture](docs/architecture/microservices.md), [respons
 
 The exact PowerShell/Bash commands, native-service startup options, expected health results, and role mapping are in [the deployment guide](docs/deployment.md). Preserve the encryption key when reusing any existing ciphertext.
 
-The frontend uses Supabase only for authentication. Signup/profile, journals, mood entries, Buddy, grounding, settings, insights, and analysis requests all use `/api/v1` through the Gateway.
+The frontend uses Supabase directly only for authentication sessions. Secure registration/account gates, profile/onboarding, journals, mood entries, Buddy, grounding, settings, notifications, insights, and analysis requests all use `/api/v1` through the Gateway.
 
 ## Local validation
 

@@ -38,7 +38,7 @@ Only NGINX is host-published by Compose. The browser uses `/api/v1`; it never se
 | Service | Runtime | Boundary and responsibility | Exposure | Dependencies | Start | Health |
 |---|---|---|---|---|---|---|
 | API Gateway | Node 24 / Express | Public routing, Supabase Auth validation, rate limits, correlation IDs, signed identity, timeout/error mapping | Internal to NGINX; sole application API edge | Supabase Auth and all domain APIs | `npm run dev -w @echo/api-gateway` | `/api/v1/health` |
-| User Service | Node 24 / Express | Profiles, onboarding, settings, consent, trusted contacts, exports/deletion requests, verification, notifications, audit recording | Internal | Supabase Data/Storage | `npm run dev -w @echo/user-service` | `/health` |
+| User Service | Node 24 / Express | Secure registration, account access gates, profiles, onboarding, settings, consent, trusted contacts, exports/deletion requests, verification, notifications, audit recording | Internal | Supabase Auth/Data/Storage | `npm run dev -w @echo/user-service` | `/health` |
 | Journal Service | Node 24 / Express | Encrypted journal CRUD and encrypted drafts; consented analysis-input API | Internal | Supabase Data | `npm run dev -w @echo/journal-service` | `/health` |
 | Assessment Service | Node 24 / Express | Encrypted mood entries and deterministic PHQ-8 screening calculation | Internal | Supabase Data | `npm run dev -w @echo/assessment-service` | `/health` |
 | Analysis Service | Python 3.12 / FastAPI | Analysis orchestration and result lifecycle; never loads models or reads journal tables | Internal | User, Journal, ML, Recommendation, Supabase Data | `uv run uvicorn app.main:app --port 8000` in `ai-service/` | `/health` |
@@ -54,7 +54,8 @@ Each service has its own package or Python project, entry point, environment fil
 
 Public gateway-compatible routes:
 
-- User: `/api/v1/onboarding/*`, `/api/v1/settings/*`, `/api/v1/verification*`, `/api/v1/admin/verifications*`
+- User (public pre-auth): `/api/v1/registration/*`
+- User (authenticated): `/api/v1/access/*`, `/api/v1/onboarding/*`, `/api/v1/settings/*`, `/api/v1/notifications*`, `/api/v1/verification*`, `/api/v1/admin/verifications*`
 - Journal: `/api/v1/journals` and `/api/v1/journals/draft`; CRUD by journal ID
 - Analysis: `POST /api/v1/journals/:id/analyze`, `GET /api/v1/journals/:id/analyses`
 - Assessment: `/api/v1/moods`, `POST /api/v1/assessments/phq8`
@@ -91,6 +92,7 @@ Production must provision a server-only Supabase JWT/API key for each custom rol
 | Canonical table | Owner/writer | Allowed readers | Cross-service rule / reason |
 |---|---|---|---|
 | `profiles` | User | User API only | Profile is account data |
+| `registration_policy_documents` | User | User API only | Versioned signup and access-gate policy source |
 | `user_consents` | User | User API only | Consent lifecycle and analysis gate |
 | `notification_preferences` | User | User API only | Insights reads via User API |
 | `privacy_preferences` | User | User API only | Account privacy policy |
@@ -122,6 +124,10 @@ Production must provision a server-only Supabase JWT/API key for each custom rol
 ## Major flows
 
 Authentication: browser signs in with Supabase Auth, sends the access token to the gateway, gateway verifies it with Supabase Auth, then signs the user/request context for the destination service. Internal services reject unsigned or stale identity headers.
+
+Registration: public browser requests still enter through the Gateway, which forwards only the registration route family. User Service applies origin checks and pre-auth rate limits, stores only HMAC-hashed draft/CSRF credentials through allow-listed security-definer RPCs, validates current policy IDs, and calls Supabase Auth with the publishable key. HttpOnly draft and Google challenge cookies are Secure except for explicitly forwarded loopback HTTP development traffic. Email drafts remain available for verification status/resend until expiry; verified Google signup drafts are consumed immediately.
+
+Access gating: after authentication, `/access/status` checks active account state, adult eligibility, the complete current policy set, and onboarding completion. Existing accounts can satisfy age and current-policy gates without bypassing the same User-owned records.
 
 Journal creation/retrieval: browser → gateway → Journal Service → role-scoped `journals`/`journal_drafts` tables. Plaintext is encrypted before persistence and decrypted only inside Journal Service.
 

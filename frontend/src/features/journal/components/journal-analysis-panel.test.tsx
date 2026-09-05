@@ -11,4 +11,10 @@ describe("JournalAnalysisPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Analyze reflection" }));
     expect(onAnalyze).toHaveBeenCalledOnce();
   });
+  it("shows failed analysis as retryable without showing a screening result", () => {
+    render(<JournalAnalysisPanel analysis={{ id: "a", entryId: "j", status: "failed", summary: "", perspective: "", moodInsight: "", riskIndication: "", isDemoData: false, createdAt: "" }} canAnalyze onAnalyze={vi.fn()} />);
+    expect(screen.getByRole("status")).toHaveTextContent("could not be completed");
+    expect(screen.getByRole("button", { name: "Analyze reflection" })).toBeInTheDocument();
+    expect(screen.queryByText("Risk indication")).not.toBeInTheDocument();
+  });
 });

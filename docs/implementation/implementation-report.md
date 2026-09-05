@@ -1,5 +1,7 @@
 # Non-AI integration implementation report
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 ## Delivered
 
 - Audited the current repository and documented ERD-to-migration differences.

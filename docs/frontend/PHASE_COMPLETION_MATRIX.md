@@ -1,5 +1,7 @@
 # ECHO Phase 0–6 Completion Matrix
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > Generated: 2026-07-14
 > Status: COMPLETE | PARTIAL | MISSING | BROKEN | NOT APPLICABLE | BACKEND DEPENDENT
 

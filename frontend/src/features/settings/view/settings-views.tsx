@@ -53,6 +53,7 @@ import type {
 
 import { settingsService } from "@/services/settings/settings.service";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import { loadExportJournals } from "../utils/load-export-journals";
 
 // -----------------------------------------------------------------------------
 // CONSTANTS
@@ -628,10 +629,6 @@ export function PrivacySettingsView() {
   useEffect(() => {
     if (settings) {
       setForm({
-        facialAnalysisEnabled:
-          settings.privacy
-            .facialAnalysisEnabled,
-
         crisisSupportVisible:
           settings.privacy
             .crisisSupportVisible,
@@ -708,7 +705,14 @@ export function PrivacySettingsView() {
                 disabled
                 onChange={() => {}}
                 label="Encrypted Records"
-                description="Content is owner-scoped. We cannot read your private thoughts."
+                description="Content is owner-scoped and encrypted at rest. Authorized services decrypt it only to provide requested features."
+              />
+
+              <Toggle
+                checked={form.journalAiAnalysisEnabled ?? false}
+                onChange={(value) => setForm({ ...form, journalAiAnalysisEnabled: value })}
+                label="Optional journal analysis"
+                description="Allow analysis when you explicitly request it for a consenting entry. Turning this off does not delete earlier results."
               />
 
               <Toggle
@@ -1075,7 +1079,7 @@ export function SecuritySettingsView() {
     setError(null);
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (resetError) throw resetError;
       setStatus("sent");
@@ -1146,7 +1150,7 @@ export function SecuritySettingsView() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              2FA is managed via your Supabase account settings. Contact support to enable it.
+              Two-factor authentication is not currently available in this deployment.
             </p>
           </div>
         </SettingsSection>
@@ -1287,7 +1291,7 @@ export function TrustedContactsSettingsView() {
                 How ECHO uses your support circle
               </strong>
               <p className="mt-1">
-                Your trusted contacts will only be displayed or notified if you experience elevated distress or choose to initiate contact. Your reflections remain private and are never shared automatically.
+                Keep contact details here for people you may choose to reach out to. ECHO does not automatically contact them or share your reflections.
               </p>
               <Link
                 href="/crisis"
@@ -1564,15 +1568,7 @@ export function ExportSettingsView() {
 
   const journalService = useMemo(() => getJournalService(), []);
 
-  const loadAllEntries = useCallback(async () => {
-    const result = await journalService.listEntries(
-      { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
-      1,
-      200,
-    );
-    if (!result.success) return [];
-    return result.data.entries;
-  }, [journalService]);
+  const loadAllEntries = useCallback(() => loadExportJournals(journalService), [journalService]);
 
   if (loading) {
     return (
@@ -1594,7 +1590,7 @@ export function ExportSettingsView() {
 
         <SettingsSection
           title="PDF Report"
-          description="A private, watermarked export only visible to you."
+          description="Generated on your device. Anyone with the downloaded file can read it; store it securely."
         >
           <ExportDataSection
             profile={settings?.profile ?? null}

@@ -12,9 +12,9 @@ export const ROUTES = {
     resetPassword: "/reset-password",
   },
   onboarding: {
-    consent: "/onboarding/consent",
-    profile: "/onboarding/profile",
-    setup: "/onboarding/setup",
+    index: "/onboarding",
+    age: "/onboarding/age",
+    policies: "/onboarding/policies",
   },
   dashboard: {
     index: "/dashboard",

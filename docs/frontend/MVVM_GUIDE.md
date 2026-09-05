@@ -1,5 +1,7 @@
 # ECHO MVVM Architecture Guide
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > Version 1.0 — Architecture specification for the ECHO frontend.
 > This document defines strict MVVM rules for the Next.js 15 App Router + React 19 implementation.
 

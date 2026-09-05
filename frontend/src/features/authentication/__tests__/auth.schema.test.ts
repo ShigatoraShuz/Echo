@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   validateLoginInput,
-  validateSignupInput,
   validateForgotPasswordInput,
   validateResetPasswordInput,
 } from "@/features/authentication/model/auth.schema";
@@ -34,120 +33,6 @@ describe("validateLoginInput", () => {
     const result = validateLoginInput({ email: "test@example.com", password: "" });
     expect(result.valid).toBe(false);
     expect(result.errors.password).toBeDefined();
-  });
-});
-
-describe("validateSignupInput", () => {
-  it("accepts valid signup input", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it("rejects short name", () => {
-    const result = validateSignupInput({
-      name: "A",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.name).toBeDefined();
-  });
-
-  it("rejects short password", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "Short1",
-      confirmPassword: "Short1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.password).toBeDefined();
-  });
-
-  it("rejects mismatched passwords", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "DifferentP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.confirmPassword).toBeDefined();
-  });
-
-  it("rejects unaccepted terms", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "StrongP@ss1",
-      termsAccepted: false,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.termsAccepted).toBeDefined();
-  });
-
-  it("rejects unacknowledged privacy", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: false,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.privacyAcknowledged).toBeDefined();
-  });
-
-  it("requires the data and AI feature disclosures but keeps journal analysis optional", () => {
-    const result = validateSignupInput({
-      name: "Mira",
-      email: "mira@example.com",
-      password: "StrongP@ss1",
-      confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: false,
-      aiFeatureAcknowledged: false,
-      journalAnalysisConsent: false,
-    });
-    expect(result.valid).toBe(false);
-    expect(result.errors.dataProcessingAcknowledged).toBeDefined();
-    expect(result.errors.aiFeatureAcknowledged).toBeDefined();
   });
 });
 

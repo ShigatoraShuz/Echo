@@ -36,52 +36,6 @@ describe("AuthMockAdapter", () => {
     });
   });
 
-  describe("signup", () => {
-    it("returns session for valid input", async () => {
-      const result = await adapter.signup({
-        name: "Mira",
-        email: "mira@example.com",
-        password: "StrongP@ss1",
-        confirmPassword: "StrongP@ss1",
-      termsAccepted: true,
-      privacyAcknowledged: true,
-      dataProcessingAcknowledged: true,
-      aiFeatureAcknowledged: true,
-      journalAnalysisConsent: false,
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.user.name).toBe("Mira");
-        expect(result.data.isMockSession).toBe(true);
-      }
-    });
-
-    it("returns validation errors for invalid input", async () => {
-      const result = await adapter.signup({
-        name: "",
-        email: "bad",
-        password: "short",
-        confirmPassword: "mismatch",
-      termsAccepted: false,
-      privacyAcknowledged: false,
-      dataProcessingAcknowledged: false,
-      aiFeatureAcknowledged: false,
-      journalAnalysisConsent: false,
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe("VALIDATION");
-        expect(result.error.fieldErrors).toBeDefined();
-        expect(result.error.fieldErrors!.name).toBeDefined();
-        expect(result.error.fieldErrors!.email).toBeDefined();
-        expect(result.error.fieldErrors!.password).toBeDefined();
-        expect(result.error.fieldErrors!.confirmPassword).toBeDefined();
-        expect(result.error.fieldErrors!.termsAccepted).toBeDefined();
-        expect(result.error.fieldErrors!.privacyAcknowledged).toBeDefined();
-      }
-    });
-  });
-
   describe("forgotPassword", () => {
     it("returns success message for valid email", async () => {
       const result = await adapter.forgotPassword({ email: "test@example.com" });

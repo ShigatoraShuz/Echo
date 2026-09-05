@@ -1,5 +1,7 @@
 # Migration risks
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 | Risk | Impact | Mitigation | Current state |
 | --- | --- | --- | --- |
 | Working UI changes are uncommitted | High | Add only isolated files; do not reset, stash, or move active assets | Mitigated |

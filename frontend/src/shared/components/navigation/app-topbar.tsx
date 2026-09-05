@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookOpen, LayoutDashboard, Leaf, MessageCircleHeart, PenLine } from "lucide-react";
+import { BookOpen, LayoutDashboard, Leaf, MessageCircleHeart, PenLine } from "lucide-react";
 import { AppProfileMenu } from "./app-profile-menu";
+import { NotificationBell } from "./notification-bell";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -48,10 +49,7 @@ export function AppTopbar() {
             <PenLine className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Write reflection</span>
           </Link>
-          <button type="button" className="relative grid h-10 w-10 place-items-center rounded-full border border-border/70 bg-card text-muted-foreground outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]" aria-label="Notifications">
-            <Bell className="h-4 w-4" aria-hidden="true" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-card" />
-          </button>
+          <NotificationBell />
           <AppProfileMenu />
         </div>
       </div>

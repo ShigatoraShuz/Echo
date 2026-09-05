@@ -1,5 +1,7 @@
 # Journal Feature — MVVM Specification
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > This document defines the **target architecture** for the Journal feature.
 > It serves as the first MVVM reference implementation for the ECHO frontend.
 > No code has been migrated yet. This is a specification.

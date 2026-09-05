@@ -26,7 +26,6 @@ describe("useSettingsViewModel", () => {
       },
       privacy: {
         journalPrivate: true,
-        facialAnalysisEnabled: false,
         crisisSupportVisible: true,
         lockScreenPrivate: true,
       },
@@ -79,7 +78,6 @@ describe("useSettingsViewModel", () => {
       },
       privacy: {
         journalPrivate: true,
-        facialAnalysisEnabled: false,
         crisisSupportVisible: true,
         lockScreenPrivate: true,
       },

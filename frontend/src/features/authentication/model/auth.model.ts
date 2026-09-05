@@ -12,18 +12,6 @@ export interface LoginInput {
   rememberSession: boolean;
 }
 
-export interface SignupInput {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  termsAccepted: boolean;
-  privacyAcknowledged: boolean;
-  dataProcessingAcknowledged: boolean;
-  aiFeatureAcknowledged: boolean;
-  journalAnalysisConsent: boolean;
-}
-
 export interface ForgotPasswordInput {
   email: string;
 }

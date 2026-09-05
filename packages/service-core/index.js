@@ -60,12 +60,13 @@ export function createAesGcmEncryption(keyBase64, keyVersion) {
   };
 }
 
-export function createOwnedDatabase({ url, key, tables }) {
+export function createOwnedDatabase({ url, key, tables, functions = [] }) {
   const client = createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
     db: { schema: "public" },
   });
   const owned = new Set(tables);
+  const callable = new Set(functions);
   return {
     from(table) {
       if (!owned.has(table)) {
@@ -73,8 +74,21 @@ export function createOwnedDatabase({ url, key, tables }) {
       }
       return client.from(table);
     },
+    rpc(functionName, args) {
+      if (!callable.has(functionName)) {
+        throw new ServiceError(500, "DATABASE_OWNERSHIP_VIOLATION", `This service cannot call function ${functionName}.`);
+      }
+      return client.rpc(functionName, args);
+    },
     storage: client.storage,
   };
+}
+
+export function createAuthClient(url, publishableKey) {
+  return createClient(url, publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    db: { schema: "public" },
+  });
 }
 
 function signaturePayload(requestId, userId, timestamp) {

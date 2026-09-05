@@ -1,5 +1,7 @@
 # ECHO Threat Model
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 - Date: 2026-08-17
 - Companion: [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)
 - Posture: Zero Trust + Least Privilege + Defense in Depth + Privacy by Design

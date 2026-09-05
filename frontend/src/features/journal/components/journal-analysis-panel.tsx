@@ -10,19 +10,21 @@ interface JournalAnalysisPanelProps {
 }
 
 export function JournalAnalysisPanel({ analysis, isLoading, canAnalyze = false, error, onAnalyze }: JournalAnalysisPanelProps) {
-  if (isLoading) {
+  if (isLoading || analysis?.status === "processing" || analysis?.status === "pending") {
     return (
       <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
         <h3 className="text-base font-semibold text-foreground">ECHO perspective</h3>
         <p className="mt-2 text-sm text-muted-foreground animate-pulse">Preparing reflection summary...</p>
+        {!isLoading && <p className="mt-2 text-xs text-muted-foreground">Refresh this page to check the result. Your journal remains saved.</p>}
       </div>
     );
   }
 
-  if (!analysis) {
+  if (!analysis || analysis.status === "failed") {
     return (
       <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
         <h3 className="text-base font-semibold text-foreground">ECHO perspective</h3>
+        {analysis?.status === "failed" && <p role="status" className="mt-2 text-sm">Analysis could not be completed. Your reflection remains saved. You can retry when the service is available.</p>}
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           {canAnalyze
             ? "Request an ECHO perspective when you are ready. Analysis uses the consent saved with this reflection."

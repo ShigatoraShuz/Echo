@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
@@ -85,6 +86,7 @@ function TokenSwatch({ token }: { token: string }) {
 }
 
 export default function DesignSystemPage() {
+  if (process.env.NODE_ENV === "production") notFound();
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 xl:px-10">

@@ -7,14 +7,21 @@ export interface ConsentOption {
 
 export interface OnboardingProfile {
   displayName: string;
+  preferredName?: string;
   timezone: string;
-  goals: string;
+  goals: string[];
   buddyTone: string;
+  preferredCheckInTime?: string;
+  startingMood?: "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
 }
 
 export interface OnboardingSetup {
   theme: "light" | "dark" | "system";
   notifications: boolean;
+  genderIdentity?: "woman" | "man" | "non_binary" | "self_describe" | "prefer_not_to_say" | null;
+  genderSelfDescription?: string | null;
+  pronouns?: "she_her" | "he_him" | "they_them" | "use_my_name" | "self_describe" | "prefer_not_to_say" | null;
+  pronounsSelfDescription?: string | null;
 }
 
 export interface OnboardingData {

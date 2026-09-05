@@ -25,6 +25,7 @@ const values = {
   RECOMMENDATION_SERVICE_DATABASE_KEY: roleJwt("recommendation_service_role"),
   WELLNESS_SERVICE_DATABASE_KEY: roleJwt("wellness_service_role"),
   USER_SERVICE_TOKEN: token(),
+  REGISTRATION_HMAC_SECRET: token(),
   JOURNAL_SERVICE_TOKEN: token(),
   ASSESSMENT_SERVICE_TOKEN: token(),
   ANALYSIS_SERVICE_TOKEN: token(),

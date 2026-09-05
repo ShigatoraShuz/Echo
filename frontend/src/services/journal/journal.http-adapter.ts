@@ -162,6 +162,8 @@ export function createJournalHttpAdapter(): JournalService {
       try {
         const response = await client.post<{ success: true; data: JournalAnalysisResponseDTO }>(
           `/journals/${entryId}/analyze`,
+          undefined,
+          { timeout: 70_000 },
         );
         return { success: true, data: mapAnalysisResponseToDomain(response.data) };
       } catch (error) {

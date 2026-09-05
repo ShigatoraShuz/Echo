@@ -1,1 +1,0 @@
-export type { DashboardData, UserProfile, QuickAction, TrendPoint } from "./dashboard.model";

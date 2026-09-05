@@ -196,7 +196,7 @@ export function ArcGalleryHero({
                     width={dimensions.cardSize}
                     height={dimensions.cardSize}
                     sizes={`${dimensions.cardSize}px`}
-                    priority={index === 0 || index === 4 || index === 5}
+                    priority={index === 0 || index === 1 || index === 4 || index === 5}
                     className="block h-full w-full object-cover"
                     draggable={false}
                   />

@@ -9,6 +9,7 @@ import type { GatewayConfig } from "./config.js";
 
 type User = { id: string };
 type TokenVerifier = (token: string) => Promise<User | null>;
+type AccessChecker = (userId: string, requestId: string) => Promise<string>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type ServiceUrlKey = keyof Pick<GatewayConfig,
@@ -19,7 +20,7 @@ type ServiceTokenKey = keyof Pick<GatewayConfig,
   "RECOMMENDATION_SERVICE_TOKEN" | "WELLNESS_SERVICE_TOKEN" | "INSIGHTS_SERVICE_TOKEN">;
 const routeTable: Array<[RegExp, ServiceUrlKey, ServiceTokenKey]> = [
   [/^\/journals\/[^/]+\/(analyze|analyses)(?:\/|$)/, "ANALYSIS_SERVICE_URL", "ANALYSIS_SERVICE_TOKEN"],
-  [/^\/(settings|onboarding|verification|admin)(?:\/|$)/, "USER_SERVICE_URL", "USER_SERVICE_TOKEN"],
+  [/^\/(settings|onboarding|verification|admin|access|registration|notifications)(?:\/|$)/, "USER_SERVICE_URL", "USER_SERVICE_TOKEN"],
   [/^\/journals(?:\/|$)/, "JOURNAL_SERVICE_URL", "JOURNAL_SERVICE_TOKEN"],
   [/^\/(assessments|moods)(?:\/|$)/, "ASSESSMENT_SERVICE_URL", "ASSESSMENT_SERVICE_TOKEN"],
   [/^\/recommendations(?:\/|$)/, "RECOMMENDATION_SERVICE_URL", "RECOMMENDATION_SERVICE_TOKEN"],
@@ -28,7 +29,7 @@ const routeTable: Array<[RegExp, ServiceUrlKey, ServiceTokenKey]> = [
 ];
 
 function publicRoute(request: Request): boolean {
-  return request.method === "GET" && request.path.startsWith("/support-resources");
+  return request.path.startsWith("/registration") || (request.method === "GET" && request.path.startsWith("/support-resources"));
 }
 
 async function rawRequestBody(request: Request): Promise<Buffer | undefined> {
@@ -39,11 +40,25 @@ async function rawRequestBody(request: Request): Promise<Buffer | undefined> {
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
-export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier) {
+export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier, accessChecker?: AccessChecker) {
   const authClient = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const verify = verifier ?? (async (token: string) => {
     const { data, error } = await authClient.auth.getUser(token);
     return error || !data.user ? null : { id: data.user.id };
+  });
+  const checkAccess = accessChecker ?? (async (userId: string, requestId: string) => {
+    try {
+      const result = await fetch(`${config.USER_SERVICE_URL.replace(/\/$/, "")}/api/v1/access/status`, {
+        headers: gatewayUserHeaders({ userId, requestId, secret: config.USER_SERVICE_TOKEN }),
+        signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
+      });
+      if (!result.ok) throw new Error("Access check rejected");
+      const payload = await result.json() as { data?: { decision?: string } };
+      if (!payload.data?.decision) throw new Error("Invalid access response");
+      return payload.data.decision;
+    } catch {
+      throw new ServiceError(503, "ACCESS_CHECK_UNAVAILABLE", "Account access could not be checked.");
+    }
   });
   const app = express();
   app.disable("x-powered-by");
@@ -79,14 +94,25 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
         if (scheme?.toLowerCase() !== "bearer" || !token) throw new ServiceError(401, "AUTHENTICATION_REQUIRED", "Authentication is required.");
         try { user = await verify(token); } catch { user = null; }
         if (!user) throw new ServiceError(401, "INVALID_ACCESS_TOKEN", "Your session is invalid or expired.");
+        // Access endpoints let eligible legacy accounts finish their gates. All
+        // domain APIs enforce the decision, independently of frontend routing.
+        if (!/^\/access(?:\/|$)/.test(request.path)) {
+          const decision = await checkAccess(user.id, request.requestId);
+          const completingOnboarding = decision === "ONBOARDING_REQUIRED" && /^\/onboarding(?:\/|$)/.test(request.path);
+          if (decision !== "ACCESS_GRANTED" && !completingOnboarding) {
+            throw new ServiceError(403, decision, "Complete the required account access steps before using this feature.");
+          }
+        }
       }
       const upstream = config[match[1]].replace(/\/$/, "");
       const headers = new Headers();
-      for (const name of ["content-type", "accept"]) {
+      for (const name of ["content-type", "accept", "cookie", "origin", "x-echo-csrf"]) {
         const value = request.header(name);
         if (value) headers.set(name, value);
       }
       headers.set("x-request-id", request.requestId);
+      headers.set("x-forwarded-host", request.get("host") ?? "");
+      headers.set("x-forwarded-proto", request.protocol);
       if (user) {
         for (const [name, value] of Object.entries(gatewayUserHeaders({ requestId: request.requestId, userId: user.id, secret: config[match[2]] }))) headers.set(name, value);
       }
@@ -97,7 +123,7 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
           method: request.method,
           headers,
           body: body as unknown as BodyInit | undefined,
-          signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(match[1] === "ANALYSIS_SERVICE_URL" ? config.ANALYSIS_REQUEST_TIMEOUT_MS : config.REQUEST_TIMEOUT_MS),
         });
       } catch (error) {
         const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
@@ -106,6 +132,8 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
       const contentType = upstreamResponse.headers.get("content-type");
       const responseBody = Buffer.from(await upstreamResponse.arrayBuffer());
       if (contentType) response.setHeader("content-type", contentType);
+      const setCookies = (upstreamResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+      for (const cookie of setCookies) response.append("set-cookie", cookie);
       response.status(upstreamResponse.status).send(responseBody);
     } catch (error) { next(error); }
   });

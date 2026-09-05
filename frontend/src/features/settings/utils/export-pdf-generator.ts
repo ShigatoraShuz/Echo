@@ -1,7 +1,6 @@
 /**
  * ECHO PDF Data Export Generator
- * Builds a clean, watermarked PDF report from journal entries, AI analyses,
- * mood distributions, and distress risk scores.
+ * Builds a watermarked PDF report from journal text and self-reported moods.
  *
  * Uses jsPDF for client-side PDF generation — no server round-trip required.
  */
@@ -27,16 +26,6 @@ const PALETTE = {
   warn:      [204, 140, 50]  as const,
   safe:      [70,  160, 90]  as const,
 } as const;
-
-function riskColor(band: string): readonly [number, number, number] {
-  switch (band) {
-    case "severe":   return PALETTE.danger;
-    case "high":     return [200, 80, 60];
-    case "moderate": return PALETTE.warn;
-    case "mild":     return [180, 165, 60];
-    default:         return PALETTE.safe;
-  }
-}
 
 function moodEmoji(mood: string): string {
   const map: Record<string, string> = {
@@ -183,10 +172,6 @@ export async function generateEchoPdfExport({
     return acc;
   }, {});
   const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-  const avgRisk =
-    totalEntries > 0
-      ? Math.round(entries.reduce((s, e) => s + e.riskScore, 0) / totalEntries)
-      : 0;
 
   setFont("bold", 13, PALETTE.text);
   doc.text("Wellbeing at a Glance", MARGIN, y);
@@ -195,7 +180,7 @@ export async function generateEchoPdfExport({
   const stats = [
     { label: "Total Reflections", value: String(totalEntries) },
     { label: "Primary Mood", value: moodEmoji(topMood) },
-    { label: "Avg. Distress Score", value: `${avgRisk} / 100` },
+    { label: "Mood Categories", value: String(Object.keys(moodCounts).length) },
   ];
 
   const colW = CONTENT_W / 3;
@@ -246,7 +231,7 @@ export async function generateEchoPdfExport({
   // ── Journal entries ───────────────────────────────────────────────────────
 
   setFont("bold", 14, PALETTE.primary);
-  doc.text("Journal Entries & AI Reflections", MARGIN, y);
+  doc.text("Journal Entries", MARGIN, y);
   y += 10;
 
   if (entries.length === 0) {
@@ -277,13 +262,6 @@ export async function generateEchoPdfExport({
 
     y += 16;
 
-    // Mood + risk badge
-    const [rc0, rc1, rc2] = riskColor(entry.riskBand);
-    doc.setFillColor(rc0, rc1, rc2);
-    doc.roundedRect(MARGIN, y, 32, 7, 2, 2, "F");
-    setFont("bold", 7.5, PALETTE.white);
-    doc.text(entry.riskBand.toUpperCase(), MARGIN + 2.5, y + 4.8);
-
     doc.setFillColor(...PALETTE.primaryBg);
     doc.roundedRect(MARGIN + 35, y, 32, 7, 2, 2, "F");
     setFont("normal", 7.5, PALETTE.muted);
@@ -300,13 +278,16 @@ export async function generateEchoPdfExport({
 
     y += 12;
 
-    // Body excerpt
-    if (entry.excerpt) {
+    // Full journal text, not a truncated excerpt.
+    if (entry.body) {
       setFont("italic", 9, PALETTE.muted);
-      const excerptLines = doc.splitTextToSize(`"${entry.excerpt}"`, CONTENT_W);
-      newPageIfNeeded(excerptLines.length * 5 + 6);
-      doc.text(excerptLines, MARGIN, y);
-      y += excerptLines.length * 5 + 4;
+      const bodyLines: string[] = doc.splitTextToSize(entry.body, CONTENT_W);
+      for (const line of bodyLines) {
+        newPageIfNeeded(6);
+        doc.text(line, MARGIN, y);
+        y += 5;
+      }
+      y += 4;
     }
 
     // AI Perspective
@@ -325,17 +306,6 @@ export async function generateEchoPdfExport({
       doc.text(perspLines, MARGIN + 5, y);
       y += perspLines.length * 4.8 + 4;
     }
-
-    // Risk score mini-bar
-    setFont("normal", 8, PALETTE.muted);
-    doc.text(`Distress score: ${entry.riskScore}/100`, MARGIN, y + 3.5);
-    const barTotal = CONTENT_W * 0.35;
-    doc.setFillColor(...PALETTE.primaryBg);
-    doc.roundedRect(MARGIN + 38, y, barTotal, 5, 1.5, 1.5, "F");
-    const [fr0, fr1, fr2] = riskColor(entry.riskBand);
-    doc.setFillColor(fr0, fr1, fr2);
-    const filled = barTotal * Math.min(1, entry.riskScore / 100);
-    if (filled > 0) doc.roundedRect(MARGIN + 38, y, filled, 5, 1.5, 1.5, "F");
 
     y += 12;
     drawHRule(y, [220, 228, 210]);

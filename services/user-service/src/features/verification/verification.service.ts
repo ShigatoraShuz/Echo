@@ -11,7 +11,7 @@ import {
 } from "../../shared/errors/app-error.js";
 
 export const VERIFICATION_CONSENT_VERSION = "identity-verification-v1";
-export const MINIMUM_ACCOUNT_AGE = 13;
+export const MINIMUM_ACCOUNT_AGE = 18;
 export const ADULT_AGE = 18;
 export const VERIFICATION_BUCKET = "verification-documents";
 

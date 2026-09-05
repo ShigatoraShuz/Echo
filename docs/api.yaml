@@ -14,6 +14,97 @@ paths:
       summary: Gateway liveness
       responses:
         "200": { description: Healthy }
+  /registration/policies:
+    get:
+      security: []
+      summary: Get the complete active signup policy set
+      responses: { "200": { description: Three versioned policy documents }, "503": { description: Policies unavailable } }
+  /registration/eligibility:
+    post:
+      security: []
+      summary: Verify adult eligibility and start a signed registration draft
+      responses: { "200": { description: Eligibility result and secure draft cookies }, "400": { description: Invalid date or origin } }
+  /registration/agreements:
+    post:
+      security: []
+      summary: Record review of the current required policy set and optional analysis choice
+      responses: { "200": { description: Registration draft advanced }, "409": { description: Draft expired or policy set changed } }
+  /registration/email:
+    post:
+      security: []
+      summary: Create an email/password account from an approved registration draft
+      responses: { "201": { description: Verification email pending }, "409": { description: Signup rejected or draft invalid } }
+  /registration/status:
+    get:
+      security: []
+      summary: Get signed email-verification draft status
+      responses: { "200": { description: Registration status }, "409": { description: Draft expired } }
+  /registration/resend:
+    post:
+      security: []
+      summary: Resend a pending email-verification link
+      responses: { "200": { description: Verification email sent }, "409": { description: Cooldown or no pending verification } }
+  /registration/google/nonce:
+    post:
+      security: []
+      summary: Create a one-time Google signup nonce for an approved draft
+      responses: { "200": { description: Raw and SHA-256 Google nonce values } }
+  /registration/google/bind:
+    post:
+      security: []
+      summary: Verify and bind a Google identity to an approved signup draft
+      responses: { "200": { description: Google signup reservation }, "400": { description: Invalid identity or nonce } }
+  /registration/google/login-nonce:
+    post:
+      security: []
+      summary: Create a short-lived HttpOnly Google login challenge
+      responses: { "200": { description: Raw and SHA-256 Google nonce values } }
+  /registration/google/login-challenge:
+    post:
+      security: []
+      summary: Confirm the browser returned its signed Google login challenge cookie
+      responses: { "200": { description: Challenge ready }, "400": { description: Missing, mismatched, or expired challenge } }
+  /registration/google/login-status:
+    post:
+      security: []
+      summary: Verify Google identity and determine safe login/link/signup behavior
+      responses: { "200": { description: Existing, link-required, or new-account status }, "400": { description: Invalid identity or challenge } }
+  /access/status:
+    get:
+      summary: Evaluate account, age, current-policy, and onboarding gates
+      responses: { "200": { description: Access decision and onboarding step } }
+  /access/age:
+    post:
+      summary: Record adult eligibility for an existing account
+      responses: { "200": { description: Eligibility recorded }, "400": { description: Invalid or ineligible birthday } }
+  /access/policies:
+    post:
+      summary: Accept the complete current policy set for an existing account
+      responses: { "200": { description: Current policies accepted }, "400": { description: Stale or incomplete policy identifiers } }
+  /notifications:
+    get:
+      summary: List owner-scoped notifications
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [all, unread], default: all }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses: { "200": { description: Notifications } }
+  /notifications/read-all:
+    patch:
+      summary: Mark all owner-scoped notifications read
+      responses: { "200": { description: Updated recent notifications } }
+  /notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Mark one owner-scoped notification read
+      responses: { "200": { description: Updated notification }, "404": { description: Notification not found } }
   /journals:
     get:
       summary: List the authenticated user's journal entries
@@ -210,10 +301,6 @@ paths:
     get:
       summary: Get onboarding status
       responses: { "200": { description: Onboarding status } }
-  /onboarding/consent:
-    post:
-      summary: Save onboarding consent choices
-      responses: { "200": { description: Consent saved } }
   /onboarding/profile:
     post:
       summary: Save onboarding profile data

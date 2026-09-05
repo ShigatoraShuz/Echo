@@ -1,5 +1,7 @@
 # ECHO Codebase Audit
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 > Audit date: 2026-07-14
 > Auditor: Automated codebase analysis
 

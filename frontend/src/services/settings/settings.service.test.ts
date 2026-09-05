@@ -8,12 +8,16 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
+const tokenProvider = vi.hoisted(() => ({
+  getAccessToken: vi.fn(),
+}));
+
 vi.mock("@/infrastructure/api/api-client", () => ({
   createApiClient: () => api,
 }));
 
 vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
-  supabaseAuthTokenProvider: {},
+  supabaseAuthTokenProvider: tokenProvider,
 }));
 
 import { settingsService } from "@/services/settings/settings.service";
@@ -27,7 +31,6 @@ const snapshot = {
   },
   privacy: {
     journalPrivate: true,
-    facialAnalysisEnabled: false,
     crisisSupportVisible: true,
     lockScreenPrivate: true,
   },
@@ -48,6 +51,7 @@ const snapshot = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("settingsService", () => {
@@ -86,10 +90,27 @@ describe("settingsService", () => {
   });
 
   it("uses explicit endpoints for export and deletion recovery", async () => {
-    api.post.mockResolvedValue({ success: true, data: snapshot });
-    api.patch.mockResolvedValue({ success: true, data: snapshot });
+    const exportRequest = {
+        id: "export-1",
+        status: "requested" as const,
+        requestedAt: "2026-08-25T00:00:00.000Z",
+        completedAt: null,
+        expiresAt: null,
+    };
+    const deletionRequest = {
+      id: "delete-1",
+      status: "pending" as const,
+      requestedAt: "2026-08-25T00:00:00.000Z",
+      scheduledFor: "2026-09-24T00:00:00.000Z",
+      cancelledAt: null,
+      completedAt: null,
+    };
+    api.post
+      .mockResolvedValueOnce({ success: true, data: exportRequest })
+      .mockResolvedValueOnce({ success: true, data: deletionRequest });
+    api.patch.mockResolvedValue({ success: true, data: { ...deletionRequest, status: "cancelled" } });
 
-    await settingsService.requestExport();
+    await expect(settingsService.requestExport()).resolves.toEqual(exportRequest);
     await settingsService.requestDeletion();
     await settingsService.cancelDeletion("request/1");
 
@@ -99,4 +120,5 @@ describe("settingsService", () => {
       "/settings/account-deletion/request%2F1/cancel",
     );
   });
+
 });

@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
 import { AuthFormField } from "../components/auth-form-field";
 import { AuthStatusMessage } from "../components/auth-status-message";
-import { AuthDivider, GoogleAuthButton } from "../components/google-auth-button";
+import { AuthDivider } from "../components/auth-divider";
+import { SecureGoogleLoginButton } from "../components/secure-google-login-button";
 import { PasswordField } from "../components/password-field";
 import { useLoginViewModel } from "../view-model/use-login-view-model";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
+import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoCheckbox } from "@/shared/components/ui/echo-checkbox";
 import { safeRedirectPath } from "@/shared/lib/safe-redirect";
@@ -19,12 +21,31 @@ interface LoginViewProps {
   description: string;
 }
 
+const loginRouteMessages: Record<string, string> = {
+  login_required: "Please log in to continue. This page is only available to signed-in users.",
+  auth_not_configured: "Sign-in is temporarily unavailable because authentication is not configured.",
+  access_check_unavailable: "We could not verify access to your account. Please log in again.",
+  account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
+  email_verification_required: "Verify your email address before logging in.",
+  sign_in_session_expired: "Your sign-in session expired. Please log in again.",
+  google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
+};
+
 export function LoginView({ title, description }: LoginViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
-    email, password, rememberSession, showPassword,
-    status, error, fieldErrors,
-    setEmail, setPassword, setRememberSession, togglePasswordVisibility,
+    email,
+    password,
+    rememberSession,
+    showPassword,
+    status,
+    error,
+    fieldErrors,
+    setEmail,
+    setPassword,
+    setRememberSession,
+    togglePasswordVisibility,
     submit,
   } = useLoginViewModel();
 
@@ -34,21 +55,18 @@ export function LoginView({ title, description }: LoginViewProps) {
 
     const session = await submit();
     if (session) {
-      const next =
-        typeof window === "undefined"
-          ? "/dashboard"
-          : safeRedirectPath(new URLSearchParams(window.location.search).get("next"));
+      const next = safeRedirectPath(searchParams.get("next"));
       router.replace(next);
       router.refresh();
     }
   };
 
-  const googleNext =
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next");
+  const routeError = searchParams.get("error");
+  const routeMessage = routeError ? loginRouteMessages[routeError] : undefined;
 
   return (
     <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
-      <EchoReveal direction="up">
+      <EchoReveal direction="down" duration={260}>
         <section className="rounded-[1.75rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-5 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.16)] backdrop-blur-md sm:px-6 sm:py-6 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
           <header className="text-center">
             <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] shadow-[0_10px_24px_rgba(41,49,27,0.1)]">
@@ -60,8 +78,12 @@ export function LoginView({ title, description }: LoginViewProps) {
             <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-[var(--landing-muted)]">{description}</p>
           </header>
 
+          {routeMessage ? (
+            <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
+          ) : null}
+
           <div className="mt-4 space-y-2">
-            <GoogleAuthButton intent="login" next={googleNext} />
+            <SecureGoogleLoginButton />
             <AuthDivider />
           </div>
 
@@ -97,7 +119,10 @@ export function LoginView({ title, description }: LoginViewProps) {
                 checked={rememberSession}
                 onChange={(event) => setRememberSession(event.target.checked)}
               />
-              <Link href="/forgot-password" className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+              <Link
+                href="/forgot-password"
+                className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+              >
                 Forgot password?
               </Link>
             </div>
@@ -126,7 +151,10 @@ export function LoginView({ title, description }: LoginViewProps) {
             </div>
             <p className="mt-2 text-xs text-[var(--landing-muted)]">
               New to ECHO?{" "}
-              <Link href="/signup" className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+              <Link
+                href="/signup"
+                className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+              >
                 Create an account
               </Link>
             </p>
@@ -134,7 +162,10 @@ export function LoginView({ title, description }: LoginViewProps) {
         </section>
       </EchoReveal>
 
-      <Link href="/" className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]">
+      <Link
+        href="/"
+        className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+      >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Return home
       </Link>

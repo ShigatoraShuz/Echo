@@ -13,7 +13,7 @@ const profileSchema = z.object({
 }).partial();
 
 const privacySchema = z.object({
-  facialAnalysisEnabled: z.boolean(),
+  journalAiAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
   lockScreenPrivate: z.boolean(),
 }).partial();

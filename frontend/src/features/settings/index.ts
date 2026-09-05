@@ -9,9 +9,6 @@ export {
 export {
   EditableProfileForm,
   AvatarUpload,
-  ChangePasswordForm,
-  TwoFactorStatus,
-  ActiveSessionsList,
   SettingsHeader,
   SettingsSection,
   SettingsShell,

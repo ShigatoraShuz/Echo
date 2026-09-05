@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@echo/service-core": "0.1.0",
+    "@supabase/supabase-js": "^2.110.8",
     "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "google-auth-library": "^10.5.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

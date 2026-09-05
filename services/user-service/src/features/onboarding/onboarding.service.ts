@@ -1,29 +1,24 @@
 import type { OwnedDatabase } from "@echo/service-core";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
 
-export interface OnboardingConsentInput {
-  terms: boolean;
-  privacy: boolean;
-  dataProcessing: boolean;
-  aiInformation: boolean;
-  journalAnalysis: boolean;
-}
-
 export interface OnboardingProfileInput {
   displayName: string;
+  preferredName?: string;
   timezone: string;
-  goals?: string;
+  goals?: string[];
   buddyTone?: string;
+  preferredCheckInTime?: string;
   startingMood?: string;
 }
 
 export interface OnboardingSetupInput {
   theme?: "light" | "dark" | "system";
   notifications?: boolean;
-  facialAnalysis?: boolean;
+  genderIdentity?: string | null;
+  genderSelfDescription?: string | null;
+  pronouns?: string | null;
+  pronounsSelfDescription?: string | null;
 }
-
-const CONSENT_VERSION = "2026-07-25";
 
 export class OnboardingService {
   constructor(private readonly database: OwnedDatabase) {}
@@ -45,74 +40,28 @@ export class OnboardingService {
     }
   }
 
-  async saveConsent(userId: string, input: OnboardingConsentInput) {
-    await this.ensureDefaults(userId);
-    const recordedAt = new Date().toISOString();
-
-    const consentEntries = [
-      {
-        user_id: userId,
-        consent_type: "terms_of_use",
-        consent_version: CONSENT_VERSION,
-        accepted: Boolean(input.terms),
-        accepted_at: input.terms ? recordedAt : null,
-        source: "onboarding",
-      },
-      {
-        user_id: userId,
-        consent_type: "privacy_policy",
-        consent_version: CONSENT_VERSION,
-        accepted: Boolean(input.privacy),
-        accepted_at: input.privacy ? recordedAt : null,
-        source: "onboarding",
-      },
-      {
-        user_id: userId,
-        consent_type: "data_processing_notice",
-        consent_version: CONSENT_VERSION,
-        accepted: Boolean(input.dataProcessing),
-        accepted_at: input.dataProcessing ? recordedAt : null,
-        source: "onboarding",
-      },
-      {
-        user_id: userId,
-        consent_type: "ai_feature_notice",
-        consent_version: CONSENT_VERSION,
-        accepted: Boolean(input.aiInformation),
-        accepted_at: input.aiInformation ? recordedAt : null,
-        source: "onboarding",
-      },
-      {
-        user_id: userId,
-        consent_type: "journal_analysis",
-        consent_version: CONSENT_VERSION,
-        accepted: Boolean(input.journalAnalysis),
-        accepted_at: input.journalAnalysis ? recordedAt : null,
-        source: "onboarding",
-      },
-    ];
-
-    for (const item of consentEntries) {
-      const { error } = await this.database
-        .from("user_consents")
-        .upsert(item, { onConflict: "user_id,consent_type,consent_version" });
-      if (error) {
-        throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Consent preferences could not be recorded.");
-      }
-    }
-
-    return { success: true };
-  }
-
   async saveProfile(userId: string, input: OnboardingProfileInput) {
     await this.ensureDefaults(userId);
     const updates: Record<string, unknown> = {};
     if (input.displayName !== undefined) updates.display_name = input.displayName;
+    if (input.preferredName !== undefined) updates.preferred_name = input.preferredName;
     if (input.timezone !== undefined) updates.timezone = input.timezone;
+    if (input.goals !== undefined) updates.goals = input.goals;
+    if (input.buddyTone !== undefined) updates.buddy_tone_preference = input.buddyTone;
+    if (input.startingMood !== undefined) updates.starting_mood_preference = input.startingMood;
+    updates.onboarding_step = 1;
 
     if (Object.keys(updates).length > 0) {
       const { error } = await this.database.from("profiles").update(updates).eq("id", userId);
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Profile could not be saved.");
+    }
+
+    if (input.preferredCheckInTime !== undefined) {
+      const { error } = await this.database.from("notification_preferences").update({
+        reminder_time: input.preferredCheckInTime,
+        reminder_timezone: input.timezone,
+      }).eq("user_id", userId);
+      if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Check-in time could not be saved.");
     }
 
     return { success: true };
@@ -129,12 +78,15 @@ export class OnboardingService {
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Notification setup could not be saved.");
     }
 
-    if (input.facialAnalysis !== undefined) {
-      const { error } = await this.database
-        .from("privacy_preferences")
-        .update({ facial_analysis_enabled: input.facialAnalysis })
-        .eq("user_id", userId);
-      if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Privacy setup could not be saved.");
+    const profileUpdates: Record<string, unknown> = { onboarding_step: 2 };
+    if (input.theme !== undefined) profileUpdates.theme_mode = input.theme;
+    if (input.genderIdentity !== undefined) profileUpdates.gender_identity = input.genderIdentity;
+    if (input.genderSelfDescription !== undefined) profileUpdates.gender_self_description = input.genderSelfDescription;
+    if (input.pronouns !== undefined) profileUpdates.pronouns = input.pronouns;
+    if (input.pronounsSelfDescription !== undefined) profileUpdates.pronouns_self_description = input.pronounsSelfDescription;
+    const { error: profileError } = await this.database.from("profiles").update(profileUpdates).eq("id", userId);
+    if (profileError) {
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Profile preferences could not be saved.");
     }
 
     return { success: true };
@@ -144,7 +96,7 @@ export class OnboardingService {
     await this.ensureDefaults(userId);
     const { error } = await this.database
       .from("profiles")
-      .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
+      .update({ onboarding_completed: true, onboarding_step: 3, onboarding_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", userId);
 
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Could not complete onboarding.");
@@ -153,22 +105,38 @@ export class OnboardingService {
 
   async getStatus(userId: string) {
     await this.ensureDefaults(userId);
-    const [profileResult, consentsResult] = await Promise.all([
+    const [profileResult, consentsResult, notificationsResult] = await Promise.all([
       this.database
         .from("profiles")
-        .select("onboarding_completed, display_name, timezone")
+        .select("onboarding_completed,onboarding_step,display_name,preferred_name,timezone,goals,buddy_tone_preference,starting_mood_preference,gender_identity,gender_self_description,pronouns,pronouns_self_description")
         .eq("id", userId)
         .single(),
       this.database.from("user_consents").select("consent_type, accepted, accepted_at").eq("user_id", userId),
+      this.database.from("notification_preferences").select("reminder_time,reminder_timezone").eq("user_id", userId).single(),
     ]);
 
+    if (profileResult.error || consentsResult.error || notificationsResult.error) {
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Onboarding preferences could not be retrieved.");
+    }
     const profile = profileResult.data as Record<string, unknown> | null;
     const consents = (consentsResult.data ?? []) as Array<{ consent_type: string; accepted: boolean }>;
 
     return {
       onboardingCompleted: Boolean(profile?.onboarding_completed),
+      onboardingStep: Number(profile?.onboarding_step ?? 0),
       displayName: typeof profile?.display_name === "string" ? profile.display_name : "",
+      preferredName: typeof profile?.preferred_name === "string" ? profile.preferred_name : "",
       timezone: typeof profile?.timezone === "string" ? profile.timezone : "UTC",
+      goals: Array.isArray(profile?.goals) ? profile.goals : [],
+      buddyTone: typeof profile?.buddy_tone_preference === "string" ? profile.buddy_tone_preference : "gentle",
+      startingMood: typeof profile?.starting_mood_preference === "string" ? profile.starting_mood_preference : "calm",
+      preferredCheckInTime: typeof (notificationsResult.data as Record<string, unknown> | null)?.reminder_time === "string"
+        ? String((notificationsResult.data as Record<string, unknown>).reminder_time).slice(0, 5)
+        : null,
+      genderIdentity: typeof profile?.gender_identity === "string" ? profile.gender_identity : null,
+      genderSelfDescription: typeof profile?.gender_self_description === "string" ? profile.gender_self_description : null,
+      pronouns: typeof profile?.pronouns === "string" ? profile.pronouns : null,
+      pronounsSelfDescription: typeof profile?.pronouns_self_description === "string" ? profile.pronouns_self_description : null,
       consents: Object.fromEntries(consents.map((c) => [c.consent_type, c.accepted])),
     };
   }

@@ -1,13 +1,4 @@
-import {
-  ArrowUpRight,
-  BookOpen,
-  Brain,
-  HeartHandshake,
-  MessageCircle,
-  ShieldCheck,
-  Sparkles,
-  Wind,
-} from "lucide-react";
+import { ArrowUpRight, Brain, Leaf, MessageCircle, ShieldCheck, Sparkles, Wind } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -16,6 +7,7 @@ import { cn } from "@/shared/lib/utils";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import growthDoorwayHill from "../../../../assets/growth-doorway-hill.png";
 import communityBackground from "../../../../assets/bg.png";
+import { LandingHowItWorks } from "./landing-how-it-works";
 
 const portraitImages = [
   {
@@ -53,14 +45,57 @@ const portraitImages = [
 ];
 
 const portraitPositions = [
-  "left-[2%] top-[26%] h-52 w-36",
-  "left-[13%] top-[13%] h-56 w-36",
-  "left-[24%] top-[28%] h-48 w-32",
-  "left-[35%] top-[14%] h-52 w-36",
-  "right-[35%] top-[14%] h-52 w-36",
-  "right-[24%] top-[28%] h-48 w-32",
-  "right-[13%] top-[13%] h-56 w-36",
-  "right-[2%] top-[26%] h-52 w-36",
+  "lg:translate-y-6",
+  "lg:translate-y-0",
+  "lg:translate-y-8",
+  "lg:translate-y-1",
+  "lg:translate-y-1",
+  "lg:translate-y-8",
+  "lg:translate-y-0",
+  "lg:translate-y-6",
+];
+
+const growthHoverPhotos = [
+  {
+    key: "growth-reading-01",
+    src: "/landing/growth/growth-reading-01.png",
+    alt: "A person writing in a notebook outdoors.",
+  },
+  {
+    key: "growth-reading-02",
+    src: "/landing/growth/growth-reading-02.png",
+    alt: "A person journaling at a garden table.",
+  },
+  {
+    key: "growth-reading-03",
+    src: "/landing/growth/growth-reading-03.png",
+    alt: "A person reading outside in a green park.",
+  },
+  {
+    key: "growth-reading-04",
+    src: "/landing/growth/growth-reading-04.png",
+    alt: "A person sketching in a notebook under trees.",
+  },
+  {
+    key: "growth-reading-05",
+    src: "/landing/growth/growth-reading-05.png",
+    alt: "A person sitting on grass in a sunny park.",
+  },
+  {
+    key: "growth-reading-06",
+    src: "/landing/growth/growth-reading-06.png",
+    alt: "A person reading on a chair in a garden.",
+  },
+  {
+    key: "growth-reading-07",
+    src: "/landing/growth/growth-reading-07.png",
+    alt: "A person reading on a shaded park bench.",
+  },
+  {
+    key: "growth-reading-08",
+    src: "/landing/growth/growth-reading-08.png",
+    alt: "A person reading quietly on a park bench.",
+  },
 ];
 
 function revealDelay(index: number) {
@@ -123,20 +158,119 @@ function FlipMediaCard({
           compact ? "p-5" : "p-6 sm:p-7",
         )}
       >
-        <div className="flex items-center justify-between gap-4">
-          <span className={cn("font-extrabold uppercase tracking-[0.14em] text-white/70", compact ? "text-[10px]" : "text-xs")}>{backLabel}</span>
-          <span className={cn("grid shrink-0 place-items-center rounded-full bg-white/[0.12] text-white", compact ? "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4" : "h-11 w-11 [&_svg]:h-5 [&_svg]:w-5")}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_14%,rgba(224,235,199,0.2),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.07),transparent_48%)]" />
+        <div
+          className="pointer-events-none absolute -right-[12%] top-[8%] aspect-square w-[62%] rounded-full border border-white/10"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -right-[2%] top-[18%] aspect-square w-[38%] rounded-full border border-white/[0.08]"
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 flex items-center justify-between gap-4">
+          <span
+            className={cn(
+              "font-extrabold uppercase tracking-[0.14em] text-white/70",
+              compact ? "text-[10px]" : "text-xs",
+            )}
+          >
+            {backLabel}
+          </span>
+          <span
+            className={cn(
+              "grid shrink-0 place-items-center rounded-full bg-white/[0.12] text-white",
+              compact ? "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4" : "h-11 w-11 [&_svg]:h-5 [&_svg]:w-5",
+            )}
+          >
             {backIcon}
           </span>
         </div>
 
-        <div>
-          <h3 className={cn("max-w-sm font-medium leading-[0.94] tracking-[-0.045em] [font-family:var(--font-echo-display)]", compact ? "text-[clamp(1.5rem,2.2vw,2.25rem)]" : "text-[clamp(2rem,3.2vw,3.5rem)]")}>
+        <div
+          aria-hidden="true"
+          className={cn(
+            "echo-flip-card__app-preview absolute z-0 overflow-hidden rounded-[1.4rem] border border-white/15 bg-white/[0.09] shadow-[0_20px_55px_rgba(8,28,17,0.18)] backdrop-blur-md",
+            compact ? "left-5 right-5 top-[24%] p-3" : "right-7 top-[18%] w-[54%] p-4 sm:p-5",
+          )}
+        >
+          <div
+            className={cn(
+              "flex items-center justify-between gap-3 border-white/10",
+              compact ? "pb-1" : "border-b pb-3",
+            )}
+          >
+            <span className="inline-flex items-center gap-2 text-[10px] font-extrabold tracking-[0.12em] text-white/90">
+              <span className={cn("grid place-items-center rounded-full bg-white/15", compact ? "h-6 w-6" : "h-7 w-7")}>
+                <Leaf className="h-3.5 w-3.5" />
+              </span>
+              ECHO
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-bold text-white/60">
+              <ShieldCheck className="h-3.5 w-3.5" /> Private
+            </span>
+          </div>
+
+          {compact ? (
+            <div className="mt-2 flex items-center gap-2 rounded-xl bg-white/[0.08] px-3 py-2">
+              <MessageCircle className="h-4 w-4 shrink-0 text-[#d8e7b7]" />
+              <span className="min-w-0 flex-1">
+                <span className="block h-1.5 w-4/5 rounded-full bg-white/35" />
+                <span className="mt-1.5 block h-1.5 w-3/5 rounded-full bg-white/15" />
+              </span>
+            </div>
+          ) : (
+            <>
+              <p className="mt-4 text-lg font-medium text-white/95">What feels closest right now?</p>
+              <div className="mt-4 flex gap-2">
+                {["Calm", "Heavy", "Hopeful"].map((mood, index) => (
+                  <span
+                    key={mood}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[9px] font-bold",
+                      index === 0 ? "border-white/35 bg-white/20 text-white" : "border-white/15 text-white/65",
+                    )}
+                  >
+                    {mood}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+          {!compact ? (
+            <div className="mt-5 flex items-center gap-3">
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                <span className="block h-full w-2/3 rounded-full bg-[#c8d99c]" />
+              </span>
+              <span className="text-[9px] font-bold text-white/55">one gentle step</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="relative z-10">
+          <h3
+            className={cn(
+              "max-w-sm font-medium leading-[0.94] tracking-[-0.045em] [font-family:var(--font-echo-display)]",
+              compact ? "text-[clamp(1.5rem,2.2vw,2.25rem)]" : "text-[clamp(2rem,3.2vw,3.5rem)]",
+            )}
+          >
             {backTitle}
           </h3>
-          <p className={cn("max-w-sm font-medium text-white/75", compact ? "mt-2 text-xs leading-5" : "mt-4 text-sm leading-6")}>{backDescription}</p>
+          <p
+            className={cn(
+              "max-w-sm font-medium text-white/75",
+              compact ? "mt-2 text-xs leading-5" : "mt-4 text-sm leading-6",
+            )}
+          >
+            {backDescription}
+          </p>
           {href ? (
-            <span className={cn("inline-flex items-center gap-2 rounded-full bg-[var(--landing-inverse)] text-xs font-extrabold text-[var(--landing-primary)]", compact ? "mt-3 px-3 py-2" : "mt-6 px-4 py-2.5")}>
+            <span
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full bg-[var(--landing-inverse)] text-xs font-extrabold text-[var(--landing-primary)]",
+                compact ? "mt-3 px-3 py-2" : "mt-6 px-4 py-2.5",
+              )}
+            >
               {actionLabel}
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
@@ -183,9 +317,11 @@ export function MindfulnessOfferingsSection() {
     >
       <div className="mx-auto grid w-full max-w-[1440px] gap-5 lg:grid-cols-12 lg:items-stretch">
         <EchoReveal variant="card" className="h-full lg:col-span-3">
-          <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8 lg:min-h-[690px]">
+          <div className="flex h-full flex-col justify-between rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 shadow-[0_18px_52px_rgba(29,52,34,.11)] sm:p-8 lg:min-h-[690px]">
             <div>
-              <p className="inline-flex rounded-full bg-[var(--landing-inverse)] px-3 py-1.5 text-xs font-bold shadow-sm">Grounding tools</p>
+              <p className="inline-flex rounded-full bg-[var(--landing-inverse)] px-3 py-1.5 text-xs font-bold shadow-sm">
+                Grounding tools
+              </p>
               <h2 className="mt-8 text-[clamp(2.75rem,3.8vw,4rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
                 A calmer way to
                 <span className="block text-[var(--landing-primary)]">pause and reset</span>
@@ -195,16 +331,22 @@ export function MindfulnessOfferingsSection() {
             <div className="mt-12">
               <div className="flex gap-3">
                 {[Brain, Wind, Sparkles].map((Icon, index) => (
-                  <span key={index} className="grid h-12 w-12 place-items-center rounded-full bg-[var(--landing-inverse)] text-[var(--landing-primary)] shadow-sm">
+                  <span
+                    key={index}
+                    className="grid h-12 w-12 place-items-center rounded-full bg-[var(--landing-inverse)] text-[var(--landing-primary)] shadow-sm"
+                  >
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                 ))}
               </div>
               <p className="mt-7 max-w-sm border-t border-[var(--landing-primary-15)] pt-5 text-base leading-7 text-[var(--landing-muted)]">
-                Try paced breathing, a 5-4-3-2-1 grounding exercise, or one of six mood check-ins whenever you want a clearer next step.
+                Try paced breathing, a 5-4-3-2-1 grounding exercise, or one of six mood check-ins whenever you want a
+                clearer next step.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <PillLink href="/signup" filled>Get started</PillLink>
+                <PillLink href="/signup" filled>
+                  Get started
+                </PillLink>
                 <PillLink href="/tools/grounding">Explore</PillLink>
               </div>
             </div>
@@ -223,10 +365,14 @@ export function MindfulnessOfferingsSection() {
             backIcon={<Wind aria-hidden="true" />}
             actionLabel="Explore grounding"
             className="h-full min-h-[560px] bg-[#d6dfd8] lg:min-h-[690px]"
-            frontContent={(
+            frontContent={
               <>
-                <span className="absolute left-5 top-5 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold backdrop-blur-sm">Grounding practice</span>
-                <span className="absolute right-5 top-5 rounded-full bg-[var(--landing-ink-80)] px-3 py-1.5 text-xs font-bold text-[var(--landing-inverse)] backdrop-blur-sm">Private by design</span>
+                <span className="absolute left-5 top-5 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold backdrop-blur-sm">
+                  Grounding practice
+                </span>
+                <span className="absolute right-5 top-5 rounded-full bg-[var(--landing-ink-80)] px-3 py-1.5 text-xs font-bold text-[var(--landing-inverse)] backdrop-blur-sm">
+                  Private by design
+                </span>
 
                 <div className="absolute bottom-5 left-5 right-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div className="max-w-[290px] rounded-[var(--landing-panel-radius)] bg-[var(--landing-ink-80)] p-5 text-[var(--landing-inverse)] backdrop-blur-md">
@@ -234,22 +380,31 @@ export function MindfulnessOfferingsSection() {
                     <p className="mt-1 text-sm text-white/85">for quick, personal check-ins</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">Paced breathing</span>
-                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">5-4-3-2-1</span>
+                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">
+                      Paced breathing
+                    </span>
+                    <span className="rounded-full bg-[var(--landing-inverse-90)] px-3 py-2 text-xs font-bold backdrop-blur-sm">
+                      5-4-3-2-1
+                    </span>
                   </div>
                 </div>
               </>
-            )}
+            }
           />
         </EchoReveal>
 
         <div className="grid gap-5 lg:col-span-3 lg:grid-rows-[auto_1fr]">
           <EchoReveal variant="card" delay={120}>
-            <div className="rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Explore ECHO</p>
-              <h3 className="mt-3 text-[clamp(2.25rem,3vw,3rem)] font-medium leading-[0.98] tracking-[-0.045em]">Tools that stay close</h3>
+            <div className="rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] p-6 shadow-[0_16px_44px_rgba(29,52,34,.10)] sm:p-8">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">
+                Explore ECHO
+              </p>
+              <h3 className="mt-3 text-[clamp(2.25rem,3vw,3rem)] font-medium leading-[0.98] tracking-[-0.045em]">
+                Tools that stay close
+              </h3>
               <p className="mt-5 max-w-sm text-base leading-7 text-[var(--landing-muted)]">
-                Move naturally between writing, guided reflection, mood patterns, and grounding without losing your place.
+                Move naturally between writing, guided reflection, mood patterns, and grounding without losing your
+                place.
               </p>
             </div>
           </EchoReveal>
@@ -265,138 +420,21 @@ export function MindfulnessOfferingsSection() {
               backDescription="Follow a calm prompt, explore what is present, and choose one next step without pressure or judgment."
               backIcon={<MessageCircle aria-hidden="true" />}
               actionLabel="Try Buddy"
+              compact
               className="h-full min-h-[360px] bg-[#d7dfd9]"
-              frontContent={(
+              frontContent={
                 <>
-                  <span className="absolute left-4 top-4 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold">Reflective Buddy</span>
+                  <span className="absolute left-4 top-4 rounded-full bg-[var(--landing-inverse-90)] px-3 py-1.5 text-xs font-bold">
+                    Reflective Buddy
+                  </span>
                   <div className="absolute inset-x-4 bottom-4 rounded-[var(--landing-panel-radius)] bg-[var(--landing-ink-82)] p-4 text-[var(--landing-inverse)] backdrop-blur-md">
                     <p className="text-3xl font-medium tracking-[-0.04em]">One gentle step</p>
                     <p className="mt-1 text-sm text-white/85">Guided prompts, at your pace.</p>
                   </div>
                 </>
-              )}
+              }
             />
           </EchoReveal>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function ReflectiveBuddySection() {
-  const cards = [
-    {
-      image: echoImages.plantDeskWarmLight,
-      label: "Name what is present",
-      detail: "Start with a simple prompt that helps you put the moment into your own words.",
-      icon: MessageCircle,
-    },
-    {
-      image: echoImages.calmChairPlant,
-      label: "Reflect without judgment",
-      detail: "Explore a thought at your pace, with room for uncertainty and no pressure to solve it.",
-      icon: Brain,
-    },
-    {
-      image: echoImages.wellnessInteriorPlantsChair,
-      label: "Choose a next step",
-      detail: "Turn reflection into one small, realistic action you can carry into the rest of your day.",
-      icon: BookOpen,
-    },
-  ];
-
-  return (
-    <section id="how-it-works" data-section="buddy-experience" className="landing-section-gradient landing-section-gradient--reflection relative z-30 flex min-h-[100svh] items-center overflow-hidden px-4 py-8 [font-family:var(--font-echo-sans)] sm:px-6 sm:py-12 lg:px-8">
-      <div className="mx-auto grid w-full min-h-[720px] max-w-[1440px] overflow-hidden rounded-[var(--landing-card-radius)] bg-[var(--landing-surface)] lg:grid-cols-[0.9fr_1.1fr]">
-        <EchoReveal variant="text" className="flex flex-col justify-center p-7 sm:p-12 lg:p-16 xl:p-20">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--landing-primary)]">Reflective support</p>
-          <h2 className="mt-5 max-w-xl text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] text-[var(--landing-ink)] [text-wrap:balance]">
-            Build a clearer connection with yourself
-          </h2>
-          <p className="mt-7 max-w-lg text-base leading-7 text-[var(--landing-muted)]">
-            Reflective Buddy offers guided prompts that help you name what is present, explore a thought, and choose a gentle next step.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <PillLink href="/buddy" filled>Try Buddy</PillLink>
-            <PillLink href="/about">Learn more</PillLink>
-          </div>
-
-          <div className="mt-14 flex flex-wrap gap-2 text-xs font-semibold text-[var(--landing-muted)]">
-            {["Private", "At your pace", "Always optional"].map((item) => (
-              <span key={item} className="rounded-full border border-[var(--landing-primary-20)] px-3 py-1.5">{item}</span>
-            ))}
-          </div>
-        </EchoReveal>
-
-        <div className="relative min-h-[620px] overflow-hidden bg-[#e8eeeb] p-5 sm:p-8 lg:min-h-[720px]">
-          <div className="grid h-full grid-cols-2 gap-4 sm:gap-5">
-            <div className="flex flex-col justify-center gap-5 pt-14">
-              {cards.slice(0, 2).map(({ image, label, detail, icon: Icon }, index) => (
-                <EchoReveal
-                  key={label}
-                  variant="card"
-                  delay={revealDelay(index)}
-                  className={index === 0 ? "h-[250px]" : "h-[330px]"}
-                >
-                  <FlipMediaCard
-                    image={image}
-                    sizes="(min-width: 1024px) 28vw, 50vw"
-                    href="/buddy"
-                    backLabel="Reflective Buddy"
-                    backTitle={label}
-                    backDescription={detail}
-                    backIcon={<Icon aria-hidden="true" />}
-                    actionLabel="Open Buddy"
-                    compact
-                    className="h-full bg-[var(--landing-inverse)] shadow-[0_18px_55px_rgba(41,49,27,0.12)]"
-                    frontContent={(
-                      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-full bg-[var(--landing-inverse-90)] px-4 py-3 text-xs font-bold text-[var(--landing-ink)] backdrop-blur-md">
-                        {label}
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                      </div>
-                    )}
-                  />
-                </EchoReveal>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-5">
-              <EchoReveal variant="card" delay={120}>
-                <div className="rounded-[var(--landing-card-radius)] bg-[#dce9b7] p-5 text-[var(--landing-ink)]">
-                  <ShieldCheck className="h-6 w-6" aria-hidden="true" />
-                  <p className="mt-8 text-2xl font-medium leading-tight tracking-[-0.04em]">Your words stay yours.</p>
-                </div>
-              </EchoReveal>
-              {cards.slice(2).map(({ image, label, detail, icon: Icon }) => (
-                <EchoReveal key={label} variant="card" delay={180} className="h-[390px]">
-                  <FlipMediaCard
-                    image={image}
-                    sizes="(min-width: 1024px) 28vw, 50vw"
-                    href="/buddy"
-                    priority
-                    backLabel="Reflective Buddy"
-                    backTitle={label}
-                    backDescription={detail}
-                    backIcon={<Icon aria-hidden="true" />}
-                    actionLabel="Open Buddy"
-                    compact
-                    className="h-full bg-[var(--landing-inverse)] shadow-[0_18px_55px_rgba(41,49,27,0.12)]"
-                    frontContent={(
-                      <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-full bg-[var(--landing-inverse-90)] px-4 py-3 text-xs font-bold text-[var(--landing-ink)] backdrop-blur-md">
-                        {label}
-                        <Icon className="h-4 w-4" aria-hidden="true" />
-                      </div>
-                    )}
-                  />
-                </EchoReveal>
-              ))}
-              <EchoReveal variant="card" delay={240}>
-                <div className="grid min-h-24 place-items-center rounded-[var(--landing-card-radius)] bg-[var(--landing-primary)] text-[var(--landing-inverse)]">
-                  <HeartHandshake className="h-7 w-7" aria-hidden="true" />
-                </div>
-              </EchoReveal>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -417,9 +455,12 @@ export function GrowthInvitationSection() {
         style={{ backgroundImage: `url(${growthDoorwayHill.src})` }}
         aria-hidden="true"
       />
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(90deg,rgba(251,247,238,0.9)_0%,rgba(251,247,238,0.7)_35%,rgba(251,247,238,0.24)_66%,rgba(251,247,238,0.08)_100%)]" aria-hidden="true" />
+      <div
+        className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(90deg,rgba(251,247,238,0.9)_0%,rgba(251,247,238,0.7)_35%,rgba(251,247,238,0.24)_66%,rgba(251,247,238,0.08)_100%)]"
+        aria-hidden="true"
+      />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-[1440px] items-start px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:px-14 lg:py-24 xl:px-20">
+      <div className="relative z-10 mx-auto grid w-full max-w-[1440px] gap-12 px-5 pb-72 pt-24 sm:px-8 sm:pb-80 sm:pt-28 md:items-center md:px-10 md:py-20 lg:grid-cols-[minmax(0,0.88fr)_minmax(480px,1fr)] lg:px-14 lg:py-24 xl:px-20">
         <EchoReveal variant="text" direction="right" className="max-w-[35rem]">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">
             A gentle beginning
@@ -432,7 +473,8 @@ export function GrowthInvitationSection() {
             <span className="block">at your pace</span>
           </h2>
           <p className="mt-7 max-w-[20rem] text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:max-w-[27rem] sm:text-base sm:leading-7">
-            Notice what you feel, put it into words, and let ECHO help you find one gentle next step—privately, whenever you&apos;re ready.
+            Notice what you feel, put it into words, and let ECHO help you find one gentle next step—privately, whenever
+            you&apos;re ready.
           </p>
           <Link
             href="/signup"
@@ -441,6 +483,39 @@ export function GrowthInvitationSection() {
             Begin a check-in
           </Link>
         </EchoReveal>
+
+        <EchoReveal
+          variant="media"
+          delay={120}
+          className="growth-photo-reveal group/growth relative hidden min-h-[32rem] items-center justify-end lg:flex"
+        >
+          <div
+            className="pointer-events-none absolute right-0 top-1/2 h-[28rem] w-[56rem] -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(251,247,238,0.55)_0%,rgba(251,247,238,0.18)_54%,transparent_72%)] blur-2xl"
+            aria-hidden="true"
+          />
+          <div className="growth-photo-tray relative grid w-full max-w-[56rem] items-center gap-3 rounded-[2.25rem] bg-[rgba(18,27,22,0.2)] p-3.5 shadow-[0_26px_90px_rgba(25,38,28,0.22)] backdrop-blur-[2px]">
+            {growthHoverPhotos.map((image) => (
+              <article
+                key={image.key}
+                tabIndex={0}
+                aria-label={image.alt}
+                className="growth-photo-slice group/slice relative h-80 min-w-0 overflow-hidden rounded-full bg-[var(--landing-mist)] outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] xl:h-96"
+              >
+                <Image
+                  src={image.src}
+                  alt=""
+                  fill
+                  className="growth-photo-slice__image object-cover"
+                  sizes="(min-width: 1280px) 360px, 300px"
+                />
+                <div
+                  className="absolute inset-0 bg-[linear-gradient(180deg,rgba(251,247,238,0.08),rgba(20,31,23,0.24))] opacity-80 transition-opacity duration-300 group-hover/slice:opacity-25"
+                  aria-hidden="true"
+                />
+              </article>
+            ))}
+          </div>
+        </EchoReveal>
       </div>
     </section>
   );
@@ -448,44 +523,66 @@ export function GrowthInvitationSection() {
 
 export function CommunityStoriesSection() {
   return (
-    <section className="relative isolate z-10 min-h-[100svh] overflow-hidden bg-[#e8eee6] px-4 py-20 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-24 lg:px-8 lg:py-0">
+    <section className="relative isolate z-10 min-h-[100svh] overflow-hidden bg-[#e8eee6] px-4 py-16 text-[var(--landing-ink)] [font-family:var(--font-echo-sans)] sm:px-6 sm:py-20 lg:px-8 lg:py-0">
       <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
         <Image src={communityBackground} alt="" fill sizes="100vw" className="object-cover object-center" />
-        <div className="landing-community-backdrop absolute inset-0" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(232,238,230,0.5)_0%,rgba(232,238,230,0.22)_38%,rgba(232,238,230,0.8)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,transparent,rgba(232,238,230,0.82))]" />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 hidden h-[450px] lg:block" aria-hidden="true">
-        {portraitImages.map((image, index) => (
+      <div className="pointer-events-none absolute inset-x-0 top-10 z-10 hidden px-8 lg:block" aria-hidden="true">
+        <div className="mx-auto flex max-w-[1440px] items-start justify-center gap-8 xl:gap-10">
+          {portraitImages.map((image, index) => (
+            <EchoReveal
+              key={image.src}
+              variant="media"
+              delay={revealDelay(index)}
+              className={`landing-arch-portrait relative h-40 w-28 overflow-hidden bg-[var(--landing-mist)] shadow-[0_18px_38px_rgba(41,49,27,0.16)] xl:h-48 xl:w-32 ${portraitPositions[index]}`}
+            >
+              <Image src={image.src} alt="" fill className="object-cover" sizes="144px" />
+            </EchoReveal>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 mx-auto grid max-w-[720px] grid-cols-4 gap-3 sm:gap-4 lg:hidden">
+        {portraitImages.slice(0, 4).map((image, index) => (
           <EchoReveal
             key={image.src}
             variant="media"
             delay={revealDelay(index)}
-            className={`absolute overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)] shadow-[0_14px_35px_rgba(41,49,27,0.1)] ${portraitPositions[index]}`}
+            className="landing-arch-portrait relative aspect-[0.72] overflow-hidden bg-[var(--landing-mist)]"
           >
-            <Image src={image.src} alt="" fill className="object-cover" sizes="144px" />
+            <Image
+              src={image.src}
+              alt={image.alt}
+              fill
+              className="object-cover"
+              sizes="(max-width: 639px) 50vw, 25vw"
+            />
           </EchoReveal>
         ))}
       </div>
 
-      <div className="relative z-10 mx-auto grid max-w-[1440px] grid-cols-2 gap-4 sm:grid-cols-4 lg:hidden">
-        {portraitImages.slice(0, 4).map((image, index) => (
-          <EchoReveal key={image.src} variant="media" delay={revealDelay(index)} className="relative aspect-[0.72] overflow-hidden rounded-[var(--landing-media-radius)] bg-[var(--landing-mist)]">
-            <Image src={image.src} alt={image.alt} fill className="object-cover" sizes="(max-width: 639px) 50vw, 25vw" />
-          </EchoReveal>
-        ))}
-      </div>
-
-      <EchoReveal variant="text" className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center lg:pt-[400px]">
-        <p className="mt-12 inline-flex rounded-full bg-[var(--landing-mist)] px-3 py-1.5 text-xs font-bold lg:mt-0">Private by design</p>
-        <h2 className="mt-5 text-[clamp(2.75rem,5vw,5.75rem)] font-medium leading-[0.95] tracking-[-0.055em] [text-wrap:balance]">
+      <EchoReveal
+        variant="text"
+        className="relative z-10 mx-auto flex min-h-[calc(100svh-8rem)] max-w-3xl flex-col items-center justify-center text-center lg:pt-56 xl:pt-64"
+      >
+        <p className="mt-12 inline-flex rounded-full bg-[var(--landing-cream-70)] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] shadow-sm lg:mt-0">
+          Private by design
+        </p>
+        <h2 className="mt-5 text-[clamp(3rem,5.8vw,6.35rem)] font-medium leading-[0.9] tracking-[-0.06em] [text-wrap:balance]">
           One space for
-          <span className="block text-[var(--landing-muted)]">everyday reflection</span>
+          <span className="block text-[var(--landing-primary)]/80">everyday reflection</span>
         </h2>
-        <p className="mt-7 max-w-xl text-base leading-7 text-[var(--landing-muted)]">
-          Write privately, check in with your mood, revisit emotional patterns, and reach for guided prompts or grounding tools whenever you choose.
+        <p className="mt-7 max-w-xl text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:text-base sm:leading-7">
+          Write privately, check in with your mood, revisit emotional patterns, and reach for guided prompts or
+          grounding tools whenever you choose.
         </p>
         <div className="mt-8">
-          <PillLink href="/signup" filled>Start privately</PillLink>
+          <PillLink href="/signup" filled>
+            Start privately
+          </PillLink>
         </div>
       </EchoReveal>
     </section>
@@ -496,7 +593,7 @@ export function LandingEditorialSections() {
   return (
     <>
       <MindfulnessOfferingsSection />
-      <ReflectiveBuddySection />
+      <LandingHowItWorks />
       <GrowthInvitationSection />
       <CommunityStoriesSection />
     </>

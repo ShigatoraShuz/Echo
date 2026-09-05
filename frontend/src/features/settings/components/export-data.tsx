@@ -9,7 +9,6 @@ import {
   AlertCircle,
   BookOpen,
   BarChart3,
-  Brain,
   Sparkles,
 } from "lucide-react";
 
@@ -90,7 +89,7 @@ export function ExportDataSection({
               Export your data as a PDF
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              A private, watermarked report only visible to you.
+              Generated on your device. Keep the downloaded file private.
             </p>
           </div>
         </div>
@@ -100,17 +99,12 @@ export function ExportDataSection({
             {
               icon: BookOpen,
               label: "Full journal history",
-              sub: "All entries & excerpts",
-            },
-            {
-              icon: Brain,
-              label: "AI perspectives",
-              sub: "ECHO analysis per entry",
+              sub: "All entries and full text",
             },
             {
               icon: BarChart3,
-              label: "Distress & mood trends",
-              sub: "Journal mood and distress trends",
+              label: "Self-reported moods",
+              sub: "Journal mood distribution",
             },
           ].map(({ icon: Icon, label, sub }) => (
             <div

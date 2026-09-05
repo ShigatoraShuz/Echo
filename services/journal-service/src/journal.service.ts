@@ -25,7 +25,7 @@ export class JournalService {
   }
   private response(row: Row) {
     const clear = this.decrypt(row);
-    return { id: text(row.id), ...clear, excerpt: clear.body.slice(0, 180), mood: text(row.mood, "neutral"), emotions: strings(row.emotions), tags: strings(row.tags), privacy_status: text(row.privacy_status, "private"), analysis_consent: row.analysis_consent === true, risk_score: 0, risk_band: "low" as const, summary: "Analysis is available from the analysis endpoint.", perspective: null, created_at: text(row.created_at), updated_at: text(row.updated_at) };
+    return { id: text(row.id), ...clear, excerpt: clear.body.slice(0, 180), mood: text(row.mood, "neutral"), emotions: strings(row.emotions), tags: strings(row.tags), privacy_status: text(row.privacy_status, "private"), analysis_consent: row.analysis_consent === true, risk_score: null, risk_band: null, summary: "", perspective: null, created_at: text(row.created_at), updated_at: text(row.updated_at) };
   }
   async list(userId: string, query: JournalListQuery = { page: 1, pageSize: 20, query: "", sort: "newest" }) {
     const { data, error } = await this.database.from("journals").select("*").eq("user_id", userId).is("deleted_at", null).order("entry_date", { ascending: false });

@@ -1,5 +1,7 @@
 # Incremental migration plan
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 ## Completed in this increment
 
 1. Recorded a frontend baseline and route/component audit.

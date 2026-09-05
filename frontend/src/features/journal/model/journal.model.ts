@@ -17,8 +17,8 @@ export interface JournalEntry {
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
   analysisConsent: boolean;
-  riskScore: number;
-  riskBand: JournalRiskBand;
+  riskScore: number | null;
+  riskBand: JournalRiskBand | null;
   summary: string;
   perspective: string | null;
   createdAt: string;
@@ -38,6 +38,7 @@ export interface JournalDraft {
 }
 
 export interface JournalAnalysis {
+  status?: "pending" | "processing" | "completed" | "failed";
   id: string;
   entryId: string;
   summary: string;

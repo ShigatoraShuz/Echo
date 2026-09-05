@@ -1,7 +1,12 @@
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { signUserContext } from "@echo/service-core";
-import { createGatewayApp } from "./app.js";
+import { createGatewayApp as createApp } from "./app.js";
+
+// Routing tests isolate the access dependency; the tests below exercise its
+// real HTTP boundary and fail-closed behavior separately.
+const createGatewayApp = (config: Parameters<typeof createApp>[0], verifier?: Parameters<typeof createApp>[1]) =>
+  createApp(config, verifier, async () => "ACCESS_GRANTED");
 
 const config = {
   NODE_ENV: "test" as const, PORT: 4200, FRONTEND_URL: "http://localhost:3000",
@@ -9,7 +14,7 @@ const config = {
   USER_SERVICE_TOKEN: "u".repeat(32), JOURNAL_SERVICE_TOKEN: "j".repeat(32),
   ASSESSMENT_SERVICE_TOKEN: "s".repeat(32), ANALYSIS_SERVICE_TOKEN: "a".repeat(32),
   RECOMMENDATION_SERVICE_TOKEN: "r".repeat(32), WELLNESS_SERVICE_TOKEN: "w".repeat(32),
-  INSIGHTS_SERVICE_TOKEN: "i".repeat(32), REQUEST_TIMEOUT_MS: 1000,
+  INSIGHTS_SERVICE_TOKEN: "i".repeat(32), REQUEST_TIMEOUT_MS: 1000, ANALYSIS_REQUEST_TIMEOUT_MS: 65_000,
   USER_SERVICE_URL: "http://user", JOURNAL_SERVICE_URL: "http://journal",
   ASSESSMENT_SERVICE_URL: "http://assessment", ANALYSIS_SERVICE_URL: "http://analysis",
   RECOMMENDATION_SERVICE_URL: "http://recommendation", WELLNESS_SERVICE_URL: "http://wellness",
@@ -18,6 +23,23 @@ const config = {
 
 describe("API gateway", () => {
   afterEach(() => vi.unstubAllGlobals());
+  it.each(["ACCOUNT_UNAVAILABLE", "AGE_VERIFICATION_REQUIRED", "POLICY_REVIEW_REQUIRED", "ONBOARDING_REQUIRED"])("blocks domain APIs when User Service returns %s", async (decision) => {
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { decision } }), { status: 200 }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .get("/api/v1/journals").set("authorization", "Bearer user-token");
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe(decision);
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(String(upstream.mock.calls[0]?.[0])).toBe("http://user/api/v1/access/status");
+  });
+  it("fails closed when the account access service is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unavailable")));
+    const response = await request(createApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+      .get("/api/v1/journals").set("authorization", "Bearer user-token");
+    expect(response.status).toBe(503);
+    expect(response.body.error.code).toBe("ACCESS_CHECK_UNAVAILABLE");
+  });
   it("routes journals and propagates a request id plus signed user context", async () => {
     const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: [] }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", upstream);
@@ -41,6 +63,15 @@ describe("API gateway", () => {
     await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
       .post("/api/v1/journals/00000000-0000-4000-8000-000000000002/analyze").set("authorization", "Bearer user-token");
     expect(String(upstream.mock.calls[0]?.[0])).toContain("http://analysis/");
+  });
+  it("gives synchronous analysis its configured longer upstream deadline", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
+    try {
+      await request(createGatewayApp(config, async () => ({ id: "00000000-0000-4000-8000-000000000001" })))
+        .post("/api/v1/journals/00000000-0000-4000-8000-000000000002/analyze").set("authorization", "Bearer user-token");
+      expect(timeout).toHaveBeenLastCalledWith(65_000);
+    } finally { timeout.mockRestore(); }
   });
   it("forwards avatar bytes unchanged with the original content type", async () => {
     const upstream = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
@@ -95,6 +126,8 @@ describe("API gateway", () => {
     ["/api/v1/settings", "http://user"],
     ["/api/v1/verification", "http://user"],
     ["/api/v1/admin/verifications", "http://user"],
+    ["/api/v1/access/status", "http://user"],
+    ["/api/v1/notifications", "http://user"],
     ["/api/v1/moods", "http://assessment"],
     ["/api/v1/assessments/phq8", "http://assessment"],
     ["/api/v1/recommendations", "http://recommendation"],
@@ -116,6 +149,25 @@ describe("API gateway", () => {
       .get("/api/v1/support-resources");
     expect(response.status).toBe(200);
     expect(String(upstream.mock.calls[0]?.[0])).toBe("http://wellness/api/v1/support-resources");
+  });
+  it("proxies public registration cookies and CSRF headers without requiring a user token", async () => {
+    const upstream = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: { eligible: true } }), {
+      status: 200,
+      headers: { "content-type": "application/json", "set-cookie": "echo_signup_draft=signed; Path=/api/v1/registration; HttpOnly" },
+    }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await request(createGatewayApp(config, async () => null))
+      .post("/api/v1/registration/eligibility")
+      .set("origin", "http://localhost:3000")
+      .set("cookie", "echo_signup_csrf=proof")
+      .set("x-echo-csrf", "proof")
+      .send({ birthday: "1990-01-01" });
+    expect(response.status).toBe(200);
+    const headers = upstream.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get("cookie")).toBe("echo_signup_csrf=proof");
+    expect(headers.get("x-echo-csrf")).toBe("proof");
+    expect(response.headers["set-cookie"]?.[0]).toContain("echo_signup_draft=signed");
+    expect(headers.get("x-echo-user")).toBeNull();
   });
   it("fails closed on invalid auth", async () => {
     const response = await request(createGatewayApp(config, async () => null)).get("/api/v1/journals").set("authorization", "Bearer bad");

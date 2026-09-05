@@ -1,5 +1,9 @@
 # Deployment guide
 
+Registration integration requires `REGISTRATION_HMAC_SECRET` and the forward migration `20260904010000_registration_onboarding_public_ownership.sql`. Optional Google signup requires the same Google web client ID in User Service (`GOOGLE_WEB_CLIENT_ID`) and the frontend build (`NEXT_PUBLIC_GOOGLE_CLIENT_ID`); Compose connects these values. Configure the provider origins and Supabase Google provider for the actual deployment.
+
+Compose sets server-only `GATEWAY_API_BASE_URL` for Next.js account checks. Native frontend development with a relative public API path must also set this server-only URL to the running Gateway, or use an absolute public Gateway URL. Never point it at a domain service. Use HTTPS for production registration cookies; the native User development environment may explicitly set `NODE_ENV=development` for loopback HTTP.
+
 ## Prerequisites
 
 - Node.js 24 and npm 11 for local Node development
@@ -85,6 +89,8 @@ Important internal configuration:
 - the eight distinct `*_SERVICE_TOKEN` values from the root example; never reuse a value
 - `JOURNAL_ENCRYPTION_KEY_BASE64` and version
 - optional `MODEL_ARTIFACTS_PATH`
+- `REGISTRATION_HMAC_SECRET`, a separate random secret used only to protect registration draft and CSRF credentials
+- `GOOGLE_WEB_CLIENT_ID` for server-side Google ID-token audience validation and matching `NEXT_PUBLIC_GOOGLE_CLIENT_ID` for Google Identity Services in the browser
 
 ## Startup
 
@@ -129,7 +135,7 @@ Individual Node services can be started with their package scripts, for example 
 
 For a clean end-to-end check, open the edge URL and exercise:
 
-1. authentication: signup, login, session restoration, and logout;
+1. authentication: adult eligibility, review of all current policies, email signup/verification/resend, Google signup/login when configured, password login, session restoration, and logout;
 2. onboarding and profile creation, then profile/privacy/notification/trusted-contact settings;
 3. identity-verification draft, document upload, submission, and the administrator review flow with an explicitly provisioned local verification administrator;
 4. journal draft save/reload/delete, followed by journal create/read/update/delete;
@@ -147,7 +153,7 @@ Analysis additionally requires approved identity verification, active account-le
 - ML liveness: `GET /health`
 - ML readiness: `GET /health/ready`
 
-Gateway upstream connections use configured timeouts and map unavailable services to `503` and timeouts to `504`. Analysis marks an already-created analysis request failed when an ML/dependency error occurs. Other services remain healthy when ML is not ready.
+Gateway upstream connections use configured timeouts and map unavailable services to `503` and timeouts to `504`. Ordinary requests default to 5 seconds; synchronous analysis defaults to 65 seconds (`GATEWAY_ANALYSIS_REQUEST_TIMEOUT_MS` in Compose, `ANALYSIS_REQUEST_TIMEOUT_MS` in Gateway). The journal client waits 70 seconds and NGINX waits 75 seconds. Keep those outer deadlines longer when tuning the inner services. Analysis marks an already-created analysis request failed when an ML/dependency error occurs. Other services remain healthy when ML is not ready.
 
 ML liveness is expected to pass without model artifacts; readiness and inference are expected to return `503`. Do not route clinical or production analysis traffic until the documented external model blocker is resolved and validated.
 

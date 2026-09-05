@@ -1,5 +1,7 @@
 # File move map
 
+> HISTORICAL / SUPERSEDED / PRE-MICROSERVICES. Retained as thesis provenance, not current implementation or deployment guidance. See [microservices architecture](../architecture/microservices.md) and [testing](../testing.md) for the active system.
+
 This map records intended migrations. No active frontend asset or feature file is moved until its imports and route output are verified.
 
 | Current path | Target path | Change | Reason | Verified |

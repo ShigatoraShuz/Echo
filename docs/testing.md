@@ -1,5 +1,7 @@
 # Testing guide
 
+The final integration also covers registration policy text/seed parity, API-enforced account gates, canonical optional consent, notification ownership, onboarding preference round trips, journal export pagination, and failed Analysis/ML dependencies. `supabase/tests/database/registration-ownership.test.sql` verifies registration RPC permissions and policy hashes against local PostgreSQL.
+
 Run the repository checks from the root with Node.js 24 and npm 11:
 
 ```bash

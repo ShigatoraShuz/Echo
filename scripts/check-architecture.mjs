@@ -29,7 +29,7 @@ for (const directory of serviceDirectories) {
 
 const ownership = {
   "api-gateway": new Set(),
-  "user-service": new Set(["profiles", "user_consents", "notification_preferences", "privacy_preferences", "trusted_contacts", "data_export_requests", "account_deletion_requests", "notifications", "verification_admins", "identity_verifications", "verification_documents", "verification_reviews", "audit_events"]),
+  "user-service": new Set(["profiles", "user_consents", "notification_preferences", "privacy_preferences", "trusted_contacts", "data_export_requests", "account_deletion_requests", "notifications", "verification_admins", "identity_verifications", "verification_documents", "verification_reviews", "audit_events", "registration_policy_documents"]),
   "journal-service": new Set(["journals", "journal_drafts"]),
   "assessment-service": new Set(["mood_entries"]),
   "recommendation-service": new Set(["support_resources"]),

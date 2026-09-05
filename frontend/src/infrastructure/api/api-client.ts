@@ -82,6 +82,10 @@ function parseAppErrorResponse(
   if (!errBody.error) return null;
 
   const code = errBody.error.code ?? "UNKNOWN_ERROR";
+  const normalizedCode =
+    statusCode === 401 && code === "UNKNOWN_ERROR"
+      ? "AUTHENTICATION_ERROR"
+      : code;
   const userMessage = errBody.error.message ?? "Something went wrong.";
   const field = errBody.error.field;
   const fields = errBody.error.details?.fields;
@@ -107,7 +111,7 @@ function parseAppErrorResponse(
   ];
 
   return new AppError({
-    code: code as AppError["code"],
+    code: normalizedCode as AppError["code"],
     userMessage,
     developerMessage: errBody.error.detail,
     statusCode,
@@ -187,6 +191,7 @@ export function createApiClient(options: ApiClientOptions) {
     tokenProvider = nullTokenProvider,
     defaultTimeout = 30_000,
   } = options;
+  let refreshInFlight: Promise<string | null> | null = null;
 
   async function request<TResponse>(
     method: string,
@@ -195,6 +200,18 @@ export function createApiClient(options: ApiClientOptions) {
     opts?: RequestOptions
   ): Promise<TResponse> {
     const requestId = generateRequestId();
+    return requestWithRetry<TResponse>(requestId, method, path, body, opts, false);
+  }
+
+  async function requestWithRetry<TResponse>(
+    requestId: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    opts?: RequestOptions,
+    retried = false,
+    accessToken?: string | null,
+  ): Promise<TResponse> {
     const url = joinUrl(baseUrl, path);
     const timeoutMs = opts?.timeout ?? defaultTimeout;
     const combinedSignal = composeSignal(opts?.signal, timeoutMs);
@@ -204,7 +221,7 @@ export function createApiClient(options: ApiClientOptions) {
       ...opts?.headers,
     };
 
-    const token = await tokenProvider.getAccessToken();
+    const token = accessToken ?? await tokenProvider.getAccessToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -242,6 +259,18 @@ export function createApiClient(options: ApiClientOptions) {
       }
 
       if (!response.ok) {
+        if (response.status === 401 && !retried) {
+          const refreshedToken = await (refreshInFlight ??= tokenProvider
+            .refreshAccessToken()
+            .finally(() => {
+              refreshInFlight = null;
+            }));
+          if (refreshedToken) {
+            return requestWithRetry<TResponse>(requestId, method, path, body, opts, true, refreshedToken);
+          }
+          await tokenProvider.clearSession();
+        }
+
         const parsedError =
           parseAppErrorResponse(responseBody, response.status) ??
           classifyHttpError(response.status);
