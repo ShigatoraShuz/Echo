@@ -34,6 +34,8 @@ export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalE
     title: dto.title,
     body: dto.body,
     excerpt: dto.excerpt,
+    attachments: dto.attachments,
+    attachmentError: dto.attachment_error,
     mood: mapMood(dto.mood),
     emotions: dto.emotions,
     tags: dto.tags,
@@ -65,6 +67,7 @@ export function mapDraftResponseToDomain(dto: JournalDraftResponseDTO): JournalD
 export function mapAnalysisResponseToDomain(dto: JournalAnalysisResponseDTO): JournalAnalysis {
   return {
     status: dto.status,
+    safety: dto.safety ?? { kind: dto.urgent_language_detected ? "immediate" : "none", eventId: dto.id },
     id: dto.id,
     entryId: dto.entry_id,
     summary: dto.summary,

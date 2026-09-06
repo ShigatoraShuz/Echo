@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from hmac import new
 from time import time
@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import get_settings
+from app.core.safety import support_signal
 from app.core.security import require_gateway_user
 
 router = APIRouter()
@@ -81,6 +82,10 @@ async def verify_access(
         f"{settings.user_service_url.rstrip('/')}/api/v1/internal/{path}",
         headers=internal_headers(request, user_id, settings.user_service_token),
     )
+    if response.status_code == 403:
+        body = response.json()
+        if body.get("error", {}).get("code") == "FEATURE_REQUIREMENTS_NOT_MET":
+            raise HTTPException(status_code=403, detail=body["error"])
     await checked_json(response, "user-service")
 
 
@@ -93,6 +98,7 @@ async def analyze(
     now = datetime.now(UTC).isoformat()
     async with httpx.AsyncClient(timeout=httpx.Timeout(settings.request_timeout_seconds)) as client:
         pending_id: str | None = None
+        inference: InferenceResult | None = None
         try:
             await verify_access(client, request, user_id, require_consent=True)
             journal_response = await client.get(
@@ -136,20 +142,26 @@ async def analyze(
             inference = InferenceResult.model_validate(
                 await checked_json(ml_response, "ml-service")
             )
-            recommendation_response = await client.post(
-                f"{settings.recommendation_service_url.rstrip('/')}/api/v1/internal/recommendations",
-                headers={
-                    "authorization": f"Bearer {settings.recommendation_service_token}",
-                    "x-request-id": request_id,
-                },
-                json={
-                    "severity": inference.severity,
-                    "urgentLanguageDetected": inference.urgent_language_detected,
-                },
-            )
-            recommendation = (
-                await checked_json(recommendation_response, "recommendation-service")
-            )["data"]
+            if inference.urgent_language_detected:
+                # Urgent support is returned even when recommendation delivery fails.
+                recommendation = {"title": "Your immediate safety matters", "clinicalDisclaimer": "ECHO noticed a signal that may need immediate support. This is not a diagnosis.", "steps": ["Open crisis support and contact someone you trust."]}
+            else:
+                recommendation = None
+            if recommendation is None:
+                recommendation_response = await client.post(
+                    f"{settings.recommendation_service_url.rstrip('/')}/api/v1/internal/recommendations",
+                    headers={
+                        "authorization": f"Bearer {settings.recommendation_service_token}",
+                        "x-request-id": request_id,
+                    },
+                    json={
+                        "severity": inference.severity,
+                        "urgentLanguageDetected": inference.urgent_language_detected,
+                    },
+                )
+                recommendation = (
+                    await checked_json(recommendation_response, "recommendation-service")
+                )["data"]
             # Validate the fields used below before committing a completed result.
             if not isinstance(recommendation.get("title"), str) or not isinstance(
                 recommendation.get("clinicalDisclaimer"), str
@@ -170,6 +182,7 @@ async def analyze(
             )
             completed = await checked_json(completed_response, "database")
             row = completed[0]
+            safety = await evaluate_support(client, user_id, str(journal_id), row, inference.urgent_language_detected)
             return {
                 "success": True,
                 "data": {
@@ -187,6 +200,7 @@ async def analyze(
                     "urgent_language_detected": inference.urgent_language_detected,
                     "provider": "ml-service",
                     "recommendation": recommendation,
+                    "safety": safety,
                 },
                 "meta": {"requestId": request_id},
             }
@@ -199,11 +213,14 @@ async def analyze(
                         json={
                             "status": "failed",
                             "failure_code": "DEPENDENCY_REJECTED",
+                            "urgent_language_detected": bool(inference and inference.urgent_language_detected),
                             "completed_at": datetime.now(UTC).isoformat(),
                         },
                     )
                 except httpx.HTTPError:
                     pass
+            if inference and inference.urgent_language_detected and pending_id:
+                return await urgent_unsaved(client, user_id, str(journal_id), pending_id, request_id, now)
             raise
         except (httpx.TimeoutException, httpx.RequestError, ValidationError, KeyError, TypeError, IndexError) as error:
             if pending_id:
@@ -214,11 +231,14 @@ async def analyze(
                         json={
                             "status": "failed",
                             "failure_code": "DEPENDENCY_UNAVAILABLE" if isinstance(error, httpx.HTTPError) else "INVALID_DEPENDENCY_RESPONSE",
+                            "urgent_language_detected": bool(inference and inference.urgent_language_detected),
                             "completed_at": datetime.now(UTC).isoformat(),
                         },
                     )
                 except httpx.HTTPError:
                     pass
+            if inference and inference.urgent_language_detected and pending_id:
+                return await urgent_unsaved(client, user_id, str(journal_id), pending_id, request_id, now)
             code = 504 if isinstance(error, httpx.TimeoutException) else 503 if isinstance(error, httpx.HTTPError) else 502
             raise HTTPException(
                 status_code=code, detail="A dependent service is unavailable."
@@ -265,6 +285,88 @@ async def latest_analysis(
             "severity": row.get("severity"),
             "urgent_language_detected": row.get("urgent_language_detected", False),
             "provider": "ml-service",
+            "safety": await saved_safety(user_id, str(journal_id), row),
         },
         "meta": {"requestId": request.state.request_id},
     }
+
+
+async def evaluate_support(client: httpx.AsyncClient, user_id: str, journal_id: str,
+                           row: dict[str, Any], urgent: bool) -> dict[str, Any]:
+    settings = get_settings()
+    signal = "immediate" if urgent else "none"
+    try:
+        if not urgent and row.get("severity") == "severe":
+            cutoff = (datetime.now(UTC) - timedelta(days=settings.alarming_analysis_window_days)).isoformat()
+            rows = await checked_json(await client.get(
+                f"{settings.supabase_url.rstrip('/')}/rest/v1/journal_analyses",
+                headers=db_headers(), params={"user_id": f"eq.{user_id}", "status": "eq.completed",
+                "completed_at": f"gte.{cutoff}", "order": "completed_at.desc", "limit": "1000"}), "database")
+            signal = support_signal(rows, urgent=False, threshold=settings.alarming_analysis_streak_threshold,
+                                    window_days=settings.alarming_analysis_window_days)
+        if signal == "none":
+            return {"kind": "none"}
+        if signal == "professional_support":
+            cutoff = (datetime.now(UTC) - timedelta(days=settings.support_modal_cooldown_days)).isoformat()
+            previous = await checked_json(await client.get(
+                f"{settings.supabase_url.rstrip('/')}/rest/v1/safety_events", headers=db_headers(),
+                params={"user_id": f"eq.{user_id}", "detection_source": "eq.analysis_streak",
+                        "created_at": f"gte.{cutoff}", "limit": "1"}), "database")
+            if previous:
+                return {"kind": "none"}
+        event = await checked_json(await client.post(
+            f"{settings.supabase_url.rstrip('/')}/rest/v1/safety_events", headers=db_headers("return=representation"),
+            json={"user_id": user_id, "journal_id": journal_id, "analysis_id": row["id"],
+                  "safety_level": "high" if urgent else "medium",
+                  "detection_source": "analysis_urgent" if urgent else "analysis_streak",
+                  "matched_rule_id": "urgent_language" if urgent else "alarming_analysis_streak"}), "database")
+        return {"kind": signal, "eventId": event[0]["id"]}
+    except (HTTPException, httpx.HTTPError, KeyError, TypeError, ValueError, IndexError):
+        # Persisted urgent_language_detected still restores the crisis flow on reload.
+        return {"kind": "immediate", "eventId": row["id"]} if urgent else {"kind": "none"}
+
+
+async def saved_safety(user_id: str, journal_id: str, row: dict[str, Any]) -> dict[str, Any]:
+    if row.get("status") != "completed" and not row.get("urgent_language_detected"):
+        return {"kind": "none"}
+    settings = get_settings()
+    async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+        try:
+            events = await checked_json(await client.get(
+                f"{settings.supabase_url.rstrip('/')}/rest/v1/safety_events", headers=db_headers(),
+                params={"user_id": f"eq.{user_id}", "analysis_id": f"eq.{row['id']}", "limit": "1"}), "database")
+            if events and events[0].get("acknowledged_at"):
+                return {"kind": "none"}
+            if events:
+                return {"kind": "immediate" if events[0]["safety_level"] == "high" else "professional_support", "eventId": events[0]["id"]}
+        except (HTTPException, httpx.HTTPError, KeyError, TypeError):
+            pass
+    return {"kind": "immediate", "eventId": row["id"]} if row.get("urgent_language_detected") else {"kind": "none"}
+
+
+@router.post("/api/v1/analysis/support/{event_id}/acknowledge")
+async def acknowledge_support(event_id: UUID, request: Request,
+                              user_id: Annotated[str, Depends(require_gateway_user)]) -> dict[str, Any]:
+    settings = get_settings()
+    async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+        await checked_json(await client.patch(
+            f"{settings.supabase_url.rstrip('/')}/rest/v1/safety_events?id=eq.{event_id}&user_id=eq.{user_id}",
+            headers=db_headers(), json={"acknowledged_at": datetime.now(UTC).isoformat(),
+                                        "support_resources_shown": True}), "database")
+    return {"success": True, "data": {"acknowledged": True}, "meta": {"requestId": request.state.request_id}}
+
+
+async def urgent_unsaved(client: httpx.AsyncClient, user_id: str, journal_id: str,
+                         analysis_id: str, request_id: str, created_at: str) -> dict[str, Any]:
+    """Never hide an observed urgent signal because storing the result failed."""
+    safety = await evaluate_support(client, user_id, journal_id, {"id": analysis_id}, True)
+    return {"success": True, "data": {
+        "id": analysis_id, "entry_id": journal_id, "status": "failed",
+        "failure_code": "RESULT_PERSISTENCE_UNAVAILABLE",
+        "summary": "Your analysis result could not be saved.",
+        "perspective": "ECHO noticed something in your reflection that may need immediate support. This is not a diagnosis.",
+        "mood_insight": "Open crisis support and reach someone you trust.",
+        "risk_indication": None, "phq8_score": None, "severity": None,
+        "urgent_language_detected": True, "is_demo_data": False,
+        "created_at": created_at, "provider": "ml-service", "safety": safety,
+    }, "meta": {"requestId": request_id}}

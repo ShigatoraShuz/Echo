@@ -57,7 +57,7 @@ function contentSecurityPolicy(nonce: string): string {
     // prompt is opened. Keep the allow-list scoped to that provider rather
     // than weakening the policy for arbitrary third-party styles.
     "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-    "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
+    `img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com${supabaseOrigin ? " " + supabaseOrigin : ""}`,
     "font-src 'self' data:",
     `connect-src 'self' https://accounts.google.com${supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""}${apiOrigin ? ` ${apiOrigin}` : ""}`,
     "frame-src https://accounts.google.com",
@@ -132,7 +132,10 @@ export async function proxy(request: NextRequest) {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token || !process.env.NEXT_PUBLIC_API_BASE_URL) throw new Error("Access service unavailable");
-      const accessBaseUrl = (process.env.GATEWAY_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL).replace(/\/$/, "");
+      const accessBaseUrl = (process.env.GATEWAY_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL).replace(
+        /\/$/,
+        "",
+      );
       const accessResponse = await fetch(new URL(`${accessBaseUrl}/access/status`, request.url), {
         headers: { authorization: `Bearer ${token}` },
         cache: "no-store",

@@ -1,13 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, FileText } from "lucide-react";
 import type { JournalEntry } from "../model/journal.model";
-import {
-  formatJournalDate,
-  getMoodVisual,
-  calculateReadingTime,
-} from "../utils/journal-formatters";
+import { formatJournalDate, getMoodVisual, calculateReadingTime } from "../utils/journal-formatters";
 
 interface JournalCardProps {
   entry: JournalEntry;
@@ -19,7 +16,7 @@ export function JournalCard({ entry }: JournalCardProps) {
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 
   return (
-    <article className="group relative flex flex-col justify-between overflow-hidden rounded-[1.75rem] border border-[var(--landing-primary-15)] bg-white p-5 shadow-[0_8px_24px_rgba(47,53,39,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:p-6">
+    <article className="group relative mb-5 break-inside-avoid flex flex-col justify-between overflow-hidden rounded-[1.75rem] border border-[var(--landing-primary-15)] bg-gradient-to-br from-card to-secondary/30 p-5 shadow-[0_8px_24px_rgba(47,53,39,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:p-6">
       {/* Top Accent Strip with Mood Color */}
       <div
         className="absolute inset-x-0 top-0 h-1.5 transition-opacity duration-200"
@@ -28,15 +25,26 @@ export function JournalCard({ entry }: JournalCardProps) {
       />
 
       <div>
+        {entry.attachments?.[0] && (
+          <Link href={"/journal/" + entry.id} aria-label={"Open " + (entry.title || "reflection")}>
+            <Image
+              src={entry.attachments[0].url}
+              width={640}
+              height={480}
+              unoptimized
+              alt="Cover image from your reflection"
+              className="mb-4 h-auto max-h-80 w-full rounded-2xl object-cover"
+            />
+          </Link>
+        )}
+        <time dateTime={entry.createdAt} className="mb-3 block font-serif text-3xl text-primary">
+          {new Date(entry.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+        </time>
         {/* Header: Date + Mood Badge */}
         <div className="flex items-start justify-between gap-2 border-b border-black/5 pb-3">
           <div>
-            <p className="text-xs font-bold text-[var(--landing-ink)]">
-              {relativeTime}
-            </p>
-            <p className="text-[11px] font-medium text-[var(--landing-muted)]">
-              {timeString}
-            </p>
+            <p className="text-xs font-bold text-[var(--landing-ink)]">{relativeTime}</p>
+            <p className="text-[11px] font-medium text-[var(--landing-muted)]">{timeString}</p>
           </div>
 
           <span

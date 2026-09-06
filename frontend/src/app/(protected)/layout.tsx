@@ -1,3 +1,4 @@
+import { LoginExperience } from "@/features/dashboard/components/login-experience";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
@@ -17,5 +18,17 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=login_required");
 
-  return <>{children}</>;
+  const { data: sessionData } = await supabase.auth.getSession();
+  let sessionId = user.last_sign_in_at ?? user.id;
+  try {
+    sessionId =
+      JSON.parse(Buffer.from(sessionData.session!.access_token.split(".")[1], "base64url").toString("utf8"))
+        .session_id ?? sessionId;
+  } catch {}
+  return (
+    <>
+      <LoginExperience sessionKey={user.id + ":" + sessionId} />
+      {children}
+    </>
+  );
 }

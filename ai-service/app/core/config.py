@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     ml_service_url: str = ""
     recommendation_service_url: str = ""
     request_timeout_seconds: float = Field(default=10, ge=0.1, le=120)
+    alarming_analysis_streak_threshold: int = Field(default=3, ge=2, le=20)
+    alarming_analysis_window_days: int = Field(default=14, ge=1, le=365)
+    support_modal_cooldown_days: int = Field(default=7, ge=1, le=365)
     log_level: str = "INFO"
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)

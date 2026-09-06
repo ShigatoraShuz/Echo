@@ -31,6 +31,7 @@ function listDatabase(rows: unknown[]) {
     eq: () => query,
     is: () => query,
     order: () => query,
+    range: () => query,
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(resolve({ data: rows, error: null })),
   };
   return { from: () => query };
@@ -39,9 +40,30 @@ function listDatabase(rows: unknown[]) {
 describe("JournalService listing", () => {
   it("decrypts, searches, filters, sorts, and paginates owner-scoped rows", async () => {
     const rows = [
-      row("00000000-0000-4000-8000-000000000002", "Second", "calm evening", "calm", "2026-08-02T10:00:00.000Z", "2026-08-02"),
-      row("00000000-0000-4000-8000-000000000003", "First", "work reflection", "happy", "2026-08-01T10:00:00.000Z", "2026-08-01"),
-      row("00000000-0000-4000-8000-000000000004", "Third", "work follow-up", "happy", "2026-08-03T10:00:00.000Z", "2026-08-03"),
+      row(
+        "00000000-0000-4000-8000-000000000002",
+        "Second",
+        "calm evening",
+        "calm",
+        "2026-08-02T10:00:00.000Z",
+        "2026-08-02",
+      ),
+      row(
+        "00000000-0000-4000-8000-000000000003",
+        "First",
+        "work reflection",
+        "happy",
+        "2026-08-01T10:00:00.000Z",
+        "2026-08-01",
+      ),
+      row(
+        "00000000-0000-4000-8000-000000000004",
+        "Third",
+        "work follow-up",
+        "happy",
+        "2026-08-03T10:00:00.000Z",
+        "2026-08-03",
+      ),
     ];
     const service = new JournalService(listDatabase(rows) as any, encryption);
     const result = await service.list("00000000-0000-4000-8000-000000000001", {

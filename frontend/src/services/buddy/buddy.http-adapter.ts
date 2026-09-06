@@ -1,9 +1,5 @@
 import type { BuddyService } from "@/services/buddy/buddy.service";
-import type {
-  BuddyConversation,
-  BuddyMessage,
-  BuddyServiceError,
-} from "@/features/buddy/model/buddy.model";
+import type { BuddyConversation, BuddyMessage, BuddyServiceError } from "@/features/buddy/model/buddy.model";
 import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { createApiClient } from "@/infrastructure/api/api-client";
@@ -17,6 +13,7 @@ interface ApiEnvelope<T> {
 interface BuddySessionResponse {
   conversationId: string;
   messages: Array<{
+    safety?: import("@/shared/components/crisis/safety-signal").SafetySignal;
     id: string;
     role: "user" | "buddy";
     content: string;
@@ -40,6 +37,7 @@ function toBuddyError(error: unknown): BuddyServiceError {
       return { code: "VALIDATION", message: normalized.userMessage };
     case "AUTHENTICATION_ERROR":
       return { code: "UNAUTHORIZED", message: normalized.userMessage };
+    case "FEATURE_REQUIREMENTS_NOT_MET":
     case "VERIFICATION_REQUIRED":
       return { code: "VERIFICATION_REQUIRED", message: normalized.userMessage };
     case "NETWORK_ERROR":
@@ -74,6 +72,7 @@ function mapMessages(conversationId: string, messages: BuddySessionResponse["mes
     role: message.role === "user" ? "user" : "buddy",
     content: message.content,
     timestamp: message.timestamp,
+    safety: message.safety,
   }));
 }
 
@@ -90,7 +89,12 @@ export function createBuddyHttpAdapter(): BuddyService {
         return { success: true, data: { canAccessAi: true } };
       } catch (error) {
         const code = normalizeError(error).code;
-        if (code === "AUTHENTICATION_ERROR" || code === "AUTHORIZATION_ERROR" || code === "VERIFICATION_REQUIRED") {
+        if (
+          code === "AUTHENTICATION_ERROR" ||
+          code === "AUTHORIZATION_ERROR" ||
+          code === "VERIFICATION_REQUIRED" ||
+          code === "FEATURE_REQUIREMENTS_NOT_MET"
+        ) {
           return { success: true, data: { canAccessAi: false } };
         }
         return { success: false, error: toBuddyError(error) };
@@ -130,7 +134,12 @@ export function createBuddyHttpAdapter(): BuddyService {
         return {
           success: true,
           data: {
-            conversation: mapConversation({ id: conversationId, conversation_status: "active", last_message_at: "", created_at: "" }),
+            conversation: mapConversation({
+              id: conversationId,
+              conversation_status: "active",
+              last_message_at: "",
+              created_at: "",
+            }),
             messages: mapMessages(conversationId, messages),
           },
         };
@@ -142,7 +151,7 @@ export function createBuddyHttpAdapter(): BuddyService {
     async sendMessage(input) {
       try {
         const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string }>(
-            `/buddy/conversations/${encodeURIComponent(input.conversationId)}/messages`,
+          `/buddy/conversations/${encodeURIComponent(input.conversationId)}/messages`,
           { content: input.content },
         );
         const messages = mapMessages(response.data.conversationId, response.data.messages);
@@ -154,6 +163,5 @@ export function createBuddyHttpAdapter(): BuddyService {
         return { success: false, error: toBuddyError(error) };
       }
     },
-
   };
 }

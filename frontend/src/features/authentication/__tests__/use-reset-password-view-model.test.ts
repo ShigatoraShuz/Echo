@@ -10,6 +10,7 @@ vi.mock("@/services/authentication/auth-service.factory", () => ({
 
 function createMockService() {
   return {
+    requestEmailCode: vi.fn(),
     login: vi.fn(),
     signup: vi.fn(),
     forgotPassword: vi.fn(),
@@ -92,7 +93,11 @@ describe("useResetPasswordViewModel", () => {
   });
 
   it("calls service on valid submission", async () => {
-    const mockSession = { user: { id: "1", name: "User", email: "user@test.com" }, expiresAt: "2026-07-15", isMockSession: true };
+    const mockSession = {
+      user: { id: "1", name: "User", email: "user@test.com" },
+      expiresAt: "2026-07-15",
+      isMockSession: true,
+    };
     const mockService = createMockService();
     mockService.resetPassword.mockResolvedValue({ success: true, data: mockSession });
     vi.mocked(getAuthService).mockReturnValue(mockService);

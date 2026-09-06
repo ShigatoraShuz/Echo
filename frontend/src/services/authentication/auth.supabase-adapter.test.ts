@@ -1,154 +1,56 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { createAuthSupabaseAdapter } from "@/services/authentication/auth.supabase-adapter";
-
-const mocks = vi.hoisted(() => ({
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { createAuthSupabaseAdapter } from "./auth.supabase-adapter";
+const auth = vi.hoisted(() => ({
+  signInWithOtp: vi.fn(),
+  verifyOtp: vi.fn(),
   signOut: vi.fn(),
   signInWithPassword: vi.fn(),
-  signUp: vi.fn(),
 }));
-
-vi.mock("@/infrastructure/supabase/browser-client", () => ({
-  createBrowserSupabaseClient: () => ({
-    auth: {
-      signOut: mocks.signOut,
-      signInWithPassword: mocks.signInWithPassword,
-      signUp: mocks.signUp,
-    },
-  }),
-}));
-
-const session = {
-  user: {
-    id: "user-1",
-    email: "mira@test.com",
-    user_metadata: { display_name: "Mira" },
-  },
-  expires_at: 1_800_000_000,
-  access_token: "token",
-  refresh_token: "refresh",
-};
-
-function signInMock() {
-  mocks.signInWithPassword.mockResolvedValue({ data: { session }, error: null });
-}
-
-function fireBeforeUnload() {
-  window.dispatchEvent(new Event("beforeunload"));
-}
-
-describe("createAuthSupabaseAdapter logout", () => {
-  beforeEach(() => {
-    mocks.signOut.mockResolvedValue({ error: null });
-  });
-
-  it("ends the current browser session without revoking other devices", async () => {
-    const adapter = createAuthSupabaseAdapter();
-
-    const result = await adapter.logout();
-
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
-    expect(result).toEqual({ success: true, data: undefined });
-  });
-
-  it("returns a safe service error when Supabase sign-out fails", async () => {
-    mocks.signOut.mockResolvedValue({ error: { message: "network unavailable" } });
-    const adapter = createAuthSupabaseAdapter();
-
-    const result = await adapter.logout();
-
-    expect(result).toEqual({
-      success: false,
-      error: { code: "UNKNOWN", message: "network unavailable" },
-    });
-  });
+vi.mock("@/infrastructure/supabase/browser-client", () => ({ createBrowserSupabaseClient: () => ({ auth }) }));
+const input = { email: "person@example.com", code: "123456", password: "", rememberSession: true };
+beforeEach(() => {
+  vi.clearAllMocks();
+  auth.signInWithOtp.mockResolvedValue({ error: null });
+  auth.signOut.mockResolvedValue({ error: null });
 });
-
-describe("createAuthSupabaseAdapter volatile session", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.signOut.mockResolvedValue({ error: null });
-    signInMock();
+describe("Supabase email OTP", () => {
+  it("sends a code without creating an account or opening a password session", async () => {
+    expect((await createAuthSupabaseAdapter().requestEmailCode(input.email)).success).toBe(true);
+    expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: input.email, options: { shouldCreateUser: false } });
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
-
-  afterEach(() => {
-    // Early adapter instances may have left a beforeunload listener on
-    // `window`; fire it once and reset so stale sign-outs cannot leak into
-    // the next assertion.
-    fireBeforeUnload();
-    vi.clearAllMocks();
+  it("establishes a session only through verified email OTP", async () => {
+    auth.verifyOtp.mockResolvedValue({
+      data: { session: { user: { id: "owner", email: input.email }, expires_at: 1800000000 } },
+      error: null,
+    });
+    expect((await createAuthSupabaseAdapter().login(input)).success).toBe(true);
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ email: input.email, token: input.code, type: "email" });
   });
-
-  it("signs out the session when the tab closes after an unchecked remember-me login", async () => {
-    const adapter = createAuthSupabaseAdapter();
-
-    const result = await adapter.login({
-      email: "mira@test.com",
-      password: "password123",
-      rememberSession: false,
-    });
-
-    expect(result.success).toBe(true);
-    expect(mocks.signInWithPassword).toHaveBeenCalledWith({
-      email: "mira@test.com",
-      password: "password123",
-    });
-    expect(mocks.signOut).not.toHaveBeenCalled();
-
-    fireBeforeUnload();
-
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+  it.each([
+    ["otp_expired", "Token has expired", "EXPIRED_TOKEN"],
+    ["bad_code", "Invalid token", "INVALID_TOKEN"],
+  ])("returns typed %s failures", async (code, message, expected) => {
+    auth.verifyOtp.mockResolvedValue({ data: { session: null }, error: { code, message } });
+    expect(await createAuthSupabaseAdapter().login(input)).toMatchObject({ success: false, error: { code: expected } });
   });
-
-  it("keeps the session alive on tab close when remember-me is checked", async () => {
-    const adapter = createAuthSupabaseAdapter();
-
-    await adapter.login({
-      email: "mira@test.com",
-      password: "password123",
-      rememberSession: true,
-    });
-
-    fireBeforeUnload();
-
-    expect(mocks.signOut).not.toHaveBeenCalled();
+  it("rejects missing or malformed codes before provider access", async () => {
+    expect((await createAuthSupabaseAdapter().login({ ...input, code: "12a" })).success).toBe(false);
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
   });
-
-  it("removes the beforeunload handler on logout", async () => {
-    const adapter = createAuthSupabaseAdapter();
-
-    await adapter.login({
-      email: "mira@test.com",
-      password: "password123",
-      rememberSession: false,
-    });
-    mocks.signOut.mockClear();
-
-    const logout = await adapter.logout();
-    expect(logout.success).toBe(true);
-    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
-
-    mocks.signOut.mockClear();
-    fireBeforeUnload();
-
-    expect(mocks.signOut).not.toHaveBeenCalled();
+  it("fails closed when a provider returns no session", async () => {
+    auth.verifyOtp.mockResolvedValue({ data: { session: null }, error: null });
+    expect((await createAuthSupabaseAdapter().login(input)).success).toBe(false);
   });
-
-  it("does not register a volatile handler when login fails", async () => {
-    mocks.signInWithPassword.mockResolvedValue({
-      data: { session: null },
-      error: { message: "invalid login credentials" },
-    });
-    const adapter = createAuthSupabaseAdapter();
-
-    const result = await adapter.login({
-      email: "mira@test.com",
-      password: "wrong",
-      rememberSession: false,
-    });
-
-    expect(result.success).toBe(false);
-    fireBeforeUnload();
-    expect(mocks.signOut).not.toHaveBeenCalled();
+  it("ends only the current browser session", async () => {
+    expect((await createAuthSupabaseAdapter().logout()).success).toBe(true);
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+  it("surfaces send and logout errors", async () => {
+    auth.signInWithOtp.mockResolvedValue({ error: { message: "Rate limited" } });
+    auth.signOut.mockResolvedValue({ error: { message: "Unavailable" } });
+    expect((await createAuthSupabaseAdapter().requestEmailCode(input.email)).success).toBe(false);
+    expect((await createAuthSupabaseAdapter().logout()).success).toBe(false);
   });
 });

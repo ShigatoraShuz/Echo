@@ -20,26 +20,13 @@ import {
   UsersRound,
   ShieldAlert,
 } from "lucide-react";
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 
-import {
-  AvatarUpload,
-  ExportDataSection,
-  SettingsHeader,
-  SettingsSection,
-  SettingsShell,
-} from "../components";
+import { AvatarUpload, ExportDataSection, SettingsHeader, SettingsSection, SettingsShell } from "../components";
 
 import { useSettingsViewModel } from "../view-model/use-settings-view-model";
 
@@ -106,21 +93,13 @@ function StateMessage({
         "rounded-[1.25rem] border px-4 py-3 text-sm",
         "animate-in fade-in slide-in-from-top-2",
         "sm:flex-row sm:items-center sm:justify-between",
-        error
-          ? "border-red-200 bg-red-50 text-red-800"
-          : "border-emerald-200 bg-emerald-50 text-emerald-800",
+        error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800",
       )}
     >
       <span className="flex min-w-0 items-start gap-2 font-medium">
-        {error ? (
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-        ) : (
-          <Check className="mt-0.5 h-4 w-4 shrink-0" />
-        )}
+        {error ? <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" /> : <Check className="mt-0.5 h-4 w-4 shrink-0" />}
 
-        <span className="min-w-0 break-words">
-          {error ?? notice}
-        </span>
+        <span className="min-w-0 break-words">{error ?? notice}</span>
       </span>
 
       {error && onRetry && (
@@ -267,9 +246,7 @@ function Toggle({
             "focus-visible:ring-4",
             "focus-visible:ring-primary/20",
 
-            checked
-              ? "bg-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.2)]"
-              : "bg-muted-foreground/30",
+            checked ? "bg-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.2)]" : "bg-muted-foreground/30",
           )}
         >
           <span
@@ -281,9 +258,7 @@ function Toggle({
               "shadow-md",
               "transition-transform duration-300",
               "ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              checked
-                ? "translate-x-6"
-                : "translate-x-1",
+              checked ? "translate-x-6" : "translate-x-1",
             )}
           />
         </button>
@@ -296,15 +271,7 @@ function Toggle({
 // FIELD
 // -----------------------------------------------------------------------------
 
-function Field({
-  label,
-  children,
-  hint,
-}: {
-  label: string;
-  children: ReactNode;
-  hint?: string;
-}) {
+function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div className="w-full min-w-0 space-y-1.5">
       <label
@@ -321,9 +288,7 @@ function Field({
         {label}
       </label>
 
-      <div className="w-full min-w-0">
-        {children}
-      </div>
+      <div className="w-full min-w-0">{children}</div>
 
       {hint && (
         <p
@@ -346,11 +311,7 @@ function Field({
 // RESPONSIVE ACTION CONTAINER
 // -----------------------------------------------------------------------------
 
-function SettingsAction({
-  children,
-}: {
-  children: ReactNode;
-}) {
+function SettingsAction({ children }: { children: ReactNode }) {
   return (
     <div
       className="
@@ -372,18 +333,9 @@ function SettingsAction({
 // -----------------------------------------------------------------------------
 
 export function ProfileSettingsView() {
-  const {
-    settings,
-    loading,
-    saving,
-    error,
-    notice,
-    refresh,
-    run,
-  } = useSettingsViewModel();
+  const { settings, loading, saving, error, notice, refresh, run } = useSettingsViewModel();
 
-  const [form, setForm] =
-    useState<ProfileSettings | null>(null);
+  const [form, setForm] = useState<ProfileSettings | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
@@ -392,29 +344,27 @@ export function ProfileSettingsView() {
     }
   }, [settings]);
 
-  const handleAvatarUpload = useCallback(
-    async (file: File) => {
-      setIsUploadingAvatar(true);
-      try {
-        const profile = await settingsService.uploadAvatar(file);
-        setForm(profile);
-      } finally {
-        setIsUploadingAvatar(false);
-      }
-    },
-    [],
-  );
+  const handleAvatarUpload = useCallback(async (file: File) => {
+    setIsUploadingAvatar(true);
+    try {
+      const profile = await settingsService.uploadAvatar(file);
+      setForm(profile);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (form) {
       await run(
-        () => settingsService.updateProfile({
-          displayName: form.displayName,
-          timezone: form.timezone,
-          themeVariant: form.themeVariant,
-          themeMode: form.themeMode,
-        }),
+        () =>
+          settingsService.updateProfile({
+            displayName: form.displayName,
+            timezone: form.timezone,
+            themeVariant: form.themeVariant,
+            themeMode: form.themeMode,
+          }),
         "Profile updated.",
       );
     }
@@ -450,16 +400,9 @@ export function ProfileSettingsView() {
   return (
     <SettingsShell>
       <div className="w-full min-w-0">
-        <SettingsHeader
-          title="Profile"
-          description="Manage your dashboard identity and local time preferences."
-        />
+        <SettingsHeader title="Profile" description="Manage your dashboard identity and local time preferences." />
 
-        <StateMessage
-          error={error}
-          notice={notice}
-          onRetry={() => void refresh()}
-        />
+        <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
 
         {form && (
           <form
@@ -471,10 +414,7 @@ export function ProfileSettingsView() {
               sm:space-y-6
             "
           >
-            <SettingsSection
-              title="Profile Photo"
-              description="Change how you appear in ECHO."
-            >
+            <SettingsSection title="Profile Photo" description="Change how you appear in ECHO.">
               {form && (
                 <AvatarUpload
                   currentAvatar={form.avatarPath ?? null}
@@ -485,10 +425,7 @@ export function ProfileSettingsView() {
               )}
             </SettingsSection>
 
-            <SettingsSection
-              title="Personal details"
-              description="Ensuring ECHO feels personal and timely."
-            >
+            <SettingsSection title="Personal details" description="Ensuring ECHO feels personal and timely.">
               {/* ------------------------------------------------------------ */}
               {/* FORM GRID                                                     */}
               {/* ------------------------------------------------------------ */}
@@ -533,8 +470,7 @@ export function ProfileSettingsView() {
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          displayName:
-                            e.target.value,
+                          displayName: e.target.value,
                         })
                       }
                       required
@@ -543,10 +479,7 @@ export function ProfileSettingsView() {
                 </Field>
 
                 {/* Timezone */}
-                <Field
-                  label="Timezone"
-                  hint="Used for daily check-in reminders."
-                >
+                <Field label="Timezone" hint="Used for daily check-in reminders.">
                   <select
                     className="
                       echo-input
@@ -560,16 +493,12 @@ export function ProfileSettingsView() {
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        timezone:
-                          e.target.value,
+                        timezone: e.target.value,
                       })
                     }
                   >
                     {timezoneOptions.map((tz) => (
-                      <option
-                        key={tz}
-                        value={tz}
-                      >
+                      <option key={tz} value={tz}>
                         {tz.replace("_", " ")}
                       </option>
                     ))}
@@ -611,31 +540,16 @@ export function ProfileSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function PrivacySettingsView() {
-  const {
-    settings,
-    loading,
-    saving,
-    error,
-    notice,
-    refresh,
-    run,
-  } = useSettingsViewModel();
+  const { settings, loading, saving, error, notice, refresh, run } = useSettingsViewModel();
 
-  const [form, setForm] =
-    useState<
-      Omit<PrivacySettings, "journalPrivate">
-    | null>(null);
+  const [form, setForm] = useState<Omit<PrivacySettings, "journalPrivate"> | null>(null);
 
   useEffect(() => {
     if (settings) {
       setForm({
-        crisisSupportVisible:
-          settings.privacy
-            .crisisSupportVisible,
+        crisisSupportVisible: settings.privacy.crisisSupportVisible,
 
-        lockScreenPrivate:
-          settings.privacy
-            .lockScreenPrivate,
+        lockScreenPrivate: settings.privacy.lockScreenPrivate,
       });
     }
   }, [settings]);
@@ -670,22 +584,12 @@ export function PrivacySettingsView() {
   return (
     <SettingsShell>
       <div className="w-full min-w-0">
-        <SettingsHeader
-          title="Privacy"
-          description="Customize how wellbeing features interact with your device."
-        />
+        <SettingsHeader title="Privacy" description="Customize how wellbeing features interact with your device." />
 
-        <StateMessage
-          error={error}
-          notice={notice}
-          onRetry={() => void refresh()}
-        />
+        <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
 
         {form && (
-          <SettingsSection
-            title="Safety Controls"
-            description="Your journal entries are always encrypted and private."
-          >
+          <SettingsSection title="Safety Controls" description="Your journal entries are always encrypted and private.">
             {/* -------------------------------------------------------------- */}
             {/* TOGGLES                                                         */}
             {/* -------------------------------------------------------------- */}
@@ -716,14 +620,11 @@ export function PrivacySettingsView() {
               />
 
               <Toggle
-                checked={
-                  form.crisisSupportVisible
-                }
+                checked={form.crisisSupportVisible}
                 onChange={(value) =>
                   setForm({
                     ...form,
-                    crisisSupportVisible:
-                      value,
+                    crisisSupportVisible: value,
                   })
                 }
                 label="Local Support Links"
@@ -731,14 +632,11 @@ export function PrivacySettingsView() {
               />
 
               <Toggle
-                checked={
-                  form.lockScreenPrivate
-                }
+                checked={form.lockScreenPrivate}
                 onChange={(value) =>
                   setForm({
                     ...form,
-                    lockScreenPrivate:
-                      value,
+                    lockScreenPrivate: value,
                   })
                 }
                 label="Masked Alerts"
@@ -752,15 +650,7 @@ export function PrivacySettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updatePrivacy(
-                        form,
-                      ),
-                    "Privacy choices saved.",
-                  )
-                }
+                onClick={() => void run(() => settingsService.updatePrivacy(form), "Privacy choices saved.")}
                 variant="primary"
                 isLoading={saving}
                 className="
@@ -787,20 +677,9 @@ export function PrivacySettingsView() {
 // -----------------------------------------------------------------------------
 
 export function NotificationSettingsView() {
-  const {
-    settings,
-    loading,
-    saving,
-    error,
-    notice,
-    refresh,
-    run,
-  } = useSettingsViewModel();
+  const { settings, loading, saving, error, notice, refresh, run } = useSettingsViewModel();
 
-  const [form, setForm] =
-    useState<NotificationSettings | null>(
-      null,
-    );
+  const [form, setForm] = useState<NotificationSettings | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -831,10 +710,7 @@ export function NotificationSettingsView() {
     );
   }
 
-  const isReminderOn = Boolean(
-    form?.journalRemindersEnabled ||
-      form?.wellbeingRemindersEnabled,
-  );
+  const isReminderOn = Boolean(form?.journalRemindersEnabled || form?.wellbeingRemindersEnabled);
 
   // ---------------------------------------------------------------------------
   // VIEW
@@ -843,22 +719,12 @@ export function NotificationSettingsView() {
   return (
     <SettingsShell>
       <div className="w-full min-w-0">
-        <SettingsHeader
-          title="Notifications"
-          description="Find your rhythm with quiet, neutral reminders."
-        />
+        <SettingsHeader title="Notifications" description="Find your rhythm with quiet, neutral reminders." />
 
-        <StateMessage
-          error={error}
-          notice={notice}
-          onRetry={() => void refresh()}
-        />
+        <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
 
         {form && (
-          <SettingsSection
-            title="Reminder Rhythm"
-            description="You can pause or change these at any time."
-          >
+          <SettingsSection title="Reminder Rhythm" description="You can pause or change these at any time.">
             {/* -------------------------------------------------------------- */}
             {/* NOTIFICATION TOGGLES                                           */}
             {/* -------------------------------------------------------------- */}
@@ -875,14 +741,11 @@ export function NotificationSettingsView() {
               "
             >
               <Toggle
-                checked={
-                  form.journalRemindersEnabled
-                }
+                checked={form.journalRemindersEnabled}
                 onChange={(value) =>
                   setForm({
                     ...form,
-                    journalRemindersEnabled:
-                      value,
+                    journalRemindersEnabled: value,
                   })
                 }
                 label="Daily Check-in"
@@ -914,14 +777,11 @@ export function NotificationSettingsView() {
               />
 
               <Toggle
-                checked={
-                  form.wellbeingRemindersEnabled
-                }
+                checked={form.wellbeingRemindersEnabled}
                 onChange={(value) =>
                   setForm({
                     ...form,
-                    wellbeingRemindersEnabled:
-                      value,
+                    wellbeingRemindersEnabled: value,
                   })
                 }
                 label="Grounding Invitations"
@@ -950,8 +810,7 @@ export function NotificationSettingsView() {
                 "sm:rounded-[2rem]",
                 "sm:p-5",
 
-                !isReminderOn &&
-                  "pointer-events-none opacity-50 grayscale",
+                !isReminderOn && "pointer-events-none opacity-50 grayscale",
               )}
             >
               {/* Target Time */}
@@ -965,15 +824,11 @@ export function NotificationSettingsView() {
                     min-w-0
                     rounded-xl
                   "
-                  value={
-                    form.reminderTime ?? ""
-                  }
+                  value={form.reminderTime ?? ""}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      reminderTime:
-                        e.target.value ||
-                        null,
+                      reminderTime: e.target.value || null,
                     })
                   }
                 />
@@ -989,30 +844,19 @@ export function NotificationSettingsView() {
                     min-w-0
                     rounded-xl
                   "
-                  value={
-                    form.reminderTimezone ?? ""
-                  }
+                  value={form.reminderTimezone ?? ""}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      reminderTimezone:
-                        e.target.value,
+                      reminderTimezone: e.target.value,
                     })
                   }
                 >
-                  {timezoneOptions.map(
-                    (tz) => (
-                      <option
-                        key={tz}
-                        value={tz}
-                      >
-                        {tz.replace(
-                          "_",
-                          " ",
-                        )}
-                      </option>
-                    ),
-                  )}
+                  {timezoneOptions.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz.replace("_", " ")}
+                    </option>
+                  ))}
                 </select>
               </Field>
             </div>
@@ -1023,21 +867,10 @@ export function NotificationSettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updateNotifications(
-                        form,
-                      ),
-                    "Notifications saved.",
-                  )
-                }
+                onClick={() => void run(() => settingsService.updateNotifications(form), "Notifications saved.")}
                 variant="primary"
                 isLoading={saving}
-                disabled={
-                  isReminderOn &&
-                  !form.reminderTime
-                }
+                disabled={isReminderOn && !form.reminderTime}
                 className="
                   h-11
                   w-full
@@ -1092,10 +925,7 @@ export function SecuritySettingsView() {
   return (
     <SettingsShell>
       <div className="w-full min-w-0">
-        <SettingsHeader
-          title="Security"
-          description="Manage your account authentication and access."
-        />
+        <SettingsHeader title="Security" description="Manage your account authentication and access." />
 
         <SettingsSection
           title="Password & Authentication"
@@ -1108,9 +938,7 @@ export function SecuritySettingsView() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Change Password</p>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {email ?? "Loading…"}
-                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{email ?? "Loading…"}</p>
               </div>
             </div>
 
@@ -1132,9 +960,7 @@ export function SecuritySettingsView() {
               </EchoButton>
             )}
 
-            {status === "error" && error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {status === "error" && error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
           <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
@@ -1144,9 +970,7 @@ export function SecuritySettingsView() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Two-Factor Authentication</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Additional security layer for your account.
-                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Additional security layer for your account.</p>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -1164,15 +988,7 @@ export function SecuritySettingsView() {
 // -----------------------------------------------------------------------------
 
 export function TrustedContactsSettingsView() {
-  const {
-    settings,
-    loading,
-    saving,
-    error,
-    notice,
-    refresh,
-    run,
-  } = useSettingsViewModel();
+  const { settings, loading, saving, error, notice, refresh, run } = useSettingsViewModel();
 
   const [contacts, setContacts] = useState<TrustedContact[]>([]);
   const [addMode, setAddMode] = useState(false);
@@ -1187,15 +1003,7 @@ export function TrustedContactsSettingsView() {
     permissionAcknowledged: false,
   });
 
-  const RELATIONSHIP_SUGGESTIONS = [
-    "Therapist",
-    "Partner",
-    "Parent",
-    "Close Friend",
-    "Doctor",
-    "Sibling",
-    "Counselor",
-  ];
+  const RELATIONSHIP_SUGGESTIONS = ["Therapist", "Partner", "Parent", "Close Friend", "Doctor", "Sibling", "Counselor"];
 
   useEffect(() => {
     if (settings) setContacts(settings.trustedContacts);
@@ -1216,7 +1024,7 @@ export function TrustedContactsSettingsView() {
 
   const hasContactMethod = Boolean(
     (form.contactEmail && form.contactEmail.trim().length > 0) ||
-      (form.contactPhone && form.contactPhone.trim().length > 0),
+    (form.contactPhone && form.contactPhone.trim().length > 0),
   );
 
   const isFormValid =
@@ -1227,19 +1035,10 @@ export function TrustedContactsSettingsView() {
 
   async function handleSave() {
     if (!isFormValid) return;
-    if (editId) {
-      await run(
-        () => settingsService.updateContact(editId, form),
-        "Contact updated.",
-      );
-    } else {
-      await run(
-        () => settingsService.createContact(form),
-        "Contact added to your support circle.",
-      );
-    }
-    resetForm();
-    void refresh();
+    const saved = editId
+      ? await run(() => settingsService.updateContact(editId, form), "Contact updated.")
+      : await run(() => settingsService.createContact(form), "Contact added to your support circle.");
+    if (saved) resetForm();
   }
 
   async function handleSetPrimary(contact: TrustedContact) {
@@ -1259,9 +1058,7 @@ export function TrustedContactsSettingsView() {
   }
 
   async function handleRemove(id: string) {
-    await run(() => settingsService.removeContact(id), "Contact removed.");
-    setDeleteConfirmId(null);
-    void refresh();
+    if (await run(() => settingsService.removeContact(id), "Contact removed.")) setDeleteConfirmId(null);
   }
 
   if (loading) {
@@ -1276,8 +1073,8 @@ export function TrustedContactsSettingsView() {
     <SettingsShell>
       <div className="w-full min-w-0 space-y-6">
         <SettingsHeader
-          title="Trusted Contacts"
-          description="People ECHO may reach in moments of high distress."
+          title="Trusted Support Contacts"
+          description="Add someone you trust before enabling Buddy and AI Analysis."
         />
 
         <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
@@ -1287,11 +1084,10 @@ export function TrustedContactsSettingsView() {
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div className="min-w-0 text-xs leading-relaxed text-muted-foreground">
-              <strong className="block font-semibold text-foreground">
-                How ECHO uses your support circle
-              </strong>
+              <strong className="block font-semibold text-foreground">How ECHO uses your support circle</strong>
               <p className="mt-1">
-                Keep contact details here for people you may choose to reach out to. ECHO does not automatically contact them or share your reflections.
+                Keep contact details here for people you may choose to reach out to. ECHO does not automatically contact
+                them or share your reflections.
               </p>
               <Link
                 href="/crisis"
@@ -1305,7 +1101,7 @@ export function TrustedContactsSettingsView() {
 
         <SettingsSection
           title="Your support circle"
-          description="Contacts are notified only if you grant explicit permission."
+          description="You choose when to call or email. ECHO never contacts them automatically."
         >
           {/* Contact list */}
           <div className="w-full space-y-3">
@@ -1314,7 +1110,8 @@ export function TrustedContactsSettingsView() {
                 <UsersRound className="mx-auto h-8 w-8 text-muted-foreground/60" />
                 <p className="mt-2 text-sm font-semibold text-foreground">No trusted contacts yet</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Add someone you trust (such as a therapist, close friend, or family member) to reach out in tough moments.
+                  Add someone you trust (such as a therapist, close friend, or family member) to reach out in tough
+                  moments.
                 </p>
               </div>
             )}
@@ -1355,7 +1152,11 @@ export function TrustedContactsSettingsView() {
 
                 {deleteConfirmId === contact.id ? (
                   <div className="flex items-center gap-2 rounded-xl bg-destructive/10 p-2">
-                    <span className="text-xs font-semibold text-destructive">Remove?</span>
+                    <span className="text-xs font-semibold text-destructive">
+                      {contacts.length === 1
+                        ? "Removing your last contact makes Buddy and AI Analysis unavailable until you add another. Remove?"
+                        : "Remove this contact?"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => void handleRemove(contact.id)}
@@ -1538,7 +1339,10 @@ export function TrustedContactsSettingsView() {
             <div className="mt-4">
               <button
                 type="button"
-                onClick={() => { setAddMode(true); setEditId(null); }}
+                onClick={() => {
+                  setAddMode(true);
+                  setEditId(null);
+                }}
                 className="flex items-center gap-2 rounded-full border border-dashed border-primary/40 bg-primary/4 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/8 transition-colors"
               >
                 <Plus className="h-4 w-4" />
@@ -1557,14 +1361,7 @@ export function TrustedContactsSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function ExportSettingsView() {
-  const {
-    settings,
-    loading,
-    error,
-    notice,
-    refresh,
-    run,
-  } = useSettingsViewModel();
+  const { settings, loading, error, notice, refresh, run } = useSettingsViewModel();
 
   const journalService = useMemo(() => getJournalService(), []);
 
@@ -1581,10 +1378,7 @@ export function ExportSettingsView() {
   return (
     <SettingsShell>
       <div className="w-full min-w-0">
-        <SettingsHeader
-          title="Data Export"
-          description="Download a personal copy of your ECHO wellbeing data."
-        />
+        <SettingsHeader title="Data Export" description="Download a personal copy of your ECHO wellbeing data." />
 
         <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
 
@@ -1604,16 +1398,11 @@ export function ExportSettingsView() {
         </SettingsSection>
 
         {settings?.latestExport && (
-          <SettingsSection
-            title="Previous Export"
-            description="History of your last data export request."
-          >
+          <SettingsSection title="Previous Export" description="History of your last data export request.">
             <div className="flex w-full min-w-0 items-center gap-4 rounded-2xl border border-border/60 bg-card p-4">
               <Download className="h-5 w-5 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground capitalize">
-                  {settings.latestExport.status}
-                </p>
+                <p className="text-sm font-semibold text-foreground capitalize">{settings.latestExport.status}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Requested {formatDate(settings.latestExport.requestedAt)}
                 </p>
@@ -1627,18 +1416,13 @@ export function ExportSettingsView() {
           </SettingsSection>
         )}
 
-        <SettingsSection
-          title="Account Deletion"
-          description="Once deleted, your data cannot be recovered."
-        >
+        <SettingsSection title="Account Deletion" description="Once deleted, your data cannot be recovered.">
           {settings?.deletionRequest ? (
             <div className="flex flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
                 <div>
-                  <p className="text-sm font-bold text-destructive">
-                    Deletion Scheduled
-                  </p>
+                  <p className="text-sm font-bold text-destructive">Deletion Scheduled</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Your account is scheduled for deletion.
                     {settings.deletionRequest.scheduledFor && (
@@ -1666,12 +1450,10 @@ export function ExportSettingsView() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive/70" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">
-                    Delete your account
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">Delete your account</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    This will permanently remove your profile, all journal entries, AI analyses, and
-                    chat history. This action cannot be undone.
+                    This will permanently remove your profile, all journal entries, AI analyses, and chat history. This
+                    action cannot be undone.
                   </p>
                 </div>
               </div>

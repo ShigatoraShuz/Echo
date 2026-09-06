@@ -11,10 +11,12 @@ export const journalSortOptionSchema = z.enum(["newest", "oldest"]);
 export const createJournalSchema = z.object({
   title: z
     .string()
+    .trim()
     .min(1, "Title is required")
     .max(JOURNAL_MAX_TITLE_LENGTH, `Title must be ${JOURNAL_MAX_TITLE_LENGTH} characters or less`),
   body: z
     .string()
+    .trim()
     .min(1, "Body is required")
     .max(JOURNAL_MAX_BODY_LENGTH, `Body must be ${JOURNAL_MAX_BODY_LENGTH} characters or less`),
   mood: journalMoodSchema,

@@ -5,7 +5,15 @@ const root = resolve(import.meta.dirname, "..");
 const violations = [];
 const expectedTokens = {
   ".env.example": ["USER", "JOURNAL", "ASSESSMENT", "ANALYSIS", "ML", "RECOMMENDATION", "WELLNESS", "INSIGHTS"],
-  "services/api-gateway/.env.example": ["USER", "JOURNAL", "ASSESSMENT", "ANALYSIS", "RECOMMENDATION", "WELLNESS", "INSIGHTS"],
+  "services/api-gateway/.env.example": [
+    "USER",
+    "JOURNAL",
+    "ASSESSMENT",
+    "ANALYSIS",
+    "RECOMMENDATION",
+    "WELLNESS",
+    "INSIGHTS",
+  ],
   "services/user-service/.env.example": ["USER"],
   "services/journal-service/.env.example": ["JOURNAL"],
   "services/assessment-service/.env.example": ["ASSESSMENT"],
@@ -18,9 +26,18 @@ const expectedTokens = {
 };
 
 const expectedDatabaseKeys = {
-  ".env.example": ["USER_SERVICE_DATABASE_KEY", "USER_STORAGE_KEY", "JOURNAL_SERVICE_DATABASE_KEY", "ASSESSMENT_SERVICE_DATABASE_KEY", "ANALYSIS_SERVICE_DATABASE_KEY", "RECOMMENDATION_SERVICE_DATABASE_KEY", "WELLNESS_SERVICE_DATABASE_KEY"],
+  ".env.example": [
+    "USER_SERVICE_DATABASE_KEY",
+    "USER_STORAGE_KEY",
+    "JOURNAL_STORAGE_KEY",
+    "JOURNAL_SERVICE_DATABASE_KEY",
+    "ASSESSMENT_SERVICE_DATABASE_KEY",
+    "ANALYSIS_SERVICE_DATABASE_KEY",
+    "RECOMMENDATION_SERVICE_DATABASE_KEY",
+    "WELLNESS_SERVICE_DATABASE_KEY",
+  ],
   "services/user-service/.env.example": ["SUPABASE_DATABASE_KEY", "USER_STORAGE_KEY"],
-  "services/journal-service/.env.example": ["SUPABASE_DATABASE_KEY"],
+  "services/journal-service/.env.example": ["SUPABASE_DATABASE_KEY", "JOURNAL_STORAGE_KEY"],
   "services/assessment-service/.env.example": ["SUPABASE_DATABASE_KEY"],
   "services/recommendation-service/.env.example": ["SUPABASE_DATABASE_KEY"],
   "services/wellness-service/.env.example": ["SUPABASE_DATABASE_KEY"],
@@ -41,19 +58,27 @@ for (const [file, prefixes] of Object.entries(expectedTokens)) {
   const actual = [...values.keys()].filter((name) => name.endsWith("_SERVICE_TOKEN")).sort();
   const expected = prefixes.map((prefix) => `${prefix}_SERVICE_TOKEN`).sort();
   if (actual.join("\n") !== expected.join("\n")) {
-    violations.push(`${file}: service-token scope is ${actual.join(", ") || "empty"}; expected ${expected.join(", ") || "empty"}`);
+    violations.push(
+      `${file}: service-token scope is ${actual.join(", ") || "empty"}; expected ${expected.join(", ") || "empty"}`,
+    );
   }
   for (const [name, value] of values) {
-    const privileged = /(?:SERVICE_ROLE_KEY|DATABASE_KEY|SERVICE_TOKEN|ENCRYPTION_KEY_BASE64|HMAC_SECRET)$/.test(name);
+    const privileged =
+      /(?:SERVICE_ROLE_KEY|DATABASE_KEY|SERVICE_TOKEN|ENCRYPTION_KEY_BASE64|HMAC_SECRET|STORAGE_KEY)$/.test(name);
     if (privileged && value.trim()) violations.push(`${file}: privileged placeholder ${name} must be blank`);
   }
-  if (values.has("INTERNAL_SERVICE_TOKEN")) violations.push(`${file}: deprecated shared INTERNAL_SERVICE_TOKEN is forbidden`);
+  if (values.has("INTERNAL_SERVICE_TOKEN"))
+    violations.push(`${file}: deprecated shared INTERNAL_SERVICE_TOKEN is forbidden`);
 }
 
 for (const [file, expected] of Object.entries(expectedDatabaseKeys)) {
-  const actual = [...variables(file).keys()].filter((name) => name === "USER_STORAGE_KEY" || name.endsWith("_DATABASE_KEY")).sort();
+  const actual = [...variables(file).keys()]
+    .filter((name) => name === "USER_STORAGE_KEY" || name === "JOURNAL_STORAGE_KEY" || name.endsWith("_DATABASE_KEY"))
+    .sort();
   if (actual.join("\n") !== [...expected].sort().join("\n")) {
-    violations.push(`${file}: database-key scope is ${actual.join(", ") || "empty"}; expected ${[...expected].sort().join(", ")}`);
+    violations.push(
+      `${file}: database-key scope is ${actual.join(", ") || "empty"}; expected ${[...expected].sort().join(", ")}`,
+    );
   }
 }
 
@@ -62,7 +87,8 @@ if (rootValues.get("JOURNAL_ENCRYPTION_KEY_VERSION") !== "1") {
   violations.push(".env.example: JOURNAL_ENCRYPTION_KEY_VERSION must preserve compatibility version 1");
 }
 const compose = readFileSync(resolve(root, "docker-compose.yml"), "utf8");
-if (compose.includes("INTERNAL_SERVICE_TOKEN")) violations.push("docker-compose.yml: deprecated shared internal token is forbidden");
+if (compose.includes("INTERNAL_SERVICE_TOKEN"))
+  violations.push("docker-compose.yml: deprecated shared internal token is forbidden");
 if (/\b(?:ANALYSIS_PROVIDER|ALLOW_MOCK_ANALYSIS|AI_SERVICE_TOKEN)\b/.test(compose)) {
   violations.push("docker-compose.yml: legacy monolith analysis configuration is forbidden");
 }
@@ -73,6 +99,7 @@ const composeReferenceCounts = {
   SUPABASE_SERVICE_ROLE_KEY: 1,
   USER_SERVICE_DATABASE_KEY: 1,
   USER_STORAGE_KEY: 1,
+  JOURNAL_STORAGE_KEY: 1,
   JOURNAL_SERVICE_DATABASE_KEY: 1,
   ASSESSMENT_SERVICE_DATABASE_KEY: 1,
   ANALYSIS_SERVICE_DATABASE_KEY: 1,
@@ -90,11 +117,14 @@ const composeReferenceCounts = {
 };
 for (const [name, expected] of Object.entries(composeReferenceCounts)) {
   const actual = compose.split(`\${${name}}`).length - 1;
-  if (actual !== expected) violations.push(`docker-compose.yml: ${name} is distributed ${actual} times; expected ${expected}`);
+  if (actual !== expected)
+    violations.push(`docker-compose.yml: ${name} is distributed ${actual} times; expected ${expected}`);
 }
 
 if (violations.length) {
   console.error(`Environment contract check failed:\n${violations.map((value) => `- ${value}`).join("\n")}`);
   process.exit(1);
 }
-console.log("Environment contract check passed: placeholders are blank, service tokens are least-privilege scoped, and journal key version compatibility is preserved.");
+console.log(
+  "Environment contract check passed: placeholders are blank, service tokens are least-privilege scoped, and journal key version compatibility is preserved.",
+);

@@ -1,174 +1,132 @@
 "use client";
-
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
-
-import { AuthFormField } from "../components/auth-form-field";
-import { AuthStatusMessage } from "../components/auth-status-message";
-import { AuthDivider } from "../components/auth-divider";
 import { SecureGoogleLoginButton } from "../components/secure-google-login-button";
-import { PasswordField } from "../components/password-field";
 import { useLoginViewModel } from "../view-model/use-login-view-model";
-import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
-import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
-import { EchoButton } from "@/shared/components/ui/echo-button";
-import { EchoCheckbox } from "@/shared/components/ui/echo-checkbox";
-import { safeRedirectPath } from "@/shared/lib/safe-redirect";
-
-interface LoginViewProps {
+import { verificationApi } from "@/services/verification/verification-api";
+import { useState } from "react";
+export function LoginView({
+  title,
+  description,
+  admin = false,
+}: {
   title: string;
   description: string;
-}
-
-const loginRouteMessages: Record<string, string> = {
-  login_required: "Please log in to continue. This page is only available to signed-in users.",
-  auth_not_configured: "Sign-in is temporarily unavailable because authentication is not configured.",
-  access_check_unavailable: "We could not verify access to your account. Please log in again.",
-  account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
-  email_verification_required: "Verify your email address before logging in.",
-  sign_in_session_expired: "Your sign-in session expired. Please log in again.",
-  google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
-};
-
-export function LoginView({ title, description }: LoginViewProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const {
-    email,
-    password,
-    rememberSession,
-    showPassword,
-    status,
-    error,
-    fieldErrors,
-    setEmail,
-    setPassword,
-    setRememberSession,
-    togglePasswordVisibility,
-    submit,
-  } = useLoginViewModel();
-
-  const handleSubmit = async (event: React.FormEvent) => {
+  admin?: boolean;
+}) {
+  const router = useRouter(),
+    params = useSearchParams(),
+    vm = useLoginViewModel();
+  const [accessError, setAccessError] = useState<string | null>(null);
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (status === "submitting") return;
-
-    const session = await submit();
-    if (session) {
-      const next = safeRedirectPath(searchParams.get("next"));
-      router.replace(next);
-      router.refresh();
+    const session = await vm.submit();
+    if (!session) return;
+    if (admin) {
+      try {
+        if (!(await verificationApi.reviewerAccess()).canReview) {
+          setAccessError("This account does not have administrator access.");
+          return;
+        }
+      } catch {
+        setAccessError("Administrator access could not be checked. Try signing in again.");
+        return;
+      }
     }
-  };
-
-  const routeError = searchParams.get("error");
-  const routeMessage = routeError ? loginRouteMessages[routeError] : undefined;
-
+    router.replace(admin ? "/admin/verifications" : "/dashboard");
+    router.refresh();
+  }
+  const busy = vm.status === "submitting";
   return (
-    <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
-      <EchoReveal direction="down" duration={260}>
-        <section className="rounded-[1.75rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-5 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.16)] backdrop-blur-md sm:px-6 sm:py-6 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
-          <header className="text-center">
-            <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] shadow-[0_10px_24px_rgba(41,49,27,0.1)]">
-              <Leaf className="h-5 w-5" strokeWidth={2.1} aria-hidden="true" />
-            </div>
-            <h1 className="mt-3 text-[clamp(1.75rem,6vw,2.2rem)] font-medium leading-none tracking-[-0.045em] [font-family:var(--font-echo-display)]">
-              {title}
-            </h1>
-            <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-[var(--landing-muted)]">{description}</p>
-          </header>
-
-          {routeMessage ? (
-            <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
-          ) : null}
-
-          <div className="mt-4 space-y-2">
-            <SecureGoogleLoginButton />
-            <AuthDivider />
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
-            <AuthStatusMessage status={status} error={error} />
-
-            <AuthFormField
-              label="Email address"
-              type="email"
-              placeholder="you@example.com"
-              leadingIcon={<Mail className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              error={fieldErrors.email?.[0]}
-              autoComplete="email"
-              required
-            />
-
-            <PasswordField
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              showPassword={showPassword}
-              onToggleVisibility={togglePasswordVisibility}
-              error={fieldErrors.password?.[0]}
-              required
-            />
-
-            <div className="flex items-center justify-between gap-4 pt-0.5">
-              <EchoCheckbox
-                label="Remember me on this device"
-                checked={rememberSession}
-                onChange={(event) => setRememberSession(event.target.checked)}
+    <section className="w-full max-w-md space-y-5 rounded-3xl border bg-card p-7 shadow-lg">
+      <header>
+        <p className="text-sm text-primary">Your ECHO space</p>
+        <h1 className="mt-2 font-serif text-4xl">{title}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">{description}</p>
+      </header>
+      {!admin && <SecureGoogleLoginButton />}
+      <p className="text-sm">Sign in securely with a code sent to your email. No password is needed.</p>
+      {params.get("confirmed") === "1" && (
+        <p role="status">Your email is confirmed. Request a sign-in code below to continue.</p>
+      )}
+      {params.get("error") && (
+        <p role="alert">Please sign in again to continue. If you just registered, confirm your email first.</p>
+      )}
+      <form onSubmit={submit} className="space-y-4" aria-busy={busy}>
+        {(vm.error || accessError) && (
+          <p role="alert" className="rounded-xl border p-3 text-sm">
+            {accessError || vm.error?.message}
+          </p>
+        )}
+        <label className="block text-sm font-medium">
+          {admin ? "Admin email" : "Email address"}
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={vm.email}
+            disabled={busy || vm.sent}
+            onChange={(e) => vm.setEmail(e.target.value)}
+            className="mt-2 block min-h-12 w-full rounded-xl border bg-background px-3"
+          />
+        </label>
+        {vm.sent && (
+          <>
+            <p role="status" className="text-sm">
+              If this account can sign in, a code has been sent. Check your inbox and spam folder.
+            </p>
+            <label className="block text-sm font-medium">
+              Email sign-in code
+              <input
+                autoFocus
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                value={vm.code}
+                disabled={busy}
+                onChange={(e) => vm.setCode(e.target.value.replace(/\D/g, ""))}
+                aria-describedby="code-help"
+                className="mt-2 block min-h-12 w-full rounded-xl border bg-background px-3 text-xl tracking-widest"
               />
-              <Link
-                href="/forgot-password"
-                className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <p className="text-[11px] leading-4 text-[var(--landing-muted)]">
-              Unchecked means the session ends when you close this tab.
+            </label>
+            <p id="code-help" className="text-xs">
+              Enter all six digits. Codes expire; request a new one if yours no longer works.
             </p>
-
-            <EchoButton
-              type="submit"
-              variant="primary"
-              size="medium"
-              className="h-10 w-full rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] shadow-[0_12px_24px_rgba(83,103,51,0.24)] hover:bg-[var(--landing-primary-hover)]"
-              isLoading={status === "submitting"}
-              loadingText="Logging in..."
-              disabled={status === "success"}
+          </>
+        )}
+        <button
+          type="submit"
+          disabled={busy || vm.status === "success"}
+          className="echo-button-primary min-h-12 w-full"
+        >
+          {busy ? "Please wait…" : vm.sent ? "Verify code and sign in" : "Send sign-in code"}
+        </button>
+        {vm.sent && (
+          <div className="flex flex-wrap gap-4">
+            <button
+              type="button"
+              disabled={busy || vm.cooldown > 0}
+              onClick={() => void vm.sendCode()}
+              className="min-h-11 underline"
             >
-              Log in
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </EchoButton>
-          </form>
-
-          <footer className="mt-3 border-t border-[rgba(83,103,51,0.14)] pt-3 text-center">
-            <div className="inline-flex items-center gap-2 text-[11px] leading-4 text-[var(--landing-muted)]">
-              <ShieldCheck className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />
-              Private by design. Not a diagnostic tool.
-            </div>
-            <p className="mt-2 text-xs text-[var(--landing-muted)]">
-              New to ECHO?{" "}
-              <Link
-                href="/signup"
-                className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
-              >
-                Create an account
-              </Link>
-            </p>
-          </footer>
-        </section>
-      </EchoReveal>
-
-      <Link
-        href="/"
-        className="mt-2 inline-flex w-full items-center justify-center gap-2 text-xs font-medium text-[var(--landing-muted)] outline-none transition-colors hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Return home
+              {vm.cooldown > 0 ? "Resend in " + vm.cooldown + "s" : "Resend code"}
+            </button>
+            <button type="button" disabled={busy} onClick={vm.changeEmail} className="min-h-11 underline">
+              Change email
+            </button>
+          </div>
+        )}
+      </form>
+      <p className="text-xs text-muted-foreground">Private by design. ECHO is not a diagnostic tool.</p>
+      <Link href="/signup" className="block underline">
+        Create an account
       </Link>
-    </div>
+      <Link href="/crisis" className="block underline">
+        Get immediate support
+      </Link>
+    </section>
   );
 }

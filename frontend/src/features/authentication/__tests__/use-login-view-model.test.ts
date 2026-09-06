@@ -1,160 +1,84 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
-import { getAuthService } from "@/services/authentication/auth-service.factory";
-
-vi.mock("@/services/authentication/auth-service.factory", () => ({
-  getAuthService: vi.fn(),
-  resetAuthService: vi.fn(),
-}));
-
-function createMockService() {
-  return {
-    login: vi.fn(),
-    signup: vi.fn(),
-    forgotPassword: vi.fn(),
-    resetPassword: vi.fn(),
-    getCurrentSession: vi.fn(),
-    logout: vi.fn(),
-  };
-}
-
-describe("useLoginViewModel", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("has idle initial state", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { useLoginViewModel } from "../view-model/use-login-view-model";
+const auth = vi.hoisted(() => ({ requestEmailCode: vi.fn(), login: vi.fn() }));
+vi.mock("@/services/authentication/auth-service.factory", () => ({ getAuthService: () => auth }));
+beforeEach(() => {
+  vi.clearAllMocks();
+  auth.requestEmailCode.mockResolvedValue({ success: true, data: { message: "Sent" } });
+});
+afterEach(() => vi.useRealTimers());
+describe("Email code sign-in state", () => {
+  it("rejects invalid email before sending", async () => {
     const { result } = renderHook(() => useLoginViewModel());
-
-    expect(result.current.email).toBe("");
-    expect(result.current.password).toBe("");
-    expect(result.current.rememberSession).toBe(false);
-    expect(result.current.showPassword).toBe(false);
-    expect(result.current.status).toBe("idle");
-    expect(result.current.error).toBeNull();
-    expect(result.current.fieldErrors).toEqual({});
-  });
-
-  it("updates email via setEmail", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
-    const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setEmail("test@example.com"));
-    expect(result.current.email).toBe("test@example.com");
-  });
-
-  it("updates password via setPassword", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
-    const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setPassword("secret123"));
-    expect(result.current.password).toBe("secret123");
-  });
-
-  it("updates rememberSession via setRememberSession", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
-    const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setRememberSession(true));
-    expect(result.current.rememberSession).toBe(true);
-  });
-
-  it("toggles showPassword", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
-    const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.togglePasswordVisibility());
-    expect(result.current.showPassword).toBe(true);
-
-    act(() => result.current.togglePasswordVisibility());
-    expect(result.current.showPassword).toBe(false);
-  });
-
-  it("sets field errors on invalid submission", async () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
-    const { result } = renderHook(() => useLoginViewModel());
-
     await act(async () => {
       await result.current.submit();
     });
-
-    expect(result.current.fieldErrors.email).toBeDefined();
-    expect(result.current.fieldErrors.password).toBeDefined();
-    expect(result.current.status).toBe("idle");
-    expect(mockService.login).not.toHaveBeenCalled();
+    expect(result.current.error?.code).toBe("VALIDATION");
+    expect(auth.requestEmailCode).not.toHaveBeenCalled();
   });
-
-  it("calls service and returns data on success", async () => {
-    const mockSession = { user: { id: "1", name: "Mira", email: "mira@test.com" }, expiresAt: "2026-07-15", isMockSession: true };
-    const mockService = createMockService();
-    mockService.login.mockResolvedValue({ success: true, data: mockSession });
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
+  it("does not establish a session when sending and enforces resend cooldown", async () => {
+    vi.useFakeTimers();
     const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setEmail("mira@test.com"));
-    act(() => result.current.setPassword("password123"));
-
-    let returned: unknown;
+    act(() => result.current.setEmail("person@example.com"));
     await act(async () => {
-      returned = await result.current.submit();
+      await result.current.submit();
     });
-
+    expect(result.current.sent).toBe(true);
+    expect(auth.login).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.sendCode();
+    });
+    expect(auth.requestEmailCode).toHaveBeenCalledTimes(1);
+    for (let i = 0; i < 60; i++) act(() => vi.advanceTimersByTime(1000));
+    await act(async () => {
+      await result.current.sendCode();
+    });
+    expect(auth.requestEmailCode).toHaveBeenCalledTimes(2);
+  });
+  it("handles expired code and permits retry", async () => {
+    const { result } = renderHook(() => useLoginViewModel());
+    act(() => result.current.setEmail("person@example.com"));
+    await act(async () => {
+      await result.current.sendCode();
+    });
+    act(() => result.current.setCode("123456"));
+    auth.login.mockResolvedValue({ success: false, error: { code: "EXPIRED_TOKEN", message: "Code expired" } });
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(result.current.error?.code).toBe("EXPIRED_TOKEN");
+    auth.login.mockResolvedValue({ success: true, data: { user: { id: "owner" } } });
+    await act(async () => {
+      await result.current.submit();
+    });
     expect(result.current.status).toBe("success");
-    expect(result.current.error).toBeNull();
-    expect(mockService.login).toHaveBeenCalledWith({ email: "mira@test.com", password: "password123", rememberSession: false });
-    expect(returned).toEqual(mockSession);
   });
-
-  it("sets error on service failure", async () => {
-    const mockError = { code: "INVALID_CREDENTIALS", message: "Invalid email or password." };
-    const mockService = createMockService();
-    mockService.login.mockResolvedValue({ success: false, error: mockError });
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
+  it("handles invalid codes and network rejection without an open session", async () => {
     const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setEmail("mira@test.com"));
-    act(() => result.current.setPassword("password123"));
-
+    act(() => result.current.setEmail("person@example.com"));
+    await act(async () => {
+      await result.current.sendCode();
+    });
     await act(async () => {
       await result.current.submit();
     });
-
+    expect(result.current.error?.code).toBe("INVALID_TOKEN");
+    act(() => result.current.setCode("123456"));
+    auth.login.mockRejectedValue(Error("network"));
+    await act(async () => {
+      await result.current.submit();
+    });
     expect(result.current.status).toBe("error");
-    expect(result.current.error).toEqual(mockError);
   });
-
-  it("resets to initial state", () => {
-    const mockService = createMockService();
-    vi.mocked(getAuthService).mockReturnValue(mockService);
-
+  it("clears the code when changing email", async () => {
     const { result } = renderHook(() => useLoginViewModel());
-
-    act(() => result.current.setEmail("test@example.com"));
-    act(() => result.current.setPassword("secret123"));
-    act(() => result.current.reset());
-
-    expect(result.current.email).toBe("");
-    expect(result.current.password).toBe("");
-    expect(result.current.rememberSession).toBe(false);
-    expect(result.current.showPassword).toBe(false);
-    expect(result.current.status).toBe("idle");
-    expect(result.current.error).toBeNull();
-    expect(result.current.fieldErrors).toEqual({});
+    act(() => {
+      result.current.setEmail("person@example.com");
+      result.current.setCode("123456");
+    });
+    act(() => result.current.changeEmail());
+    expect(result.current.code).toBe("");
+    expect(result.current.sent).toBe(false);
   });
 });

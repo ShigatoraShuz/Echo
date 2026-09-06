@@ -1,11 +1,20 @@
+import { randomUUID } from "node:crypto";
 import type { OwnedDatabase } from "@echo/service-core";
 import { ServiceError } from "@echo/service-core";
 import type { Encryption } from "./encryption.js";
 type Row = Record<string, unknown>;
-const string = (value: unknown) => typeof value === "string" ? value : "";
+const string = (value: unknown) => (typeof value === "string" ? value : "");
 const bytea = (value: string) => `\\x${Buffer.from(value, "base64").toString("hex")}`;
-const base64 = (value: unknown) => typeof value === "string" && value.startsWith("\\x") ? Buffer.from(value.slice(2), "hex").toString("base64") : string(value);
-const columns = (value: ReturnType<Encryption["encrypt"]>) => ({ content_ciphertext: bytea(value.ciphertext), encryption_iv: bytea(value.iv), encryption_auth_tag: bytea(value.authenticationTag), encryption_key_version: value.keyVersion });
+const base64 = (value: unknown) =>
+  typeof value === "string" && value.startsWith("\\x")
+    ? Buffer.from(value.slice(2), "hex").toString("base64")
+    : string(value);
+const columns = (value: ReturnType<Encryption["encrypt"]>) => ({
+  content_ciphertext: bytea(value.ciphertext),
+  encryption_iv: bytea(value.iv),
+  encryption_auth_tag: bytea(value.authenticationTag),
+  encryption_key_version: value.keyVersion,
+});
 const URGENT_PATTERNS = [
   /\bkill myself\b/i,
   /\bend my life\b/i,
@@ -13,18 +22,222 @@ const URGENT_PATTERNS = [
   /\bwant to die\b/i,
   /\bhurt myself\b/i,
 ] as const;
-export function hasUrgentLanguage(value: string): boolean { return URGENT_PATTERNS.some((pattern) => pattern.test(value)); }
-function reply(message: string, urgent: boolean) { if (urgent) return "Thank you for telling me. Your immediate safety matters most. Please open Find help or Crisis support now and contact a trusted person who can stay with you."; const normalized = message.toLowerCase(); if (/anx|overwhelm|tight/.test(normalized)) return "Let us make this moment smaller. Place both feet down, take one unforced breath, and name one thing around you that feels steady."; if (/sad|alone|lonely/.test(normalized)) return "That sounds heavy to carry alone. What is one gentle thing you need most right now: rest, company, space, or a practical next step?"; if (/angry|frustrat/.test(normalized)) return "There is room for that frustration here. Before deciding what to do, can you name what boundary or need feels most important underneath it?"; return "I am here with you. What part of that feels most present right now, and what would make the next few minutes a little gentler?"; }
+export function hasUrgentLanguage(value: string): boolean {
+  return URGENT_PATTERNS.some((pattern) => pattern.test(value));
+}
+function reply(message: string, urgent: boolean) {
+  if (urgent)
+    return "Thank you for telling me. Your immediate safety matters most. Please open Find help or Crisis support now and contact a trusted person who can stay with you.";
+  const normalized = message.toLowerCase();
+  if (/anx|overwhelm|tight/.test(normalized))
+    return "Let us make this moment smaller. Place both feet down, take one unforced breath, and name one thing around you that feels steady.";
+  if (/sad|alone|lonely/.test(normalized))
+    return "That sounds heavy to carry alone. What is one gentle thing you need most right now: rest, company, space, or a practical next step?";
+  if (/angry|frustrat/.test(normalized))
+    return "There is room for that frustration here. Before deciding what to do, can you name what boundary or need feels most important underneath it?";
+  return "I am here with you. What part of that feels most present right now, and what would make the next few minutes a little gentler?";
+}
 
 export class WellnessService {
-  constructor(private database: OwnedDatabase, private encryption: Encryption, private recordAudit: (event: object, headers: HeadersInit) => Promise<void>) {}
-  private async conversation(userId: string) { const existing = await this.database.from("buddy_conversations").select("*").eq("user_id", userId).eq("conversation_status", "active").order("last_message_at", { ascending: false }).limit(1).maybeSingle(); if (existing.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy is temporarily unavailable."); if (existing.data) return existing.data as Row; const title = this.encryption.encrypt("Buddy conversation"); const created = await this.database.from("buddy_conversations").insert({ user_id: userId, title_ciphertext: bytea(title.ciphertext), encryption_iv: bytea(title.iv), encryption_auth_tag: bytea(title.authenticationTag), encryption_key_version: title.keyVersion, conversation_status: "active" }).select("*").single(); if (created.error || !created.data) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy could not start a private conversation."); return created.data as Row; }
-  private async conversationForUser(userId: string, conversationId: string) { const result = await this.database.from("buddy_conversations").select("*").eq("id", conversationId).eq("user_id", userId).maybeSingle(); if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy is temporarily unavailable."); if (!result.data) throw new ServiceError(404, "NOT_FOUND", "The Buddy conversation was not found."); return result.data as Row; }
-  private decrypt(row: Row) { return this.encryption.decrypt({ ciphertext: base64(row.content_ciphertext), iv: base64(row.encryption_iv), authenticationTag: base64(row.encryption_auth_tag), keyVersion: Number(row.encryption_key_version) }); }
-  async session(userId: string, requestedConversationId?: string) { const conversation = requestedConversationId ? await this.conversationForUser(userId, requestedConversationId) : await this.conversation(userId); const conversationId = string(conversation.id); const result = await this.database.from("buddy_messages").select("*").eq("conversation_id", conversationId).eq("user_id", userId).order("created_at", { ascending: true }); if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy messages could not be loaded."); const messages = ((result.data ?? []) as Row[]).map((row) => ({ id: string(row.id), role: row.message_role === "user" ? "user" : "buddy", content: this.decrypt(row), timestamp: new Date(string(row.created_at)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) })); if (!messages.length) messages.push({ id: "welcome", role: "buddy", content: "I am here with you. What feels most present right now?", timestamp: "Now" }); return { conversationId, messages }; }
-  async send(userId: string, conversationId: string, content: string, headers: HeadersInit) { const conversation = await this.conversationForUser(userId, conversationId); if (conversation.conversation_status !== "active") throw new ServiceError(409, "CONFLICT", "Archived Buddy conversations are read-only."); const urgent = hasUrgentLanguage(content); const result = await this.database.from("buddy_messages").insert([{ conversation_id: conversationId, user_id: userId, message_role: "user", ...columns(this.encryption.encrypt(content)), urgent_language_detected: urgent }, { conversation_id: conversationId, user_id: userId, message_role: "assistant", ...columns(this.encryption.encrypt(reply(content, urgent))), urgent_language_detected: urgent }]); if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy could not save this conversation."); await this.database.from("buddy_conversations").update({ last_message_at: new Date().toISOString() }).eq("id", conversationId).eq("user_id", userId); if (urgent) await this.recordAudit({ userId, eventType: "buddy.urgent_language_detected", resourceType: "buddy_conversation", resourceId: conversationId, metadata: { support_resources_shown: true } }, headers).catch(() => undefined); return this.session(userId, conversationId); }
-  async sendActive(userId: string, content: string, headers: HeadersInit) { const conversation = await this.conversation(userId); return this.send(userId, string(conversation.id), content, headers); }
-  async history(userId: string) { const { data, error } = await this.database.from("buddy_conversations").select("id, conversation_status, last_message_at, created_at").eq("user_id", userId).order("last_message_at", { ascending: false }); if (error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy history could not be loaded."); return data ?? []; }
-  async grounding(userId: string, input: { technique: string; durationSeconds: number; pace: string }) { const { data, error } = await this.database.from("grounding_sessions").insert({ user_id: userId, exercise_type: input.technique, duration_seconds: input.durationSeconds, pace: input.pace }).select("id, created_at").single(); if (error || !data) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "The grounding session could not be recorded."); const total = await this.database.from("grounding_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId); if (total.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Grounding history could not be loaded."); return { id: data.id, completedAt: data.created_at, completedSessions: total.count ?? 1 }; }
-  async resources(query?: string, type?: string) { let builder = this.database.from("support_resources").select("*").eq("is_active", true).eq("is_verified", true).order("display_priority", { ascending: true }); if (type && type !== "all") builder = builder.eq("support_resource_type", type); const safe = query?.replace(/[%_,()]/g, " ").trim(); if (safe) builder = builder.or(`organization_name.ilike.%${safe}%,resource_name.ilike.%${safe}%,description.ilike.%${safe}%`); const { data, error } = await builder; if (error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Support resources are temporarily unavailable."); return ((data ?? []) as Row[]).map((row) => ({ id: string(row.id), type: string(row.support_resource_type), organizationName: string(row.organization_name), name: string(row.resource_name), description: string(row.description), phoneNumber: string(row.phone_number) || null, smsNumber: string(row.sms_number) || null, websiteUrl: string(row.website_url) || null, availability: string(row.availability_text), countryCode: string(row.country_code), regionCode: string(row.region_code) || null, lastVerifiedAt: string(row.last_verified_at) })); }
+  constructor(
+    private database: OwnedDatabase,
+    private encryption: Encryption,
+    private recordAudit: (event: object, headers: HeadersInit) => Promise<void>,
+  ) {}
+  private async conversation(userId: string) {
+    const existing = await this.database
+      .from("buddy_conversations")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("conversation_status", "active")
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy is temporarily unavailable.");
+    if (existing.data) return existing.data as Row;
+    const title = this.encryption.encrypt("Buddy conversation");
+    const created = await this.database
+      .from("buddy_conversations")
+      .insert({
+        user_id: userId,
+        title_ciphertext: bytea(title.ciphertext),
+        encryption_iv: bytea(title.iv),
+        encryption_auth_tag: bytea(title.authenticationTag),
+        encryption_key_version: title.keyVersion,
+        conversation_status: "active",
+      })
+      .select("*")
+      .single();
+    if (created.error || !created.data)
+      throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy could not start a private conversation.");
+    return created.data as Row;
+  }
+  private async conversationForUser(userId: string, conversationId: string) {
+    const result = await this.database
+      .from("buddy_conversations")
+      .select("*")
+      .eq("id", conversationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy is temporarily unavailable.");
+    if (!result.data) throw new ServiceError(404, "NOT_FOUND", "The Buddy conversation was not found.");
+    return result.data as Row;
+  }
+  private decrypt(row: Row) {
+    return this.encryption.decrypt({
+      ciphertext: base64(row.content_ciphertext),
+      iv: base64(row.encryption_iv),
+      authenticationTag: base64(row.encryption_auth_tag),
+      keyVersion: Number(row.encryption_key_version),
+    });
+  }
+  async session(userId: string, requestedConversationId?: string) {
+    const conversation = requestedConversationId
+      ? await this.conversationForUser(userId, requestedConversationId)
+      : await this.conversation(userId);
+    const conversationId = string(conversation.id);
+    const result = await this.database
+      .from("buddy_messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true });
+    if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy messages could not be loaded.");
+    const messages = ((result.data ?? []) as Row[]).map((row) => ({
+      id: string(row.id),
+      role: row.message_role === "user" ? "user" : "buddy",
+      content: this.decrypt(row),
+      safety: { kind: row.urgent_language_detected === true ? "immediate" : "none", eventId: string(row.id) },
+      timestamp: new Date(string(row.created_at)).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    }));
+    if (!messages.length)
+      messages.push({
+        safety: { kind: "none", eventId: "welcome" },
+        id: "welcome",
+        role: "buddy",
+        content: "I am here with you. What feels most present right now?",
+        timestamp: "Now",
+      });
+    return { conversationId, messages };
+  }
+  async send(userId: string, conversationId: string, content: string, headers: HeadersInit) {
+    const conversation = await this.conversationForUser(userId, conversationId);
+    if (conversation.conversation_status !== "active")
+      throw new ServiceError(409, "CONFLICT", "Archived Buddy conversations are read-only.");
+    const urgent = hasUrgentLanguage(content);
+    try {
+      const result = await this.database.from("buddy_messages").insert([
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          message_role: "user",
+          ...columns(this.encryption.encrypt(content)),
+          urgent_language_detected: urgent,
+        },
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          message_role: "assistant",
+          ...columns(this.encryption.encrypt(reply(content, urgent))),
+          urgent_language_detected: urgent,
+        },
+      ]);
+      if (result.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy could not save this conversation.");
+      await this.database
+        .from("buddy_conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .eq("user_id", userId);
+      if (urgent)
+        await this.recordAudit(
+          {
+            userId,
+            eventType: "buddy.urgent_language_detected",
+            resourceType: "buddy_conversation",
+            resourceId: conversationId,
+            metadata: { support_recommended: true },
+          },
+          headers,
+        ).catch(() => undefined);
+      return await this.session(userId, conversationId);
+    } catch (error) {
+      if (!urgent) throw error;
+      const id = randomUUID();
+      return {
+        conversationId,
+        messages: [
+          {
+            id,
+            role: "buddy",
+            content: "Buddy could not confirm that this conversation was saved. " + reply(content, true),
+            timestamp: "Now",
+            safety: { kind: "immediate", eventId: id },
+          },
+        ],
+      };
+    }
+  }
+  async sendActive(userId: string, content: string, headers: HeadersInit) {
+    const conversation = await this.conversation(userId);
+    return this.send(userId, string(conversation.id), content, headers);
+  }
+  async history(userId: string) {
+    const { data, error } = await this.database
+      .from("buddy_conversations")
+      .select("id, conversation_status, last_message_at, created_at")
+      .eq("user_id", userId)
+      .order("last_message_at", { ascending: false });
+    if (error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Buddy history could not be loaded.");
+    return data ?? [];
+  }
+  async grounding(userId: string, input: { technique: string; durationSeconds: number; pace: string }) {
+    const { data, error } = await this.database
+      .from("grounding_sessions")
+      .insert({
+        user_id: userId,
+        exercise_type: input.technique,
+        duration_seconds: input.durationSeconds,
+        pace: input.pace,
+      })
+      .select("id, created_at")
+      .single();
+    if (error || !data)
+      throw new ServiceError(503, "DATABASE_UNAVAILABLE", "The grounding session could not be recorded.");
+    const total = await this.database
+      .from("grounding_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if (total.error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Grounding history could not be loaded.");
+    return { id: data.id, completedAt: data.created_at, completedSessions: total.count ?? 1 };
+  }
+  async resources(query?: string, type?: string) {
+    let builder = this.database
+      .from("support_resources")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_verified", true)
+      .order("display_priority", { ascending: true });
+    if (type && type !== "all") builder = builder.eq("support_resource_type", type);
+    const safe = query?.replace(/[%_,()]/g, " ").trim();
+    if (safe)
+      builder = builder.or(
+        `organization_name.ilike.%${safe}%,resource_name.ilike.%${safe}%,description.ilike.%${safe}%`,
+      );
+    const { data, error } = await builder;
+    if (error) throw new ServiceError(503, "DATABASE_UNAVAILABLE", "Support resources are temporarily unavailable.");
+    return ((data ?? []) as Row[]).map((row) => ({
+      id: string(row.id),
+      type: string(row.support_resource_type),
+      organizationName: string(row.organization_name),
+      name: string(row.resource_name),
+      description: string(row.description),
+      phoneNumber: string(row.phone_number) || null,
+      smsNumber: string(row.sms_number) || null,
+      websiteUrl: string(row.website_url) || null,
+      availability: string(row.availability_text),
+      countryCode: string(row.country_code),
+      regionCode: string(row.region_code) || null,
+      lastVerifiedAt: string(row.last_verified_at),
+    }));
+  }
 }

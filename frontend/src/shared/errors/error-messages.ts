@@ -4,6 +4,7 @@ export const DEFAULT_ERROR_MESSAGES: Record<ErrorCode, string> = {
   VALIDATION_ERROR: "Please check your input and try again.",
   AUTHENTICATION_ERROR: "Your session has expired. Please log in again.",
   AUTHORIZATION_ERROR: "You do not have permission to perform this action.",
+  FEATURE_REQUIREMENTS_NOT_MET: "Complete verification and add a Trusted Support Contact to enable this feature.",
   VERIFICATION_REQUIRED: "Complete account verification to use Buddy and AI-supported features.",
   NOT_FOUND: "The requested resource was not found.",
   CONFLICT: "This item was updated by another session. Please refresh.",

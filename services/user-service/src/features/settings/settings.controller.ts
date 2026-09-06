@@ -1,3 +1,4 @@
+import { validContactPhone } from "./contact-validation.js";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
@@ -5,35 +6,44 @@ import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { SettingsService } from "./settings.service.js";
 
-const profileSchema = z.object({
-  displayName: z.string().trim().min(1, "Display name is required.").max(80),
-  timezone: z.string().trim().min(1).max(100),
-  themeVariant: z.enum(["echo-calm", "echo-night", "echo-soft", "echo-focus"]),
-  themeMode: z.enum(["light", "dark", "system"]),
-}).partial();
+const profileSchema = z
+  .object({
+    displayName: z.string().trim().min(1, "Display name is required.").max(80),
+    timezone: z.string().trim().min(1).max(100),
+    themeVariant: z.enum(["echo-calm", "echo-night", "echo-soft", "echo-focus"]),
+    themeMode: z.enum(["light", "dark", "system"]),
+  })
+  .partial();
 
-const privacySchema = z.object({
-  journalAiAnalysisEnabled: z.boolean(),
-  crisisSupportVisible: z.boolean(),
-  lockScreenPrivate: z.boolean(),
-}).partial();
+const privacySchema = z
+  .object({
+    journalAiAnalysisEnabled: z.boolean(),
+    crisisSupportVisible: z.boolean(),
+    lockScreenPrivate: z.boolean(),
+  })
+  .partial();
 
-const notificationSchema = z.object({
+const notificationSchema = z
+  .object({
     emailEnabled: z.boolean(),
     pushEnabled: z.boolean(),
     inAppEnabled: z.boolean(),
     journalRemindersEnabled: z.boolean(),
     wellbeingRemindersEnabled: z.boolean(),
     insightNotificationsEnabled: z.boolean(),
-    reminderTime: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    reminderTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable(),
     reminderTimezone: z.string().trim().min(1).max(100).nullable(),
-  }).partial();
+  })
+  .partial();
 
 const contactSchema = z
   .object({
     contactName: z.string().trim().min(1).max(200),
     contactEmail: z.string().trim().email().max(320).nullable(),
-    contactPhone: z.string().trim().min(5).max(40).nullable(),
+    contactPhone: z.string().trim().refine(validContactPhone, "Enter a valid phone number.").nullable(),
     relationship: z.string().trim().min(1).max(100),
     isPrimary: z.boolean(),
     permissionAcknowledged: z.literal(true, {
@@ -89,11 +99,7 @@ export function createSettingsController(service: SettingsService) {
       );
     },
     async createContact(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.createContact(userId(request), parse(contactSchema, request.body)),
-        201,
-      );
+      sendSuccess(response, await service.createContact(userId(request), parse(contactSchema, request.body)), 201);
     },
     async updateContact(request: Request, response: Response) {
       sendSuccess(
@@ -106,10 +112,7 @@ export function createSettingsController(service: SettingsService) {
       );
     },
     async removeContact(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.removeContact(userId(request), requireUuidParam(request, "contactId")),
-      );
+      sendSuccess(response, await service.removeContact(userId(request), requireUuidParam(request, "contactId")));
     },
     async requestExport(request: Request, response: Response) {
       sendSuccess(response, await service.requestExport(userId(request)), 201);
@@ -118,12 +121,7 @@ export function createSettingsController(service: SettingsService) {
       sendSuccess(response, await service.requestDeletion(userId(request)), 201);
     },
     async cancelDeletion(request: Request, response: Response) {
-      sendSuccess(
-        response,
-        await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")),
-      );
+      sendSuccess(response, await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")));
     },
   };
 }
-
-

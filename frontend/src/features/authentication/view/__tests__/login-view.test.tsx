@@ -1,77 +1,36 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { beforeEach, it, expect, vi } from "vitest";
 import { LoginView } from "../login-view";
-import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
-
-const navigation = vi.hoisted(() => ({
-  push: vi.fn(),
-  replace: vi.fn(),
-  refresh: vi.fn(),
-  searchParams: new URLSearchParams(),
-}));
-
+const mocks = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), send: vi.fn(), login: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => navigation,
-  useSearchParams: () => navigation.searchParams,
+  useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
+  useSearchParams: () => new URLSearchParams(),
 }));
-
-vi.mock("@/features/authentication/view-model/use-login-view-model", () => ({
-  useLoginViewModel: vi.fn(),
+vi.mock("../../components/secure-google-login-button", () => ({
+  SecureGoogleLoginButton: () => <button>Google sign in</button>,
 }));
-
-function setupMock() {
-  return {
-    email: "",
-    password: "",
-    rememberSession: false,
-    showPassword: false,
-    status: "idle" as const,
-    error: null,
-    fieldErrors: {},
-    setEmail: vi.fn(),
-    setPassword: vi.fn(),
-    setRememberSession: vi.fn(),
-    togglePasswordVisibility: vi.fn(),
-    submit: vi.fn().mockResolvedValue({ id: "session-1" }),
-    reset: vi.fn(),
-  };
-}
-
-describe("LoginView", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    navigation.searchParams = new URLSearchParams();
-  });
-
-  it("wires the main controls and submits the form", async () => {
-    const user = userEvent.setup();
-    const mock = setupMock();
-    vi.mocked(useLoginViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
-
-    render(<LoginView title="Log in" description="Welcome back" />);
-
-    await user.click(screen.getByRole("button", { name: /show password/i }));
-    await user.click(screen.getByLabelText(/remember me on this device/i));
-    await user.type(screen.getByLabelText(/email address/i), "mira@example.com");
-    await user.type(screen.getByPlaceholderText("Enter your password"), "secret123");
-    await user.click(screen.getByRole("button", { name: /log in/i }));
-
-    expect(mock.setEmail).toHaveBeenCalled();
-    expect(mock.setPassword).toHaveBeenCalled();
-    expect(mock.setRememberSession).toHaveBeenCalled();
-    expect(mock.togglePasswordVisibility).toHaveBeenCalled();
-    expect(mock.submit).toHaveBeenCalled();
-  });
-
-  it("explains why a signed-out user was sent to the login page", () => {
-    navigation.searchParams = new URLSearchParams("error=login_required&next=%2Fdashboard");
-    vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
-
-    render(<LoginView title="Log in" description="Welcome back" />);
-
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Please log in to continue. This page is only available to signed-in users.",
-    );
-  });
+vi.mock("@/services/authentication/auth-service.factory", () => ({
+  getAuthService: () => ({ requestEmailCode: mocks.send, login: mocks.login }),
+}));
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.send.mockResolvedValue({ success: true, data: { message: "Sent" } });
+});
+it("keeps protected navigation closed until the code is verified", async () => {
+  render(<LoginView title="Welcome back" description="Sign in" />);
+  expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "person@example.com" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+  await screen.findByLabelText("Email sign-in code");
+  expect(mocks.replace).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: /Resend in/ })).toBeDisabled();
+  mocks.login.mockResolvedValue({ success: true, data: { user: { id: "owner" } } });
+  fireEvent.change(screen.getByLabelText("Email sign-in code"), { target: { value: "123456" } });
+  fireEvent.click(screen.getByRole("button", { name: "Verify code and sign in" }));
+  await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/dashboard"));
+});
+it("retains Google and crisis access", () => {
+  render(<LoginView title="Welcome back" description="Sign in" />);
+  expect(screen.getByRole("button", { name: "Google sign in" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Get immediate support" })).toHaveAttribute("href", "/crisis");
 });

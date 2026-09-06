@@ -9,6 +9,9 @@ export function createAuthMockAdapter(): AuthService {
   }
 
   return {
+    async requestEmailCode() {
+      return { success: false, error: { code: "UNKNOWN", message: "Email codes require connected authentication." } };
+    },
     async login(input) {
       await delay(500 + Math.random() * 500);
 
@@ -34,7 +37,10 @@ export function createAuthMockAdapter(): AuthService {
       if (!input.email || !input.email.includes("@")) {
         return { success: false, error: { code: "VALIDATION", message: "Please enter a valid email address." } };
       }
-      return { success: true, data: { message: `If an account exists for ${input.email}, a reset link has been sent.` } };
+      return {
+        success: true,
+        data: { message: `If an account exists for ${input.email}, a reset link has been sent.` },
+      };
     },
 
     async resetPassword(input) {

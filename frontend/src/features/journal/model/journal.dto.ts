@@ -1,6 +1,8 @@
 // ─── API Response DTOs ────────────────────────────────
 
 export interface JournalEntryResponseDTO {
+  attachment_error?: boolean;
+  attachments?: import("@/services/journal/journal-media").JournalAttachment[];
   id: string;
   title: string;
   body: string;
@@ -38,6 +40,8 @@ export interface JournalDraftResponseDTO {
 }
 
 export interface JournalAnalysisResponseDTO {
+  safety?: import("@/shared/components/crisis/safety-signal").SafetySignal;
+  urgent_language_detected?: boolean;
   status: "pending" | "processing" | "completed" | "failed";
   id: string;
   entry_id: string;

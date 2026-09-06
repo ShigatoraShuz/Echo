@@ -7,6 +7,7 @@ export interface AuthUser {
 }
 
 export interface LoginInput {
+  code?: string;
   email: string;
   password: string;
   rememberSession: boolean;

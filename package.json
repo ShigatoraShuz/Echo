@@ -2,13 +2,17 @@
   "name": "echo",
   "version": "1.0.0-beta",
   "private": true,
-  "workspaces": ["frontend", "packages/*", "services/*"],
+  "workspaces": [
+    "frontend",
+    "packages/*",
+    "services/*"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w frontend\" \"npm run dev -w @echo/api-gateway\" \"npm run dev -w @echo/user-service\" \"npm run dev -w @echo/journal-service\" \"npm run dev -w @echo/assessment-service\" \"npm run dev -w @echo/recommendation-service\" \"npm run dev -w @echo/wellness-service\" \"npm run dev -w @echo/insights-service\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "node --test scripts/check-architecture.test.mjs scripts/registration-policy.test.mjs && npm run test --workspaces --if-present",
+    "test": "node --test scripts/check-architecture.test.mjs scripts/registration-policy.test.mjs scripts/support-resources.test.mjs && npm run test --workspaces --if-present",
     "architecture:check": "node scripts/check-architecture.mjs",
     "environment:check": "node scripts/check-environment-contracts.mjs",
     "local:secrets": "node scripts/generate-local-secrets.mjs",

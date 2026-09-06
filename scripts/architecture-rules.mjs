@@ -1,7 +1,7 @@
 export function referencedDatabaseTables(content) {
   const tables = new Set();
   for (const pattern of [
-    /\.from\(\s*["']([a-z_]+)["']\s*\)/g,
+    /(?<!\bBuffer|\bArray)\.from\(\s*["']([a-z_]+)["']\s*\)/g,
     /\.table\(\s*["']([a-z_]+)["']\s*\)/g,
     /\/rest\/v1\/([a-z_]+)/g,
   ]) {

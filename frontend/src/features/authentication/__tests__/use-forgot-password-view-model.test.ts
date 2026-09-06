@@ -10,6 +10,7 @@ vi.mock("@/services/authentication/auth-service.factory", () => ({
 
 function createMockService() {
   return {
+    requestEmailCode: vi.fn(),
     login: vi.fn(),
     signup: vi.fn(),
     forgotPassword: vi.fn(),

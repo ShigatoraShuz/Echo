@@ -12,15 +12,34 @@ type TokenVerifier = (token: string) => Promise<User | null>;
 type AccessChecker = (userId: string, requestId: string) => Promise<string>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type ServiceUrlKey = keyof Pick<GatewayConfig,
-  "USER_SERVICE_URL" | "JOURNAL_SERVICE_URL" | "ASSESSMENT_SERVICE_URL" | "ANALYSIS_SERVICE_URL" |
-  "RECOMMENDATION_SERVICE_URL" | "WELLNESS_SERVICE_URL" | "INSIGHTS_SERVICE_URL">;
-type ServiceTokenKey = keyof Pick<GatewayConfig,
-  "USER_SERVICE_TOKEN" | "JOURNAL_SERVICE_TOKEN" | "ASSESSMENT_SERVICE_TOKEN" | "ANALYSIS_SERVICE_TOKEN" |
-  "RECOMMENDATION_SERVICE_TOKEN" | "WELLNESS_SERVICE_TOKEN" | "INSIGHTS_SERVICE_TOKEN">;
+type ServiceUrlKey = keyof Pick<
+  GatewayConfig,
+  | "USER_SERVICE_URL"
+  | "JOURNAL_SERVICE_URL"
+  | "ASSESSMENT_SERVICE_URL"
+  | "ANALYSIS_SERVICE_URL"
+  | "RECOMMENDATION_SERVICE_URL"
+  | "WELLNESS_SERVICE_URL"
+  | "INSIGHTS_SERVICE_URL"
+>;
+type ServiceTokenKey = keyof Pick<
+  GatewayConfig,
+  | "USER_SERVICE_TOKEN"
+  | "JOURNAL_SERVICE_TOKEN"
+  | "ASSESSMENT_SERVICE_TOKEN"
+  | "ANALYSIS_SERVICE_TOKEN"
+  | "RECOMMENDATION_SERVICE_TOKEN"
+  | "WELLNESS_SERVICE_TOKEN"
+  | "INSIGHTS_SERVICE_TOKEN"
+>;
 const routeTable: Array<[RegExp, ServiceUrlKey, ServiceTokenKey]> = [
+  [/^\/analysis\/support(?:\/|$)/, "ANALYSIS_SERVICE_URL", "ANALYSIS_SERVICE_TOKEN"],
   [/^\/journals\/[^/]+\/(analyze|analyses)(?:\/|$)/, "ANALYSIS_SERVICE_URL", "ANALYSIS_SERVICE_TOKEN"],
-  [/^\/(settings|onboarding|verification|admin|access|registration|notifications)(?:\/|$)/, "USER_SERVICE_URL", "USER_SERVICE_TOKEN"],
+  [
+    /^\/(settings|onboarding|verification|admin|access|registration|notifications)(?:\/|$)/,
+    "USER_SERVICE_URL",
+    "USER_SERVICE_TOKEN",
+  ],
   [/^\/journals(?:\/|$)/, "JOURNAL_SERVICE_URL", "JOURNAL_SERVICE_TOKEN"],
   [/^\/(assessments|moods)(?:\/|$)/, "ASSESSMENT_SERVICE_URL", "ASSESSMENT_SERVICE_TOKEN"],
   [/^\/recommendations(?:\/|$)/, "RECOMMENDATION_SERVICE_URL", "RECOMMENDATION_SERVICE_TOKEN"],
@@ -29,7 +48,10 @@ const routeTable: Array<[RegExp, ServiceUrlKey, ServiceTokenKey]> = [
 ];
 
 function publicRoute(request: Request): boolean {
-  return request.path.startsWith("/registration") || (request.method === "GET" && request.path.startsWith("/support-resources"));
+  return (
+    request.path.startsWith("/registration") ||
+    (request.method === "GET" && request.path.startsWith("/support-resources"))
+  );
 }
 
 async function rawRequestBody(request: Request): Promise<Buffer | undefined> {
@@ -41,25 +63,41 @@ async function rawRequestBody(request: Request): Promise<Buffer | undefined> {
 }
 
 export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier, accessChecker?: AccessChecker) {
-  const authClient = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  const verify = verifier ?? (async (token: string) => {
-    const { data, error } = await authClient.auth.getUser(token);
-    return error || !data.user ? null : { id: data.user.id };
+  const authClient = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
-  const checkAccess = accessChecker ?? (async (userId: string, requestId: string) => {
-    try {
-      const result = await fetch(`${config.USER_SERVICE_URL.replace(/\/$/, "")}/api/v1/access/status`, {
-        headers: gatewayUserHeaders({ userId, requestId, secret: config.USER_SERVICE_TOKEN }),
-        signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
-      });
-      if (!result.ok) throw new Error("Access check rejected");
-      const payload = await result.json() as { data?: { decision?: string } };
-      if (!payload.data?.decision) throw new Error("Invalid access response");
-      return payload.data.decision;
-    } catch {
-      throw new ServiceError(503, "ACCESS_CHECK_UNAVAILABLE", "Account access could not be checked.");
-    }
-  });
+  const verify =
+    verifier ??
+    (async (token: string) => {
+      const { data, error } = await authClient.auth.getUser(token);
+      if (error || !data.user || !data.user.email_confirmed_at) return null;
+      // getUser above validates this exact JWT with Supabase before inspecting AMR.
+      try {
+        const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8")) as {
+          amr?: Array<{ method: string }>;
+        };
+        if (!claims.amr?.some((item) => ["otp", "oauth"].includes(item.method))) return null;
+      } catch {
+        return null;
+      }
+      return { id: data.user.id };
+    });
+  const checkAccess =
+    accessChecker ??
+    (async (userId: string, requestId: string) => {
+      try {
+        const result = await fetch(`${config.USER_SERVICE_URL.replace(/\/$/, "")}/api/v1/access/status`, {
+          headers: gatewayUserHeaders({ userId, requestId, secret: config.USER_SERVICE_TOKEN }),
+          signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
+        });
+        if (!result.ok) throw new Error("Access check rejected");
+        const payload = (await result.json()) as { data?: { decision?: string } };
+        if (!payload.data?.decision) throw new Error("Invalid access response");
+        return payload.data.decision;
+      } catch {
+        throw new ServiceError(503, "ACCESS_CHECK_UNAVAILABLE", "Account access could not be checked.");
+      }
+    });
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
@@ -72,14 +110,21 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
     next();
   });
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
-  app.use("/api/v1/settings/avatar", express.raw({
-    type: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    limit: "5mb",
-  }));
-  app.use("/api/v1/verification/documents", express.raw({
-    type: ["image/jpeg", "image/png", "application/pdf"],
-    limit: "8mb",
-  }));
+  app.use(
+    "/api/v1/settings/avatar",
+    express.raw({
+      type: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      limit: "5mb",
+    }),
+  );
+  app.use(
+    "/api/v1/verification/documents",
+    express.raw({
+      type: ["image/jpeg", "image/png", "application/pdf"],
+      limit: "8mb",
+    }),
+  );
+  app.use(/^\/api\/v1\/journals\/(?:draft\/)?[^/]+\/attachments$/, express.raw({ type: () => true, limit: "5mb" }));
   app.use(express.json({ limit: "1mb", type: ["application/json", "application/*+json"] }));
   app.get("/api/v1/health", (_request, response) => response.json({ status: "ok", service: "api-gateway" }));
 
@@ -91,8 +136,13 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
       if (!publicRoute(request)) {
         const authorization = request.header("authorization") ?? "";
         const [scheme, token] = authorization.split(" ", 2);
-        if (scheme?.toLowerCase() !== "bearer" || !token) throw new ServiceError(401, "AUTHENTICATION_REQUIRED", "Authentication is required.");
-        try { user = await verify(token); } catch { user = null; }
+        if (scheme?.toLowerCase() !== "bearer" || !token)
+          throw new ServiceError(401, "AUTHENTICATION_REQUIRED", "Authentication is required.");
+        try {
+          user = await verify(token);
+        } catch {
+          user = null;
+        }
         if (!user) throw new ServiceError(401, "INVALID_ACCESS_TOKEN", "Your session is invalid or expired.");
         // Access endpoints let eligible legacy accounts finish their gates. All
         // domain APIs enforce the decision, independently of frontend routing.
@@ -100,7 +150,11 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
           const decision = await checkAccess(user.id, request.requestId);
           const completingOnboarding = decision === "ONBOARDING_REQUIRED" && /^\/onboarding(?:\/|$)/.test(request.path);
           if (decision !== "ACCESS_GRANTED" && !completingOnboarding) {
-            throw new ServiceError(403, decision, "Complete the required account access steps before using this feature.");
+            throw new ServiceError(
+              403,
+              decision,
+              "Complete the required account access steps before using this feature.",
+            );
           }
         }
       }
@@ -114,7 +168,10 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
       headers.set("x-forwarded-host", request.get("host") ?? "");
       headers.set("x-forwarded-proto", request.protocol);
       if (user) {
-        for (const [name, value] of Object.entries(gatewayUserHeaders({ requestId: request.requestId, userId: user.id, secret: config[match[2]] }))) headers.set(name, value);
+        for (const [name, value] of Object.entries(
+          gatewayUserHeaders({ requestId: request.requestId, userId: user.id, secret: config[match[2]] }),
+        ))
+          headers.set(name, value);
       }
       const body = ["GET", "HEAD"].includes(request.method) ? undefined : await rawRequestBody(request);
       let upstreamResponse: globalThis.Response;
@@ -123,32 +180,47 @@ export function createGatewayApp(config: GatewayConfig, verifier?: TokenVerifier
           method: request.method,
           headers,
           body: body as unknown as BodyInit | undefined,
-          signal: AbortSignal.timeout(match[1] === "ANALYSIS_SERVICE_URL" ? config.ANALYSIS_REQUEST_TIMEOUT_MS : config.REQUEST_TIMEOUT_MS),
+          signal: AbortSignal.timeout(
+            match[1] === "ANALYSIS_SERVICE_URL" ? config.ANALYSIS_REQUEST_TIMEOUT_MS : config.REQUEST_TIMEOUT_MS,
+          ),
         });
       } catch (error) {
         const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
-        throw new ServiceError(timeout ? 504 : 503, timeout ? "UPSTREAM_TIMEOUT" : "UPSTREAM_UNAVAILABLE", timeout ? "The requested service timed out." : "The requested service is unavailable.");
+        throw new ServiceError(
+          timeout ? 504 : 503,
+          timeout ? "UPSTREAM_TIMEOUT" : "UPSTREAM_UNAVAILABLE",
+          timeout ? "The requested service timed out." : "The requested service is unavailable.",
+        );
       }
       const contentType = upstreamResponse.headers.get("content-type");
       const responseBody = Buffer.from(await upstreamResponse.arrayBuffer());
       if (contentType) response.setHeader("content-type", contentType);
-      const setCookies = (upstreamResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+      const setCookies =
+        (upstreamResponse.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
       for (const cookie of setCookies) response.append("set-cookie", cookie);
       response.status(upstreamResponse.status).send(responseBody);
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   });
   app.use((error: unknown, request: Request, response: express.Response, _next: express.NextFunction) => {
-    const parserStatus = typeof error === "object" && error !== null && "status" in error
-      ? Number((error as { status?: unknown }).status)
-      : undefined;
-    const known = error instanceof ServiceError
-      ? error
-      : parserStatus === 413
-        ? new ServiceError(413, "PAYLOAD_TOO_LARGE", "The uploaded file is too large.")
-        : parserStatus === 400
-          ? new ServiceError(400, "INVALID_REQUEST_BODY", "The request body is invalid.")
-          : new ServiceError(500, "INTERNAL_SERVER_ERROR", "Something went wrong. Please try again later.");
-    response.status(known.statusCode).json({ success: false, error: { code: known.code, message: known.message }, meta: { requestId: request.requestId } });
+    const parserStatus =
+      typeof error === "object" && error !== null && "status" in error
+        ? Number((error as { status?: unknown }).status)
+        : undefined;
+    const known =
+      error instanceof ServiceError
+        ? error
+        : parserStatus === 413
+          ? new ServiceError(413, "PAYLOAD_TOO_LARGE", "The uploaded file is too large.")
+          : parserStatus === 400
+            ? new ServiceError(400, "INVALID_REQUEST_BODY", "The request body is invalid.")
+            : new ServiceError(500, "INTERNAL_SERVER_ERROR", "Something went wrong. Please try again later.");
+    response.status(known.statusCode).json({
+      success: false,
+      error: { code: known.code, message: known.message },
+      meta: { requestId: request.requestId },
+    });
   });
   return app;
 }

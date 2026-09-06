@@ -39,6 +39,11 @@ function setupMock() {
     wordCount: 0,
     charCount: 0,
     isSaving: false,
+    ready: true,
+    attachments: [],
+    saveDraft: vi.fn(),
+    upload: vi.fn(),
+    removeAttachment: vi.fn(),
     autosaveStatus: "idle",
     error: null,
     fieldErrors: {},
@@ -52,9 +57,7 @@ function setupMock() {
     setAnalysisConsent: vi.fn(),
     setPrivacyStatus: vi.fn(),
     save: vi.fn(),
-    reset: vi.fn(),
     clearError: vi.fn(),
-    retryAutosave: vi.fn(),
   };
 }
 
@@ -69,7 +72,9 @@ describe("JournalEditorView", () => {
   it("wires textboxes, mood buttons, checkbox, and save", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
 
     render(<JournalEditorView />);
 
@@ -77,7 +82,7 @@ describe("JournalEditorView", () => {
     await user.type(screen.getByLabelText(/start writing/i), "I felt steady today.");
     await user.click(screen.getByRole("button", { name: /happy/i }));
     await user.click(screen.getByLabelText(/allow a reflective summary after saving/i));
-    await user.click(screen.getByRole("button", { name: /save reflection/i }));
+    await user.click(screen.getByRole("button", { name: /submit reflection/i }));
 
     expect(mock.setTitle).toHaveBeenCalled();
     expect(mock.setBody).toHaveBeenCalled();

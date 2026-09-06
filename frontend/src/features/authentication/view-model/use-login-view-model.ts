@@ -1,107 +1,95 @@
 "use client";
-
-import { useCallback, useReducer } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AuthServiceError } from "../model/auth.model";
-import { validateLoginInput } from "../model/auth.schema";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
-
 export type FormStatus = "idle" | "submitting" | "success" | "error";
-
-interface LoginState {
-  email: string;
-  password: string;
-  rememberSession: boolean;
-  showPassword: boolean;
-  status: FormStatus;
-  error: AuthServiceError | null;
-  fieldErrors: Record<string, string[]>;
-}
-
-type LoginAction =
-  | { type: "SET_EMAIL"; email: string }
-  | { type: "SET_PASSWORD"; password: string }
-  | { type: "SET_REMEMBER_SESSION"; rememberSession: boolean }
-  | { type: "TOGGLE_PASSWORD_VISIBILITY" }
-  | { type: "SUBMIT_START" }
-  | { type: "SUBMIT_SUCCESS" }
-  | { type: "SUBMIT_ERROR"; error: AuthServiceError }
-  | { type: "SET_FIELD_ERRORS"; fieldErrors: Record<string, string[]> }
-  | { type: "RESET" };
-
-function loginReducer(state: LoginState, action: LoginAction): LoginState {
-  switch (action.type) {
-    case "SET_EMAIL": return { ...state, email: action.email, error: null, fieldErrors: {} };
-    case "SET_PASSWORD": return { ...state, password: action.password, error: null, fieldErrors: {} };
-    case "SET_REMEMBER_SESSION": return { ...state, rememberSession: action.rememberSession };
-    case "TOGGLE_PASSWORD_VISIBILITY": return { ...state, showPassword: !state.showPassword };
-    case "SUBMIT_START": return { ...state, status: "submitting", error: null, fieldErrors: {} };
-    case "SUBMIT_SUCCESS": return { ...state, status: "success" };
-    case "SUBMIT_ERROR": return { ...state, status: "error", error: action.error };
-    case "SET_FIELD_ERRORS": return { ...state, status: "idle", fieldErrors: action.fieldErrors };
-    case "RESET": return { ...initialLoginState };
-    default: return state;
-  }
-}
-
-const initialLoginState: LoginState = {
-  email: "",
-  password: "",
-  rememberSession: false,
-  showPassword: false,
-  status: "idle",
-  error: null,
-  fieldErrors: {},
-};
-
 export function useLoginViewModel() {
-  const [state, dispatch] = useReducer(loginReducer, initialLoginState);
-  const authService = getAuthService();
-
-  const setEmail = useCallback((email: string) => dispatch({ type: "SET_EMAIL", email }), []);
-  const setPassword = useCallback((password: string) => dispatch({ type: "SET_PASSWORD", password }), []);
-  const setRememberSession = useCallback((rememberSession: boolean) => dispatch({ type: "SET_REMEMBER_SESSION", rememberSession }), []);
-  const togglePasswordVisibility = useCallback(() => dispatch({ type: "TOGGLE_PASSWORD_VISIBILITY" }), []);
-
-  const submit = useCallback(async () => {
-    const validation = validateLoginInput({
-      email: state.email,
-      password: state.password,
-      rememberSession: state.rememberSession,
-    });
-    if (!validation.valid) {
-      dispatch({ type: "SET_FIELD_ERRORS", fieldErrors: validation.errors });
+  const [email, setEmail] = useState(""),
+    [code, setCode] = useState(""),
+    [sent, setSent] = useState(false),
+    [cooldown, setCooldown] = useState(0),
+    [status, setStatus] = useState<FormStatus>("idle"),
+    [error, setError] = useState<AuthServiceError | null>(null);
+  const lock = useRef(false);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+  async function sendCode() {
+    if (lock.current || cooldown > 0) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError({ code: "VALIDATION", message: "Enter a valid email address." });
+      setStatus("error");
       return;
     }
-
-    dispatch({ type: "SUBMIT_START" });
-    const result = await authService.login({
-      email: state.email.trim(),
-      password: state.password,
-      rememberSession: state.rememberSession,
-    });
-    if (result.success) {
-      dispatch({ type: "SUBMIT_SUCCESS" });
-      return result.data;
+    lock.current = true;
+    setStatus("submitting");
+    setError(null);
+    try {
+      const result = await getAuthService().requestEmailCode(email.trim());
+      if (!result.success) {
+        setError(result.error);
+        setStatus("error");
+        return;
+      }
+      setSent(true);
+      setCooldown(60);
+      setStatus("idle");
+    } catch {
+      setError({ code: "NETWORK", message: "The code could not be sent. Check your connection and try again." });
+      setStatus("error");
+    } finally {
+      lock.current = false;
     }
-    dispatch({ type: "SUBMIT_ERROR", error: result.error });
-    return null;
-  }, [state.email, state.password, state.rememberSession, authService]);
-
-  const reset = useCallback(() => dispatch({ type: "RESET" }), []);
-
+  }
+  async function submit() {
+    if (!sent) {
+      await sendCode();
+      return null;
+    }
+    if (lock.current) return null;
+    if (!/^\d{6}$/.test(code)) {
+      setError({ code: "INVALID_TOKEN", message: "Enter the six-digit code from your email." });
+      setStatus("error");
+      return null;
+    }
+    lock.current = true;
+    setStatus("submitting");
+    setError(null);
+    try {
+      const result = await getAuthService().login({ email: email.trim(), code, password: "", rememberSession: true });
+      if (!result.success) {
+        setError(result.error);
+        setStatus("error");
+        return null;
+      }
+      setStatus("success");
+      return result.data;
+    } catch {
+      setError({ code: "NETWORK", message: "Sign-in could not be completed. Please retry." });
+      setStatus("error");
+      return null;
+    } finally {
+      lock.current = false;
+    }
+  }
   return {
-    email: state.email,
-    password: state.password,
-    rememberSession: state.rememberSession,
-    showPassword: state.showPassword,
-    status: state.status,
-    error: state.error,
-    fieldErrors: state.fieldErrors,
+    email,
     setEmail,
-    setPassword,
-    setRememberSession,
-    togglePasswordVisibility,
+    code,
+    setCode,
+    sent,
+    cooldown,
+    status,
+    error,
+    sendCode,
     submit,
-    reset,
+    changeEmail: () => {
+      setSent(false);
+      setCode("");
+      setError(null);
+      setStatus("idle");
+    },
   };
 }

@@ -11,17 +11,20 @@ export function useDashboardViewModel(initialTimeRange = "7d") {
   const [error, setError] = useState<string | null>(null);
   const service = getDashboardService();
 
-  const load = useCallback(async (range: string) => {
-    setIsLoading(true);
-    setError(null);
-    const result = await service.getDashboardData(range);
-    if (result.success) {
-      setData(result.data);
-    } else {
-      setError(result.error.message);
-    }
-    setIsLoading(false);
-  }, [service]);
+  const load = useCallback(
+    async (range: string) => {
+      setIsLoading(true);
+      setError(null);
+      const result = await service.getDashboardData(range);
+      if (result.success) {
+        setData(result.data);
+      } else {
+        setError(result.error.message);
+      }
+      setIsLoading(false);
+    },
+    [service],
+  );
 
   const handleSetTimeRange = useCallback((newRange: string) => {
     setTimeRange(newRange);
@@ -29,6 +32,12 @@ export function useDashboardViewModel(initialTimeRange = "7d") {
 
   useEffect(() => {
     void load(timeRange);
+  }, [load, timeRange]);
+
+  useEffect(() => {
+    const refresh = () => void load(timeRange);
+    window.addEventListener("echo:assessment-saved", refresh);
+    return () => window.removeEventListener("echo:assessment-saved", refresh);
   }, [load, timeRange]);
 
   return {

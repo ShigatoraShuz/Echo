@@ -15,7 +15,7 @@ USER_ID = "00000000-0000-4000-8000-000000000002"
 REQUEST_ID = "00000000-0000-4000-8000-000000000003"
 
 
-def harness(monkeypatch, failure=None, stored_status="completed"):
+def harness(monkeypatch, failure=None, stored_status="completed", urgent=False):
     updates = []
     calls = []
     settings = Settings(
@@ -30,6 +30,8 @@ def harness(monkeypatch, failure=None, stored_status="completed"):
     def respond(request):
         calls.append(request.url.host)
         if request.url.host == "user":
+            if failure in ("unverified", "missing_contact"):
+                return httpx.Response(403, json={"error": {"code": "FEATURE_REQUIREMENTS_NOT_MET", "details": {"missingRequirements": ["verification" if failure == "unverified" else "trusted_contact"]}}})
             return httpx.Response(200, json={"data": {"approved": True}})
         if request.url.host == "journal":
             return httpx.Response(200, json={"data": {"analysisConsent": True, "journalText": "private"}})
@@ -40,7 +42,7 @@ def harness(monkeypatch, failure=None, stored_status="completed"):
                 return httpx.Response(200, json={"phq8_score": 999})
             return httpx.Response(200, json={
                 "request_id": REQUEST_ID, "phq8_score": 2, "severity": "minimal",
-                "urgent_language_detected": False, "model_version": "validated-test",
+                "urgent_language_detected": urgent, "model_version": "validated-test",
                 "processing_time_ms": 10,
             })
         if request.url.host == "recommendation":
@@ -51,6 +53,8 @@ def harness(monkeypatch, failure=None, stored_status="completed"):
             }})
         if request.method == "PATCH":
             updates.append(json.loads(request.content))
+            if failure == "save":
+                return httpx.Response(503, json={})
         return httpx.Response(200, json=[{
             "id": "analysis-id", "created_at": "2026-09-05T00:00:00Z", "status": stored_status,
         }])
@@ -90,3 +94,25 @@ def test_failed_latest_result_does_not_claim_completion(monkeypatch):
     assert result["data"]["status"] == "failed"
     assert result["data"]["summary"] != "Analysis completed."
     assert result["data"]["phq8_score"] is None
+
+
+@pytest.mark.parametrize("failure", ["unverified", "missing_contact"])
+def test_analysis_gate_blocks_before_reading_journal_or_inference(monkeypatch, failure):
+    request, updates, calls = harness(monkeypatch, failure)
+    with pytest.raises(HTTPException) as captured:
+        asyncio.run(analysis.analyze(JOURNAL_ID, request, USER_ID))
+    assert captured.value.status_code == 403
+    assert captured.value.detail["code"] == "FEATURE_REQUIREMENTS_NOT_MET"
+    assert calls == ["user"]
+    assert updates == []
+
+
+@pytest.mark.parametrize("failure", [None, "recommendation", "save"])
+def test_urgent_signal_survives_dependencies(monkeypatch, failure):
+    request, _, calls = harness(monkeypatch, failure, urgent=True)
+    result = asyncio.run(analysis.analyze(JOURNAL_ID, request, USER_ID))["data"]
+    assert result["safety"]["kind"] == "immediate"
+    assert "recommendation" not in calls
+    assert result["status"] == ("failed" if failure == "save" else "completed")
+    if failure == "save":
+        assert result["phq8_score"] is None

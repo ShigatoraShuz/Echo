@@ -8,6 +8,8 @@ export type JournalSortOption = "newest" | "oldest";
 // ─── Domain Interfaces ───────────────────────────────
 
 export interface JournalEntry {
+  attachmentError?: boolean;
+  attachments?: import("@/services/journal/journal-media").JournalAttachment[];
   id: string;
   title: string;
   body: string;
@@ -38,6 +40,7 @@ export interface JournalDraft {
 }
 
 export interface JournalAnalysis {
+  safety?: import("@/shared/components/crisis/safety-signal").SafetySignal;
   status?: "pending" | "processing" | "completed" | "failed";
   id: string;
   entryId: string;
@@ -99,13 +102,7 @@ export interface JournalPagination {
 // ─── Service Error ────────────────────────────────────
 
 export type JournalServiceErrorCode =
-  | "NOT_FOUND"
-  | "VALIDATION"
-  | "UNAUTHORIZED"
-  | "FORBIDDEN"
-  | "CONFLICT"
-  | "NETWORK"
-  | "UNKNOWN";
+  "NOT_FOUND" | "VALIDATION" | "UNAUTHORIZED" | "FORBIDDEN" | "CONFLICT" | "NETWORK" | "UNKNOWN";
 
 export interface JournalServiceError {
   code: JournalServiceErrorCode;

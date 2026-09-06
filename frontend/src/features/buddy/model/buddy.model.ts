@@ -11,6 +11,7 @@ export interface BuddyConversation {
 }
 
 export interface BuddyMessage {
+  safety?: import("@/shared/components/crisis/safety-signal").SafetySignal;
   id: string;
   conversationId: string;
   role: "user" | "buddy";
@@ -29,12 +30,7 @@ export interface SendMessageInput {
 }
 
 export type BuddyServiceErrorCode =
-  | "NOT_FOUND"
-  | "VALIDATION"
-  | "UNAUTHORIZED"
-  | "VERIFICATION_REQUIRED"
-  | "NETWORK"
-  | "UNKNOWN";
+  "NOT_FOUND" | "VALIDATION" | "UNAUTHORIZED" | "VERIFICATION_REQUIRED" | "NETWORK" | "UNKNOWN";
 
 export interface BuddyServiceError {
   code: BuddyServiceErrorCode;

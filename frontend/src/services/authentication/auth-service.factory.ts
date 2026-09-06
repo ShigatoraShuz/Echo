@@ -16,6 +16,7 @@ function createUnavailableAuthService(): AuthService {
   });
 
   return {
+    requestEmailCode: unavailable,
     login: unavailable,
     forgotPassword: unavailable,
     resetPassword: unavailable,

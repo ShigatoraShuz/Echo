@@ -1,3 +1,5 @@
+import { validContactPhone } from "../settings/contact-validation.js";
+import { ServiceError } from "@echo/service-core";
 import { createHash, randomUUID } from "node:crypto";
 import type { OwnedDatabase } from "@echo/service-core";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
@@ -7,7 +9,6 @@ import {
   ExternalServiceError,
   NotFoundError,
   ValidationError,
-  VerificationRequiredError,
 } from "../../shared/errors/app-error.js";
 
 export const VERIFICATION_CONSENT_VERSION = "identity-verification-v1";
@@ -24,14 +25,7 @@ export const documentKinds = [
 
 export type VerificationDocumentKind = (typeof documentKinds)[number];
 export type VerificationStatus =
-  | "not_started"
-  | "draft"
-  | "submitted"
-  | "under_review"
-  | "needs_changes"
-  | "approved"
-  | "rejected"
-  | "expired";
+  "not_started" | "draft" | "submitted" | "under_review" | "needs_changes" | "approved" | "rejected" | "expired";
 
 export interface VerificationAddress {
   line1: string;
@@ -97,11 +91,7 @@ function encryptedColumns(payload: EncryptedPayload, prefix = ""): Record<string
   };
 }
 
-function decryptColumns(
-  encryption: EncryptionService,
-  row: Row,
-  prefix = "",
-): string | null {
+function decryptColumns(encryption: EncryptionService, row: Row, prefix = ""): string | null {
   const ciphertext = row[`${prefix}ciphertext`];
   if (ciphertext == null) return null;
   return encryption.decrypt({
@@ -132,19 +122,14 @@ export function calculateAge(dateOfBirth: string, now = new Date()): number {
   if (!birth) throw new ValidationError({ dateOfBirth: ["Enter a valid date of birth."] });
   let age = now.getUTCFullYear() - birth.getUTCFullYear();
   const monthDifference = now.getUTCMonth() - birth.getUTCMonth();
-  if (
-    monthDifference < 0 ||
-    (monthDifference === 0 && now.getUTCDate() < birth.getUTCDate())
-  ) {
+  if (monthDifference < 0 || (monthDifference === 0 && now.getUTCDate() < birth.getUTCDate())) {
     age -= 1;
   }
   return age;
 }
 
 export function requiredDocumentKinds(isMinor: boolean): VerificationDocumentKind[] {
-  return isMinor
-    ? ["user_age_document", "guardian_government_id", "guardianship_document"]
-    : ["user_government_id"];
+  return isMinor ? ["user_age_document", "guardian_government_id", "guardianship_document"] : ["user_government_id"];
 }
 
 function extensionForMimeType(mimeType: string): string {
@@ -337,28 +322,21 @@ export class VerificationService {
     };
 
     const query = existing
-      ? this.database
-          .from("identity_verifications")
-          .update(payload)
-          .eq("id", existing.id)
+      ? this.database.from("identity_verifications").update(payload).eq("id", existing.id)
       : this.database.from("identity_verifications").insert(payload);
     const { error } = await query;
     if (error) throw databaseError("Your verification application could not be saved.");
     return this.getStatus(userId);
   }
 
-  async uploadDocument(
-    userId: string,
-    kind: VerificationDocumentKind,
-    mimeType: string,
-    contents: Buffer,
-  ) {
+  async uploadDocument(userId: string, kind: VerificationDocumentKind, mimeType: string, contents: Buffer) {
     const extension = extensionForMimeType(mimeType);
     if (contents.byteLength < 1 || contents.byteLength > 8 * 1024 * 1024) {
       throw new ValidationError({ document: ["Upload a document no larger than 8 MB."] });
     }
     const application = await this.applicationRowForUser(userId);
-    if (!application) throw new ConflictError("VERIFICATION_APPLICATION_REQUIRED", "Complete your details before uploading documents.");
+    if (!application)
+      throw new ConflictError("VERIFICATION_APPLICATION_REQUIRED", "Complete your details before uploading documents.");
     const status = stringValue(application.verification_status);
     if (!["draft", "needs_changes", "rejected"].includes(status)) {
       throw new ConflictError("VERIFICATION_LOCKED", "Documents cannot be changed in the current verification state.");
@@ -377,7 +355,8 @@ export class VerificationService {
     const upload = await this.storage
       .from(VERIFICATION_BUCKET)
       .upload(storagePath, contents, { contentType: mimeType, upsert: false });
-    if (upload.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
+    if (upload.error)
+      throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The verification document could not be uploaded.");
 
     const { data: previous, error: previousError } = await this.database
       .from("verification_documents")
@@ -459,20 +438,55 @@ export class VerificationService {
     return this.getStatus(userId);
   }
 
-  async assertAiAccess(userId: string): Promise<void> {
+  async featurePolicy(userId: string) {
     const application = await this.applicationRowForUser(userId);
-    if (!application) throw new VerificationRequiredError("not_started");
-    const row = await this.normalizeExpired(application);
-    if (row.verification_status !== "approved") {
-      throw new VerificationRequiredError(stringValue(row.verification_status));
-    }
+    const row = application ? await this.normalizeExpired(application) : null;
+    const verificationStatus = row ? stringValue(row.verification_status) : "not_started";
+    const { data, error } = await this.database
+      .from("trusted_contacts")
+      .select("contact_name,relationship,contact_email,contact_phone,permission_acknowledged_at")
+      .eq("user_id", userId);
+    if (error) throw databaseError("Trusted support requirements could not be checked.");
+    const hasTrustedContact = (data ?? []).some((contact) =>
+      Boolean(
+        contact.contact_name?.trim() &&
+        contact.relationship?.trim() &&
+        contact.permission_acknowledged_at &&
+        (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.contact_email ?? "") ||
+          validContactPhone(contact.contact_phone ?? "")),
+      ),
+    );
+    const missingRequirements = [
+      ...(verificationStatus === "approved" ? [] : ["verification"]),
+      ...(hasTrustedContact ? [] : ["trusted_contact"]),
+    ];
+    return {
+      canUseAiFeatures: missingRequirements.length === 0,
+      canUseBuddy: missingRequirements.length === 0,
+      verificationStatus,
+      hasTrustedContact,
+      missingRequirements,
+    };
+  }
+
+  async assertAiAccess(userId: string): Promise<void> {
+    const policy = await this.featurePolicy(userId);
+    if (!policy.canUseAiFeatures)
+      throw new ServiceError(
+        403,
+        "FEATURE_REQUIREMENTS_NOT_MET",
+        "Complete verification and add a valid Trusted Support Contact to enable Buddy and AI Analysis.",
+        policy,
+      );
   }
 
   async listForAdmin(adminUserId: string, status?: string) {
     await this.assertAdmin(adminUserId);
     let query = this.database
       .from("identity_verifications")
-      .select("id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at")
+      .select(
+        "id, user_id, verification_status, is_minor, age_at_submission, submitted_at, reviewed_at, reviewed_by, created_at, updated_at",
+      )
       .order("submitted_at", { ascending: true, nullsFirst: false })
       .limit(100);
     if (status && status !== "all") query = query.eq("verification_status", status);
@@ -505,7 +519,8 @@ export class VerificationService {
       documents.map(async (document) => {
         const path = stringValue(document.storage_path);
         const signed = await this.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
-        if (signed.error) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
+        if (signed.error)
+          throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
         return {
           ...this.documentResponse(document),
           signedUrl: signed.data.signedUrl,
@@ -576,9 +591,7 @@ export class VerificationService {
       review_note_auth_tag: note ? bytea(note.authenticationTag) : null,
       review_note_key_version: note?.keyVersion ?? null,
       approved_expires_at:
-        input.decision === "approved"
-          ? new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000).toISOString()
-          : null,
+        input.decision === "approved" ? new Date(now.getTime() + 730 * 24 * 60 * 60 * 1000).toISOString() : null,
     };
     const { data: updated, error } = await this.database
       .from("identity_verifications")
@@ -632,7 +645,7 @@ export class VerificationService {
         title: input.decision === "approved" ? "Your account is verified" : "Verification update",
         message:
           input.decision === "approved"
-            ? "Buddy and AI-supported features are now available."
+            ? "Your verification is approved. Add a valid Trusted Support Contact to enable Buddy and AI Analysis."
             : input.decision === "needs_changes"
               ? "An administrator requested changes to your verification application."
               : "Your verification application was not approved. Review the reason before resubmitting.",
@@ -650,4 +663,3 @@ export class VerificationService {
     return this.getForAdmin(adminUserId, verificationId);
   }
 }
-

@@ -18,3 +18,17 @@ describe("WellnessService conversation ownership", () => {
     expect(ownerEq).toHaveBeenCalledWith("user_id", "user-1");
   });
 });
+
+it("returns urgent support even when message persistence fails", async () => {
+  const query: any = {
+    select: () => query,
+    eq: () => query,
+    maybeSingle: async () => ({ data: { conversation_status: "active" }, error: null }),
+    insert: async () => ({ error: { message: "unavailable" } }),
+  };
+  const encryption = { encrypt: () => ({ ciphertext: "YQ==", iv: "YQ==", authenticationTag: "YQ==", keyVersion: 1 }) };
+  const service = new WellnessService({ from: () => query } as any, encryption as any, vi.fn());
+  const result = await service.send("owner", "conversation", "I want to die", {});
+  expect(result.messages[0].safety.kind).toBe("immediate");
+  expect(result.messages[0].content).toContain("could not confirm");
+});

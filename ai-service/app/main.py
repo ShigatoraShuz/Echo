@@ -32,6 +32,8 @@ def error_envelope(request: Request, status_code: int, code: str, message: str, 
 
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, error: HTTPException):
+    if isinstance(error.detail, dict) and error.detail.get("code") == "FEATURE_REQUIREMENTS_NOT_MET":
+        return error_envelope(request, error.status_code, error.detail["code"], error.detail["message"], error.detail.get("details"))
     message = error.detail if isinstance(error.detail, str) else "The request could not be completed."
     if error.status_code == 503 and message == "Validated model currently unavailable.":
         code = "ML_INFERENCE_UNAVAILABLE"

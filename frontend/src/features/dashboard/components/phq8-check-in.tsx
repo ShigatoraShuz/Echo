@@ -16,7 +16,7 @@ const QUESTIONS = [
 
 const OPTIONS = ["Not at all", "Several days", "More than half the days", "Nearly every day"] as const;
 
-export function Phq8CheckIn() {
+export function Phq8CheckIn({ onCompleted }: { onCompleted?: (result: Phq8Result) => void } = {}) {
   const [answers, setAnswers] = useState<number[]>(Array(8).fill(-1));
   const [result, setResult] = useState<Phq8Result | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
@@ -28,7 +28,9 @@ export function Phq8CheckIn() {
     setStatus("submitting");
     setResult(null);
     try {
-      setResult(await assessmentService.scorePhq8(answers));
+      const saved = await assessmentService.scorePhq8(answers);
+      setResult(saved);
+      onCompleted?.(saved);
       setStatus("idle");
     } catch {
       setStatus("error");
@@ -36,16 +38,18 @@ export function Phq8CheckIn() {
   }
 
   return (
-    <details className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
-      <summary className="cursor-pointer text-sm font-semibold text-foreground">Optional PHQ-8 self-check</summary>
+    <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-subtle">
+      <h3 className="text-sm font-semibold">Your PHQ-8 check-in</h3>
       <p className="mt-2 text-xs leading-5 text-muted-foreground">
-        Answer for the last two weeks. This calculation is not a diagnosis, is not saved as assessment history,
-        and does not replace care from a qualified professional.
+        Answer for the last two weeks. Your answers are saved privately as assessment history. This screening is not a
+        diagnosis and does not replace care from a qualified professional.
       </p>
       <form className="mt-4 space-y-4" onSubmit={submit}>
         {QUESTIONS.map((question, questionIndex) => (
           <fieldset key={question} className="rounded-xl border border-border/60 p-3">
-            <legend className="px-1 text-sm font-medium text-foreground">{questionIndex + 1}. {question}</legend>
+            <legend className="px-1 text-sm font-medium text-foreground">
+              {questionIndex + 1}. {question}
+            </legend>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {OPTIONS.map((label, value) => (
                 <label key={label} className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -55,7 +59,9 @@ export function Phq8CheckIn() {
                     value={value}
                     checked={answers[questionIndex] === value}
                     onChange={() => {
-                      setAnswers((current) => current.map((answer, index) => index === questionIndex ? value : answer));
+                      setAnswers((current) =>
+                        current.map((answer, index) => (index === questionIndex ? value : answer)),
+                      );
                       setResult(null);
                       setStatus("idle");
                     }}
@@ -71,16 +77,22 @@ export function Phq8CheckIn() {
           disabled={!complete || status === "submitting"}
           className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {status === "submitting" ? "Calculating..." : "Calculate private result"}
+          {status === "submitting" ? "Saving..." : "Save assessment"}
         </button>
       </form>
-      {status === "error" && <p role="alert" className="mt-3 text-sm text-destructive">The self-check could not be calculated. Please try again.</p>}
+      {status === "error" && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          Your assessment could not be saved. Please try again.
+        </p>
+      )}
       {result && (
         <div role="status" className="mt-4 rounded-xl bg-secondary/30 p-4">
-          <p className="text-sm font-semibold text-foreground">Score {result.score} of 24 - {result.severity.replaceAll("_", " ")}</p>
+          <p className="text-sm font-semibold text-foreground">
+            Score {result.score} of 24 - {result.severity.replaceAll("_", " ")}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">{result.disclaimer}</p>
         </div>
       )}
-    </details>
+    </section>
   );
 }

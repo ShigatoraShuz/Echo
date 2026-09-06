@@ -5,6 +5,8 @@ import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-to
 export type QuickMood = "awful" | "bad" | "okay" | "good" | "great";
 export type Phq8Severity = "minimal" | "mild" | "moderate" | "moderately_severe" | "severe";
 export interface Phq8Result {
+  id: string;
+  completed_at: string;
   score: number;
   severity: Phq8Severity;
   disclaimer: string;
@@ -23,7 +25,16 @@ const client = createApiClient({
   tokenProvider: supabaseAuthTokenProvider,
 });
 
+export interface Phq8Status {
+  due: boolean;
+  lastCompletedAt: string | null;
+  nextDueAt: string | null;
+  intervalDays: number;
+}
 export const assessmentService = {
+  async status(): Promise<Phq8Status> {
+    return (await client.get<{ data: Phq8Status }>("/assessments/phq8/status")).data;
+  },
   async recordMood(mood: QuickMood): Promise<void> {
     await client.post("/moods", { moodScore: MOOD_SCORES[mood] });
   },

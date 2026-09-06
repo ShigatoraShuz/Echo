@@ -3,14 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  BookOpen,
-  CalendarDays,
-  LayoutGrid,
-  ListTree,
-  PenLine,
-  Sparkles,
-} from "lucide-react";
+import { BookOpen, CalendarDays, LayoutGrid, ListTree, PenLine, Sparkles } from "lucide-react";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
 import { JournalFilters } from "../components/journal-filters";
 import { JournalCard } from "../components/journal-card";
@@ -42,7 +35,7 @@ export function JournalListView() {
     retry,
   } = useJournalListViewModel();
 
-  const [viewMode, setViewMode] = useState<JournalViewMode>("timeline");
+  const [viewMode, setViewMode] = useState<JournalViewMode>("grid");
 
   // Group entries by Month Year (e.g. "August 2026") for the timeline view
   const groupedTimelineEntries = useMemo(() => {
@@ -62,13 +55,7 @@ export function JournalListView() {
   }, [entries]);
 
   if (error && entries.length === 0) {
-    return (
-      <EchoErrorState
-        title="Could not load journal entries"
-        message={error}
-        onRetry={retry}
-      />
-    );
+    return <EchoErrorState title="Could not load journal entries" message={error} onRetry={retry} />;
   }
 
   return (
@@ -90,6 +77,9 @@ export function JournalListView() {
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <Link href="/journal/drafts" className="echo-button-secondary">
+              Drafts
+            </Link>
             <Link
               href="/journal/new"
               className="inline-flex h-11 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-5 text-sm font-bold text-[var(--landing-inverse)] shadow-sm outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-emerald-600/30 active:scale-[0.98]"
@@ -100,7 +90,9 @@ export function JournalListView() {
 
             <span className="inline-flex h-11 items-center gap-2 rounded-full border border-[var(--landing-primary-15)] bg-white/80 px-4 text-xs font-semibold text-[var(--landing-ink)] shadow-xs">
               <CalendarDays className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />
-              <span>{entries.length} saved {entries.length === 1 ? "reflection" : "reflections"}</span>
+              <span>
+                {pagination.totalItems} saved {entries.length === 1 ? "reflection" : "reflections"}
+              </span>
             </span>
           </div>
         </div>
@@ -195,11 +187,7 @@ export function JournalListView() {
                 {/* Timeline items */}
                 <div className="space-y-2 pl-1 sm:pl-2">
                   {group.items.map((entry, index) => (
-                    <JournalTimelineEntry
-                      key={entry.id}
-                      entry={entry}
-                      isLast={index === group.items.length - 1}
-                    />
+                    <JournalTimelineEntry key={entry.id} entry={entry} isLast={index === group.items.length - 1} />
                   ))}
                 </div>
               </section>
@@ -207,7 +195,7 @@ export function JournalListView() {
           </div>
         ) : (
           /* ── Gallery Grid Mode ── */
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 pt-2">
             {entries.map((entry) => (
               <JournalCard key={entry.id} entry={entry} />
             ))}
