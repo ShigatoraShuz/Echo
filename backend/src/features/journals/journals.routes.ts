@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
 import { createVerifiedAiAccessMiddleware } from "../verification/verification.middleware.js";
@@ -17,6 +17,7 @@ export function createJournalsRouter(
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
   router.get("/journals", authenticate, controller.list);
   router.post("/journals", authenticate, controller.create);
+  router.put("/journals/:journalId/images/:imageId", authenticate, raw({type:["image/jpeg","image/png","image/webp"],limit:"5mb"}), controller.uploadImage);
   router.get("/analysis-jobs/:jobId/status", authenticate, controller.status);
   router.get("/dashboard/insights", authenticate, controller.dashboardInsights);
   router.post("/support-resources/resolve", authenticate, controller.supportResources);

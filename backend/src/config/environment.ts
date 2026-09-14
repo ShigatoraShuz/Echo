@@ -14,6 +14,10 @@ const base64KeySchema = z
 const environmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(4200),
+  PHQ8_INTERVAL_DAYS: z.coerce.number().int().min(1).max(365).default(7),
+  SUPPORT_PROMPT_THRESHOLD: z.coerce.number().int().min(1).max(100).default(3),
+  SUPPORT_PROMPT_WINDOW_DAYS: z.coerce.number().int().min(1).max(365).default(14),
+  SUPPORT_PROMPT_COOLDOWN_DAYS: z.coerce.number().int().min(1).max(365).default(7),
   FRONTEND_URL: z.string().url(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().trim().min(1),

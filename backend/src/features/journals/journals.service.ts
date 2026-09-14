@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertTrustedContact } from "../settings/trusted-contact-access.js";
+import { JournalImagesService } from "./journal-images.service.js";
 import {
   analysisChecksFor,
   analysisFixtureSchema,
@@ -43,6 +45,7 @@ export interface JournalInput {
 }
 
 export interface JournalResponse {
+  images?: Array<{id:string;url:string}>;
   id: string;
   title: string;
   body: string;
@@ -90,6 +93,7 @@ export interface JournalAnalysisRuntime {
 }
 
 export interface JournalDraftInput {
+  submissionKey?: string;
   title: string;
   body: string;
   mood: JournalInput["mood"];
@@ -100,6 +104,7 @@ export interface JournalDraftInput {
 }
 
 export interface JournalDraftResponse {
+  submission_key?: string;
   id: string;
   title: string;
   body: string;
@@ -280,7 +285,7 @@ export class JournalService {
       );
     return Promise.all(
       ((data ?? []) as JournalRow[]).map(async (row) =>
-        this.toJournalResponse(row, await this.latestAnalysis(asString(row.id), userId)),
+        ({ ...this.toJournalResponse(row, await this.latestAnalysis(asString(row.id), userId)), images: await new JournalImagesService(this.database).list(userId, asString(row.id)) }),
       ),
     );
   }
@@ -298,7 +303,11 @@ export class JournalService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal service is temporarily unavailable.");
     if (!data) throw new NotFoundError("The journal entry was not found.");
     const row = data as JournalRow;
-    return this.toJournalResponse(row, await this.latestAnalysis(journalId, userId));
+    return { ...this.toJournalResponse(row, await this.latestAnalysis(journalId, userId)), images: await new JournalImagesService(this.database).list(userId,journalId) };
+  }
+
+  async uploadImage(userId:string,journalId:string,imageId:string,bytes:Buffer,mime:string) {
+    return new JournalImagesService(this.database).upload(userId,journalId,imageId,bytes,mime);
   }
 
   async getJournalTitles(userId: string, journalIds: string[]): Promise<Map<string, string>> {
@@ -397,7 +406,9 @@ export class JournalService {
     }
     const initialStatus = analysisRequested ? await this.initialAnalysisStatus() : "saved";
     const encrypted = this.encryptJournal(input);
-    const { data, error } = await this.database.schema("journal_service").rpc("submit_journal", {
+    const draftKey = rawIdempotencyKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawIdempotencyKey) ? rawIdempotencyKey : null;
+    const { data, error } = await this.database.schema("journal_service").rpc(draftKey ? "submit_draft_journal" : "submit_journal", {
+      ...(draftKey ? { p_draft_key: draftKey } : {}),
       p_user_id: userId,
       p_title_sentinel: "[encrypted]",
       p_content_ciphertext: bytea(encrypted.ciphertext),
@@ -418,6 +429,7 @@ export class JournalService {
       p_request_hash: identity.requestHash,
     });
     if (error || !Array.isArray(data) || !data[0]) {
+      if (error?.message?.includes("JOURNAL_NOT_FOUND")) throw new NotFoundError("The submitted journal was deleted. Start a new reflection to write again.");
       if (error?.message?.includes("ANALYSIS_GATE_FAILED")) {
         await this.recordRejectedIdempotency(userId, identity, "ANALYSIS_GATE_FAILED");
         throw new AnalysisGateError(
@@ -471,6 +483,7 @@ export class JournalService {
   }
 
   private async assertAnalysisGates(userId: string): Promise<void> {
+    await assertTrustedContact(this.database, userId);
     const [profileResult, verificationResult] = await Promise.all([
       this.database
         .schema("user_service")
@@ -756,6 +769,7 @@ export class JournalService {
   private toDraftResponse(row: JournalRow): JournalDraftResponse {
     const draft = this.decryptJournal(row);
     return {
+      submission_key: typeof row.submission_key === "string" ? row.submission_key : undefined,
       id: asString(row.id, asString(row.user_id)),
       title: draft.title,
       body: draft.body,
@@ -776,6 +790,7 @@ export class JournalService {
       .upsert(
         {
           user_id: userId,
+          submission_key: input.submissionKey ?? null,
           title: "[encrypted]",
           content_ciphertext: bytea(encrypted.ciphertext),
           encryption_iv: bytea(encrypted.iv),
@@ -806,12 +821,14 @@ export class JournalService {
     return data ? this.toDraftResponse(data as JournalRow) : null;
   }
 
-  async deleteDraft(userId: string): Promise<void> {
-    const { error } = await this.database
+  async deleteDraft(userId: string, submissionKey?: string): Promise<void> {
+    let query = this.database
       .schema("journal_service")
       .from("journal_drafts")
       .delete()
       .eq("user_id", userId);
+    if (submissionKey) query = query.eq("submission_key", submissionKey);
+    const {error} = await query;
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be removed.");
   }
 
@@ -875,7 +892,7 @@ export class JournalService {
   }
 
   async dashboardInsights(userId: string) {
-    const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
     let query = this.database
       .schema("ai_analysis")
       .from("analysis_results")

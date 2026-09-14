@@ -24,6 +24,8 @@ import { settingsService } from "@/services/settings/settings.service";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
+import { WellnessCheckin } from "../components/wellness-checkin";
+import { OverallAnalysis } from "../components/overall-analysis";
 
 function DashboardCard({
   children,
@@ -94,31 +96,8 @@ function TinyMetric({
 
 function buildWellbeingActivity(
   entries: Array<{ createdAt: string }>,
-  streakDays: number,
 ) {
   const activity = new Map<string, number>();
-
-  const today = new Date();
-
-  const endDate = new Date(
-    Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
-    ),
-  );
-
-  for (
-    let dayOffset = 0;
-    dayOffset < Math.max(0, streakDays);
-    dayOffset += 1
-  ) {
-    const date = new Date(endDate);
-
-    date.setUTCDate(date.getUTCDate() - dayOffset);
-
-    activity.set(date.toISOString().slice(0, 10), 1);
-  }
 
   for (const entry of entries) {
     const date = entry.createdAt.slice(0, 10);
@@ -181,22 +160,22 @@ export function DashboardView() {
   const {
     userProfile,
     journalEntries,
-    latestEntry,
     weeklyDigest,
   } = data;
 
-  const riskScore = latestEntry?.riskScore ?? 0;
+  const latestAnalysis = data.analysisInsights?.latest;
+  const needsSupport = latestAnalysis && ["moderate", "high", "severe"].includes(latestAnalysis.distressBand);
 
   const recentEntries = journalEntries.slice(0, 3);
 
   const wellbeingActivity = buildWellbeingActivity(
     journalEntries,
-    userProfile.streakDays,
   );
 
   return (
     <EchoReveal direction="up" delay={0}>
       <div className="space-y-4 sm:space-y-5">
+        <WellnessCheckin />
 
         {/* HERO */}
         <header className="echo-dashboard-hero relative isolate flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] p-5 shadow-[0_18px_50px_rgba(30,53,34,0.08)] sm:p-7 lg:flex-row lg:items-center lg:justify-between">
@@ -258,6 +237,7 @@ export function DashboardView() {
         </header>
 
         <AnalysisInsightsDashboard insights={data.analysisInsights} />
+        <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
 
         {/* DASHBOARD GRID */}
         <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">
@@ -279,28 +259,20 @@ export function DashboardView() {
 
             <div className="mt-4 flex items-end gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.06em]">
-                {riskScore}
+                {latestAnalysis?.distressBand ?? "Not available"}
               </span>
 
               <span className="pb-1 text-sm text-muted-foreground">
-                / 100
+                {latestAnalysis?.isSimulated ? "simulated" : ""}
               </span>
             </div>
 
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{
-                  width: `${riskScore}%`,
-                }}
-              />
-            </div>
 
             <div className="mt-3 flex items-center justify-between gap-3">
               <StatusPill
-                tone={riskScore >= 40 ? "warm" : "calm"}
+                tone={needsSupport ? "warm" : "calm"}
               >
-                {riskScore >= 40
+                {!latestAnalysis ? "No completed analysis" : needsSupport
                   ? "Needs gentleness"
                   : "Steady"}
               </StatusPill>

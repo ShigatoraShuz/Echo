@@ -25,6 +25,7 @@ import {
 type TurnDirection = "older" | "newer";
 
 interface JournalPhotoPreview {
+  file: File;
   id: string;
   name: string;
   src: string;
@@ -76,7 +77,7 @@ function DatePage({
                 <label className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold text-foreground outline-none transition hover:bg-secondary focus-within:ring-4 focus-within:ring-ring/20 ${photoPreviews.length >= 5 ? "pointer-events-none opacity-45" : ""}`}>
                   <ImagePlus className="h-4 w-4 text-primary" aria-hidden="true" />
                   Add photos
-                  <input type="file" accept="image/*" multiple onChange={onPhotoUpload} disabled={photoPreviews.length >= 5} className="sr-only" aria-label="Upload journal photos" />
+                  <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={onPhotoUpload} disabled={photoPreviews.length >= 5} className="sr-only" aria-label="Upload journal photos" />
                 </label>
               </div>
               <div className="journal-photo-booth-grid grid grid-cols-6 gap-3">
@@ -176,7 +177,7 @@ export function JournalEditorView() {
   const [pendingPageIndex, setPendingPageIndex] = useState<number | null>(null);
   const {
     title, body, mood, tags, analysisConsent,
-    wordCount, charCount, isSaving, autosaveStatus, error, fieldErrors,
+    wordCount, charCount, isSaving, autosaveStatus, error, fieldErrors, draftReady,
     savedEntry, analysisSubmission, fixture,
     setTitle, setBody, setMood, setTags, setAnalysisConsent, setFixture,
     save, reset,
@@ -207,6 +208,7 @@ export function JournalEditorView() {
   const canGoNewer = pageIndex > 0;
   const isTurning = pendingPageIndex !== null;
   const [photoPreviews, setPhotoPreviews] = useState<JournalPhotoPreview[]>([]);
+  const [photoError,setPhotoError] = useState("");
   const photoPreviewsRef = useRef<JournalPhotoPreview[]>([]);
   const faceCaptureRef = useRef<JournalFaceCaptureHandle>(null);
   const [facialAllowed, setFacialAllowed] = useState(false);
@@ -241,6 +243,17 @@ export function JournalEditorView() {
   }, [photoPreviews]);
 
   useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (photoPreviewsRef.current.length && !savedEntry && !analysisSubmission) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [savedEntry, analysisSubmission]);
+
+  useEffect(() => {
     return () => {
       photoPreviewsRef.current.forEach((photo) => URL.revokeObjectURL(photo.src));
     };
@@ -261,13 +274,16 @@ export function JournalEditorView() {
   };
 
   const handlePhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).filter((file) => file.type.startsWith("image/"));
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const files = selectedFiles.filter((file) => ["image/jpeg","image/png","image/webp"].includes(file.type) && file.size <= 5*1024*1024);
+    setPhotoError(files.length !== selectedFiles.length ? "Use JPEG, PNG, or WebP photos up to 5 MB each." : "");
     if (!files.length) return;
 
     setPhotoPreviews((currentPhotos) => {
       const availableSlots = Math.max(0, 5 - currentPhotos.length);
-      const nextPhotos = files.slice(0, availableSlots).map((file, index) => ({
-        id: `${file.name}-${file.lastModified}-${Date.now()}-${index}`,
+      const nextPhotos = files.slice(0, availableSlots).map((file) => ({
+        id: crypto.randomUUID(),
+        file,
         name: file.name,
         src: URL.createObjectURL(file),
       }));
@@ -287,10 +303,12 @@ export function JournalEditorView() {
   const saveWithOptionalFaceMesh = () => {
     const capture = faceCaptureRef.current?.getCapture();
     faceCaptureRef.current?.stop();
-    void save({ requested: facialRequested, capture });
+    void save({ requested: facialRequested, capture }, photoPreviews);
   };
 
   const pageLabel = currentEntry ? `Reflection ${pageIndex} of ${pages.length - 1}: ${currentEntry.title}` : "Today’s new reflection";
+
+  if (!draftReady) return <div className="rounded-3xl border border-border bg-card p-6" role="status"><p>{error || "Opening your saved draft…"}</p>{error && <button onClick={() => window.location.reload()} className="echo-button-secondary mt-4">Reload draft</button>}</div>;
 
   return (
     <div className="mx-auto max-w-[1580px]">
@@ -334,7 +352,9 @@ export function JournalEditorView() {
                 <div className="flex items-center gap-2"><JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} /><button type="button" aria-label="More journal options" className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"><MoreHorizontal className="h-5 w-5" aria-hidden="true" /></button></div>
               </div>
 
-              {error ? <div className="mt-4"><EchoInlineMessage variant="error" message={error} /></div> : null}
+              {error ? <div className="mt-4"><EchoInlineMessage variant="error" message={error} /><div className="mt-2 flex flex-wrap gap-3 text-xs"><Link href="/settings" className="underline">Review Settings and trusted support</Link><Link href="/settings/verification" className="underline">Review verification</Link></div></div> : null}
+              {photoError && <p role="alert" className="mt-3 text-sm">{photoError}</p>}
+              {photoPreviews.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Photos upload privately when you submit. Keep this page open until saving finishes; photos are not included in the text draft.</p>}
               <div className="journal-title-field mt-5 rounded-[1.35rem] border border-border/55 bg-[linear-gradient(135deg,hsl(var(--secondary)/0.34),hsl(var(--card)))] px-4 py-3 shadow-subtle">
                 <label htmlFor="journal-title" className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-primary/80">Reflection title</label>
                 <input id="journal-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="Give this moment a name" className={`w-full bg-transparent font-[family-name:var(--font-echo-display)] text-2xl leading-8 text-foreground outline-none transition-colors placeholder:text-muted-foreground/55 focus:placeholder:text-muted-foreground/35 sm:text-3xl sm:leading-9 ${fieldErrors.title ? "text-danger" : ""}`} />

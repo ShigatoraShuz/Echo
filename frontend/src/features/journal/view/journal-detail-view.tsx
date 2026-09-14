@@ -9,7 +9,6 @@ import { JournalDeleteDialog } from "../components/journal-delete-dialog";
 import { EchoCard } from "@/shared/components/ui/echo-card";
 import { EchoBadge } from "@/shared/components/ui/echo-badge";
 import { EchoButton } from "@/shared/components/ui/echo-button";
-import { EchoPageHeading } from "@/shared/components/data-display/echo-page-heading";
 import { EchoLoadingState } from "@/shared/components/feedback/echo-loading-state";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 
@@ -30,12 +29,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   if (notFound) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-4 rounded-full bg-slate-50 p-4 text-slate-400">
+        <div className="mb-4 rounded-full bg-secondary p-4 text-muted-foreground">
            <Info className="h-8 w-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Entry not found</h2>
-        <p className="mt-2 text-sm text-slate-500">This reflection might have been moved or deleted.</p>
-        <Link href="/journal" className="mt-6 text-sm font-bold text-emerald-700 hover:underline">Return to Journal</Link>
+        <h2 className="text-xl font-bold text-foreground">Entry not found</h2>
+        <p className="mt-2 text-sm text-muted-foreground">This reflection might have been moved or deleted.</p>
+        <Link href="/journal" className="mt-6 text-sm font-bold text-primary hover:underline">Return to Journal</Link>
       </div>
     );
   }
@@ -46,15 +45,15 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   return (
     <div className="mx-auto max-w-7xl pb-20">
       {/* 1. REFINED HEADER AREA */}
-      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-slate-100 pb-8">
+      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-border pb-8">
         <div className="space-y-4">
-          <Link href="/journal" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400 transition-colors hover:text-emerald-700">
+          <Link href="/journal" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-primary">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Pages
           </Link>
-          <h1 className="text-4xl font-medium tracking-tight text-slate-900 lg:text-5xl [font-family:var(--font-echo-display)]">
+          <h1 className="text-4xl font-medium tracking-tight text-foreground lg:text-5xl [font-family:var(--font-echo-display)]">
             {entry.title}
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
+          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
             A review of your reflection, emotion tags, and ECHO perspective.
           </p>
         </div>
@@ -74,9 +73,9 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         
         {/* LEFT COLUMN: The Reflection */}
         <div className="space-y-8 lg:col-span-8">
-          <EchoCard className="overflow-hidden border-none bg-white shadow-xl shadow-slate-200/50">
-            <div className="flex items-center justify-between border-b border-slate-50 px-8 py-4 bg-slate-50/30">
-              <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
+          <EchoCard className="overflow-hidden border-none bg-card shadow-xl shadow-slate-200/50">
+            <div className="flex items-center justify-between border-b border-border px-8 py-4 bg-secondary/30">
+              <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
                 <Calendar className="h-3 w-3" /> {entry.createdAt}
               </span>
               <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : "default"}>
@@ -85,21 +84,22 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
             </div>
             
             <div className="p-8">
+              {!!entry.images?.length && <div className="mb-6 grid gap-3 sm:grid-cols-2">{entry.images.map((photo,index) => <img key={photo.id} src={photo.url} alt={`Photo ${index+1} from this reflection`} referrerPolicy="no-referrer" className="max-h-96 w-full rounded-2xl object-cover" />)}</div>}
               <div className="prose prose-slate max-w-none">
-                <p className="text-lg leading-[1.8] text-slate-700 whitespace-pre-line font-light">
+                <p className="text-lg leading-[1.8] text-foreground whitespace-pre-line font-light">
                   {entry.body}
                 </p>
               </div>
 
               {/* Emotions & Tags inside the main card for context */}
-              <div className="mt-12 flex flex-wrap gap-2 border-t border-slate-50 pt-8">
+              <div className="mt-12 flex flex-wrap gap-2 border-t border-border pt-8">
                 {entry.emotions.map((emotion) => (
-                  <span key={emotion} className="rounded-lg bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
+                  <span key={emotion} className="rounded-lg bg-secondary px-3 py-1.5 text-[11px] font-bold text-primary">
                     {emotion}
                   </span>
                 ))}
                 {entry.tags.map((tag) => (
-                  <span key={tag} className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-500">
+                  <span key={tag} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
                     <Tag className="h-3 w-3" /> {tag}
                   </span>
                 ))}
@@ -112,41 +112,43 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
 
         {/* RIGHT COLUMN: Metadata & Signal */}
         <aside className="space-y-6 lg:col-span-4">
-          <EchoCard className="sticky top-6 border-slate-100 bg-slate-50/50">
-            <h2 className="mb-6 text-sm font-bold uppercase tracking-widest text-slate-400">Distress Signal</h2>
+          {analysis?.result ? <>
+          <EchoCard className="sticky top-6 border-border bg-secondary/50">
+            <h2 className="mb-6 text-sm font-bold uppercase tracking-widest text-muted-foreground">Distress Signal</h2>
             
             <div className="flex flex-col items-center text-center">
               <div
                 className="relative grid h-40 w-40 place-items-center rounded-full shadow-inner shadow-black/5"
                 style={{
-                  background: `conic-gradient(hsl(var(--risk-${entry.riskBand})) ${entry.riskScore * 3.6}deg, #e2e8f0 0deg)`,
+                  background: "hsl(var(--secondary))",
                 }}
               >
                 {/* Inner White Circle */}
-                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-2xl">
-                  <span className="text-4xl font-black text-slate-900 leading-none">{entry.riskScore}</span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">out of 100</span>
+                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-card shadow-2xl">
+                  <span className="text-2xl font-semibold capitalize text-foreground leading-none">{analysis.result.distressBand}</span>
+                  <span className="mt-2 text-[10px] text-muted-foreground">AI distress estimate</span>
                 </div>
               </div>
 
               <div className="mt-8 space-y-3 px-4">
                 <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : entry.riskBand === "moderate" ? "warning" : "success"} className="px-4 py-1">
-                  Band: {entry.riskBand}
+                  Band: {analysis.result.distressBand}{analysis.isDemoData ? " (simulated)" : ""}
                 </EchoBadge>
-                <p className="text-xs leading-relaxed text-slate-500">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   This score is a private reflective signal to help you decide what might support you next. 
-                  <span className="mt-2 block font-bold text-slate-400 italic">Not a diagnosis.</span>
+                  <span className="mt-2 block font-bold text-muted-foreground italic">Not a diagnosis.</span>
                 </p>
               </div>
             </div>
           </EchoCard>
 
           {/* Quick Summary Card */}
-          <EchoCard title="Narrative Summary" className="border-slate-100">
-            <p className="text-sm leading-relaxed text-slate-600 italic">
-              &ldquo;{entry.summary}&rdquo;
+          <EchoCard title="Narrative Summary" className="border-border">
+            <p className="text-sm leading-relaxed text-muted-foreground italic">
+              &ldquo;{analysis.summary}&rdquo;
             </p>
           </EchoCard>
+          </> : <EchoCard title="Your private reflection"><p className="text-sm leading-6 text-muted-foreground">No completed analysis is available for this entry. Your writing is safely saved; a missing result does not represent a low distress score.</p></EchoCard>}
         </aside>
       </div>
 

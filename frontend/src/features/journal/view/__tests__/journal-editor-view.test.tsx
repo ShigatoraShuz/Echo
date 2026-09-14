@@ -28,6 +28,7 @@ vi.mock("@/shared/components/feedback/echo-inline-message", () => ({
 
 function setupMock() {
   return {
+    draftReady: true,
     title: "",
     body: "",
     mood: "calm" as const,

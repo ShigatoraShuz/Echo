@@ -49,13 +49,14 @@ for (const name of (await readdir(directory)).filter((name) => name.endsWith(".s
 }
 const tests = new URL("../../supabase/tests/database/", import.meta.url);
 for (const name of (await readdir(tests)).filter(
-  (name) => name.startsWith("journal-analysis") && name.endsWith(".sql"),
+  (name) => (name.startsWith("journal-analysis") || name.startsWith("wellness")) && name.endsWith(".sql"),
 )) {
   try {
     await database.exec(await readFile(new URL(name, tests), "utf8"));
     console.info(`PASS ${name}`);
   } catch (error) {
     console.error(JSON.stringify({ test: name, message: error.message, detail: error.detail, where: error.where }));
+    await database.exec("rollback");
     process.exitCode = 1;
   }
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { WellnessService, defaultWellnessSchedule, type WellnessSchedule } from "./wellness.service.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JournalService } from "../journals/journals.service.js";
 import type { EncryptionService } from "../../infrastructure/encryption/encryption.service.js";
@@ -70,11 +71,13 @@ function buddyReply(message: string, urgent: boolean): string {
 }
 
 export class ExperienceService {
+  readonly wellness: WellnessService;
   constructor(
     private readonly database: SupabaseClient,
     private readonly journals: JournalService,
     private readonly encryption: EncryptionService,
-  ) {}
+    schedule: WellnessSchedule = defaultWellnessSchedule,
+  ) { this.wellness = new WellnessService(database, schedule); }
 
   async dashboard(userId: string, range = "7d") {
     const [entries, profileResult, preferenceResult] = await Promise.all([
@@ -444,13 +447,14 @@ export class ExperienceService {
     return { id: data.id, completedAt: data.completed_at, completedSessions: count ?? 1 };
   }
 
-  async supportResources(query?: string, type?: string) {
+  async supportResources(query?: string, type?: string, country = "PH") {
     let builder = this.database
       .schema("grounding_service")
       .from("support_resources")
       .select("*")
       .eq("is_active", true)
       .eq("is_verified", true)
+      .eq("country_code", country)
       .order("display_priority", { ascending: true });
     if (type && type !== "all") builder = builder.eq("support_resource_type", type);
     if (query) {
@@ -485,6 +489,7 @@ export class ExperienceService {
       countryCode: asString(row.country_code),
       regionCode: asString(row.region_code) || null,
       lastVerifiedAt: asString(row.last_verified_at),
+      verificationSource: asString(row.verification_source),
     }));
   }
 

@@ -61,7 +61,7 @@ describe("experience routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual([{ id: "resource-1", name: "Verified support" }]);
-    expect(service.supportResources).toHaveBeenCalledWith("crisis", "all");
+    expect(service.supportResources).toHaveBeenCalledWith("crisis", "all", "PH");
   });
 
   it("validates and forwards Buddy messages for the authenticated owner", async () => {

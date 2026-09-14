@@ -5,7 +5,7 @@ declare columns text[];
 begin
   select array_agg(column_name order by ordinal_position) into columns
   from information_schema.columns where table_schema='public' and table_name='analysis_status_projection';
-  if columns <> array['user_id','journal_id','job_id','status','progress','updated_at'] then
+  if columns <> array['user_id','journal_id','job_id','status','progress','updated_at','facial_status'] then
     raise exception 'analysis status projection exposes unexpected columns: %', columns;
   end if;
   if not exists (select 1 from pg_class where relnamespace='public'::regnamespace and relname='analysis_status_projection' and relrowsecurity) then

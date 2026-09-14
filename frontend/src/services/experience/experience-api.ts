@@ -1,4 +1,5 @@
 import { env } from "@/config/environment";
+import type { WellnessStatus, Phq8Assessment, Phq8Submission } from "@echo/contracts";
 import type { ChatMessage } from "@/shared/types";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -42,6 +43,7 @@ export interface SupportResource {
   countryCode: string;
   regionCode: string | null;
   lastVerifiedAt: string;
+  verificationSource?: string;
 }
 
 const client = createApiClient({
@@ -50,6 +52,15 @@ const client = createApiClient({
 });
 
 export const experienceApi = {
+  async getWellnessStatus(): Promise<WellnessStatus> {
+    return (await client.get<ApiEnvelope<WellnessStatus>>("/wellness")).data;
+  },
+  async savePhq8(input: Phq8Submission): Promise<Phq8Assessment> {
+    return (await client.post<ApiEnvelope<Phq8Assessment>, Phq8Submission>("/wellness/phq8", input)).data;
+  },
+  async claimSupportPrompt(): Promise<{ show: boolean }> {
+    return (await client.post<ApiEnvelope<{ show: boolean }>, object>("/wellness/support-prompt", {})).data;
+  },
   async getBuddySession(): Promise<BuddySession> {
     return (await client.get<ApiEnvelope<BuddySession>>("/buddy/session")).data;
   },
@@ -76,10 +87,12 @@ export const experienceApi = {
     ).data;
   },
   async getSupportResources(filters?: {
+    country?: string;
     query?: string;
     type?: string;
   }): Promise<SupportResource[]> {
     const params = new URLSearchParams();
+    params.set("country", filters?.country ?? "PH");
     if (filters?.query) params.set("q", filters.query);
     if (filters?.type && filters.type !== "all") params.set("type", filters.type);
     const suffix = params.size > 0 ? `?${params.toString()}` : "";

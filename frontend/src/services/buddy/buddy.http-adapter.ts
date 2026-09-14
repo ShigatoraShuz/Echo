@@ -94,7 +94,7 @@ export function createBuddyHttpAdapter(): BuddyService {
         return { success: true, data: { canAccessAi: true } };
       } catch (error) {
         const code = normalizeError(error).code;
-        if (code === "AUTHENTICATION_ERROR" || code === "AUTHORIZATION_ERROR" || code === "VERIFICATION_REQUIRED") {
+        if (normalizeError(error).statusCode === 403 || code === "AUTHENTICATION_ERROR" || code === "AUTHORIZATION_ERROR" || code === "VERIFICATION_REQUIRED") {
           return { success: true, data: { canAccessAi: false } };
         }
         return { success: false, error: toBuddyError(error) };

@@ -111,10 +111,12 @@ export function useGroundingViewModel() {
   }, [state.durationMinutes]);
 
   const selectTechnique = useCallback((technique: GroundingTechnique) => {
+    completedRef.current = false;
     dispatch({ type: "SET_TECHNIQUE", technique, remainingSeconds: state.durationMinutes * 60 });
   }, [state.durationMinutes]);
 
   const selectDuration = useCallback((durationMinutes: number) => {
+    completedRef.current = false;
     dispatch({ type: "SET_DURATION", durationMinutes, remainingSeconds: durationMinutes * 60 });
   }, []);
 

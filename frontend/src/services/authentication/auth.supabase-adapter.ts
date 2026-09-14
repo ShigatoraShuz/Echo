@@ -4,6 +4,10 @@ import type { AuthSession } from "@/features/authentication/model/auth.model";
 import { SIGNUP_CONSENT_VERSION } from "@/features/authentication/model/auth.schema";
 import type { AuthService, AuthServiceResult } from "@/services/authentication/auth.service";
 
+const SESSION_PERSISTENCE_KEY = "echo.auth.session-persistence";
+const VOLATILE_SESSION_MARKER_KEY = "echo.auth.volatile-session-active";
+const VOLATILE_SESSION_VALUE = "session";
+
 function toSession(session: Session): AuthSession {
   return {
     user: {
@@ -12,7 +16,7 @@ function toSession(session: Session): AuthSession {
       name:
         typeof session.user.user_metadata?.display_name === "string"
           ? session.user.user_metadata.display_name
-          : session.user.email?.split("@")[0] ?? "ECHO member",
+          : (session.user.email?.split("@")[0] ?? "ECHO member"),
     },
     expiresAt: new Date((session.expires_at ?? 0) * 1000).toISOString(),
     isMockSession: false,
@@ -22,6 +26,7 @@ function toSession(session: Session): AuthSession {
 function failure(error: { message: string; code?: string } | null): AuthServiceResult<never> {
   const message = error?.message ?? "Authentication could not be completed.";
   const lower = message.toLowerCase();
+
   const code = lower.includes("invalid login")
     ? "INVALID_CREDENTIALS"
     : lower.includes("already registered") || lower.includes("already exists")
@@ -29,6 +34,7 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
       : lower.includes("password")
         ? "WEAK_PASSWORD"
         : "UNKNOWN";
+
   return {
     success: false,
     error: {
@@ -39,45 +45,134 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
   };
 }
 
-function registerVolatileSession(client: ReturnType<typeof createBrowserSupabaseClient>): () => void {
-  const signOutOnClose = () => {
-    // Sign out at most once; if the user cancels the close, the session
-    // simply survives until the next explicit logout or tab close.
-    window.removeEventListener("beforeunload", signOutOnClose);
-    void client.auth.signOut({ scope: "local" });
-  };
-  window.addEventListener("beforeunload", signOutOnClose);
-  return () => {
-    window.removeEventListener("beforeunload", signOutOnClose);
-  };
+function configureSessionPersistence(rememberSession: boolean): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (rememberSession) {
+      window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
+      window.sessionStorage.removeItem(VOLATILE_SESSION_MARKER_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(SESSION_PERSISTENCE_KEY, VOLATILE_SESSION_VALUE);
+
+    window.sessionStorage.setItem(VOLATILE_SESSION_MARKER_KEY, "active");
+  } catch {
+    // Storage may be unavailable in restrictive/private browser contexts.
+    // Authentication should still continue normally.
+  }
+}
+
+function clearSessionPersistenceState(): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(SESSION_PERSISTENCE_KEY);
+    window.sessionStorage.removeItem(VOLATILE_SESSION_MARKER_KEY);
+  } catch {
+    // Ignore unavailable browser storage.
+  }
+}
+
+function shouldExpireVolatileSession(): boolean {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const persistenceMode = window.localStorage.getItem(SESSION_PERSISTENCE_KEY);
+
+    if (persistenceMode !== VOLATILE_SESSION_VALUE) {
+      return false;
+    }
+
+    return window.sessionStorage.getItem(VOLATILE_SESSION_MARKER_KEY) !== "active";
+  } catch {
+    return false;
+  }
 }
 
 export function createAuthSupabaseAdapter(): AuthService {
   const client = createBrowserSupabaseClient();
-  let removeVolatileListener: (() => void) | null = null;
 
   return {
+    async sendLoginCode(email) {
+      const { error } = await client.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        },
+      });
+
+      if (error) {
+        return failure({
+          message: "We could not send a code. Check your email address and try again shortly.",
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          message: "If this email has an ECHO account, a sign-in code is on its way.",
+        },
+      };
+    },
+
+    async verifyLoginCode(input) {
+      const { data, error } = await client.auth.verifyOtp({
+        email: input.email,
+        token: input.code,
+        type: "email",
+      });
+
+      if (error || !data.session) {
+        return failure({
+          message: "This code is invalid or has expired. Try again or request a new code.",
+        });
+      }
+
+      configureSessionPersistence(input.rememberSession);
+
+      return {
+        success: true,
+        data: toSession(data.session),
+      };
+    },
+
     async login(input) {
       const { data, error } = await client.auth.signInWithPassword({
         email: input.email,
         password: input.password,
       });
-      if (error || !data.session) return failure(error);
 
-      // "Remember me" unchecked keeps the session alive for navigation but
-      // ends it when the browser tab closes. Supabase cannot scope cookie
-      // persistence per sign-in, so the session is signed out on unload.
-      removeVolatileListener?.();
-      removeVolatileListener = input.rememberSession
-        ? null
-        : registerVolatileSession(client);
+      if (error || !data.session) {
+        return failure(error);
+      }
 
-      return { success: true, data: toSession(data.session) };
+      /*
+       * Supabase persists browser auth sessions by default.
+       *
+       * For a non-remembered login, ECHO marks the session as volatile.
+       * sessionStorage survives a normal refresh, so refreshing must NOT
+       * sign the user out.
+       *
+       * When a later browser session starts without the matching
+       * sessionStorage marker, getCurrentSession() expires the local
+       * Supabase session.
+       */
+      configureSessionPersistence(input.rememberSession);
+
+      return {
+        success: true,
+        data: toSession(data.session),
+      };
     },
+
     async signup(input) {
       const callback = new URL("/callback", window.location.origin);
+
       callback.searchParams.set("next", "/onboarding/consent");
       callback.searchParams.set("intent", "signup");
+
       const { data, error } = await client.auth.signUp({
         email: input.email,
         password: input.password,
@@ -96,10 +191,17 @@ export function createAuthSupabaseAdapter(): AuthService {
           },
         },
       });
-      if (error) return failure(error);
-      if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
-        return failure({ message: "This email already exists." });
+
+      if (error) {
+        return failure(error);
       }
+
+      if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
+        return failure({
+          message: "This email already exists.",
+        });
+      }
+
       if (!data.session) {
         return {
           success: true,
@@ -110,49 +212,129 @@ export function createAuthSupabaseAdapter(): AuthService {
           },
         };
       }
+
+      clearSessionPersistenceState();
+
       const { error: profileError } = await client
         .schema("user_service")
         .from("profiles")
-        .update({ display_name: input.name })
+        .update({
+          display_name: input.name,
+        })
         .eq("user_id", data.session.user.id);
+
       if (profileError) {
         // The auth trigger creates the profile row; losing this write only
         // leaves the trigger's default display name in place.
         console.warn("[auth.supabase] Could not persist display name on signup", profileError.message);
       }
-      return { success: true, data: toSession(data.session) };
-    },
-    async forgotPassword(input) {
-      const callback = new URL("/callback", window.location.origin);
-      callback.searchParams.set("next", "/reset-password");
-      const redirectTo = callback.toString();
-      const { error } = await client.auth.resetPasswordForEmail(input.email, { redirectTo });
-      if (error) return failure(error);
+
       return {
         success: true,
-        data: { message: `If an account exists for ${input.email}, a reset link has been sent.` },
+        data: toSession(data.session),
       };
     },
-    async resetPassword(input) {
-      const { data, error } = await client.auth.updateUser({ password: input.password });
-      if (error || !data.user) return failure(error);
-      const { data: sessionData } = await client.auth.getSession();
-      if (!sessionData.session) return failure({ message: "Your reset session has expired." });
-      return { success: true, data: toSession(sessionData.session) };
+
+    async forgotPassword(input) {
+      const callback = new URL("/callback", window.location.origin);
+
+      callback.searchParams.set("next", "/reset-password");
+
+      const redirectTo = callback.toString();
+
+      const { error } = await client.auth.resetPasswordForEmail(input.email, {
+        redirectTo,
+      });
+
+      if (error) {
+        return failure(error);
+      }
+
+      return {
+        success: true,
+        data: {
+          message: `If an account exists for ${input.email}, a reset link has been sent.`,
+        },
+      };
     },
+
+    async resetPassword(input) {
+      const { data, error } = await client.auth.updateUser({
+        password: input.password,
+      });
+
+      if (error || !data.user) {
+        return failure(error);
+      }
+
+      const { data: sessionData } = await client.auth.getSession();
+
+      if (!sessionData.session) {
+        return failure({
+          message: "Your reset session has expired.",
+        });
+      }
+
+      return {
+        success: true,
+        data: toSession(sessionData.session),
+      };
+    },
+
     async getCurrentSession() {
       const { data, error } = await client.auth.getSession();
-      if (error) return failure(error);
-      return { success: true, data: data.session ? toSession(data.session) : null };
+
+      if (error) {
+        return failure(error);
+      }
+
+      if (!data.session) {
+        clearSessionPersistenceState();
+
+        return {
+          success: true,
+          data: null,
+        };
+      }
+
+      if (shouldExpireVolatileSession()) {
+        const { error: signOutError } = await client.auth.signOut({
+          scope: "local",
+        });
+
+        if (signOutError) {
+          return failure(signOutError);
+        }
+
+        clearSessionPersistenceState();
+
+        return {
+          success: true,
+          data: null,
+        };
+      }
+
+      return {
+        success: true,
+        data: toSession(data.session),
+      };
     },
+
     async logout() {
-      // End only this browser's session. Supabase still clears local auth
-      // storage and emits SIGNED_OUT for the current client.
-      removeVolatileListener?.();
-      removeVolatileListener = null;
-      const { error } = await client.auth.signOut({ scope: "local" });
-      if (error) return failure(error);
-      return { success: true, data: undefined };
+      const { error } = await client.auth.signOut({
+        scope: "local",
+      });
+
+      if (error) {
+        return failure(error);
+      }
+
+      clearSessionPersistenceState();
+
+      return {
+        success: true,
+        data: undefined,
+      };
     },
   };
 }

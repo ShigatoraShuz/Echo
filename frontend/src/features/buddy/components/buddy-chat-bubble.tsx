@@ -22,7 +22,8 @@ export function BuddyChatBubble({ message }: { message: BuddyMessage }) {
             : "rounded-tr-md bg-[var(--landing-sage-soft)] text-[var(--landing-ink)]",
         )}
       >
-        <p>{message.content}</p>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{isBuddy ? "Buddy" : "You"}</p>
+        <p className="whitespace-pre-wrap break-words">{message.content}</p>
         <p className="mt-2 text-[11px] font-medium text-muted-foreground">{message.timestamp}</p>
       </div>
     </div>

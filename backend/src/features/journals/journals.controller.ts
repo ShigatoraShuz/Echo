@@ -11,6 +11,7 @@ const journalInputSchema = journalSubmissionInputSchema;
 const journalUpdateSchema = journalSubmissionObjectSchema.partial();
 
 const journalDraftSchema = z.object({
+  submissionKey: z.string().uuid().optional(),
   title: z.string().trim().max(200).default(""),
   body: z.string().trim().max(20_000).default(""),
   mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]),
@@ -56,6 +57,10 @@ function normalizeJournalPayload(input: unknown): unknown {
 
 export function createJournalsController(service: JournalService) {
   return {
+    async uploadImage(request: Request, response: Response) {
+      if (!Buffer.isBuffer(request.body)) throw new ValidationError({image:["An image file is required."]});
+      sendSuccess(response, await service.uploadImage(userId(request),requireUuidParam(request,"journalId"),requireUuidParam(request,"imageId"),request.body,request.header("content-type") ?? ""));
+    },
     async list(request: Request, response: Response) {
       sendSuccess(response, { entries: await service.list(userId(request)) });
     },
@@ -97,7 +102,8 @@ export function createJournalsController(service: JournalService) {
       sendSuccess(response, await service.getDraft(userId(request)));
     },
     async deleteDraft(request: Request, response: Response) {
-      await service.deleteDraft(userId(request));
+      const submissionKey = request.query.submissionKey === undefined ? undefined : parse(z.string().uuid(),request.query.submissionKey);
+      await service.deleteDraft(userId(request),submissionKey);
       response.status(204).end();
     },
     async analyze(request: Request, response: Response) {

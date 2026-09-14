@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, HeartHandshake, MessageCircle, Phone, ShieldAlert, Siren, Wind } from "lucide-react";
+import { CheckCircle2, ExternalLink, HeartHandshake, MessageCircle, Phone, Wind } from "lucide-react";
 import { experienceApi, type SupportResource } from "@/services/experience/experience-api";
 
 const immediateSteps = [
@@ -22,7 +22,7 @@ export function CrisisSupportPlan() {
   useEffect(() => {
     let isActive = true;
     void experienceApi.getSupportResources({ type: "crisis_hotline" })
-      .then((items) => { if (isActive) setResources(items.slice(0, 3)); })
+      .then((items) => { if (isActive) setResources(items); })
       .catch(() => { if (isActive) setResourceError(true); });
     return () => { isActive = false; };
   }, []);
@@ -39,16 +39,15 @@ export function CrisisSupportPlan() {
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[2rem] border border-danger/25 bg-[radial-gradient(circle_at_8%_0%,hsl(var(--crisis-soft)),transparent_26rem),linear-gradient(135deg,hsl(var(--card)),hsl(var(--background)))] p-5 shadow-soft sm:p-7">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-danger/10 blur-3xl" aria-hidden="true" />
+      <section className="relative overflow-hidden rounded-[2rem] border border-primary/20 bg-card p-5 shadow-soft sm:p-7">
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start">
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[1.2rem] bg-crisis text-danger-foreground shadow-[0_14px_28px_hsl(var(--crisis)/0.22)]">
-            <Siren className="h-7 w-7" aria-hidden="true" />
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[1.2rem] bg-secondary text-primary">
+            <HeartHandshake className="h-7 w-7" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-danger">Immediate support</p>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-primary">Immediate support · Philippines</p>
             <h1 className="mt-2 max-w-3xl font-serif text-[clamp(2.25rem,7vw,4.75rem)] font-semibold leading-[0.92] tracking-[-0.055em] text-foreground">
-              Get help now.
+              You can reach someone now.
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
               ECHO is not emergency monitoring. If there is immediate danger, contact emergency services now.
@@ -60,15 +59,17 @@ export function CrisisSupportPlan() {
             <Phone className="h-4 w-4" />
             Call emergency services
           </a>
-          <a href="tel:988" className="echo-button-secondary min-h-13 justify-center rounded-[1.1rem] border-danger/25 bg-white/65">
-            <Phone className="h-4 w-4 text-danger" />
-            Call or text 988
+          <a href="tel:1553" className="echo-button-secondary min-h-13 justify-center rounded-[1.1rem] border-primary/25 bg-card">
+            <Phone className="h-4 w-4 text-primary" />
+            Call NCMH · 1553
           </a>
-          <a href="https://988lifeline.org/chat/" target="_blank" rel="noreferrer" className="echo-button-secondary min-h-13 justify-center rounded-[1.1rem] bg-secondary/80">
+          <Link href="/support/find-help" className="echo-button-secondary min-h-13 justify-center rounded-[1.1rem] bg-secondary/80">
             <MessageCircle className="h-4 w-4" />
-            Chat with 988 <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+            Find more support
+          </Link>
         </div>
+        <p className="relative mt-4 text-xs leading-5 text-muted-foreground">These numbers serve the Philippines. Elsewhere, contact your local emergency service. If a line does not connect, try another listed number or go to the nearest emergency department.</p>
+        <Link href="/dashboard" className="relative mt-3 inline-flex text-sm font-semibold underline">Return to ECHO</Link>
       </section>
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -100,13 +101,13 @@ export function CrisisSupportPlan() {
             })}
           </ol>
         </div>
-        <div className="rounded-[1.65rem] border border-[var(--landing-primary-15)] bg-[linear-gradient(145deg,rgba(226,237,220,0.88),rgba(255,253,247,0.98))] p-5 shadow-card sm:p-6">
+        <div className="rounded-[1.65rem] border border-primary/15 bg-secondary/50 p-5 shadow-card sm:p-6">
           <div className="flex items-center gap-2 text-primary">
             <Wind className="h-5 w-5" />
             <h2 className="font-semibold">Steady while waiting</h2>
           </div>
           {breathingOpen ? (
-            <div className="mt-5 rounded-[1.35rem] border border-white/70 bg-white/70 p-4 text-center">
+            <div className="mt-5 rounded-[1.35rem] border border-border bg-card p-4 text-center">
               <p className="font-serif text-2xl leading-7 text-foreground">{breath[breathStep]}</p>
               <button type="button" onClick={() => setBreathStep((current) => (current + 1) % breath.length)} className="echo-button-primary mt-4">
                 Next cue
@@ -141,6 +142,7 @@ export function CrisisSupportPlan() {
               <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-primary">{resource.organizationName}</p>
               <h3 className="mt-1 font-semibold text-foreground">{resource.name}</h3>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">{resource.availability || resource.description}</p>
+              {resource.verificationSource && <a href={resource.verificationSource} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs underline">Official source · checked {new Date(resource.lastVerifiedAt).toLocaleDateString()}</a>}
               <div className="mt-3 flex flex-wrap gap-2">
                 {resource.phoneNumber ? <a href={`tel:${resource.phoneNumber.replace(/[^\d+]/g, "")}`} className="echo-button-primary h-9 px-3 text-xs"><Phone className="h-3.5 w-3.5" />Call</a> : null}
                 {resource.websiteUrl ? <a href={resource.websiteUrl} target="_blank" rel="noreferrer" className="echo-button-secondary h-9 px-3 text-xs">Website <ExternalLink className="h-3.5 w-3.5" /></a> : null}

@@ -8,6 +8,8 @@ import { BuddyChatBubble } from "../components/buddy-chat-bubble";
 import { BuddyAnalysisHandoff } from "../components/buddy-analysis-handoff";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { moodStyles } from "@/shared/theme";
+import { usePrefersReducedMotion } from "@/shared/hooks/usePrefersReducedMotion";
+import { BuddyEmptyState } from "../components/buddy-empty-state";
 
 const promptChips = [
   "Help me untangle a thought",
@@ -18,14 +20,15 @@ const promptChips = [
 
 export function BuddyView() {
   const vm = useBuddyViewModel();
+  const reducedMotion = usePrefersReducedMotion();
   const voice = useBuddyVoiceControls();
   const [draft, setDraft] = useState("");
   const conversationEndRef = useRef<HTMLDivElement>(null);
   const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
 
   useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [vm.messages]);
+    conversationEndRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "nearest" });
+  }, [vm.messages, reducedMotion]);
 
   if (vm.accessStatus === "loading") {
     return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70" />;
@@ -39,8 +42,9 @@ export function BuddyView() {
         </span>
         <p className="mt-6 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">Identity and age assurance</p>
         <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] text-[var(--landing-ink)] sm:text-5xl">Verify before opening Buddy.</h1>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--landing-muted)]">Buddy and AI-supported features are available after an administrator approves your account verification. Users under 18 also need a parent or legal guardian.</p>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--landing-muted)]">Buddy needs approved account verification and a valid Trusted Support Contact with their permission recorded in Settings. Review any missing requirements below.</p>
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link href="/settings" className="echo-button-secondary rounded-full">Review trusted support</Link>
           <Link href="/settings/verification" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--landing-primary)] px-6 text-sm font-bold text-white transition-[background-color,transform] hover:bg-[var(--landing-primary-hover)] active:scale-[0.97]">
             <BadgeCheck className="h-4 w-4" /> Start verification
           </Link>
@@ -106,15 +110,7 @@ export function BuddyView() {
                 <p className="py-16 text-center text-sm text-[var(--landing-muted)]">Opening your private conversation…</p>
               ) : null}
               {!vm.isLoadingMessages && vm.messages.length === 0 ? (
-                <div className="grid min-h-[18rem] place-items-center text-center">
-                  <div>
-                    <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-[var(--landing-primary)]">
-                      <Bot className="h-6 w-6" aria-hidden="true" />
-                    </span>
-                    <p className="mt-4 font-[family-name:var(--font-echo-display)] text-2xl text-[var(--landing-ink)]">Start with one sentence.</p>
-                    <p className="mt-2 text-sm text-[var(--landing-muted)]">Buddy will keep the next step gentle and practical.</p>
-                  </div>
-                </div>
+                <BuddyEmptyState onPromptSelect={setDraft} />
               ) : null}
               {vm.messages.map((message) => (
                 <BuddyChatBubble key={message.id} message={message} />

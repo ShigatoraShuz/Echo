@@ -8,6 +8,7 @@ export type JournalSortOption = "newest" | "oldest" | "highest-risk" | "lowest-r
 // ─── Domain Interfaces ───────────────────────────────
 
 export interface JournalEntry {
+  images?: Array<{id:string;url:string}>;
   id: string;
   title: string;
   body: string;
@@ -26,6 +27,7 @@ export interface JournalEntry {
 }
 
 export interface JournalDraft {
+  submissionKey?: string;
   id: string;
   title: string;
   body: string;

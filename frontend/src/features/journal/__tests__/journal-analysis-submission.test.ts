@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
 
-const service = vi.hoisted(() => ({ createEntry: vi.fn(), saveDraft: vi.fn(), deleteDraft: vi.fn() }));
+const service = vi.hoisted(() => ({ createEntry: vi.fn(), saveDraft: vi.fn(), deleteDraft: vi.fn(), uploadImage:vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 vi.mock("@/config/environment", () => ({ env: { enableAnalysisFixtures: false } }));
 beforeEach(() => {
@@ -28,6 +28,25 @@ function editor() {
   return hook;
 }
 describe("journal submission retry contract", () => {
+  it("retries failed photos and finalization without submitting another journal", async()=>{
+    service.createEntry.mockResolvedValue({success:true,data:{id:"saved-journal"}});
+    service.uploadImage.mockResolvedValueOnce({success:false,error:{message:"Photo upload failed"}}).mockResolvedValue({success:true,data:{id:"photo"}});
+    const {result}=editor();
+    const photos=[{id:"photo",file:new File(["png"],"photo.png",{type:"image/png"})}];
+    await act(async()=>result.current.save(undefined,photos));
+    expect(service.deleteDraft).not.toHaveBeenCalled();
+    await act(async()=>result.current.save(undefined,photos));
+    expect(service.createEntry).toHaveBeenCalledTimes(1);
+    expect(service.uploadImage).toHaveBeenCalledTimes(2);
+    expect(service.deleteDraft).toHaveBeenCalledWith(service.createEntry.mock.calls[0][1].idempotencyKey);
+  });
+  it("stops autosave after successful analysis submission",async()=>{
+    service.createEntry.mockResolvedValue({success:true,data:{kind:"analysis",submission:{journalId:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",analysisJobId:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",status:"queued"}}});
+    const {result}=editor();await act(async()=>result.current.save());
+    const saved=service.saveDraft.mock.calls.length;
+    await act(async()=>vi.advanceTimersByTimeAsync(60_000));
+    expect(service.saveDraft).toHaveBeenCalledTimes(saved);
+  });
   it("preserves draft and the same key through unchanged gate retries", async () => {
     const { result } = editor();
     await act(async () => {

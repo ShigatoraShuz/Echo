@@ -35,7 +35,7 @@ function setup(
   const rpc = vi.fn(async (name: string, params: Record<string, unknown>) => ({
     error: null,
     data:
-      name === "submit_journal"
+      name === "has_valid_trusted_contact" ? overrides.has_valid_trusted_contact ?? true : name === "submit_journal" || name === "submit_draft_journal"
         ? [
             {
               journal_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -79,6 +79,18 @@ function setup(
   return { service, rpc, keys };
 }
 describe("submission service boundaries", () => {
+  it("uses durable receipts for the editor's persisted draft UUID", async () => {
+    const {service,rpc}=setup();
+    const key="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await service.create(userId,{...input,analysisConsent:false},key);
+    expect(rpc).toHaveBeenCalledWith("submit_draft_journal",expect.objectContaining({p_draft_key:key,p_user_id:userId,p_analysis_requested:false}));
+  });
+  it("blocks AI without a permitted trusted contact but still permits a private save", async () => {
+    const {service,rpc}=setup("disabled",{has_valid_trusted_contact:false});
+    await expect(service.create(userId,input,"blocked-contact-key")).rejects.toMatchObject({code:"ANALYSIS_GATE_FAILED"});
+    expect(rpc.mock.calls.some(([name])=>name==="submit_journal")).toBe(false);
+    await expect(service.create(userId,{...input,analysisConsent:false},"private-contact-key")).resolves.toMatchObject({kind:"private"});
+  });
   it.each(["disabled", "development_stub", "local_worker"] as const)(
     "private save never schedules analysis in %s mode",
     async (mode) => {

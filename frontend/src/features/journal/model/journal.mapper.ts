@@ -30,6 +30,7 @@ function mapRiskBand(band: string): JournalRiskBand {
 
 export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalEntry {
   return {
+    images: dto.images,
     id: dto.id,
     title: dto.title,
     body: dto.body,
@@ -50,6 +51,7 @@ export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalE
 
 export function mapDraftResponseToDomain(dto: JournalDraftResponseDTO): JournalDraft {
   return {
+    submissionKey: dto.submission_key,
     id: dto.id,
     title: dto.title,
     body: dto.body,

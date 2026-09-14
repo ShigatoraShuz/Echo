@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -63,6 +63,14 @@ function formatTime(seconds: number): string {
 
 export function GroundingView() {
   const vm = useGroundingViewModel();
+  const [senseStep, setSenseStep] = useState(0);
+  const senseCues = ["Name five things you can see", "Notice four things you can feel", "Listen for three sounds", "Notice two scents, or recall two you like", "Notice one taste, or take a sip of water"];
+  const elapsed = vm.totalSeconds-vm.remainingSeconds;
+  const phaseSeconds = cycleSeconds[vm.pace];
+  const phase = Math.floor(elapsed/phaseSeconds)%4;
+  const breathCues = ["Breathe in gently", "Hold, only if comfortable", "Breathe out slowly", "Rest for a moment"];
+  const fraction = (elapsed%phaseSeconds)/phaseSeconds;
+  const orbScale = phase===0 ? .82+fraction*.26 : phase===1 ? 1.08 : phase===2 ? 1.08-fraction*.26 : .82;
   const selected = groundingPractices.find((practice) => practice.id === vm.technique) ?? groundingPractices[0];
   const SelectedIcon = selected.icon;
   const elapsedPercent = vm.totalSeconds
@@ -117,7 +125,7 @@ export function GroundingView() {
               <button
                 key={practice.id}
                 type="button"
-                onClick={() => vm.selectTechnique(practice.id)}
+                onClick={() => {setSenseStep(0);vm.selectTechnique(practice.id);}}
                 aria-pressed={active}
                 disabled={vm.isRunning}
                 className={`group flex min-h-28 items-start gap-3 rounded-[1.4rem] border p-4 text-left outline-none transition-[transform,background-color,border-color,box-shadow] duration-150 active:scale-[0.98] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -174,9 +182,9 @@ export function GroundingView() {
             <div className="relative grid h-48 w-48 place-items-center sm:h-56 sm:w-56">
               <div className="absolute inset-0 rounded-full border border-[#b9d1bd]/15" aria-hidden="true" />
               <div className="absolute inset-5 rounded-full border border-[#b9d1bd]/20" aria-hidden="true" />
-              <div data-running={vm.isRunning} className="grounding-session-orb absolute inset-9 rounded-full bg-[radial-gradient(circle_at_38%_30%,#eff7e9_0%,#b9d8bd_38%,#6f9f7e_100%)] shadow-[0_0_70px_rgba(169,209,177,0.25),inset_0_1px_18px_rgba(255,255,255,0.55)]" aria-hidden="true" />
+              <div style={{transform:`scale(${vm.technique === "box-breathing" ? orbScale : 1})`,transitionDuration:"1000ms"}} className="grounding-session-orb absolute inset-9 rounded-full bg-[radial-gradient(circle_at_38%_30%,#eff7e9_0%,#b9d8bd_38%,#6f9f7e_100%)] shadow-[0_0_70px_rgba(169,209,177,0.25),inset_0_1px_18px_rgba(255,255,255,0.55)] motion-reduce:!transform-none motion-reduce:!transition-none" aria-hidden="true" />
               <span className="relative z-10 text-xs font-semibold tracking-wide text-[#173f31]">
-                {hasEnded ? (vm.isSaving ? "Saving" : "Complete") : vm.isRunning ? "Stay with it" : "Ready"}
+                {hasEnded ? (vm.isSaving ? "Saving" : "Complete") : vm.isRunning ? vm.technique === "box-breathing" ? ["Inhale","Hold","Exhale","Rest"][phase] : "Notice" : "Ready"}
               </span>
             </div>
 
@@ -189,9 +197,11 @@ export function GroundingView() {
                   ? "Finishing your practice…"
                   : "You made a little room. Take your time before moving on."
                 : vm.isRunning
-                  ? selected.activeCue
+                  ? vm.technique === "box-breathing" ? breathCues[phase] : vm.technique === "5-4-3-2-1" ? senseCues[senseStep] : selected.activeCue
                   : selected.idleCue}
             </p>
+
+            {vm.technique === "5-4-3-2-1" && !hasEnded && <div className="mt-4 flex items-center gap-3"><span className="text-xs text-white/70">Sense {senseStep+1} of 5</span><button className="rounded-full border border-white/30 px-4 py-2 text-sm" onClick={() => setSenseStep(step=>(step+1)%5)}>{senseStep===4 ? "Notice again" : "Next sense"}</button></div>}
 
             <div className="mt-6 flex flex-wrap justify-center gap-2.5">
               <button type="button" onClick={vm.toggleRunning} disabled={vm.remainingSeconds === 0 || vm.isSaving} className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-full bg-[#fffaf0] px-6 text-sm font-bold text-[#173f31] shadow-[0_10px_24px_rgba(0,0,0,0.18)] outline-none transition-[transform,background-color,box-shadow] duration-150 hover:bg-white active:scale-[0.97] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-white/25 disabled:cursor-not-allowed disabled:opacity-45">

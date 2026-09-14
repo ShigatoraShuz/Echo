@@ -19,7 +19,7 @@ export function JournalCard({ entry }: JournalCardProps) {
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 
   return (
-    <article className="group relative flex flex-col justify-between overflow-hidden rounded-[1.75rem] border border-[var(--landing-primary-15)] bg-white p-5 shadow-[0_8px_24px_rgba(47,53,39,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:p-6">
+    <article className="group relative mb-5 flex break-inside-avoid flex-col justify-between overflow-hidden rounded-[1.75rem] border border-border bg-card p-5 shadow-[0_8px_24px_rgba(47,53,39,0.05)] transition-shadow duration-200 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:p-6">
       {/* Top Accent Strip with Mood Color */}
       <div
         className="absolute inset-x-0 top-0 h-1.5 transition-opacity duration-200"
@@ -28,6 +28,7 @@ export function JournalCard({ entry }: JournalCardProps) {
       />
 
       <div>
+        {entry.images?.[0] && <Link href={`/journal/${entry.id}`} className="mb-4 block overflow-hidden rounded-2xl"><img src={entry.images[0].url} alt={`Photo from ${entry.title || "your reflection"}`} loading="lazy" referrerPolicy="no-referrer" className="max-h-72 w-full object-cover" /></Link>}
         {/* Header: Date + Mood Badge */}
         <div className="flex items-start justify-between gap-2 border-b border-black/5 pb-3">
           <div>
@@ -62,7 +63,7 @@ export function JournalCard({ entry }: JournalCardProps) {
         </Link>
 
         {/* Excerpt */}
-        <p className="mt-2 text-xs leading-relaxed text-[var(--landing-muted)] line-clamp-3">
+        <p className="mt-3 text-sm leading-6 text-muted-foreground line-clamp-6">
           {entry.excerpt || entry.body || "No content preview available."}
         </p>
       </div>

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import {
   Activity,
@@ -73,26 +74,26 @@ function AnalysisSkeleton() {
   return (
     <section
       className="overflow-hidden rounded-[2rem] border border-primary/10 shadow-[0_22px_65px_rgba(16,42,36,.09)]"
-      style={{ background: "linear-gradient(145deg,rgba(255,253,247,.96),rgba(230,239,224,.82))" }}
+      style={{ background: "hsl(var(--card))" }}
       aria-busy="true"
       aria-label="Analysis loading"
     >
       <header className="border-b border-primary/10 p-5 sm:p-7">
         <div className="flex items-start gap-3">
-          <span className="h-11 w-11 shrink-0 animate-pulse rounded-2xl bg-primary/15" />
+          <span className="h-11 w-11 shrink-0 animate-pulse motion-reduce:animate-none rounded-2xl bg-primary/15" />
           <div className="flex-1 space-y-2 pt-1">
-            <div className="h-2.5 w-28 animate-pulse rounded-full bg-primary/15" />
-            <div className="h-6 w-48 animate-pulse rounded-lg bg-primary/10" />
-            <div className="h-2 w-64 animate-pulse rounded-full bg-muted/60" />
+            <div className="h-2.5 w-28 animate-pulse motion-reduce:animate-none rounded-full bg-primary/15" />
+            <div className="h-6 w-48 animate-pulse motion-reduce:animate-none rounded-lg bg-primary/10" />
+            <div className="h-2 w-64 animate-pulse motion-reduce:animate-none rounded-full bg-muted/60" />
           </div>
         </div>
-        <div className="mt-5 h-16 animate-pulse rounded-2xl bg-card/60" />
+        <div className="mt-5 h-16 animate-pulse motion-reduce:animate-none rounded-2xl bg-card/60" />
       </header>
       <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
-            className={`animate-pulse rounded-2xl bg-card/70 p-4 ${i === 1 ? "sm:col-span-2" : ""}`}
+            className={`animate-pulse motion-reduce:animate-none rounded-2xl bg-card/70 p-4 ${i === 1 ? "sm:col-span-2" : ""}`}
             style={{ animationDelay: `${i * 60}ms` }}
           >
             <div className="mb-3 h-4 w-32 rounded-full bg-muted/50" />
@@ -127,7 +128,7 @@ function EmotionBar({ emotion, value, index }: { emotion: string; value: number;
         aria-label={`${emotion}: ${pct}%`}
       >
         <div
-          className="h-full rounded-full"
+          className="echo-bar-animated h-full rounded-full"
           style={{
             width: `${pct}%`,
             background: color,
@@ -161,7 +162,7 @@ function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
         aria-hidden="true"
       >
         <div
-          className="absolute top-0 h-full rounded-full"
+          className="echo-bar-animated absolute top-0 h-full rounded-full"
           style={{
             left: `${Math.round((lower / max) * 100)}%`,
             width: `${Math.round(((upper - lower) / max) * 100)}%`,
@@ -181,7 +182,7 @@ function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
 export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPanelProps) {
   if (isLoading) return <AnalysisSkeleton />;
 
-  const panelBg = "linear-gradient(145deg,rgba(255,253,247,.96),rgba(230,239,224,.82))";
+  const panelBg = "hsl(var(--card))";
 
   if (!analysis) {
     return (
@@ -371,7 +372,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "hsl(var(--secondary))" }}>
                         <div
-                          className="h-full rounded-full"
+                          className="echo-bar-animated h-full rounded-full"
                           style={{
                             width: `${Math.round(fe.value * 100)}%`,
                             background: emotionColorMap[fe.emotion.toLowerCase()] ?? "hsl(var(--primary))",
@@ -411,6 +412,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
           <p className="mt-4 text-[11px] leading-5 text-muted-foreground">
             These private AI-generated estimates are for reflection only. They do not diagnose, treat, or replace professional care.
           </p>
+          <div className="mt-4 flex flex-wrap gap-3"><Link href="/tools/grounding" className="echo-button-secondary rounded-full">Try a grounding practice</Link><Link href="/buddy" className="echo-button-secondary rounded-full">Reflect with Buddy</Link><Link href="/support/find-help" className="self-center text-sm font-semibold underline">Find support</Link></div>
         </footer>
       </section>
     </>

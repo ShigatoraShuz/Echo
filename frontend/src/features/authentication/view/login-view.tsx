@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { EmailOtpForm } from "../components/email-otp-form";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
@@ -32,6 +34,7 @@ const loginRouteMessages: Record<string, string> = {
 };
 
 export function LoginView({ title, description }: LoginViewProps) {
+  const [method, setMethod] = useState<"code" | "password">("code");
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
@@ -87,7 +90,7 @@ export function LoginView({ title, description }: LoginViewProps) {
             <AuthDivider />
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
+          {method === "code" ? <EmailOtpForm onAuthenticated={() => { router.replace(safeRedirectPath(searchParams.get("next"))); router.refresh(); }} /> : <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
             <AuthStatusMessage status={status} error={error} />
 
             <AuthFormField
@@ -142,7 +145,8 @@ export function LoginView({ title, description }: LoginViewProps) {
               Log in
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </EchoButton>
-          </form>
+          </form>}
+          <button type="button" className="mt-4 w-full text-center text-xs font-semibold text-[var(--landing-primary)] underline" onClick={() => setMethod(method === "code" ? "password" : "code")}>{method === "code" ? "Use password instead" : "Use an email code instead"}</button>
 
           <footer className="mt-3 border-t border-[rgba(83,103,51,0.14)] pt-3 text-center">
             <div className="inline-flex items-center gap-2 text-[11px] leading-4 text-[var(--landing-muted)]">

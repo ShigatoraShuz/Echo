@@ -8,6 +8,7 @@ import {
   createSupabasePublicServerClient,
 } from "./infrastructure/supabase/supabase-admin.client.js";
 import { JournalService } from "./features/journals/journals.service.js";
+import { JournalImagesService } from "./features/journals/journal-images.service.js";
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
@@ -54,7 +55,12 @@ const localWorkerService = new LocalWorkerService(
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
 );
 const settingsService = new SettingsService(supabaseAdmin);
-const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService);
+const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService, {
+  phq8IntervalDays: environment.PHQ8_INTERVAL_DAYS,
+  supportThreshold: environment.SUPPORT_PROMPT_THRESHOLD,
+  supportWindowDays: environment.SUPPORT_PROMPT_WINDOW_DAYS,
+  supportCooldownDays: environment.SUPPORT_PROMPT_COOLDOWN_DAYS,
+});
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
 const onboardingService = new OnboardingService(supabaseAdmin);
 const notificationService = new NotificationService(
@@ -114,6 +120,7 @@ const reportMaintenanceFailure = () =>
   console.warn(JSON.stringify({ service: "backend", event: "analysis_maintenance_failed" }));
 void journalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
 const maintenanceTimer = setInterval(() => {
+  void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
   void maintenance.tick().catch(reportMaintenanceFailure);
   if (environment.AI_ANALYSIS_MODE === "local_worker")
     void localWorkerService.recover().catch(reportMaintenanceFailure);

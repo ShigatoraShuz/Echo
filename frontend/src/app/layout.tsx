@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import {
+  Cormorant_Garamond,
+  Manrope,
+} from "next/font/google";
+
 import { ThemeProvider } from "@/shared/theme";
 import { SmoothScrollProvider } from "@/shared/components/providers/smooth-scroll-provider";
 import { EchoPageFade } from "@/shared/components/react-bits/echo-page-fade";
+import { EchoIntroGate } from "@/shared/components/branding/echo-intro-gate";
+
 import "lenis/dist/lenis.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ECHO",
-  description: "Private journaling, reflective support, and wellbeing signals. Not a diagnostic tool.",
+  description:
+    "Private journaling, reflective support, and wellbeing signals. Not a diagnostic tool.",
   icons: {
     icon: "/icon.svg",
   },
@@ -17,16 +24,23 @@ export const metadata: Metadata = {
 
 const echoSans = Manrope({
   subsets: ["latin"],
-  variable: "--font-echo-sans",
+  variable:
+    "--font-echo-sans",
   display: "swap",
 });
 
-const echoDisplay = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-echo-display",
-  display: "swap",
-});
+const echoDisplay =
+  Cormorant_Garamond({
+    subsets: ["latin"],
+    weight: [
+      "400",
+      "500",
+      "600",
+    ],
+    variable:
+      "--font-echo-display",
+    display: "swap",
+  });
 
 export default async function RootLayout({
   children,
@@ -40,23 +54,40 @@ export default async function RootLayout({
   // init script lives in /theme-init.js (allowed by script-src 'self') so no
   // user script carries a nonce attribute, which avoids a hydration mismatch.
   await headers();
+
   return (
     <html
       lang="en"
       data-echo-theme="echo-calm"
-      data-echo-motion={process.env.NODE_ENV === "development" ? "full" : undefined}
+      data-echo-motion={
+        process.env.NODE_ENV ===
+        "development"
+          ? "full"
+          : undefined
+      }
       suppressHydrationWarning
     >
       <head>
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- must block pre-paint to avoid a theme flash */}
         <script src="/theme-init.js" />
+
+        {/* eslint-disable-next-line @next/next/no-sync-scripts -- must run before body paint so returning sessions never flash the intro */}
+        <script src="/intro-init.js" />
       </head>
-      <body className={`${echoSans.variable} ${echoDisplay.variable}`} suppressHydrationWarning>
-        <SmoothScrollProvider>
-          <ThemeProvider>
-            <EchoPageFade>{children}</EchoPageFade>
-          </ThemeProvider>
-        </SmoothScrollProvider>
+
+      <body
+        className={`${echoSans.variable} ${echoDisplay.variable}`}
+        suppressHydrationWarning
+      >
+        <EchoIntroGate>
+          <SmoothScrollProvider>
+            <ThemeProvider>
+              <EchoPageFade>
+                {children}
+              </EchoPageFade>
+            </ThemeProvider>
+          </SmoothScrollProvider>
+        </EchoIntroGate>
       </body>
     </html>
   );

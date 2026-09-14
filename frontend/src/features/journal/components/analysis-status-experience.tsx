@@ -114,7 +114,7 @@ export function AnalysisStatusExperience() {
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState("PH");
   const [resources, setResources] = useState<
     Array<{
       id: string;
@@ -137,6 +137,11 @@ export function AnalysisStatusExperience() {
       current?.jobId === next.jobId ? { ...next, progress: Math.max(current.progress, next.progress) } : next;
     currentProgress.current = monotonic;
     setProgress(monotonic);
+    if (next.status === "safety_action_required" && current?.status !== "safety_action_required") {
+      setMinimized(false);
+      setDismissed(false);
+      window.dispatchEvent(new CustomEvent("echo:safety-support", { detail: { journalId: next.journalId } }));
+    }
     if (next.status === "completed" && notifiedJob.current !== next.jobId) {
       notifiedJob.current = next.jobId;
       window.dispatchEvent(new CustomEvent("echo:analysis-completed", {
@@ -390,8 +395,8 @@ export function AnalysisStatusExperience() {
                 className="mt-6 h-2 overflow-hidden rounded-full bg-primary/10"
               >
                 <div
-                  className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out motion-reduce:transition-none"
-                  style={{ width: `${value}%` }}
+                  className="h-full origin-left rounded-full bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none"
+                  style={{ transform: `scaleX(${value/100})` }}
                 />
               </div>
               <p className="mt-2 text-right text-xs font-medium text-muted-foreground">{value}%</p>

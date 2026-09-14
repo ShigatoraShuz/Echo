@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertTrustedContact } from "../settings/trusted-contact-access.js";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import {
   AuthorizationError,
@@ -456,6 +457,7 @@ export class VerificationService {
     if (row.verification_status !== "approved") {
       throw new VerificationRequiredError(stringValue(row.verification_status));
     }
+    await assertTrustedContact(this.database, userId);
   }
 
   async listForAdmin(adminUserId: string, status?: string) {

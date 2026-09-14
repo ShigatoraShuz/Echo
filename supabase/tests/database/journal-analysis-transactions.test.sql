@@ -22,6 +22,11 @@ insert into user_service.user_consents(user_id,consent_type,consent_version,acce
  select u.id,d.document_type,d.version,true,now() from auth.users u cross join auth_provisioning.policy_documents d
  where u.id in ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') and d.is_active
  on conflict(user_id,consent_type,consent_version) do update set accepted=true,accepted_at=now(),revoked_at=null;
+insert into user_service.trusted_contacts(user_id,contact_name,contact_email,relationship,permission_acknowledged_at)
+values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Trusted person','trusted-a@example.invalid','Friend',now()),('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','Trusted person','trusted-b@example.invalid','Friend',now());
+insert into user_service.notification_preferences(user_id,in_app_enabled,insight_notifications_enabled)
+values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true,true)
+on conflict(user_id) do update set in_app_enabled=true,insight_notifications_enabled=true;
 select pg_temp.assert_true(ai_analysis.current_gates_allow('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),'eligible fixture');
 
 create temp table test_jobs(label text primary key,journal_id uuid,job_id uuid);
@@ -83,6 +88,7 @@ begin
  perform pg_temp.assert_true(ai_analysis.complete_worker_callback(job,result,'final_result','final-key','final-hash','local-worker','lease-hash')=result_id,'completed exact final receipt replays');
  perform pg_temp.expect_error(format('select ai_analysis.complete_worker_callback(%L,%L,%L,%L,%L,%L,%L)',job,result,'final_result','new-key','final-hash','local-worker','lease-hash'),'LEASE_REJECTED');
  perform pg_temp.assert_true((select status='completed' and progress=100 from ai_analysis.analysis_requests where id=job),'terminal job state');
+ perform pg_temp.assert_true((select count(*)=1 from notification_service.notifications where user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and notification_type='analysis_completed' and resource_id=(select journal_id from test_jobs where label='waiting')),'completion and receipt retry produce exactly one bell notification');
  perform pg_temp.assert_true((select count(*)=1 from ai_analysis.recommendation_selections where analysis_result_id=result_id),'reviewed selection committed');
  perform pg_temp.assert_true((select count(*)=1 from ai_analysis.aggregation_tasks where analysis_result_id=result_id),'aggregation enqueued separately');
  perform pg_temp.expect_error(format('update ai_analysis.analysis_results set result_payload=%L where id=%L','{}',result_id),'IMMUTABLE');

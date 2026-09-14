@@ -66,6 +66,10 @@ export function createJournalHttpAdapter(): JournalService {
   });
 
   return {
+    async uploadImage(journalId,imageId,file) {
+      try { return {success:true,data:(await client.put<{success:true;data:{id:string}},File>(`/journals/${journalId}/images/${imageId}`,file,{headers:{"Content-Type":file.type}})).data}; }
+      catch(error) { return {success:false,error:toServiceError(error)}; }
+    },
     async listEntries(filters, page, pageSize, signal) {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -166,9 +170,9 @@ export function createJournalHttpAdapter(): JournalService {
         return { success: false, error: toServiceError(error) };
       }
     },
-    async deleteDraft() {
+    async deleteDraft(id) {
       try {
-        await client.delete<undefined>("/journals/draft");
+        await client.delete<undefined>(`/journals/draft${/^[0-9a-f-]{36}$/i.test(id) ? `?submissionKey=${encodeURIComponent(id)}` : ""}`);
         return { success: true, data: undefined as unknown as void };
       } catch (error) {
         return { success: false, error: toServiceError(error) };

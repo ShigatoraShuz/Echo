@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { phq8SubmissionSchema } from "@echo/contracts";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { ExperienceService } from "./experience.service.js";
@@ -29,6 +30,15 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 
 export function createExperienceController(service: ExperienceService) {
   return {
+    async wellnessStatus(request: Request, response: Response) {
+      sendSuccess(response, await service.wellness.status(authenticatedUserId(request)));
+    },
+    async saveAssessment(request: Request, response: Response) {
+      sendSuccess(response, await service.wellness.save(authenticatedUserId(request), parse(phq8SubmissionSchema, request.body)));
+    },
+    async claimSupportPrompt(request: Request, response: Response) {
+      sendSuccess(response, await service.wellness.claimSupportPrompt(authenticatedUserId(request)));
+    },
     async dashboard(request: Request, response: Response) {
       const range = typeof request.query.range === "string" ? request.query.range : undefined;
       const data = range
@@ -59,7 +69,8 @@ export function createExperienceController(service: ExperienceService) {
     async supportResources(request: Request, response: Response) {
       const query = typeof request.query.q === "string" ? request.query.q.slice(0, 100) : undefined;
       const type = typeof request.query.type === "string" ? request.query.type.slice(0, 80) : undefined;
-      sendSuccess(response, await service.supportResources(query, type));
+      const country = typeof request.query.country === "string" && /^[A-Z]{2}$/.test(request.query.country) ? request.query.country : "PH";
+      sendSuccess(response, await service.supportResources(query, type, country));
     },
   };
 }

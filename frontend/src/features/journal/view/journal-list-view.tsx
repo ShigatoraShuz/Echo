@@ -43,7 +43,7 @@ export function JournalListView() {
     retry,
   } = useJournalListViewModel();
 
-  const [viewMode, setViewMode] = useState<JournalViewMode>("timeline");
+  const [viewMode, setViewMode] = useState<JournalViewMode>("grid");
 
   // Group entries by Month Year (e.g. "August 2026") for the timeline view
   const groupedTimelineEntries = useMemo(() => {
@@ -74,6 +74,7 @@ export function JournalListView() {
 
   return (
     <div className="space-y-6 [font-family:var(--font-echo-sans)]">
+      <Link href="/journal/drafts" className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card px-4 py-2 text-sm font-semibold text-primary">Unfinished pages · Resume a draft</Link>
       {/* ── Top Hero Banner ────────────────────────────────────────── */}
       <EchoMotionSurface className="relative overflow-hidden rounded-[2rem] border border-[var(--landing-primary-15)] bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.7))] p-6 shadow-[0_18px_48px_rgba(47,53,39,0.07)] sm:p-8">
         <div className="relative z-10 max-w-xl">
@@ -208,7 +209,7 @@ export function JournalListView() {
           </div>
         ) : (
           /* ── Gallery Grid Mode ── */
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 pt-2">
             {entries.map((entry) => (
               <JournalCard key={entry.id} entry={entry} />
             ))}

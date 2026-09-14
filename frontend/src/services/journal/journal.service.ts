@@ -14,6 +14,7 @@ import type { AnalysisFixture, AnalysisProgress } from "@echo/contracts";
 export type JournalServiceResult<T> = { success: true; data: T } | { success: false; error: JournalServiceError };
 
 export interface JournalService {
+  uploadImage?(journalId:string,imageId:string,file:File): Promise<JournalServiceResult<{id:string}>>;
   listEntries(
     filters: JournalSearchFilters,
     page: number,

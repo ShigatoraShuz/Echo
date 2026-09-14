@@ -7,6 +7,7 @@ import type { SettingsService } from "../features/settings/settings.service.js";
 import { createSettingsRouter } from "../features/settings/settings.routes.js";
 import type { ExperienceService } from "../features/experience/experience.service.js";
 import { createExperienceRouter } from "../features/experience/experience.routes.js";
+import { createExperienceController } from "../features/experience/experience.controller.js";
 import type { VerificationService } from "../features/verification/verification.service.js";
 import { createVerificationRouter } from "../features/verification/verification.routes.js";
 import type { OnboardingService } from "../features/onboarding/onboarding.service.js";
@@ -56,6 +57,8 @@ export interface V1RouterOptions {
 export function createV1Router(options: V1RouterOptions = {}): Router {
   const router = Router();
   router.use(createHealthRouter());
+  // Emergency-resource discovery must remain available before account/access guards.
+  if (options.experience) router.get("/support-resources", createExperienceController(options.experience.service).supportResources);
   if (options.localWorker) router.use(createLocalWorkerRouter(options.localWorker.service));
   if (options.registration)
     router.use(createRegistrationRouter(options.registration.service, options.registration.allowedOrigin));

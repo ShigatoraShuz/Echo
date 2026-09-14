@@ -4,6 +4,7 @@ export function usePrefersReducedMotion(): boolean {
   const [prefersReduced, setPrefersReduced] = useState<boolean>(false);
 
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setPrefersReduced(mq.matches);
     const handler = (event: MediaQueryListEvent) => setPrefersReduced(event.matches);

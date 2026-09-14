@@ -9,11 +9,11 @@ interface BuddyEmptyStateProps {
 
 export function BuddyEmptyState({ onPromptSelect, onNewConversation }: BuddyEmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <span className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-primary">
+    <div className="mx-auto flex max-w-xl flex-col items-center justify-center px-3 py-10 text-center sm:py-14">
+      <span className="grid h-20 w-20 place-items-center rounded-[2rem] border border-primary/15 bg-secondary/60 text-primary shadow-[0_0_0_12px_hsl(var(--secondary)/0.3)]">
         <MessageSquarePlus className="h-7 w-7" aria-hidden="true" />
       </span>
-      <h2 className="mt-4 text-lg font-semibold text-foreground">Start a conversation</h2>
+      <h2 className="mt-7 font-[family-name:var(--font-echo-display)] text-3xl font-medium text-foreground">Start with one sentence.</h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
         Buddy is here to listen. Name what feels present, and take it one breath at a time.
       </p>
@@ -22,13 +22,13 @@ export function BuddyEmptyState({ onPromptSelect, onNewConversation }: BuddyEmpt
           <p className="mb-3 flex items-center justify-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
             <Sparkles className="h-3.5 w-3.5" /> Gentle ways to begin
           </p>
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {PROMPT_CHIPS.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
                 onClick={() => onPromptSelect(prompt)}
-                className="rounded-full border border-primary/15 bg-background px-4 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                className="min-h-12 rounded-2xl border border-primary/15 bg-card px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-secondary/60 focus-visible:outline-primary"
               >
                 {prompt}
               </button>

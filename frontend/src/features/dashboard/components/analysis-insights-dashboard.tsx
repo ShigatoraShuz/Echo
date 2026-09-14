@@ -70,7 +70,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
           </p>
         </article>
         <article className="echo-card lg:col-span-7">
-          <h3 className="font-semibold">Seven-day emotion and distress mapping</h3>
+          <h3 className="font-semibold">Thirty-day emotion and distress mapping</h3>
           {insights.emotionTrend.length < 2 ? (
             <p className="mt-3 text-sm text-muted-foreground">
               There is not enough dated analysis to describe a trend yet.

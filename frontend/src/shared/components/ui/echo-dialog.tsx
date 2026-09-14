@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useId } from "react";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -22,16 +23,22 @@ const sizeStyles = {
 
 export function EchoDialog({ open, onClose, title, description, children, className, size = "medium" }: EchoDialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useFocusTrap(open);
+  const titleId = useId();
+  const descriptionId = useId();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
     },
-    [onClose]
+    []
   );
 
   useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
     if (open) {
       document.addEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "hidden";
@@ -39,7 +46,7 @@ export function EchoDialog({ open, onClose, title, description, children, classN
     }
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      if (open) { document.body.style.overflow = previousOverflow; previousFocus?.focus(); }
     };
   }, [open, handleKeyDown]);
 
@@ -55,20 +62,20 @@ export function EchoDialog({ open, onClose, title, description, children, classN
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
-        aria-describedby={description ? "dialog-description" : undefined}
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "w-full rounded-2xl bg-card p-6 shadow-dialog outline-none motion-fade-in motion-scale-in",
+          "max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-card p-6 shadow-dialog outline-none motion-fade-in motion-scale-in motion-reduce:animate-none",
           sizeStyles[size],
           className
         )}
       >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1 min-w-0">
-            <h2 id="dialog-title" className="text-lg font-semibold text-foreground">{title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
             {description && (
-              <p id="dialog-description" className="text-sm text-muted-foreground">{description}</p>
+              <p id={descriptionId} className="text-sm text-muted-foreground">{description}</p>
             )}
           </div>
           <button

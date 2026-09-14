@@ -192,7 +192,7 @@ export function createApiClient(options: ApiClientOptions) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    if (body !== undefined && !(body instanceof FormData)) {
+    if (body !== undefined && !(body instanceof FormData) && !(body instanceof Blob)) {
       headers["Content-Type"] = "application/json";
     }
 
@@ -201,7 +201,7 @@ export function createApiClient(options: ApiClientOptions) {
         method,
         headers,
         body: body !== undefined
-          ? body instanceof FormData
+          ? body instanceof FormData || body instanceof Blob
             ? body
             : JSON.stringify(body)
           : undefined,

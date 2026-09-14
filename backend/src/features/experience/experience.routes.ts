@@ -30,6 +30,9 @@ export function createExperienceRouter(
   const authenticate = createAuthMiddleware(verifier);
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
   router.get("/dashboard", authenticate, controller.dashboard);
+  router.get("/wellness", authenticate, controller.wellnessStatus);
+  router.post("/wellness/phq8", authenticate, aiWriteLimiter, controller.saveAssessment);
+  router.post("/wellness/support-prompt", authenticate, aiWriteLimiter, controller.claimSupportPrompt);
   router.get("/buddy/session", authenticate, requireVerifiedAi, controller.buddySession);
   router.post("/buddy/messages", authenticate, requireVerifiedAi, aiWriteLimiter, controller.sendBuddyMessage);
   router.get("/buddy/history", authenticate, requireVerifiedAi, controller.buddyHistory);

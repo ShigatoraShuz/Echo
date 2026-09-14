@@ -5,6 +5,8 @@ export type AuthServiceResult<T> =
   | { success: false; error: AuthServiceError };
 
 export interface AuthService {
+  sendLoginCode?(email: string): Promise<AuthServiceResult<{ message: string }>>;
+  verifyLoginCode?(input: { email: string; code: string; rememberSession: boolean }): Promise<AuthServiceResult<AuthSession>>;
   login(input: LoginInput): Promise<AuthServiceResult<AuthSession>>;
   signup(input: SignupInput): Promise<AuthServiceResult<SignupResult>>;
   forgotPassword(input: ForgotPasswordInput): Promise<AuthServiceResult<{ message: string }>>;

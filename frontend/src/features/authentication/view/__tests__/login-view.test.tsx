@@ -51,6 +51,7 @@ describe("LoginView", () => {
 
     render(<LoginView title="Log in" description="Welcome back" />);
 
+    await user.click(screen.getByRole("button", { name: /use password instead/i }));
     await user.click(screen.getByRole("button", { name: /show password/i }));
     await user.click(screen.getByLabelText(/remember me on this device/i));
     await user.type(screen.getByLabelText(/email address/i), "mira@example.com");

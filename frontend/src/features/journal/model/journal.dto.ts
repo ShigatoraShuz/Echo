@@ -1,6 +1,7 @@
 // ─── API Response DTOs ────────────────────────────────
 
 export interface JournalEntryResponseDTO {
+  images?: Array<{id:string;url:string}>;
   id: string;
   title: string;
   body: string;
@@ -26,6 +27,7 @@ export interface JournalEntryListResponseDTO {
 }
 
 export interface JournalDraftResponseDTO {
+  submission_key?: string;
   id: string;
   title: string;
   body: string;

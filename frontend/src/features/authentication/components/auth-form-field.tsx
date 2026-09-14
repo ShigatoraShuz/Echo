@@ -1,4 +1,4 @@
-import type { ReactNode, ChangeEvent } from "react";
+import type { ReactNode, ChangeEvent, InputHTMLAttributes } from "react";
 
 interface AuthFormFieldProps {
   label: string;
@@ -10,6 +10,8 @@ interface AuthFormFieldProps {
   error?: string;
   required?: boolean;
   autoComplete?: string;
+  disabled?: boolean;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
 }
 
 export function AuthFormField({
@@ -22,6 +24,8 @@ export function AuthFormField({
   error,
   required = false,
   autoComplete,
+  disabled,
+  inputMode,
 }: AuthFormFieldProps) {
   const errorId = error ? `${label.toLowerCase().replace(/\s+/g, "-")}-error` : undefined;
 
@@ -40,6 +44,8 @@ export function AuthFormField({
         <input
           id={`auth-${label.toLowerCase().replace(/\s+/g, "-")}`}
           type={type}
+          disabled={disabled}
+          inputMode={inputMode}
           placeholder={placeholder}
           value={value}
           onChange={onChange}

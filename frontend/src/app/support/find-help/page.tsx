@@ -1,21 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  CalendarCheck2,
-  ExternalLink,
-  Filter,
-  Phone,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
+import { CalendarCheck2, ExternalLink, Filter, Phone, Search, ShieldCheck } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { AppShell } from "@/shared/components/layout/echo-shells";
-import {
-  experienceApi,
-  type SupportResource,
-} from "@/services/experience/experience-api";
+import { experienceApi, type SupportResource } from "@/services/experience/experience-api";
 import { normalizeError } from "@/shared/errors/normalize-error";
 
 export default function FindHelpPage() {
@@ -46,50 +36,56 @@ export default function FindHelpPage() {
       <PageHeader
         label="Support directory"
         title="Find help"
-        description="Search verified support resources. ECHO is not an emergency service or a substitute for professional care."
+        description="Philippine support resources checked against official sources. ECHO is not an emergency service or a substitute for professional care."
       />
 
       <div className="mb-8">
-      <EchoCard
-        title="Search verified support"
-        description="Results come from ECHO's reviewed support-resource directory."
-      >
-        <form
-          className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto]"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void load();
-          }}
+        <EchoCard
+          title="Search verified support"
+          description="Results come from ECHO's reviewed support-resource directory."
         >
-          <label className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="echo-input pl-10"
-              placeholder="Search organizations or support type"
-              aria-label="Search support resources"
-            />
-          </label>
-          <label className="relative">
-            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" aria-hidden="true" />
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value)}
-              className="echo-input appearance-none pl-10"
-              aria-label="Filter support type"
-            >
-              <option value="all">All verified support</option>
-              <option value="crisis_hotline">Crisis hotlines</option>
-              <option value="clinic">Clinics</option>
-              <option value="counselling">Counselling</option>
-            </select>
-          </label>
-          <button type="submit" className="echo-button-primary justify-center rounded-full px-6">
-            Search
-          </button>
-        </form>
-      </EchoCard>
+          <form
+            className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void load();
+            }}
+          >
+            <label className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary"
+                aria-hidden="true"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="echo-input pl-10"
+                placeholder="Search organizations or support type"
+                aria-label="Search support resources"
+              />
+            </label>
+            <label className="relative">
+              <Filter
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary"
+                aria-hidden="true"
+              />
+              <select
+                value={type}
+                onChange={(event) => setType(event.target.value)}
+                className="echo-input appearance-none pl-10"
+                aria-label="Filter support type"
+              >
+                <option value="all">All verified support</option>
+                <option value="crisis_hotline">Crisis hotlines</option>
+                <option value="clinic">Clinics</option>
+                <option value="counselling">Counselling</option>
+              </select>
+            </label>
+            <button type="submit" className="echo-button-primary justify-center rounded-full px-6">
+              Search
+            </button>
+          </form>
+        </EchoCard>
       </div>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_350px]">
@@ -100,7 +96,10 @@ export default function FindHelpPage() {
             </div>
           ) : null}
           {error ? (
-            <div role="alert" className="rounded-[1.5rem] border border-danger/25 bg-crisis-soft p-6 text-sm text-foreground">
+            <div
+              role="alert"
+              className="rounded-[1.5rem] border border-danger/25 bg-crisis-soft p-6 text-sm text-foreground"
+            >
               {error}
             </div>
           ) : null}
@@ -140,25 +139,28 @@ export default function FindHelpPage() {
                 ) : null}
                 <div className="mt-5 flex flex-wrap gap-2">
                   {resource.phoneNumber ? (
-                    <a
-                      href={`tel:${resource.phoneNumber.replace(/[^\d+]/g, "")}`}
-                      className="echo-button-primary"
-                    >
+                    <a href={`tel:${resource.phoneNumber.replace(/[^\d+]/g, "")}`} className="echo-button-primary">
                       <Phone className="h-4 w-4" />
                       {resource.phoneNumber}
                     </a>
                   ) : null}
                   {resource.websiteUrl ? (
-                    <a
-                      href={resource.websiteUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="echo-button-secondary"
-                    >
+                    <a href={resource.websiteUrl} target="_blank" rel="noreferrer" className="echo-button-secondary">
                       Website <ExternalLink className="h-4 w-4" />
                     </a>
                   ) : null}
                 </div>
+                {resource.verificationSource && (
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    <a href={resource.verificationSource} target="_blank" rel="noreferrer" className="underline">
+                      Official source
+                    </a>
+                    {resource.lastVerifiedAt
+                      ? ` · Checked ${new Date(resource.lastVerifiedAt).toLocaleDateString()}`
+                      : ""}
+                    . Published contact details; connection availability may vary.
+                  </p>
+                )}
               </article>
             ))}
           </div>
