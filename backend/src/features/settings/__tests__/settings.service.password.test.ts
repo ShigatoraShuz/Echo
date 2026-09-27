@@ -5,16 +5,18 @@ function createDatabase() {
   const auditInsert = vi.fn().mockResolvedValue({ error: null });
   const from = vi.fn(() => ({ insert: auditInsert }));
   const schema = vi.fn(() => ({ from }));
-  const signInWithPassword = vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+  const signInWithPassword = vi.fn().mockResolvedValue({ data: { user: { id: "user-1" }, session: { access_token: "temporary-auth-token" } }, error: null });
+  const signOut = vi.fn().mockResolvedValue({ error: null });
   const updateUserById = vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
   return {
     database: {
       auth: {
         signInWithPassword,
-        admin: { updateUserById },
+        admin: { updateUserById, signOut },
       },
       schema,
     },
+    signOut,
     auditInsert,
     signInWithPassword,
     updateUserById,
@@ -32,6 +34,7 @@ describe("SettingsService password changes", () => {
     });
 
     expect(result).toEqual({ passwordChanged: true });
+    expect(mocks.signOut).toHaveBeenCalledWith("temporary-auth-token", "global");
     expect(mocks.signInWithPassword).toHaveBeenCalledWith({
       email: "mira@example.com",
       password: "OldPassword1!",

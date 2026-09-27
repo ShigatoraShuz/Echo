@@ -32,7 +32,7 @@ describe("registration routes", () => {
       .post("/api/v1/registration/eligibility")
       .set("Origin", "https://attacker.example")
       .send({ birthday: "1990-01-01" });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
     expect(service.startEligibility).not.toHaveBeenCalled();
   });
   it("sets a path-scoped HttpOnly draft and a readable CSRF cookie with secure attributes", async () => {

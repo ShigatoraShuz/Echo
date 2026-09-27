@@ -1,3 +1,4 @@
+import { DataExportService } from "./features/settings/data-export.service.js";
 import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
 import { createAnalysisProvider } from "./infrastructure/analysis/analysis-provider.factory.js";
@@ -20,19 +21,21 @@ import { IdempotencyService } from "./infrastructure/idempotency/idempotency.ser
 import { DevelopmentAnalysisRunner } from "./infrastructure/analysis/development-analysis.runner.js";
 import { LocalWorkerService } from "./features/analysis/local-worker.service.js";
 import { AnalysisMaintenanceService } from "./features/analysis/analysis-maintenance.service.js";
+import { createRequestUserClient } from "./infrastructure/supabase/supabase-user.client.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
 const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
   environment.JOURNAL_ENCRYPTION_KEY_VERSION,
+  environment.ENCRYPTION_PREVIOUS_KEYS_JSON,
 );
 const idempotencyService = new IdempotencyService(
   environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION,
   environment.IDEMPOTENCY_HMAC_KEYS_JSON,
 );
 const developmentRunner = new DevelopmentAnalysisRunner(environment.AI_STUB_CONCURRENCY);
-const journalService = new JournalService(
+const backgroundJournalService = new JournalService(
   supabaseAdmin,
   encryptionService,
   createAnalysisProvider(environment),
@@ -49,36 +52,64 @@ const journalService = new JournalService(
   },
   developmentRunner,
 );
+const journalService = new JournalService(
+  supabaseAdmin,
+  encryptionService,
+  createAnalysisProvider(environment),
+  idempotencyService,
+  {
+    mode: environment.AI_ANALYSIS_MODE,
+    developmentUserIds: new Set(
+      environment.AI_DEVELOPMENT_USER_IDS.split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+    timeoutMs: environment.AI_JOB_TIMEOUT_MS,
+    isProduction: environment.NODE_ENV === "production",
+  },
+  developmentRunner,
+  undefined,
+  () => createRequestUserClient(environment),
+);
 const localWorkerService = new LocalWorkerService(
   supabaseAdmin,
-  journalService,
+  backgroundJournalService,
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
 );
-const settingsService = new SettingsService(supabaseAdmin);
+const dataExports = new DataExportService(supabaseAdmin, encryptionService);
+const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService, {
   phq8IntervalDays: environment.PHQ8_INTERVAL_DAYS,
   supportThreshold: environment.SUPPORT_PROMPT_THRESHOLD,
   supportWindowDays: environment.SUPPORT_PROMPT_WINDOW_DAYS,
   supportCooldownDays: environment.SUPPORT_PROMPT_COOLDOWN_DAYS,
-});
+}, () => createRequestUserClient(environment));
 const verificationService = new VerificationService(supabaseAdmin, encryptionService);
-const onboardingService = new OnboardingService(supabaseAdmin);
+const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
 const notificationService = new NotificationService(
-  supabaseAdmin,
+  () => createRequestUserClient(environment),
   (userId, journalIds) => journalService.getJournalTitles(userId, journalIds),
 );
 const registrationService = new RegistrationService(
   supabaseAdmin,
-  createSupabasePublicServerClient(environment),
+  () => createSupabasePublicServerClient(environment),
   environment.SIGNUP_DRAFT_SECRET ?? environment.JOURNAL_ENCRYPTION_KEY_BASE64,
   environment.GOOGLE_WEB_CLIENT_ID,
   environment.FRONTEND_URL,
 );
-const accessService = new AccessService(supabaseAdmin);
-const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin);
+const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
+const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
+  trustedProxyAddresses: environment.TRUSTED_PROXY_ADDRESSES.split(",").map((value) => value.trim()).filter(Boolean),
+  securityAuditSink: async (event) => {
+    const { error } = await supabaseAdmin.schema("user_service").from("security_events").insert({
+      event_type: event.event, request_id: event.requestId, actor_hash: event.actorHash,
+      outcome: event.outcome, status_code: event.statusCode,
+    });
+    if (error) throw new Error("Security audit delivery failed.");
+  },
   v1: {
     ...(environment.AI_ANALYSIS_MODE === "local_worker" ? { localWorker: { service: localWorkerService } } : {}),
     registration: { service: registrationService, allowedOrigin: environment.FRONTEND_URL },
@@ -118,10 +149,12 @@ const server = app.listen(environment.PORT, () => {
 const maintenance = new AnalysisMaintenanceService(supabaseAdmin);
 const reportMaintenanceFailure = () =>
   console.warn(JSON.stringify({ service: "backend", event: "analysis_maintenance_failed" }));
-void journalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
+void backgroundJournalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
+void dataExports.expire().catch(reportMaintenanceFailure);
 const maintenanceTimer = setInterval(() => {
   void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
   void maintenance.tick().catch(reportMaintenanceFailure);
+  void dataExports.expire().catch(reportMaintenanceFailure);
   if (environment.AI_ANALYSIS_MODE === "local_worker")
     void localWorkerService.recover().catch(reportMaintenanceFailure);
 }, 30_000);

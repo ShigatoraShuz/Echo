@@ -49,9 +49,12 @@ function mapNotification(row: Row): NotificationItem {
 
 export class NotificationService {
   constructor(
-    private readonly database: SupabaseClient,
+    private readonly databaseSource: SupabaseClient | (() => SupabaseClient),
     private readonly journalTitleResolver?: (userId: string, journalIds: string[]) => Promise<Map<string, string>>,
   ) {}
+  private get database(): SupabaseClient {
+    return typeof this.databaseSource === "function" ? this.databaseSource() : this.databaseSource;
+  }
 
   private async withResourceLabels(userId: string, notifications: NotificationItem[]): Promise<NotificationItem[]> {
     if (!this.journalTitleResolver) return notifications;

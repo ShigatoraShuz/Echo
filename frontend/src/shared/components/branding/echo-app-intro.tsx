@@ -5,7 +5,7 @@ import { Leaf } from "lucide-react";
 
 import styles from "./echo-app-intro.module.css";
 
-const SESSION_KEY = "echo.app-intro.seen";
+const INTRO_KEY = "echo.app-intro.seen";
 
 const INTRO_SOUND_URL = new URL(
   "./litesaturation-short-logo-108964.mp3",
@@ -654,8 +654,8 @@ export function EchoAppIntro() {
     try {
       alreadySeen =
         alreadySeen ||
-        window.sessionStorage.getItem(
-          SESSION_KEY,
+        window.localStorage.getItem(
+          INTRO_KEY,
         ) === "1";
     } catch {
       // Intro can still run.
@@ -1413,15 +1413,15 @@ export function EchoAppIntro() {
         window.setTimeout(
           () => {
             /*
-             * Keep session persistence
+             * Keep persistent first-visit storage
              * strictly at the END.
              *
              * Important for React
              * Strict Mode.
              */
             try {
-              window.sessionStorage.setItem(
-                SESSION_KEY,
+              window.localStorage.setItem(
+                INTRO_KEY,
                 "1",
               );
             } catch {

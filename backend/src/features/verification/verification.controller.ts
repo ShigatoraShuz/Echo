@@ -5,7 +5,7 @@ import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import { documentKinds, type VerificationService } from "./verification.service.js";
 
-const addressSchema = z.object({
+const addressSchema = z.strictObject({
   line1: z.string().trim().min(3).max(200),
   line2: z.string().trim().max(200).nullable().default(null),
   city: z.string().trim().min(2).max(100),
@@ -18,7 +18,7 @@ const addressSchema = z.object({
     .transform((value) => value.toUpperCase()),
 });
 
-const guardianSchema = z.object({
+const guardianSchema = z.strictObject({
   legalName: z.string().trim().min(2).max(200),
   relationship: z.string().trim().min(2).max(80),
   phoneNumber: z.string().trim().min(7).max(40),
@@ -28,7 +28,7 @@ const guardianSchema = z.object({
   governmentIdNumber: z.string().trim().min(3).max(120),
 });
 
-const applicationSchema = z.object({
+const applicationSchema = z.strictObject({
   legalName: z.string().trim().min(2).max(200),
   dateOfBirth: z
     .string()
@@ -50,7 +50,7 @@ const applicationSchema = z.object({
 
 const documentKindSchema = z.enum(documentKinds);
 
-const reviewSchema = z.object({
+const reviewSchema = z.strictObject({
   decision: z.enum(["approved", "rejected", "needs_changes"]),
   reasonCode: z.string().trim().min(2).max(80).nullable().default(null),
   note: z.string().trim().min(2).max(2_000).nullable().default(null),

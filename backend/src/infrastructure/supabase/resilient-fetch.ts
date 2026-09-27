@@ -5,6 +5,7 @@ export interface ResilientFetchOptions {
   baseDelayMs?: number;
   maxAttempts?: number;
   logger?: Pick<Console, "warn">;
+  timeoutMs?: number;
 }
 
 function getRequestMethod(input: RequestInfo | URL, init?: RequestInit): string {
@@ -33,13 +34,16 @@ function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
 
 export function createResilientFetch(options: ResilientFetchOptions = {}): typeof fetch {
   const baseDelayMs = options.baseDelayMs ?? 150;
-  const maxAttempts = Math.max(1, options.maxAttempts ?? 3);
+  const maxAttempts = Math.min(3, Math.max(1, options.maxAttempts ?? 3));
   const logger = options.logger ?? console;
 
   return async function resilientFetch(
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
+    const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? 30_000);
+    init = { ...init, redirect: "error", signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout };
     if (!RETRYABLE_METHODS.has(getRequestMethod(input, init))) {
       return fetch(input, init);
     }

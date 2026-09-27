@@ -1,3 +1,4 @@
+import { clearSensitiveBrowserState } from "@/infrastructure/security/clear-sensitive-state";
 import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import type { AuthSession } from "@/features/authentication/model/auth.model";
@@ -29,8 +30,6 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
 
   const code = lower.includes("invalid login")
     ? "INVALID_CREDENTIALS"
-    : lower.includes("already registered") || lower.includes("already exists")
-      ? "EMAIL_IN_USE"
       : lower.includes("password")
         ? "WEAK_PASSWORD"
         : "UNKNOWN";
@@ -39,8 +38,7 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
     success: false,
     error: {
       code,
-      message: code === "EMAIL_IN_USE" ? "This email has already been used. Log in instead." : message,
-      fieldErrors: code === "EMAIL_IN_USE" ? { email: ["This email has already been used."] } : undefined,
+      message: error?.code === "otp_expired" || lower.includes("invalid or has expired") ? "The code is invalid or has expired. Request a new code." : code === "INVALID_CREDENTIALS" ? "Invalid email or password." : code === "WEAK_PASSWORD" ? "The password does not meet the required policy." : "Authentication could not be completed. Please try again.",
     },
   };
 }
@@ -65,6 +63,7 @@ function configureSessionPersistence(rememberSession: boolean): void {
 }
 
 function clearSessionPersistenceState(): void {
+  clearSensitiveBrowserState();
   if (typeof window === "undefined") return;
 
   try {
@@ -192,23 +191,15 @@ export function createAuthSupabaseAdapter(): AuthService {
         },
       });
 
-      if (error) {
-        return failure(error);
-      }
-
-      if (Array.isArray(data.user?.identities) && data.user.identities.length === 0) {
-        return failure({
-          message: "This email already exists.",
-        });
-      }
-
-      if (!data.session) {
+      const duplicate = error && ["email_exists", "user_already_exists"].includes(error.code ?? "");
+      if (error && !duplicate) return failure(error);
+      if (duplicate || !data.session || (Array.isArray(data.user?.identities) && data.user.identities.length === 0)) {
         return {
           success: true,
           data: {
             requiresEmailConfirmation: true,
             email: input.email,
-            message: `We sent a confirmation link to ${input.email}. Open that email to continue your signup.`,
+            message: "If this address can register, a confirmation email will arrive. You can also sign in or request a password reset.",
           },
         };
       }
@@ -226,7 +217,7 @@ export function createAuthSupabaseAdapter(): AuthService {
       if (profileError) {
         // The auth trigger creates the profile row; losing this write only
         // leaves the trigger's default display name in place.
-        console.warn("[auth.supabase] Could not persist display name on signup", profileError.message);
+        console.warn("[auth.supabase] Could not persist display name on signup");
       }
 
       return {

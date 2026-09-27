@@ -147,3 +147,21 @@ describe("settingsService", () => {
     );
   });
 });
+
+describe("private export downloads", () => {
+  it("uses a bearer header, disables caching and never puts the token in the URL", async () => {
+    tokenProvider.getAccessToken.mockResolvedValueOnce("private-token");
+    const blob = new Blob(["synthetic export"], { type: "application/json" });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => blob });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(settingsService.downloadExport("export/id")).resolves.toBe(blob);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4200/api/v1/settings/data-exports/export%2Fid/download", {
+      method: "GET", cache: "no-store", headers: { Authorization: "Bearer private-token" },
+    });
+  });
+  it("rejects expired or consumed exports without forwarding provider diagnostics", async () => {
+    tokenProvider.getAccessToken.mockResolvedValueOnce("private-token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: "private diagnostic" }));
+    await expect(settingsService.downloadExport("export-id")).rejects.toThrow("This export is unavailable, expired or already downloaded.");
+  });
+});

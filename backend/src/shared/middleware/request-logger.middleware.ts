@@ -7,7 +7,7 @@ export function requestLoggerMiddleware(request: Request, response: Response, ne
     console.info(JSON.stringify({
       requestId: request.requestId,
       service: "backend",
-      route: request.route?.path ?? request.path,
+      route: request.route?.path ?? "unmatched",
       method: request.method,
       statusCode: response.statusCode,
       durationMs: Math.round(performance.now() - startedAt),

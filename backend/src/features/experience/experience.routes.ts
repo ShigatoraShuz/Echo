@@ -1,5 +1,5 @@
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import { endpointLimiter } from "../../shared/middleware/security-policy.js";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
 import { createVerifiedAiAccessMiddleware } from "../verification/verification.middleware.js";
@@ -17,12 +17,7 @@ export function createExperienceRouter(
 
   // Buddy messages and grounding sessions carry AI inference and database
   // write costs, so they get a stricter budget than the global rate limit.
-  const aiWriteLimiter = rateLimit({
-    windowMs: 60_000,
-    limit: 20,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-  });
+  const aiWriteLimiter = endpointLimiter(20);
 
   // Verified support resources are intentionally public. All personal routes
   // below this line require a valid Supabase access token.

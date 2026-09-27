@@ -43,7 +43,7 @@ export type TrustedContactInput = Omit<TrustedContact, "id" | "verified">;
 
 export interface ExportRequest {
   id: string;
-  status: "requested" | "processing" | "completed" | "failed" | "cancelled";
+  status: "requested" | "processing" | "completed" | "failed" | "cancelled" | "downloaded" | "expired";
   requestedAt: string;
   completedAt: string | null;
   expiresAt: string | null;

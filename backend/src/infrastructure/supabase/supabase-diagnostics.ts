@@ -28,7 +28,6 @@ export function logSupabaseError(operation: SupabaseOperation, error: SupabaseDi
     table: operation.table,
     operation: operation.operation,
     supabaseCode: error.code,
-    message: error.message,
     status: statusFrom(error),
   })));
 }

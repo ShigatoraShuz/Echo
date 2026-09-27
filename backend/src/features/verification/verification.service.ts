@@ -1,3 +1,4 @@
+import { assertDocumentsClean, inspectDocument, quarantineScanner, validateDocument, type DocumentScanner } from "../../infrastructure/security/document-scanner.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertTrustedContact } from "../settings/trusted-contact-access.js";
@@ -143,6 +144,7 @@ export class VerificationService {
   constructor(
     private readonly database: SupabaseClient,
     private readonly encryption: EncryptionService,
+    private readonly scanner: DocumentScanner = quarantineScanner,
   ) {}
 
   async isAdmin(userId: string): Promise<boolean> {
@@ -178,7 +180,7 @@ export class VerificationService {
     const { data, error } = await this.database
       .schema("verification_service")
       .from("verification_documents")
-      .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path")
+      .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path, scan_status, scanned_at, scanner_version")
       .eq("verification_id", verificationId)
       .order("uploaded_at", { ascending: true });
     if (error) throw databaseError("Verification documents could not be loaded.");
@@ -338,6 +340,7 @@ export class VerificationService {
 
   async uploadDocument(userId: string, kind: VerificationDocumentKind, mimeType: string, contents: Buffer) {
     const extension = extensionForMimeType(mimeType);
+    validateDocument(contents, mimeType);
     if (contents.byteLength < 1 || contents.byteLength > 8 * 1024 * 1024) {
       throw new ValidationError({ document: ["Upload a document no larger than 8 MB."] });
     }
@@ -358,6 +361,7 @@ export class VerificationService {
     }
 
     const verificationId = stringValue(application.id);
+    const scan = await inspectDocument(this.scanner, contents, mimeType);
     const storagePath = `${userId}/${verificationId}/${kind}-${randomUUID()}.${extension}`;
     const upload = await this.database.storage
       .from(VERIFICATION_BUCKET)
@@ -388,6 +392,7 @@ export class VerificationService {
         size_bytes: contents.byteLength,
         sha256_hex: sha256,
         uploaded_at: new Date().toISOString(),
+        ...scan,
       },
       { onConflict: "verification_id,document_kind" },
     );
@@ -497,6 +502,7 @@ export class VerificationService {
     if (!data) throw new NotFoundError("The verification application was not found.");
     const row = data as Row;
     const documents = await this.documentsForVerification(verificationId);
+    assertDocumentsClean(documents);
     const reviewedDocuments = await Promise.all(
       documents.map(async (document) => {
         const path = stringValue(document.storage_path);
@@ -569,6 +575,7 @@ export class VerificationService {
     }
     if (input.decision === "approved") {
       const documents = await this.documentsForVerification(verificationId);
+      assertDocumentsClean(documents);
       const kinds = new Set(documents.map((document) => stringValue(document.document_kind)));
       if (
         !this.applicationDetails(current) ||

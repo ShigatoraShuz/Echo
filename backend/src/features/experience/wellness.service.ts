@@ -1,6 +1,17 @@
+import {
+  decryptText,
+  encryptText,
+  type EncryptionService,
+} from "../../infrastructure/encryption/encryption.service.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { phq8SubmissionSchema, type Phq8Assessment, type Phq8Submission, type WellnessStatus } from "@echo/contracts";
-import { ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
+import {
+  phq8SubmissionSchema,
+  scorePhq8,
+  type Phq8Assessment,
+  type Phq8Submission,
+  type WellnessStatus,
+} from "@echo/contracts";
+import { ConflictError, ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
 
 export interface WellnessSchedule {
   phq8IntervalDays: number;
@@ -23,25 +34,35 @@ export function isAssessmentDue(completedAt: string | null, intervalDays: number
 }
 const unavailable = () =>
   new ExternalServiceError("DATABASE_UNAVAILABLE", "Your check-in could not be loaded. Please try again.");
-function assessment(row: Record<string, unknown>): Phq8Assessment {
-  return {
-    id: String(row.id),
-    score: Number(row.score),
-    severity: row.severity as Phq8Assessment["severity"],
-    completedAt: String(row.completed_at),
-  };
-}
 export class WellnessService {
   constructor(
     private readonly database: SupabaseClient,
     private readonly schedule: WellnessSchedule = defaultWellnessSchedule,
+    private readonly encryption?: EncryptionService,
   ) {}
+  private openAssessment(row: Record<string, unknown>, userId: string) {
+    if (!this.encryption) throw unavailable();
+    try {
+      const payload = JSON.parse(decryptText(row.assessment_ciphertext, this.encryption)) as Record<string, unknown>;
+      if (payload.format !== "echo-phq8-v1" || payload.userId !== userId || payload.submissionId !== row.submission_id)
+        throw unavailable();
+      const calculated = scorePhq8(payload.responses as number[]);
+      if (payload.score !== calculated.score || payload.severity !== calculated.severity) throw unavailable();
+      return {
+        responses: payload.responses as number[],
+        assessment: { id: String(row.id), ...calculated, completedAt: String(row.completed_at) },
+      };
+    } catch {
+      throw unavailable();
+    }
+  }
+
   async status(userId: string): Promise<WellnessStatus> {
     const [history, count, state, urgent] = await Promise.all([
       this.database
         .schema("insights_service")
         .from("phq8_assessments")
-        .select("id,score,severity,completed_at")
+        .select("id,user_id,submission_id,assessment_ciphertext,completed_at")
         .eq("user_id", userId)
         .order("completed_at", { ascending: false })
         .limit(52),
@@ -66,7 +87,7 @@ export class WellnessService {
         .maybeSingle(),
     ]);
     if ([history, count, state, urgent].some((result) => result.error)) throw unavailable();
-    const records = (history.data ?? []).map(assessment);
+    const records = (history.data ?? []).map((row) => this.openAssessment(row, userId).assessment);
     const completedAt = records[0]?.completedAt ?? null;
     return {
       assessment: {
@@ -90,26 +111,33 @@ export class WellnessService {
     const parsed = phq8SubmissionSchema.safeParse(input);
     if (!parsed.success)
       throw new ValidationError({ responses: ["Answer all eight questions using the available choices."] });
-    const { data, error } = await this.database
-      .schema("insights_service")
-      .rpc("save_phq8", {
-        p_user_id: userId,
-        p_submission_id: parsed.data.submissionId,
-        p_responses: parsed.data.responses,
-        p_interval_days: this.schedule.phq8IntervalDays,
-      });
+    if (!this.encryption) throw unavailable();
+    const ciphertext = encryptText(
+      JSON.stringify({ format: "echo-phq8-v1", userId, ...parsed.data, ...scorePhq8(parsed.data.responses) }),
+      this.encryption,
+    );
+    const { data, error } = await this.database.schema("insights_service").rpc("save_encrypted_phq8", {
+      p_user_id: userId,
+      p_submission_id: parsed.data.submissionId,
+      p_ciphertext: ciphertext,
+      p_interval_days: this.schedule.phq8IntervalDays,
+    });
     if (error || !data) throw unavailable();
-    return assessment(data);
+    const opened = this.openAssessment(data, userId);
+    if (
+      data.submission_id === parsed.data.submissionId &&
+      JSON.stringify(opened.responses) !== JSON.stringify(parsed.data.responses)
+    )
+      throw new ConflictError("SUBMISSION_CONFLICT", "This check-in was already submitted with different answers.");
+    return opened.assessment;
   }
   async claimSupportPrompt(userId: string): Promise<{ show: boolean }> {
-    const { data, error } = await this.database
-      .schema("insights_service")
-      .rpc("claim_support_prompt", {
-        p_user_id: userId,
-        p_threshold: this.schedule.supportThreshold,
-        p_window_days: this.schedule.supportWindowDays,
-        p_cooldown_days: this.schedule.supportCooldownDays,
-      });
+    const { data, error } = await this.database.schema("insights_service").rpc("claim_support_prompt", {
+      p_user_id: userId,
+      p_threshold: this.schedule.supportThreshold,
+      p_window_days: this.schedule.supportWindowDays,
+      p_cooldown_days: this.schedule.supportCooldownDays,
+    });
     if (error) throw unavailable();
     return { show: data === true };
   }

@@ -18,7 +18,6 @@ export const errorMiddleware: ErrorRequestHandler = (error, request, response, _
     service: "backend",
     errorCode: appError.code,
     statusCode: appError.statusCode,
-    details: redact(appError.details),
   }));
 
   response.status(appError.statusCode).json({
@@ -26,7 +25,7 @@ export const errorMiddleware: ErrorRequestHandler = (error, request, response, _
     error: {
       code: appError.code,
       message: appError.message,
-      ...(appError.details ? { details: appError.details } : {}),
+      ...(appError.details && appError.statusCode < 500 ? { details: redact(appError.details) } : {}),
     },
     meta: { requestId: request.requestId },
   });

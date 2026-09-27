@@ -3,7 +3,6 @@ export { JournalMoodFilter } from "./journal-mood-filter";
 export { JournalDateRange } from "./journal-date-range";
 export { JournalSortSelect } from "./journal-sort-select";
 export { JournalPaginationControls, JournalLoadMore } from "./journal-pagination";
-export { JournalDraftManager } from "./journal-draft-manager";
 export { JournalEditForm } from "./journal-edit-form";
 export { JournalDeleteDialog } from "./journal-delete-dialog";
 export { JournalAutosaveIndicator, useAutosave } from "./journal-autosave";

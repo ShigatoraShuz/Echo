@@ -48,7 +48,7 @@ export class CiphertextBackfillService {
     for (const table of ["journals", "journal_drafts"] as const) {
       let cursor: string | undefined;
       for (;;) {
-        let query = this.database.from(table).select("*").order("id").limit(200);
+        let query = this.database.schema("public").from(table).select("*").order("id").limit(200);
         if (cursor) query = query.gt("id", cursor);
         const { data, error } = await query;
         if (error) throw new Error("Legacy ciphertext coverage could not be read.");
@@ -184,6 +184,7 @@ export class CiphertextBackfillService {
         Object.assign(values, encrypted);
       }
       let update = this.database
+        .schema("public")
         .from("journals")
         .update(values, { count: "exact" })
         .eq("id", row.id)

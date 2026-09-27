@@ -84,4 +84,13 @@ describe("authentication proxy", () => {
     expect(response.headers.get("location")).toBeNull();
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
+  it("passes the same unpredictable nonce policy to the renderer and browser", async () => {
+    const first = request("/login");
+    const response = await proxy(first);
+    expect(first.headers.get("Content-Security-Policy")).toBe(response.headers.get("Content-Security-Policy"));
+    expect(first.headers.get("Content-Security-Policy")).toContain(`'nonce-${first.headers.get("x-nonce")}'`);
+    expect(first.headers.get("Content-Security-Policy")).toContain("https://accounts.google.com");
+    const second = request("/login"); await proxy(second);
+    expect(first.headers.get("x-nonce")).not.toBe(second.headers.get("x-nonce"));
+  });
 });

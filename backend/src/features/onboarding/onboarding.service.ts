@@ -30,7 +30,8 @@ export interface OnboardingSetupInput {
 const CONSENT_VERSION = "2026-07-25";
 
 export class OnboardingService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(private readonly database: SupabaseClient, private readonly userDatabase?: () => SupabaseClient) {}
+  private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
   private async ensureDefaults(userId: string): Promise<void> {
     const [profile, notifications, privacy] = await Promise.all([
@@ -194,7 +195,7 @@ export class OnboardingService {
   async getStatus(userId: string) {
     await this.ensureDefaults(userId);
     const [profileResult, consentsResult] = await Promise.all([
-      this.database
+      this.reader
         .schema("user_service")
         .from("profiles")
         .select(
@@ -202,13 +203,14 @@ export class OnboardingService {
         )
         .eq("user_id", userId)
         .single(),
-      this.database
+      this.reader
         .schema("user_service")
         .from("user_consents")
         .select("consent_type, accepted, accepted_at")
         .eq("user_id", userId),
     ]);
 
+    if (profileResult.error || consentsResult.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Onboarding status could not be loaded.");
     const profile = profileResult.data as Record<string, unknown> | null;
     const consents = (consentsResult.data ?? []) as Array<{ consent_type: string; accepted: boolean }>;
 

@@ -1,3 +1,4 @@
+import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { journalAnalysisResultSchema } from "@echo/contracts";
@@ -122,6 +123,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     }
   }
   async claim(workerId: string) {
+    await assertAiEnabled();
     this.authenticateIdentity(workerId);
     const leaseToken = randomBytes(32).toString("base64url");
     const { data, error } = await this.database
@@ -212,7 +214,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const result = this.parse(journalAnalysisResultSchema, payload);
     const { data, error } = await this.database.schema("ai_analysis").rpc("complete_worker_callback", {
       p_job_id: jobId,
-      p_result: result,
+      p_result: this.journals.encryptAnalysisResult(result),
       p_callback_type: "final_result",
       p_key_hmac: identity.keyHmac,
       p_payload_hash: identity.payloadHash,

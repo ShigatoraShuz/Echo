@@ -1,3 +1,5 @@
+import { sealAnalysisResult, openAnalysisResult } from "../../infrastructure/encryption/analysis-result-encryption.js";
+import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertTrustedContact } from "../settings/trusted-contact-access.js";
 import { JournalImagesService } from "./journal-images.service.js";
@@ -14,6 +16,7 @@ import {
   type JournalSubmissionResponse,
 } from "@echo/contracts";
 import {
+  AppError,
   AuthorizationError,
   AnalysisGateError,
   ConflictError,
@@ -162,7 +165,14 @@ export class JournalService {
     },
     private readonly runner = new DevelopmentAnalysisRunner(1),
     private readonly facialAnalysisProvider: FacialAnalysisProvider = new DisabledFacialAnalysisProvider(),
+    private readonly userDatabase?: () => SupabaseClient,
   ) {}
+
+  private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
+
+  encryptAnalysisResult(value: unknown) { return sealAnalysisResult(value, this.encryption); }
+
+  private readAnalysisResult(value: unknown) { return openAnalysisResult(value, this.encryption); }
 
   private async hasGlobalFacialConsent(userId: string): Promise<boolean> {
     const { data, error } = await this.database
@@ -193,7 +203,7 @@ export class JournalService {
     };
     const [{ error: requestError }, { error: projectionError }] = await Promise.all([
       this.database.schema("ai_analysis").from("analysis_requests").update(metadata).eq("id", jobId).eq("user_id", userId),
-      this.database.from("analysis_status_projection").update({ facial_status: facialStatus }).eq("job_id", jobId).eq("user_id", userId),
+      this.database.schema("public").from("analysis_status_projection").update({ facial_status: facialStatus }).eq("job_id", jobId).eq("user_id", userId),
     ]);
     if (requestError || projectionError) {
       throw databaseError(
@@ -246,7 +256,8 @@ export class JournalService {
 
   private toJournalResponse(row: JournalRow, analysis: AnalysisRow | null): JournalResponse {
     const journal = this.decryptJournal(row);
-    const score = typeof analysis?.phq8_score === "number" ? analysis.phq8_score : 0;
+    const structured = analysis?.result_payload ? this.readAnalysisResult(analysis.result_payload) : null;
+    const score = structured ? Math.round((structured.depressiveSymptomRange.lower + structured.depressiveSymptomRange.upper) / 2) : 0;
     const severity = analysis?.severity;
     return {
       id: asString(row.id),
@@ -270,7 +281,7 @@ export class JournalService {
   }
 
   async list(userId: string): Promise<JournalResponse[]> {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("journal_service")
       .from("journals")
       .select("*")
@@ -291,7 +302,7 @@ export class JournalService {
   }
 
   async get(userId: string, journalId: string): Promise<JournalResponse> {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("journal_service")
       .from("journals")
       .select("*")
@@ -312,7 +323,7 @@ export class JournalService {
 
   async getJournalTitles(userId: string, journalIds: string[]): Promise<Map<string, string>> {
     if (journalIds.length === 0) return new Map();
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("journal_service")
       .from("journals")
       .select("id,content_ciphertext,encryption_iv,encryption_auth_tag,encryption_key_version")
@@ -429,6 +440,7 @@ export class JournalService {
       p_request_hash: identity.requestHash,
     });
     if (error || !Array.isArray(data) || !data[0]) {
+      if (error?.message?.includes("AI_QUOTA_EXCEEDED")) throw new AppError({statusCode:429,code:"AI_QUOTA_EXCEEDED",message:"Analysis capacity is temporarily full. Try later or save without analysis."});
       if (error?.message?.includes("JOURNAL_NOT_FOUND")) throw new NotFoundError("The submitted journal was deleted. Start a new reflection to write again.");
       if (error?.message?.includes("ANALYSIS_GATE_FAILED")) {
         await this.recordRejectedIdempotency(userId, identity, "ANALYSIS_GATE_FAILED");
@@ -483,6 +495,7 @@ export class JournalService {
   }
 
   private async assertAnalysisGates(userId: string): Promise<void> {
+    await assertAiEnabled();
     await assertTrustedContact(this.database, userId);
     const [profileResult, verificationResult] = await Promise.all([
       this.database
@@ -624,6 +637,7 @@ export class JournalService {
       this.runtime.timeoutMs,
     );
     try {
+      await assertAiEnabled();
       const output = await this.analysisProvider.analyze(
         { requestId: jobId, journalId, journalText: body, fixture, reviewedResume: resumed },
         {
@@ -637,7 +651,7 @@ export class JournalService {
       await this.setJobStatus(jobId, "aggregating_week", attempt);
       const { error } = await this.database
         .schema("ai_analysis")
-        .rpc("complete_journal_analysis", { p_job_id: jobId, p_result: validated.data });
+        .rpc("complete_journal_analysis", { p_job_id: jobId, p_result: this.encryptAnalysisResult(validated.data) });
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The analysis result could not be committed.");
     } catch {
       if (this.runner.signal.aborted) return; // Startup recovery owns abandoned stub work.
@@ -811,7 +825,7 @@ export class JournalService {
   }
 
   async getDraft(userId: string): Promise<JournalDraftResponse | null> {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("journal_service")
       .from("journal_drafts")
       .select("*")
@@ -842,6 +856,7 @@ export class JournalService {
 
   async getAnalysisStatus(userId: string, jobId: string) {
     const { data, error } = await this.database
+      .schema("public")
       .from("analysis_status_projection")
       .select("user_id,journal_id,job_id,status,progress,facial_status,updated_at")
       .eq("job_id", jobId)
@@ -908,7 +923,7 @@ export class JournalService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Dashboard insights are temporarily unavailable.");
     const rows = (results ?? []) as Array<Record<string, unknown>>;
     const latestRow = rows.at(-1);
-    const latest = latestRow?.result_payload ? journalAnalysisResultSchema.parse(latestRow.result_payload) : null;
+    const latest = latestRow?.result_payload ? this.readAnalysisResult(latestRow.result_payload) : null;
     const dailyRows = [...new Map(rows.map((row) => [asString(row.created_at).slice(0, 10), row])).values()];
     let recommendation = null;
     if (latestRow) {
@@ -933,7 +948,7 @@ export class JournalService {
       latestResultId: latestRow ? asString(latestRow.id) : null,
       recommendation,
       emotionTrend: dailyRows.map((row) => {
-        const parsed = journalAnalysisResultSchema.parse(row.result_payload);
+        const parsed = this.readAnalysisResult(row.result_payload);
         return {
           date: asString(row.created_at).slice(0, 10),
           values: Object.fromEntries(parsed.emotionDistribution.map((item) => [item.emotion, item.value])),
@@ -941,7 +956,7 @@ export class JournalService {
         };
       }),
       distressTrend: dailyRows.map((row) => {
-        const parsed = journalAnalysisResultSchema.parse(row.result_payload);
+        const parsed = this.readAnalysisResult(row.result_payload);
         return {
           date: asString(row.created_at).slice(0, 10),
           band: parsed.distressBand,
@@ -1056,7 +1071,7 @@ export class JournalService {
       .eq("user_id", userId)
       .maybeSingle();
     if (error || !result) throw new NotFoundError("The analysis result was not found.");
-    const parsed = journalAnalysisResultSchema.parse(result.result_payload);
+    const parsed = this.readAnalysisResult(result.result_payload);
     const { data: selection } = await this.database
       .schema("ai_analysis")
       .from("recommendation_selections")
@@ -1153,7 +1168,7 @@ export class JournalService {
   }
 
   private toAnalysisResponse(row: AnalysisRow): AnalysisResponse {
-    const result = row.result_payload ? journalAnalysisResultSchema.parse(row.result_payload) : undefined;
+    const result = row.result_payload ? this.readAnalysisResult(row.result_payload) : undefined;
     return {
       id: asString(row.id),
       entry_id: asString(row.journal_id),
@@ -1166,7 +1181,7 @@ export class JournalService {
       is_demo_data: result?.isSimulated ?? false,
       created_at: asString(row.created_at),
       status: asString(row.status),
-      phq8_score: typeof row.phq8_score === "number" ? row.phq8_score : null,
+      phq8_score: result ? Math.round((result.depressiveSymptomRange.lower + result.depressiveSymptomRange.upper) / 2) : null,
       severity: typeof row.severity === "string" ? row.severity : null,
       urgent_language_detected: row.urgent_language_detected === true,
       provider: result?.providerName ?? "unavailable",

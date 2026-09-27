@@ -23,6 +23,8 @@ export interface SettingsService {
   updateContact(id: string, input: TrustedContactInput): Promise<TrustedContact>;
   removeContact(id: string): Promise<void>;
   requestExport(): Promise<ExportRequest>;
+  authorizePdfExport(): Promise<{ authorized: true }>;
+  downloadExport(id: string): Promise<Blob>;
   requestDeletion(): Promise<DeletionRequest>;
   cancelDeletion(id: string): Promise<DeletionRequest>;
   getSecurityAuditEvents(limit?: number): Promise<{ auditEvents: SecurityAuditEvent[] }>;
@@ -101,12 +103,24 @@ export const settingsService: SettingsService = {
   async removeContact(id) {
     await client.delete(`/settings/trusted-contacts/${encodeURIComponent(id)}`);
   },
+  authorizePdfExport() {
+    return unwrap(client.post<ApiEnvelope<{ authorized: true }>>("/settings/data-exports/pdf-authorization"));
+  },
   async requestExport() {
     const snapshot = await unwrap(client.post<ApiEnvelope<SettingsSnapshot>>("/settings/data-exports"));
     if (!snapshot.latestExport) {
       throw new Error("The export request could not be loaded after it was recorded.");
     }
     return snapshot.latestExport;
+  },
+  async downloadExport(id) {
+    const token = await supabaseAuthTokenProvider.getAccessToken();
+    if (!token) throw new Error("Sign in again before downloading your export.");
+    const response = await fetch(endpoint(`/settings/data-exports/${encodeURIComponent(id)}/download`), {
+      method: "GET", cache: "no-store", headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(response.status === 403 ? "Sign in again before downloading your export." : "This export is unavailable, expired or already downloaded.");
+    return response.blob();
   },
   requestDeletion() {
     return unwrap(client.post<ApiEnvelope<DeletionRequest>>("/settings/account-deletion"));

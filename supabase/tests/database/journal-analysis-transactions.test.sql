@@ -57,8 +57,12 @@ begin
 end $$;
 
 -- Realtime's entire published row is minimal, and owner RLS filters selects.
+-- Explicit synthetic Auth sessions model the claims supplied by PostgREST.
+insert into user_service.profiles(user_id,account_status) select id,'active' from auth.users on conflict(user_id) do nothing;
+insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing;
 set local role authenticated;
 set local request.jwt.claim.sub='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}',true);
 select pg_temp.assert_true((select count(*)=1 from public.analysis_status_projection),'owner-only projection');
 select pg_temp.expect_error('select * from ai_analysis.analysis_requests','permission denied');
 select pg_temp.expect_error('update public.analysis_status_projection set progress=100','permission denied');
@@ -83,10 +87,11 @@ begin
  perform ai_analysis.apply_worker_callback(job,'progress','callback-3','hash-3','local-worker','lease-hash','{"status":"classifying_distress"}');
  perform ai_analysis.apply_worker_callback(job,'progress','callback-4','hash-4','local-worker','lease-hash','{"status":"estimating_screening"}');
  perform ai_analysis.apply_worker_callback(job,'progress','callback-5','hash-5','local-worker','lease-hash','{"status":"generating_recommendation"}');
- result:='{"schemaVersion":"echo-journal-analysis-v1","thresholdVersion":"v1","providerName":"protocol-test","modelVersion":"fixture","isSimulated":true,"emotionDistribution":[{"emotion":"joy","value":0.1},{"emotion":"calm","value":0.5},{"emotion":"sadness","value":0.1},{"emotion":"anxiety","value":0.1},{"emotion":"anger","value":0.1},{"emotion":"hope","value":0.1}],"dominantEmotion":"calm","emotionConfidence":0.8,"distressBand":"low","distressConfidence":0.8,"depressiveSymptomRange":{"lower":0,"upper":4},"recommendationFeatures":["paced_breathing"]}';
+ result:='{"schemaVersion":"echo-journal-analysis-v1","thresholdVersion":"v1","providerName":"protocol-test","modelVersion":"fixture","isSimulated":true,"supportSeverity":"minimal","recommendationFeatures":["paced_breathing"],"encryptedPayload":"echo:encrypted:v1:synthetic-sql-fixture"}';
  result_id:=ai_analysis.complete_worker_callback(job,result,'final_result','final-key','final-hash','local-worker','lease-hash');
  perform pg_temp.assert_true(ai_analysis.complete_worker_callback(job,result,'final_result','final-key','final-hash','local-worker','lease-hash')=result_id,'completed exact final receipt replays');
  perform pg_temp.expect_error(format('select ai_analysis.complete_worker_callback(%L,%L,%L,%L,%L,%L,%L)',job,result,'final_result','new-key','final-hash','local-worker','lease-hash'),'LEASE_REJECTED');
+ perform pg_temp.assert_true((select summary='[encrypted]' and phq8_score is null and confidence is null and result_payload->>'ciphertext' like 'echo:encrypted:v1:%' and not(result_payload ? 'emotionDistribution') from ai_analysis.analysis_results where id=result_id),'detailed result is ciphertext only');
  perform pg_temp.assert_true((select status='completed' and progress=100 from ai_analysis.analysis_requests where id=job),'terminal job state');
  perform pg_temp.assert_true((select count(*)=1 from notification_service.notifications where user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and notification_type='analysis_completed' and resource_id=(select journal_id from test_jobs where label='waiting')),'completion and receipt retry produce exactly one bell notification');
  perform pg_temp.assert_true((select count(*)=1 from ai_analysis.recommendation_selections where analysis_result_id=result_id),'reviewed selection committed');

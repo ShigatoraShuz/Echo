@@ -5,6 +5,7 @@ import { createVerifiedAiAccessMiddleware } from "../verification/verification.m
 import type { VerificationService } from "../verification/verification.service.js";
 import type { JournalService } from "./journals.service.js";
 import { createJournalsController } from "./journals.controller.js";
+import { endpointLimiter } from "../../shared/middleware/security-policy.js";
 
 export function createJournalsRouter(
   service: JournalService,
@@ -15,6 +16,11 @@ export function createJournalsRouter(
   const router = Router();
   const authenticate = createAuthMiddleware(verifier);
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
+  const writeLimit = endpointLimiter(30);
+  router.use(["/journals", "/analysis-jobs", "/buddy/handoffs", "/support-contact-requests"], authenticate, (req, res, next) => {
+    if (["GET", "HEAD"].includes(req.method)) return next();
+    return writeLimit(req, res, next);
+  });
   router.get("/journals", authenticate, controller.list);
   router.post("/journals", authenticate, controller.create);
   router.put("/journals/:journalId/images/:imageId", authenticate, raw({type:["image/jpeg","image/png","image/webp"],limit:"5mb"}), controller.uploadImage);

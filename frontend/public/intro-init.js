@@ -1,10 +1,12 @@
 (() => {
-  const SESSION_KEY = "echo.app-intro.seen";
+  const INTRO_KEY = "echo.app-intro.seen";
 
   try {
-    const seen = window.sessionStorage.getItem(SESSION_KEY) === "1";
+    const seen =
+      window.localStorage.getItem(INTRO_KEY) === "1";
 
-    document.documentElement.dataset.echoIntro = seen ? "seen" : "fresh";
+    document.documentElement.dataset.echoIntro =
+      seen ? "seen" : "fresh";
   } catch {
     document.documentElement.dataset.echoIntro = "fresh";
   }

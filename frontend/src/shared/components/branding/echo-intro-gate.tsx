@@ -8,20 +8,27 @@ import {
 
 import { EchoAppIntro } from "./echo-app-intro";
 
-const SESSION_KEY =
+const INTRO_KEY =
   "echo.app-intro.seen";
 
 type EchoIntroGateProps = {
   children: ReactNode;
 };
 
+type IntroGateState =
+  | "checking"
+  | "intro"
+  | "ready";
+
 export function EchoIntroGate({
   children,
 }: EchoIntroGateProps) {
   const [
-    isAppReady,
-    setIsAppReady,
-  ] = useState(false);
+    gateState,
+    setGateState,
+  ] = useState<IntroGateState>(
+    "checking",
+  );
 
   useEffect(() => {
     const root =
@@ -37,8 +44,8 @@ export function EchoIntroGate({
 
       try {
         return (
-          window.sessionStorage.getItem(
-            SESSION_KEY,
+          window.localStorage.getItem(
+            INTRO_KEY,
           ) === "1"
         );
       } catch {
@@ -47,16 +54,23 @@ export function EchoIntroGate({
     };
 
     /*
-     * Returning browser session:
-     * skip the intro gate immediately.
+     * Returning visitor:
+     *
+     * intro-init.js runs before body paint and
+     * marks the document as "seen".
+     *
+     * Keep the gate in its neutral "checking"
+     * state until this client-side verification
+     * completes so EchoAppIntro never mounts,
+     * even for a single render.
      */
     if (introHasFinished()) {
-      setIsAppReady(true);
+      setGateState("ready");
       return;
     }
 
     /*
-     * Fresh session:
+     * First-ever visit:
      *
      * EchoAppIntro changes
      * data-echo-intro="seen"
@@ -74,8 +88,7 @@ export function EchoIntroGate({
         }
 
         observer.disconnect();
-
-        setIsAppReady(true);
+        setGateState("ready");
       });
 
     observer.observe(root, {
@@ -85,18 +98,26 @@ export function EchoIntroGate({
       ],
     });
 
+    setGateState("intro");
+
     return () => {
       observer.disconnect();
     };
   }, []);
 
+  if (
+    gateState === "checking"
+  ) {
+    return null;
+  }
+
   return (
     <>
-      {!isAppReady && (
+      {gateState === "intro" ? (
         <EchoAppIntro />
-      )}
+      ) : null}
 
-      {isAppReady
+      {gateState === "ready"
         ? children
         : null}
     </>

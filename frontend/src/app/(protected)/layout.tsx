@@ -1,3 +1,4 @@
+import { PrivateSessionBoundary } from "@/infrastructure/security/private-session-boundary";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
@@ -17,5 +18,9 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=login_required");
 
-  return <>{children}</>;
+  return (
+    <PrivateSessionBoundary key={user.id} userId={user.id}>
+      {children}
+    </PrivateSessionBoundary>
+  );
 }

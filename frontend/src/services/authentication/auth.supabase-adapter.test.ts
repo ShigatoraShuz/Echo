@@ -193,7 +193,7 @@ describe("createAuthSupabaseAdapter logout", () => {
   it("returns a safe service error when Supabase sign-out fails", async () => {
     mocks.signOut.mockResolvedValue({
       error: {
-        message: "network unavailable",
+        message: "Authentication could not be completed. Please try again.",
       },
     });
 
@@ -205,7 +205,7 @@ describe("createAuthSupabaseAdapter logout", () => {
       success: false,
       error: {
         code: "UNKNOWN",
-        message: "network unavailable",
+        message: "Authentication could not be completed. Please try again.",
       },
     });
   });
@@ -457,12 +457,12 @@ describe("createAuthSupabaseAdapter signup", () => {
       data: {
         requiresEmailConfirmation: true,
         email: "mira@test.com",
-        message: "We sent a confirmation link to mira@test.com. Open that email to continue your signup.",
+        message: "If this address can register, a confirmation email will arrive. You can also sign in or request a password reset.",
       },
     });
   });
 
-  it("maps duplicate signup responses to an email field error", async () => {
+  it("returns the same confirmation response for duplicate signup", async () => {
     mocks.signUp.mockResolvedValue({
       data: {
         user: {
@@ -490,13 +490,11 @@ describe("createAuthSupabaseAdapter signup", () => {
     });
 
     expect(result).toEqual({
-      success: false,
-      error: {
-        code: "EMAIL_IN_USE",
-        message: "This email has already been used. Log in instead.",
-        fieldErrors: {
-          email: ["This email has already been used."],
-        },
+      success: true,
+      data: {
+        requiresEmailConfirmation: true,
+        email: "mira@test.com",
+        message: "If this address can register, a confirmation email will arrive. You can also sign in or request a password reset.",
       },
     });
   });

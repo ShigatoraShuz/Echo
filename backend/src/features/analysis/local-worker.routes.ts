@@ -1,11 +1,12 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
+import { endpointLimiter } from "../../shared/middleware/security-policy.js";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import type { LocalWorkerService } from "./local-worker.service.js";
 
-const workerSchema = z.object({ workerId: z.string().trim().min(1).max(100) });
+const workerSchema = z.strictObject({ workerId: z.string().trim().min(1).max(100) });
 const healthSchema = workerSchema.extend({
   acceptingJobs: z.boolean(),
   modelStatus: z.string().max(80).optional(),
@@ -32,6 +33,7 @@ export function createLocalWorkerRouter(service: LocalWorkerService): Router {
       next(error);
     }
   });
+  router.use("/internal/ai", endpointLimiter(60));
   router.get("/internal/ai/protocol-health", async (_request, response) =>
     sendSuccess(response, await service.protocolHealth()),
   );

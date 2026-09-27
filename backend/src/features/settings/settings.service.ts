@@ -1,3 +1,5 @@
+import type { DataExportService } from "./data-export.service.js";
+import { sanitizeImage } from "../../infrastructure/security/image-validation.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 import { AuthenticationError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
@@ -102,14 +104,23 @@ function objectValue(value: unknown): Record<string, unknown> {
 }
 
 export class SettingsService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(
+    private readonly administrativeDatabase: SupabaseClient,
+    private readonly authenticationClient?: () => SupabaseClient,
+    private readonly userDatabase?: () => SupabaseClient,
+    private readonly exports?: DataExportService,
+  ) {}
+
+  private get database(): SupabaseClient {
+    return this.userDatabase?.() ?? this.administrativeDatabase;
+  }
 
   private async recordAudit(
     userId: string,
     eventType: string,
     options: { resourceType?: string; resourceId?: string; metadata?: Record<string, unknown> } = {},
-  ): Promise<void> {
-    const { error } = await this.database
+  ): Promise<boolean> {
+    const { error } = await this.administrativeDatabase
       .schema("user_service")
       .from("audit_events")
       .insert({
@@ -120,11 +131,12 @@ export class SettingsService {
         resource_id: options.resourceId ?? null,
         metadata: options.metadata ?? {},
       });
-    if (!error) return;
+    if (!error) return true;
     logSupabaseError(
       { module: "settings.audit", schema: "user_service", table: "audit_events", operation: `insert ${eventType}` },
       error as Parameters<typeof logSupabaseError>[1],
     );
+    return false;
   }
 
   private async ensureDefaults(userId: string): Promise<void> {
@@ -180,7 +192,7 @@ export class SettingsService {
         this.database
           .schema("user_service")
           .from("privacy_preferences")
-          .select("facial_analysis_enabled, crisis_support_visible, lock_screen_private")
+          .select("facial_analysis_enabled, journal_ai_analysis_enabled, crisis_support_visible, lock_screen_private")
           .eq("user_id", userId)
           .maybeSingle(),
         this.database
@@ -346,15 +358,18 @@ export class SettingsService {
   }
 
   async uploadAvatar(userId: string, input: AvatarUploadInput) {
+    const contents = await sanitizeImage(input.contents, input.mimeType, true);
     await this.ensureDefaults(userId);
     const extension = avatarExtensions[input.mimeType];
     if (!extension) throw databaseError("Your profile photo type is not supported.");
 
     const storagePath = `${userId}/profile.${extension}`;
-    const { error: uploadError } = await this.database.storage.from(AVATAR_BUCKET).upload(storagePath, input.contents, {
-      contentType: input.mimeType,
-      upsert: true,
-    });
+    const { error: uploadError } = await this.administrativeDatabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(storagePath, contents, {
+        contentType: input.mimeType,
+        upsert: true,
+      });
     if (uploadError) {
       logSupabaseError(
         { module: "settings.avatar", schema: "storage", table: AVATAR_BUCKET, operation: "upload profile avatar" },
@@ -363,7 +378,7 @@ export class SettingsService {
       throw storageError("Profile photo storage is not available. Please try again after setup is complete.");
     }
 
-    const { data } = this.database.storage.from(AVATAR_BUCKET).getPublicUrl(storagePath);
+    const { data } = this.administrativeDatabase.storage.from(AVATAR_BUCKET).getPublicUrl(storagePath);
     const avatarPath = data.publicUrl || storagePath;
     const { error: profileError } = await this.database
       .schema("user_service")
@@ -374,7 +389,7 @@ export class SettingsService {
 
     await this.recordAudit(userId, "settings.avatar_updated", {
       resourceType: "profile",
-      metadata: { mimeType: input.mimeType, sizeBytes: input.sizeBytes },
+      metadata: { mimeType: input.mimeType, sizeBytes: contents.length },
     });
     return this.get(userId);
   }
@@ -419,79 +434,40 @@ export class SettingsService {
     return this.get(userId);
   }
 
-  async createContact(userId: string, input: TrustedContactInput) {
-    if (input.isPrimary) {
-      const { error } = await this.database
-        .schema("user_service")
-        .from("trusted_contacts")
-        .update({ is_primary: false })
-        .eq("user_id", userId);
-      if (error) throw databaseError("Your trusted contacts could not be updated.");
-    }
-    const { data, error } = await this.database
-      .schema("user_service")
-      .from("trusted_contacts")
-      .insert({
-        user_id: userId,
-        contact_name: input.contactName,
-        contact_email: input.contactEmail,
-        contact_phone: input.contactPhone,
-        relationship: input.relationship,
-        is_primary: input.isPrimary,
-        permission_acknowledged_at: input.permissionAcknowledged ? new Date().toISOString() : null,
-      })
-      .select("id")
-      .maybeSingle();
-    if (error) throw databaseError("The trusted contact could not be added.");
-    await this.recordAudit(userId, "settings.trusted_contact_created", {
-      resourceType: "trusted_contact",
-      resourceId: stringValue((data as Row | null)?.id) || undefined,
-      metadata: {
-        isPrimary: input.isPrimary,
-        hasEmail: Boolean(input.contactEmail),
-        hasPhone: Boolean(input.contactPhone),
-      },
+  private async saveContact(userId: string, contactId: string | null, input: TrustedContactInput) {
+    const { data, error } = await this.database.schema("user_service").rpc("save_trusted_contact", {
+      p_contact_id: contactId,
+      p_contact_name: input.contactName,
+      p_contact_email: input.contactEmail,
+      p_contact_phone: input.contactPhone,
+      p_relationship: input.relationship,
+      p_is_primary: input.isPrimary,
+      p_permission_acknowledged: input.permissionAcknowledged,
     });
+    if (error?.code === "P0002") throw new NotFoundError("The trusted contact was not found.");
+    if (error || typeof data !== "string") throw databaseError("Your trusted contact could not be saved.");
+    await this.recordAudit(
+      userId,
+      contactId ? "settings.trusted_contact_updated" : "settings.trusted_contact_created",
+      {
+        resourceType: "trusted_contact",
+        resourceId: data,
+        metadata: {
+          isPrimary: input.isPrimary,
+          hasEmail: Boolean(input.contactEmail),
+          hasPhone: Boolean(input.contactPhone),
+        },
+      },
+    );
     return this.get(userId);
   }
 
+  async createContact(userId: string, input: TrustedContactInput) {
+    return this.saveContact(userId, null, input);
+  }
+
   async updateContact(userId: string, contactId: string, input: TrustedContactInput) {
-    if (input.isPrimary) {
-      const { error } = await this.database
-        .schema("user_service")
-        .from("trusted_contacts")
-        .update({ is_primary: false })
-        .eq("user_id", userId)
-        .neq("id", contactId);
-      if (error) throw databaseError("Your trusted contacts could not be updated.");
-    }
-    const { data, error } = await this.database
-      .schema("user_service")
-      .from("trusted_contacts")
-      .update({
-        contact_name: input.contactName,
-        contact_email: input.contactEmail,
-        contact_phone: input.contactPhone,
-        relationship: input.relationship,
-        is_primary: input.isPrimary,
-        permission_acknowledged_at: input.permissionAcknowledged ? new Date().toISOString() : null,
-      })
-      .eq("id", contactId)
-      .eq("user_id", userId)
-      .select("id")
-      .maybeSingle();
-    if (error) throw databaseError("The trusted contact could not be updated.");
-    if (!data) throw new NotFoundError("The trusted contact was not found.");
-    await this.recordAudit(userId, "settings.trusted_contact_updated", {
-      resourceType: "trusted_contact",
-      resourceId: contactId,
-      metadata: {
-        isPrimary: input.isPrimary,
-        hasEmail: Boolean(input.contactEmail),
-        hasPhone: Boolean(input.contactPhone),
-      },
-    });
-    return this.get(userId);
+    return this.saveContact(userId, contactId, input);
   }
 
   async removeContact(userId: string, contactId: string) {
@@ -512,68 +488,37 @@ export class SettingsService {
     return this.get(userId);
   }
 
+  async authorizePdfExport(userId: string) {
+    if (!(await this.recordAudit(userId, "privacy.pdf_export_authorized", { resourceType: "journal_report" })))
+      throw new ExternalServiceError("EXPORT_UNAVAILABLE", "Your export could not be authorized. Please try again.");
+    return { authorized: true };
+  }
+
   async requestExport(userId: string) {
-    const { data: active, error: activeError } = await this.database
-      .schema("user_service")
-      .from("data_export_requests")
-      .select("id")
-      .eq("user_id", userId)
-      .in("request_status", ["requested", "processing"])
-      .limit(1)
-      .maybeSingle();
-    if (activeError) throw databaseError("Your export status could not be checked.");
-    if (!active) {
-      const { error } = await this.database
-        .schema("user_service")
-        .from("data_export_requests")
-        .insert({ user_id: userId, request_status: "requested" });
-      if (error) throw databaseError("Your export request could not be created.");
-    }
-    await this.recordAudit(userId, "settings.data_export_requested", { resourceType: "data_export_request" });
+    if (!this.exports) throw new ExternalServiceError("EXPORT_UNAVAILABLE", "Data export is not configured.");
+    await this.exports.prepare(userId);
     return this.get(userId);
   }
 
+  async downloadExport(userId: string, requestId: string) {
+    if (!this.exports) throw new ExternalServiceError("EXPORT_UNAVAILABLE", "Data export is not configured.");
+    return this.exports.download(userId, requestId);
+  }
+
   async requestDeletion(userId: string) {
-    const { data: active, error: activeError } = await this.database
+    const { data, error } = await this.administrativeDatabase
       .schema("user_service")
-      .from("account_deletion_requests")
-      .select("id")
-      .eq("user_id", userId)
-      .in("request_status", ["pending", "processing"])
-      .limit(1)
-      .maybeSingle();
-    if (activeError) throw databaseError("Your deletion request status could not be checked.");
-    if (!active) {
-      const { error } = await this.database
-        .schema("user_service")
-        .from("account_deletion_requests")
-        .insert({
-          user_id: userId,
-          request_status: "pending",
-          scheduled_for: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      if (error) throw databaseError("Your deletion request could not be created.");
-    }
-    await this.recordAudit(userId, "settings.account_deletion_requested", { resourceType: "account_deletion_request" });
+      .rpc("request_account_deletion", { p_user_id: userId });
+    if (error || !data) throw databaseError("Your deletion request could not be created.");
     return this.get(userId);
   }
 
   async cancelDeletion(userId: string, requestId: string) {
-    const { data, error } = await this.database
+    const { data, error } = await this.administrativeDatabase
       .schema("user_service")
-      .from("account_deletion_requests")
-      .update({ request_status: "cancelled", cancelled_at: new Date().toISOString() })
-      .eq("id", requestId)
-      .eq("user_id", userId)
-      .eq("request_status", "pending")
-      .select("id")
-      .maybeSingle();
+      .rpc("cancel_account_deletion", { p_user_id: userId, p_request_id: requestId });
     if (error) throw databaseError("Your deletion request could not be cancelled.");
-    if (!data) throw new NotFoundError("No pending deletion request was found.");
-    await this.recordAudit(userId, "settings.account_deletion_cancelled", {
-      resourceType: "account_deletion_request",
-      resourceId: requestId,
-    });
+    if (data !== true) throw new NotFoundError("No pending deletion request was found.");
     return this.get(userId);
   }
 
@@ -584,11 +529,14 @@ export class SettingsService {
   ): Promise<{ passwordChanged: true }> {
     if (!email) throw new ExternalServiceError("AUTH_UNAVAILABLE", "Your account email could not be verified.");
 
-    const { error: verifyError } = await this.database.auth.signInWithPassword({
+    // Do not sign in on the process-wide administrative client: Supabase Auth
+    // changes that client's session, which could cross-contaminate requests.
+    const authentication = this.authenticationClient?.() ?? this.administrativeDatabase;
+    const { data: verified, error: verifyError } = await authentication.auth.signInWithPassword({
       email,
       password: input.currentPassword,
     });
-    if (verifyError) {
+    if (verifyError || verified?.user?.id !== userId || !verified.session?.access_token) {
       await this.recordAudit(userId, "security.password_change_failed", {
         resourceType: "auth_user",
         metadata: { reason: "invalid_current_password" },
@@ -596,10 +544,20 @@ export class SettingsService {
       throw new AuthenticationError("INVALID_CURRENT_PASSWORD", "The current password is incorrect.");
     }
 
-    const { error: updateError } = await this.database.auth.admin.updateUserById(userId, {
+    const { error: updateError } = await this.administrativeDatabase.auth.admin.updateUserById(userId, {
       password: input.newPassword,
     });
     if (updateError) throw new ExternalServiceError("AUTH_UNAVAILABLE", "Your password could not be changed.");
+
+    const { error: revokeError } = await this.administrativeDatabase.auth.admin.signOut(
+      verified.session.access_token,
+      "global",
+    );
+    if (revokeError)
+      throw new ExternalServiceError(
+        "SESSION_REVOCATION_FAILED",
+        "Your password changed, but sessions could not be revoked. Use sign out all devices and contact support.",
+      );
 
     await this.recordAudit(userId, "security.password_changed", { resourceType: "auth_user" });
     return { passwordChanged: true };
@@ -636,7 +594,7 @@ export class SettingsService {
   }
 
   async signOutAllDevices(userId: string, accessToken: string): Promise<{ signedOut: true }> {
-    const { error } = await this.database.auth.admin.signOut(accessToken, "global");
+    const { error } = await this.administrativeDatabase.auth.admin.signOut(accessToken, "global");
     if (error) throw new ExternalServiceError("AUTH_UNAVAILABLE", "All devices could not be signed out.");
     await this.recordAudit(userId, "security.sign_out_all_devices", { resourceType: "auth_session" });
     return { signedOut: true };

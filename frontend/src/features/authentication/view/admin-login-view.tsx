@@ -2,6 +2,8 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { prepareReviewerMfa, verifyReviewerMfa, type ReviewerFactor } from "@/services/authentication/reviewer-mfa";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Mail, ShieldCheck } from "lucide-react";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
@@ -26,6 +28,34 @@ export function AdminLoginView() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  const [factor, setFactor] = useState<ReviewerFactor | null>(null);
+  const [code, setCode] = useState("");
+
+  async function openWorkspace() {
+    const access = await verificationApi.reviewerAccess();
+    if (access.canReview !== true) {
+      setError("This account does not have administrator access. Use your assigned reviewer account or contact the ECHO project owner.");
+      return;
+    }
+    setPassword("");
+    setFactor(null);
+    setCode("");
+    setComplete(true);
+    router.replace("/admin/verifications");
+    router.refresh();
+  }
+
+  async function verifyFactor(event: FormEvent) {
+    event.preventDefault();
+    if (!factor || inFlight.current || complete) return;
+    setError(null); inFlight.current = true; setBusy(true);
+    try {
+      await verifyReviewerMfa(factor.id, code);
+      await openWorkspace();
+    } catch { setError("Verification could not be completed. Check your code and try again."); }
+    finally { setCode(""); inFlight.current = false; setBusy(false); }
+  }
+
   async function signIn(event: FormEvent) {
     event.preventDefault();
     if (inFlight.current || complete) return;
@@ -48,20 +78,9 @@ export function AdminLoginView() {
         );
         return;
       }
-      // This check improves navigation only; every admin API still enforces its own role check.
-      const access = await verificationApi.reviewerAccess();
-      if (access.canReview !== true) {
-        setError(
-          "This account does not have administrator access. Use your assigned reviewer account or contact the ECHO project owner.",
-        );
-        return;
-      }
-      setPassword("");
-      setComplete(true);
-      // A fixed destination cannot be redirected by untrusted query parameters.
-      // The existing route gate still requires age, policies, and onboarding.
-      router.replace("/admin/verifications");
-      router.refresh();
+      const nextFactor = await prepareReviewerMfa();
+      if (nextFactor) { setPassword(""); setFactor(nextFactor); return; }
+      await openWorkspace();
     } catch {
       setError("Administrator access could not be checked. Check your connection and try again.");
     } finally {
@@ -94,14 +113,20 @@ export function AdminLoginView() {
               A dedicated space for authorized reviewers to manage account verifications.
             </p>
           </header>
-          <form onSubmit={signIn} noValidate aria-busy={busy} className="mt-6 space-y-4">
+          <form onSubmit={factor ? verifyFactor : signIn} noValidate aria-busy={busy} className="mt-6 space-y-4">
             {error && <EchoInlineMessage variant="error" message={error} />}
             {complete && (
               <p role="status" className="text-sm text-[var(--landing-primary)]">
                 Access confirmed. Opening your workspace…
               </p>
             )}
-            <fieldset disabled={busy || complete} className="space-y-4 disabled:opacity-70">
+            {factor ? (
+              <fieldset disabled={busy || complete} className="space-y-4">
+                <p className="text-sm">{factor.qrCode ? "Scan this code with your authenticator app, then enter its six-digit code." : "Enter the six-digit code from your authenticator app."}</p>
+                {factor.qrCode && <Image src={factor.qrCode} alt="Authenticator enrollment QR code" width={200} height={200} unoptimized />}
+                <AuthFormField label="Authenticator code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" required />
+              </fieldset>
+            ) : <fieldset disabled={busy || complete} className="space-y-4 disabled:opacity-70">
               <AuthFormField
                 label="Admin email"
                 type="email"
@@ -134,7 +159,7 @@ export function AdminLoginView() {
                 checked={rememberSession}
                 onChange={(event) => setRememberSession(event.target.checked)}
               />
-            </fieldset>
+            </fieldset>}
             <p className="text-xs leading-5 text-[var(--landing-muted)]">
               Leave unchecked on shared devices. Your session ends when you close this tab.
             </p>
@@ -146,7 +171,7 @@ export function AdminLoginView() {
               loadingText="Checking access…"
               disabled={complete}
             >
-              Sign in as admin <ArrowRight className="size-4" aria-hidden="true" />
+              {factor ? "Verify authenticator" : "Sign in as admin"} <ArrowRight className="size-4" aria-hidden="true" />
             </EchoButton>
             <Link
               href="/forgot-password"

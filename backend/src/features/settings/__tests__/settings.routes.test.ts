@@ -5,7 +5,7 @@ import type { SettingsService } from "../settings.service.js";
 
 function createHarness() {
   const verifier = {
-    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com" }),
+    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 }),
   };
   const settings = {
     get: vi.fn().mockResolvedValue({ profile: { displayName: "Echo" } }),
@@ -16,6 +16,8 @@ function createHarness() {
     createContact: vi.fn().mockResolvedValue({ trustedContacts: [] }),
     updateContact: vi.fn().mockResolvedValue({ trustedContacts: [] }),
     removeContact: vi.fn().mockResolvedValue({ trustedContacts: [] }),
+    authorizePdfExport: vi.fn().mockResolvedValue({ authorized: true }),
+    downloadExport: vi.fn().mockResolvedValue(JSON.stringify({ format: "synthetic-export" })),
     requestExport: vi.fn().mockResolvedValue({ latestExport: { id: "export-1" } }),
     requestDeletion: vi.fn().mockResolvedValue({ deletionRequest: { id: "deletion-1" } }),
     cancelDeletion: vi.fn().mockResolvedValue({ deletionRequest: null }),
@@ -31,7 +33,7 @@ function createHarness() {
       },
     },
   });
-  return { app, settings };
+  return { app, settings, verifier };
 }
 
 describe("settings routes", () => {
@@ -230,5 +232,29 @@ describe("settings routes", () => {
 
     expect(response.status).toBe(200);
     expect(settings.signOutAllDevices).toHaveBeenCalledWith("user-1", "valid-token");
+  });
+});
+
+describe("export delivery authorization", () => {
+  const exportId = "41000000-0000-4000-8000-000000000001";
+  it("uses the verified owner and sends an uncached attachment", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app).get(`/api/v1/settings/data-exports/${exportId}/download`).set("Authorization", "Bearer valid-token");
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["content-disposition"]).toContain("attachment;");
+    expect(settings.downloadExport).toHaveBeenCalledWith("user-1", exportId);
+  });
+  it("rejects stale authentication before retrieving the export", async () => {
+    const { app, settings, verifier } = createHarness();
+    verifier.getUser.mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 - 3600 });
+    const response = await request(app).get(`/api/v1/settings/data-exports/${exportId}/download`).set("Authorization", "Bearer stale-token");
+    expect(response.status).toBe(403);
+    expect(settings.downloadExport).not.toHaveBeenCalled();
+  });
+  it("rejects unauthenticated download", async () => {
+    const { app, settings } = createHarness();
+    expect((await request(app).get(`/api/v1/settings/data-exports/${exportId}/download`)).status).toBe(401);
+    expect(settings.downloadExport).not.toHaveBeenCalled();
   });
 });

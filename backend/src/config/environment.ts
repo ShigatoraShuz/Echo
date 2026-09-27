@@ -19,6 +19,7 @@ const environmentSchema = z.object({
   SUPPORT_PROMPT_WINDOW_DAYS: z.coerce.number().int().min(1).max(365).default(14),
   SUPPORT_PROMPT_COOLDOWN_DAYS: z.coerce.number().int().min(1).max(365).default(7),
   FRONTEND_URL: z.string().url(),
+  TRUSTED_PROXY_ADDRESSES: z.string().default(""),
   SUPABASE_URL: z.string().url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().trim().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
@@ -26,6 +27,13 @@ const environmentSchema = z.object({
   SIGNUP_DRAFT_SECRET: z.string().trim().min(32).optional(),
   JOURNAL_ENCRYPTION_KEY_BASE64: base64KeySchema,
   JOURNAL_ENCRYPTION_KEY_VERSION: z.coerce.number().int().positive().default(1),
+  ENCRYPTION_PREVIOUS_KEYS_JSON: z.string().default("{}").transform((value, context) => {
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || Object.values(parsed).some((key) => typeof key !== "string")) throw new Error();
+      return parsed as Record<string, string>;
+    } catch { context.addIssue({ code: "custom", message: "Invalid previous key configuration." }); return z.NEVER; }
+  }),
   AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker"]).default("disabled"),
   AI_DEVELOPMENT_USER_IDS: z.string().default(""),
   AI_WORKER_TOKEN: z.string().min(32).optional(),
@@ -72,6 +80,11 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
   if (parsed.data.NODE_ENV === "production" && !parsed.data.SIGNUP_DRAFT_SECRET) {
     throw new Error("SIGNUP_DRAFT_SECRET is required in production.");
   }
+  if (parsed.data.NODE_ENV === "production" &&
+      [parsed.data.FRONTEND_URL, parsed.data.SUPABASE_URL].some((value) => new URL(value).protocol !== "https:"))
+    throw new Error("Production frontend and Supabase URLs must use HTTPS.");
+  if (/^(?:true|\d+|\*)$/i.test(parsed.data.TRUSTED_PROXY_ADDRESSES.trim()))
+    throw new Error("Configure trusted proxy IPs/CIDRs explicitly, not a hop count or wildcard.");
 
   return parsed.data;
 }

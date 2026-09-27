@@ -5,11 +5,11 @@ import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { ExperienceService } from "./experience.service.js";
 
-const buddyMessageSchema = z.object({
+const buddyMessageSchema = z.strictObject({
   content: z.string().trim().min(1).max(4_000),
 });
 
-const groundingSchema = z.object({
+const groundingSchema = z.strictObject({
   technique: z.string().trim().min(1).max(80),
   durationSeconds: z.number().int().min(10).max(3_600),
   pace: z.enum(["gentle", "slower", "steady"]),

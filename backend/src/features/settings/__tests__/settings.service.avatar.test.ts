@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsService } from "../settings.service.js";
 
@@ -30,10 +31,11 @@ describe("SettingsService avatar uploads", () => {
     const mocks = createDatabaseWithStorageError();
     const service = new SettingsService(mocks.database as never);
 
+    const contents = await sharp({ create: { width: 2, height: 2, channels: 3, background: "blue" } }).png().toBuffer();
     await expect(service.uploadAvatar("user-1", {
-      contents: Buffer.from("avatar"),
+      contents,
       mimeType: "image/png",
-      sizeBytes: 6,
+      sizeBytes: contents.length,
     })).rejects.toMatchObject({
       code: "STORAGE_UNAVAILABLE",
       statusCode: 503,

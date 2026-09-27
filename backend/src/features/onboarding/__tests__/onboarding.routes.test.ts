@@ -61,7 +61,7 @@ describe("onboarding routes", () => {
     });
   });
 
-  it("forwards onboarding profile payloads to the service", async () => {
+  it("rejects malformed onboarding profile payloads before the service", async () => {
     const { app, onboarding } = createHarness();
 
     const response = await request(app)
@@ -69,8 +69,8 @@ describe("onboarding routes", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ displayName: "", timezone: "" });
 
-    expect(response.status).toBe(200);
-    expect(onboarding.saveProfile).toHaveBeenCalledWith("user-1", { displayName: "", timezone: "" });
+    expect(response.status).toBe(400);
+    expect(onboarding.saveProfile).not.toHaveBeenCalled();
   });
 
   it("completes onboarding", async () => {

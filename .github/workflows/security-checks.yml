@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   dependency-audit:
     runs-on: ubuntu-latest
@@ -15,11 +18,33 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Write production dependency audit
-        run: npm audit --omit=dev --json > npm-audit.json || true
-      - name: Fail on critical production vulnerabilities
-        run: node -e "const a=require('./npm-audit.json'); if ((a.metadata?.vulnerabilities?.critical ?? 0) > 0) process.exit(1)"
+      - name: Reject high and critical dependency vulnerabilities
+        run: npm audit --audit-level=high
+      - name: Security source boundary scan
+        run: node scripts/security-scan.mjs
+      - name: Explicit database schema boundaries
+        run: node scripts/security-query-boundaries.mjs
+      - name: Project target negative tests
+        run: node --test scripts/security-project-target.test.mjs
+      - name: Isolated migrations and authorization policies
+        run: npm run test:sql:isolated
+      - name: Authentication configuration policy
+        run: npm run check:auth-policy
+      - name: Validate build and public bundle
+        run: |
+          npm run build
+          node scripts/security-scan.mjs --bundle
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: npm-audit
-          path: npm-audit.json
+          name: security-evidence
+          path: docs/security/SECURITY_TEST_EVIDENCE.md
+  secret-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

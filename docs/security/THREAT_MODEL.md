@@ -1,3 +1,37 @@
+# Current assessment — 2026-09-17
+
+This assessment supersedes conflicting historical claims below. Buddy content is currently plaintext; normal service-role queries bypass RLS; provider, backup, MFA and deployed policy controls remain unverified. No accepted-risk approval is recorded.
+
+```mermaid
+flowchart LR
+ B[Untrusted browser / Next.js] -->|Bearer token, TLS at deployment edge| E[Express modular monolith]
+ B -->|Managed login / Google OAuth| A[Supabase Auth]
+ E -->|Remote token verification| A
+ E -->|Explicit service schemas; currently admin credential| D[(PostgreSQL)]
+ E -->|Private documents / signed URLs| S[Supabase Storage]
+ W[Internal analysis worker] -->|Worker token and job lease| E
+ R[Verification reviewer] -->|Token and DB role| E
+ E -->|Metadata only| L[Logs / audit destination]
+```
+
+| Flow / threat | Impact / likelihood | Existing control | Required mitigation / evidence |
+| --- | --- | --- | --- |
+| Ordinary requests bypass database ownership | Critical / high | Explicit user filters | User-scoped clients, two-user tests and RPC audit |
+| Buddy plaintext, analysis/read-model plaintext | Critical / high | Journal AES-GCM only | Field inventory, encryption and ciphertext tests |
+| Stolen reviewer session | Critical / medium | DB role checks | AAL2 and recent authentication |
+| Malicious verification upload | High / medium | Size/type checks, private bucket | Quarantine before signed reviewer access |
+| Export/deletion incomplete lifecycle | High / high | Owner-scoped request queue | Worker and all-store synthetic account tests |
+| Wrong environment mutation | Critical / medium | Current local URLs match new project | Fail-closed target guard and dry run |
+| Optional processing after consent withdrawal | High / medium | Analysis eligibility gates | Execution-time checks and worker tests |
+| Log/provider/browser disclosure | Critical / medium | Selected redaction, React text | Allowlisted telemetry, persistent-state and network audit |
+| Dependency/operational compromise | Critical / medium | Existing CI | Failing scans, restricted deployments, restore/revocation drills |
+
+Review owner: engineering/security owner; review pending. Every restricted store is included in DATA_CLASSIFICATION_AND_RETENTION.md.
+
+---
+
+## Historical threat model (not current verification evidence)
+
 # ECHO Threat Model
 
 - Date: 2026-08-17

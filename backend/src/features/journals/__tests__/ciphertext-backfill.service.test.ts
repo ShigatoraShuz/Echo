@@ -27,7 +27,7 @@ function databaseWith(rows: Row[], concurrentChange = false) {
       };
       return empty;
     },
-    schema: () => ({
+    schema: (schema: string) => ({
       from: (table: string) => {
         let after = false;
         let values: Row | undefined;
@@ -50,7 +50,7 @@ function databaseWith(rows: Row[], concurrentChange = false) {
               writes.push(values);
               return Promise.resolve(resolve({ error: null, count: concurrentChange ? 0 : 1 }));
             }
-            return Promise.resolve(resolve({ error: null, data: table === "journals" && !after ? rows : [] }));
+            return Promise.resolve(resolve({ error: null, data: schema === "journal_service" && table === "journals" && !after ? rows : [] }));
           },
         };
         return query;

@@ -22,7 +22,7 @@ function harness() {
   };
   const verifier = {
     getUser: vi.fn(async (token: string) =>
-      token === "valid-token" ? { id: "user-1", email: "user@example.com" } : null,
+      token === "valid-token" ? { id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 } : null,
     ),
   };
   return {

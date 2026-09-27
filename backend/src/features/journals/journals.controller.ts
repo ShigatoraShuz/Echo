@@ -10,7 +10,7 @@ const journalInputSchema = journalSubmissionInputSchema;
 
 const journalUpdateSchema = journalSubmissionObjectSchema.partial();
 
-const journalDraftSchema = z.object({
+const journalDraftSchema = z.strictObject({
   submissionKey: z.string().uuid().optional(),
   title: z.string().trim().max(200).default(""),
   body: z.string().trim().max(20_000).default(""),
@@ -20,16 +20,16 @@ const journalDraftSchema = z.object({
   privacyStatus: z.enum(["private", "shared"]).default("private"),
   analysisConsent: z.boolean().default(false),
 });
-const supportResourceSchema = z.object({
+const supportResourceSchema = z.strictObject({
   countryCode: z.string().regex(/^[A-Z]{2}$/),
   regionCode: z
     .string()
     .regex(/^[A-Za-z0-9 -]{1,40}$/)
     .optional(),
 });
-const supportContactSchema = z.object({ trustedContactId: z.string().uuid(), jobId: z.string().uuid().optional() });
-const buddyHandoffSchema = z.object({ analysisResultId: z.string().uuid() });
-const safetyReviewSchema = z.object({
+const supportContactSchema = z.strictObject({ trustedContactId: z.string().uuid(), jobId: z.string().uuid().optional() });
+const buddyHandoffSchema = z.strictObject({ analysisResultId: z.string().uuid() });
+const safetyReviewSchema = z.strictObject({
   decision: z.enum(["approved_continue", "end_analysis"]),
   decisionKey: z.string().min(16).max(200),
 });

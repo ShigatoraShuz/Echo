@@ -5,14 +5,14 @@ import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { SettingsService } from "./settings.service.js";
 
-const profileSchema = z.object({
+const profileSchema = z.strictObject({
   displayName: z.string().trim().min(1, "Display name is required.").max(80),
   timezone: z.string().trim().min(1).max(100),
   themeVariant: z.enum(["echo-calm", "echo-night", "echo-soft", "echo-focus"]),
   themeMode: z.enum(["light", "dark", "system"]),
 });
 
-const privacySchema = z.object({
+const privacySchema = z.strictObject({
   journalAiAnalysisEnabled: z.boolean().optional(),
   facialAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
@@ -20,7 +20,7 @@ const privacySchema = z.object({
 });
 
 const notificationSchema = z
-  .object({
+  .strictObject({
     emailEnabled: z.boolean(),
     pushEnabled: z.boolean(),
     inAppEnabled: z.boolean(),
@@ -29,7 +29,7 @@ const notificationSchema = z
     insightNotificationsEnabled: z.boolean(),
     reminderTime: z
       .string()
-      .regex(/^\d{2}:\d{2}$/)
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
       .nullable(),
     reminderTimezone: z.string().trim().min(1).max(100).nullable(),
   })
@@ -40,15 +40,15 @@ const notificationSchema = z
     { message: "A reminder time and timezone are required when reminders are enabled." },
   );
 
-const auditQuerySchema = z.object({
+const auditQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 const changePasswordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Current password is required."),
+  .strictObject({
+    currentPassword: z.string().min(1, "Current password is required.").max(128),
     newPassword: z.string().min(8, "New password must be at least 8 characters.").max(128),
-    confirmPassword: z.string().min(1, "Confirm your new password."),
+    confirmPassword: z.string().min(1, "Confirm your new password.").max(128),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],
@@ -59,7 +59,7 @@ const allowedAvatarTypes = new Set(["image/jpeg", "image/png", "image/webp", "im
 const maxAvatarBytes = 5 * 1024 * 1024;
 
 const contactSchema = z
-  .object({
+  .strictObject({
     contactName: z.string().trim().min(1).max(200),
     contactEmail: z.string().trim().email().max(320).nullable(),
     contactPhone: z.string().trim().min(5).max(40).nullable(),
@@ -153,8 +153,17 @@ export function createSettingsController(service: SettingsService) {
     async removeContact(request: Request, response: Response) {
       sendSuccess(response, await service.removeContact(userId(request), requireUuidParam(request, "contactId")));
     },
+    async authorizePdfExport(request: Request, response: Response) {
+      sendSuccess(response, await service.authorizePdfExport(userId(request)));
+    },
     async requestExport(request: Request, response: Response) {
       sendSuccess(response, await service.requestExport(userId(request)), 201);
+    },
+    async downloadExport(request: Request, response: Response) {
+      const data = await service.downloadExport(userId(request), requireUuidParam(request, "requestId"));
+      response.setHeader("Content-Disposition", 'attachment; filename="echo-account-export.json"');
+      response.setHeader("Cache-Control", "no-store");
+      response.type("application/json").send(data);
     },
     async requestDeletion(request: Request, response: Response) {
       sendSuccess(response, await service.requestDeletion(userId(request)), 201);

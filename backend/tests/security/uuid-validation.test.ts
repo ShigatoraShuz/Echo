@@ -11,7 +11,7 @@ const MALFORMED_IDS = ["not-a-uuid", "42", "123e4567-e89b-12d3-a456", "123e4567e
 
 function createHarness() {
   const verifier = {
-    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com" }),
+    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 }),
   };
   const journals = {
     list: vi.fn().mockResolvedValue({ entries: [] }),

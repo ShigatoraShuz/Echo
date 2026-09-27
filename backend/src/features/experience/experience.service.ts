@@ -3,6 +3,7 @@ import { WellnessService, defaultWellnessSchedule, type WellnessSchedule } from 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JournalService } from "../journals/journals.service.js";
 import type { EncryptionService } from "../../infrastructure/encryption/encryption.service.js";
+import { encryptText, decryptText } from "../../infrastructure/encryption/encryption.service.js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 import { ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
 
@@ -77,13 +78,16 @@ export class ExperienceService {
     private readonly journals: JournalService,
     private readonly encryption: EncryptionService,
     schedule: WellnessSchedule = defaultWellnessSchedule,
-  ) { this.wellness = new WellnessService(database, schedule); }
+    private readonly userDatabase?: () => SupabaseClient,
+  ) { this.wellness = new WellnessService(database, schedule, encryption); }
+
+  private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
   async dashboard(userId: string, range = "7d") {
     const [entries, profileResult, preferenceResult] = await Promise.all([
       this.journals.list(userId),
-      this.database.schema("user_service").from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
-      this.database
+      this.reader.schema("user_service").from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
+      this.reader
         .schema("user_service")
         .from("notification_preferences")
         .select("reminder_time")
@@ -200,11 +204,11 @@ export class ExperienceService {
   }
 
   private messageContent(row: DatabaseRow): string {
-    return asString(row.content);
+    return decryptText(row.content, this.encryption);
   }
 
   private async activeConversation(userId: string): Promise<DatabaseRow> {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("buddy_service")
       .from("buddy_conversations")
       .select("*")
@@ -254,7 +258,7 @@ export class ExperienceService {
   async buddySession(userId: string) {
     const conversation = await this.activeConversation(userId);
     const conversationId = asString(conversation.id);
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("buddy_service")
       .from("buddy_messages")
       .select("*")
@@ -305,14 +309,14 @@ export class ExperienceService {
           conversation_id: conversationId,
           user_id: userId,
           role: "user",
-          content,
+          content: encryptText(content, this.encryption),
           is_flagged: urgent,
         },
         {
           conversation_id: conversationId,
           user_id: userId,
           role: "assistant",
-          content: reply,
+          content: encryptText(reply, this.encryption),
           is_flagged: urgent,
         },
       ]);
@@ -428,7 +432,7 @@ export class ExperienceService {
     if (!data) {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The grounding session could not be recorded.");
     }
-    const { count, error: countError } = await this.database
+    const { count, error: countError } = await this.reader
       .schema("grounding_service")
       .from("grounding_sessions")
       .select("id", { count: "exact", head: true })
@@ -494,7 +498,7 @@ export class ExperienceService {
   }
 
   async buddyHistory(userId: string) {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("buddy_service")
       .from("buddy_conversations")
       .select("id, archived, last_message_at, created_at")
@@ -514,7 +518,7 @@ export class ExperienceService {
   }
 
   async ensureOwnedConversation(userId: string, conversationId: string) {
-    const { data, error } = await this.database
+    const { data, error } = await this.reader
       .schema("buddy_service")
       .from("buddy_conversations")
       .select("id")

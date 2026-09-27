@@ -8,7 +8,7 @@ import type { VerificationService } from "../../src/features/verification/verifi
 
 function createHarness() {
   const verifier = {
-    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com" }),
+    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 }),
   };
   const journals = {
     list: vi.fn().mockResolvedValue({ entries: [] }),
@@ -113,7 +113,7 @@ describe("mass-assignment and privilege-escalation defense (ECHO-012)", () => {
     expect(input.privacyStatus).toBe("shared");
   });
 
-  it("strips privileged fields from privacy settings updates", async () => {
+  it("rejects privileged fields in privacy settings updates", async () => {
     const { app, settings } = createHarness();
 
     const response = await request(app)
@@ -127,11 +127,8 @@ describe("mass-assignment and privilege-escalation defense (ECHO-012)", () => {
         verification_status: "approved",
       });
 
-    expect(response.status).toBe(200);
-    const input = settings.updatePrivacy.mock.calls[0][1];
-    expect(input).not.toHaveProperty("user_id");
-    expect(input).not.toHaveProperty("verification_status");
-    expect(input).not.toHaveProperty("role");
+    expect(response.status).toBe(400);
+    expect(settings.updatePrivacy).not.toHaveBeenCalled();
   });
 
   it("rejects review decisions that smuggle status fields", async () => {
@@ -142,11 +139,8 @@ describe("mass-assignment and privilege-escalation defense (ECHO-012)", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ decision: "approved", status: "rejected", reviewed_by: "someone-else" });
 
-    expect(response.status).toBe(200);
-    const input = verification.decide.mock.calls[0][2];
-    expect(input).not.toHaveProperty("status");
-    expect(input).not.toHaveProperty("reviewed_by");
-    expect(input.decision).toBe("approved");
+    expect(response.status).toBe(400);
+    expect(verification.decide).not.toHaveBeenCalled();
   });
 
   it("derives the owner from the verified session, not from any client field", async () => {

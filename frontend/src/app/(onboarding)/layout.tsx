@@ -1,3 +1,4 @@
+import { PrivateSessionBoundary } from "@/infrastructure/security/private-session-boundary";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { OnboardingShell } from "@/shared/components/layout/echo-shells";
@@ -15,5 +16,9 @@ export default async function OnboardingLayout({ children }: { children: ReactNo
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?error=login_required");
 
-  return <OnboardingShell>{children}</OnboardingShell>;
+  return (
+    <PrivateSessionBoundary key={user.id} userId={user.id}>
+      <OnboardingShell>{children}</OnboardingShell>
+    </PrivateSessionBoundary>
+  );
 }

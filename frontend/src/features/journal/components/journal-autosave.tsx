@@ -20,36 +20,28 @@ export function JournalAutosaveIndicator({ status }: AutosaveIndicatorProps) {
 }
 
 interface UseAutosaveOptions {
-  key: string;
+  persist: (data: unknown) => Promise<void>;
   debounceMs?: number;
 }
 
-export function useAutosave({ key, debounceMs = 2000 }: UseAutosaveOptions) {
+export function useAutosave({ persist, debounceMs = 2000 }: UseAutosaveOptions) {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const save = useCallback((data: unknown) => {
     setStatus("saving");
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    timerRef.current = setTimeout(async () => {
       try {
-        localStorage.setItem(key, JSON.stringify(data));
+        await persist(data);
         setStatus("saved");
-        setTimeout(() => setStatus("idle"), 2000);
       } catch {
         setStatus("error");
       }
     }, debounceMs);
-  }, [key, debounceMs]);
-
-  const load = useCallback(() => {
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  }, [key]);
+  }, [persist, debounceMs]);
 
   useEffect(() => { return () => { if (timerRef.current) clearTimeout(timerRef.current); }; }, []);
 
-  return { status, save, load };
+  return { status, save };
 }

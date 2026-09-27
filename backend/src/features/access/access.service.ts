@@ -13,10 +13,11 @@ export type AccessDecision =
   | "ACCESS_GRANTED";
 
 export class AccessService {
-  constructor(private readonly database: SupabaseClient) {}
+  constructor(private readonly database: SupabaseClient, private readonly userDatabase?: () => SupabaseClient) {}
+  private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
   async decide(user: AuthenticatedUser): Promise<{ decision: AccessDecision; onboardingStep: number }> {
     if (!user.emailVerified) return { decision: "EMAIL_VERIFICATION_REQUIRED", onboardingStep: 0 };
-    const { data: profile, error } = await this.database
+    const { data: profile, error } = await this.reader
       .schema("user_service")
       .from("profiles")
       .select("account_status,eligible_18_plus,eligibility_verified_at,onboarding_completed,onboarding_step")
@@ -31,7 +32,7 @@ export class AccessService {
       .from("policy_documents")
       .select("document_type,version")
       .eq("is_active", true);
-    const { data: consents } = await this.database
+    const { data: consents } = await this.reader
       .schema("user_service")
       .from("user_consents")
       .select("consent_type,consent_version,accepted")

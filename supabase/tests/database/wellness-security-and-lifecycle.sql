@@ -51,7 +51,7 @@ begin
   perform pg_temp.check_wellness(
     not has_function_privilege(
       'authenticated',
-      'insights_service.save_phq8(uuid,uuid,smallint[],integer)',
+      'insights_service.save_encrypted_phq8(uuid,uuid,text,integer)',
       'execute'
     ),
     'browser cannot impersonate an assessment owner'
@@ -84,23 +84,23 @@ begin
     'image bucket remains private'
   );
 
-  a := insights_service.save_phq8(
+  a := insights_service.save_encrypted_phq8(
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     gen_random_uuid(),
-    array[3,3,3,3,3,3,3,3]::smallint[],
+    'echo:encrypted:v1:synthetic-severe',
     7
   );
 
   perform pg_temp.check_wellness(
-    a.score = 24
-    and a.severity = 'severe',
-    'PHQ-8 score computed from all eight answers'
+    a.score is null and a.severity is null and a.responses is null
+    and a.assessment_ciphertext = 'echo:encrypted:v1:synthetic-severe',
+    'PHQ-8 sensitive values stored only inside ciphertext'
   );
 
-  b := insights_service.save_phq8(
+  b := insights_service.save_encrypted_phq8(
     a.user_id,
     a.submission_id,
-    a.responses,
+    a.assessment_ciphertext,
     7
   );
 
@@ -109,10 +109,10 @@ begin
     'same submission replays'
   );
 
-  b := insights_service.save_phq8(
+  b := insights_service.save_encrypted_phq8(
     a.user_id,
     gen_random_uuid(),
-    array[0,0,0,0,0,0,0,0]::smallint[],
+    'echo:encrypted:v1:synthetic-minimal',
     7
   );
 
@@ -125,25 +125,25 @@ begin
   set completed_at = now() - interval '3 days'
   where id = a.id;
 
-  b := insights_service.save_phq8(
+  b := insights_service.save_encrypted_phq8(
     a.user_id,
     gen_random_uuid(),
-    array[0,0,0,0,0,0,0,0]::smallint[],
+    'echo:encrypted:v1:synthetic-minimal',
     3
   );
 
   perform pg_temp.check_wellness(
     a.id <> b.id
-    and b.score = 0
-    and b.severity = 'minimal',
+    and b.score is null and b.severity is null and b.responses is null
+    and b.assessment_ciphertext = 'echo:encrypted:v1:synthetic-minimal',
     'configured interval and history retained'
   );
 
   begin
-    perform insights_service.save_phq8(
+    perform insights_service.save_encrypted_phq8(
       'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
       gen_random_uuid(),
-      array[3,3,3]::smallint[],
+      'plaintext-disallowed',
       7
     );
 
@@ -210,22 +210,8 @@ begin
       jid
     );
 
-    insert into ai_analysis.analysis_results(
-      analysis_request_id,
-      user_id,
-      severity,
-      summary,
-      is_demo_data,
-      is_simulated
-    )
-    values(
-      job,
-      a.user_id,
-      'severe',
-      'fixture',
-      false,
-      false
-    );
+    insert into ai_analysis.analysis_results(analysis_request_id,user_id,severity,summary,is_demo_data,is_simulated,result_payload)
+    values(job,a.user_id,'severe','[encrypted]',false,false,'{"ciphertext":"echo:encrypted:v1:synthetic-sql-fixture"}');
   end loop;
 
   perform pg_temp.check_wellness(
@@ -271,11 +257,9 @@ begin
     'exact cooldown boundary allows next suggestion'
   );
 
-  update ai_analysis.analysis_results
-  set
-    is_demo_data = true,
-    is_simulated = true
-  where analysis_request_id = job;
+  -- Replace the synthetic scenario; real completed results remain immutable.
+  with removed as (delete from ai_analysis.analysis_results where analysis_request_id=job returning *)
+  insert into ai_analysis.analysis_results select (jsonb_populate_record(null::ai_analysis.analysis_results,to_jsonb(removed)||jsonb_build_object('is_demo_data',true,'is_simulated',true))).* from removed;
 
   perform pg_temp.check_wellness(
     insights_service.recent_concerning_journals(
@@ -285,12 +269,9 @@ begin
     'simulated output excluded'
   );
 
-  update ai_analysis.analysis_results
-  set
-    is_demo_data = false,
-    is_simulated = false,
-    urgent_language_detected = true
-  where analysis_request_id = job;
+  -- Replace the synthetic scenario; real completed results remain immutable.
+  with removed as (delete from ai_analysis.analysis_results where analysis_request_id=job returning *)
+  insert into ai_analysis.analysis_results select (jsonb_populate_record(null::ai_analysis.analysis_results,to_jsonb(removed)||jsonb_build_object('is_demo_data',false,'is_simulated',false,'urgent_language_detected',true))).* from removed;
 
   perform pg_temp.check_wellness(
     insights_service.recent_concerning_journals(
@@ -300,12 +281,9 @@ begin
     'urgent safety distinct from repeated severity'
   );
 
-  update ai_analysis.analysis_results
-  set
-    urgent_language_detected = false,
-    created_at =
-      now() - interval '15 days'
-  where analysis_request_id = job;
+  -- Replace the synthetic scenario; real completed results remain immutable.
+  with removed as (delete from ai_analysis.analysis_results where analysis_request_id=job returning *)
+  insert into ai_analysis.analysis_results select (jsonb_populate_record(null::ai_analysis.analysis_results,to_jsonb(removed)||jsonb_build_object('urgent_language_detected',false,'created_at',now()-interval '15 days'))).* from removed;
 
   perform pg_temp.check_wellness(
     insights_service.recent_concerning_journals(

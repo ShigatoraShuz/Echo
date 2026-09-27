@@ -39,12 +39,16 @@ export class RegistrationService {
   private readonly google: OAuth2Client;
   constructor(
     private readonly database: SupabaseClient,
-    private readonly publicAuth: SupabaseClient,
+    private readonly publicAuthSource: SupabaseClient | (() => SupabaseClient),
     private readonly secret: string,
     private readonly googleClientId: string,
     private readonly frontendUrl: string,
   ) {
     this.google = new OAuth2Client(googleClientId || undefined);
+  }
+
+  private get publicAuth(): SupabaseClient {
+    return typeof this.publicAuthSource === "function" ? this.publicAuthSource() : this.publicAuthSource;
   }
 
   private hash(value: string): string {
@@ -170,7 +174,8 @@ export class RegistrationService {
         emailRedirectTo: `${this.frontendUrl.replace(/\/$/, "")}/callback?next=/onboarding`,
       },
     });
-    if (error) throw new ConflictError("EMAIL_SIGNUP_FAILED", error.message);
+    if (error && !["user_already_exists", "email_exists"].includes(error.code ?? ""))
+      throw new ConflictError("EMAIL_SIGNUP_FAILED", "Registration could not be completed. Please try again later.");
     return this.rotate({ ...draft, state: "verification_pending" }, { state: "verification_pending" });
   }
 

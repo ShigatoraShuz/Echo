@@ -138,11 +138,17 @@ export function createSettingsMockAdapter(): SettingsService {
       if (idx === -1) throw new Error("Contact not found");
       contacts.splice(idx, 1);
     },
+    async authorizePdfExport() { return { authorized: true }; },
     async requestExport() {
       await delay(150);
       latestExport = { id: `export-${Date.now().toString(36)}`, status: "requested", requestedAt: nowIso(), completedAt: null, expiresAt: null };
       exportHistory.unshift(latestExport);
       return latestExport;
+    },
+    async downloadExport(id) {
+      if (!latestExport || latestExport.id !== id || latestExport.status === "downloaded") throw new Error("Export unavailable.");
+      latestExport = { ...latestExport, status: "downloaded" };
+      return new Blob([JSON.stringify({ format: "echo-synthetic-export", profile, privacy, notifications, contacts })], { type: "application/json" });
     },
     async requestDeletion() {
       await delay(150);

@@ -1765,7 +1765,7 @@ export function ExportSettingsView() {
         <StateMessage error={error} notice={notice} onRetry={() => void refresh()} />
 
         <SettingsSection
-          title="PDF Report"
+          title="Account Data and PDF Report"
           description="A private, watermarked export only visible to you."
         >
           <ExportDataSection
@@ -1776,6 +1776,7 @@ export function ExportSettingsView() {
               return req;
             }}
             loadJournalEntries={loadAllEntries}
+            onDownloaded={() => { void refresh(); }}
           />
         </SettingsSection>
 

@@ -5,7 +5,7 @@ import type { VerificationService } from "../verification.service.js";
 
 function createHarness() {
   const verifier = {
-    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com" }),
+    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 }),
   };
   const verification = {
     getStatus: vi.fn().mockResolvedValue({ status: "not_started" }),

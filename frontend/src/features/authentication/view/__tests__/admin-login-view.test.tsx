@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminLoginPage from "@/app/(auth)/admin-login/page";
 
-const mocks = vi.hoisted(() => ({ login: vi.fn(), reviewerAccess: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ prepareMfa: vi.fn(), verifyMfa: vi.fn(), login: vi.fn(), reviewerAccess: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/services/authentication/reviewer-mfa", () => ({prepareReviewerMfa: mocks.prepareMfa, verifyReviewerMfa: mocks.verifyMfa}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }) }));
 vi.mock("@/services/authentication/auth-service.factory", () => ({ getAuthService: () => ({ login: mocks.login }) }));
 vi.mock("@/services/verification/verification-api", () => ({
@@ -16,6 +17,8 @@ function submit() {
 }
 
 beforeEach(() => {
+  mocks.prepareMfa.mockResolvedValue(null);
+  mocks.verifyMfa.mockResolvedValue(undefined);
   mocks.login.mockResolvedValue({ success: true, data: { isMockSession: false } });
   mocks.reviewerAccess.mockResolvedValue({ canReview: true });
 });
@@ -96,4 +99,20 @@ describe("Dedicated admin sign in", () => {
     expect(mocks.reviewerAccess).not.toHaveBeenCalled();
     expect(mocks.replace).not.toHaveBeenCalled();
   });
+});
+
+it("requires MFA before checking reviewer access and allows retrying an invalid code", async () => {
+ mocks.prepareMfa.mockResolvedValue({id:"factor-1"});
+ mocks.verifyMfa.mockRejectedValueOnce(new Error("private diagnostic"));
+ render(<AdminLoginPage />); submit();
+ const field = await screen.findByLabelText(/Authenticator code/);
+ expect(mocks.reviewerAccess).not.toHaveBeenCalled();
+ fireEvent.change(field,{target:{value:"123456"}});
+ fireEvent.click(screen.getByRole("button",{name:"Verify authenticator"}));
+ expect(await screen.findByRole("alert")).toHaveTextContent("Check your code");
+ expect(mocks.replace).not.toHaveBeenCalled();
+ fireEvent.change(field,{target:{value:"654321"}});
+ fireEvent.click(screen.getByRole("button",{name:"Verify authenticator"}));
+ await waitFor(()=>expect(mocks.replace).toHaveBeenCalledWith("/admin/verifications"));
+ expect(mocks.verifyMfa).toHaveBeenLastCalledWith("factor-1","654321");
 });
