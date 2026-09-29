@@ -129,6 +129,18 @@ function applySecurityHeaders(
     contentSecurityPolicy(nonce),
   );
 
+  response.headers.set(
+    "Cross-Origin-Opener-Policy",
+    "same-origin-allow-popups",
+  );
+
+  if (process.env.NODE_ENV !== "production") {
+    response.headers.set(
+      "Referrer-Policy",
+      "no-referrer-when-downgrade",
+    );
+  }
+
   return response;
 }
 
