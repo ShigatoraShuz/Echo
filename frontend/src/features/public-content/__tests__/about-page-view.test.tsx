@@ -15,9 +15,9 @@ describe("AboutPageView", () => {
   it("uses the existing destinations for primary actions", () => {
     render(<AboutPageView />);
 
-    expect(screen.getByRole("link", { name: "Start reflecting" }).getAttribute("href")).toBe("/journal/new");
+    expect(screen.getAllByRole("link", { name: "Start privately" })[0].getAttribute("href")).toBe("/signup");
     expect(screen.getByRole("link", { name: "See how it works" }).getAttribute("href")).toBe("/#how-it-works");
-    expect(screen.getByRole("link", { name: "Start privately" }).getAttribute("href")).toBe("/signup");
+    expect(screen.getAllByRole("link", { name: "Start privately" })[1].getAttribute("href")).toBe("/signup");
     expect(screen.getByRole("link", { name: "Explore features" }).getAttribute("href")).toBe("/#features");
   });
 });

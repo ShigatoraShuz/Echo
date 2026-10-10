@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Bell, UserRound, Clock, Heart, Loader2 } from "lucide-react";
+import { ArrowRight, Bell, UserRound, Clock, Loader2 } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { PrivacyNotice } from "@/shared/components/echo";
-import { MoodSelector } from "@/features/onboarding";
+import { MoodSelector, ONBOARDING_STEPS, StepProgress } from "@/features/onboarding";
 import { getOnboardingService } from "@/services/onboarding/onboarding-service.factory";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
@@ -23,7 +23,6 @@ export default function ProfileOnboardingPage() {
   const [displayName, setDisplayName] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   const [checkInTime, setCheckInTime] = useState("20:30");
-  const [selectedMood, setSelectedMood] = useState("calm");
   const [buddyTone, setBuddyTone] = useState("gentle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,8 +83,9 @@ export default function ProfileOnboardingPage() {
         title="Set up your check-in profile"
         description="Choose the basics ECHO and Buddy will use for greetings, tone, and gentle reflection check-ins."
       />
+      <StepProgress steps={ONBOARDING_STEPS} currentStep={1} />
 
-      <form onSubmit={handleSubmit} className="mt-8 grid items-start gap-6 md:grid-cols-[minmax(22rem,0.95fr)_minmax(24rem,1.05fr)]">
+      <form onSubmit={handleSubmit} className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(22rem,0.95fr)_minmax(24rem,1.05fr)]">
         <EchoCard
           title="Profile details"
           description="Personalize your greeting and check-in cadence."
@@ -175,7 +175,7 @@ export default function ProfileOnboardingPage() {
             title="Starting reflection vibe"
             description="How are you arriving to ECHO today? This helps set the initial tone."
           >
-            <MoodSelector initialMood="calm" onMoodSelect={(mood) => setSelectedMood(mood)} />
+            <MoodSelector initialMood="calm" />
           </EchoCard>
           <PrivacyNotice />
         </div>

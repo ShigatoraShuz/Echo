@@ -7,6 +7,7 @@ import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { getOnboardingService } from "@/services/onboarding/onboarding-service.factory";
+import { ONBOARDING_STEPS, StepProgress } from "@/features/onboarding";
 
 export default function SetupOnboardingPage() {
   const router = useRouter();
@@ -44,12 +45,13 @@ export default function SetupOnboardingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14 xl:px-10">
+    <div className="mx-auto w-full max-w-6xl">
       <PageHeader
         label="Onboarding · Step 3 of 3"
         title="Finish setup & enter ECHO"
         description="Review optional camera and notification preferences before opening your private dashboard."
       />
+      <StepProgress steps={ONBOARDING_STEPS} currentStep={2} />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="space-y-6">

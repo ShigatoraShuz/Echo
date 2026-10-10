@@ -6,5 +6,6 @@ export { NotificationPrefToggle } from "./notification-pref-toggle";
 export { PreferredNameInput } from "./preferred-name-input";
 export { OnboardingProfileForm } from "./profile-form";
 export { SetupPermissions } from "./setup-permissions";
-export { StepProgress } from "./step-progress";
+export { ONBOARDING_STEPS, StepProgress } from "./step-progress";
+export type { OnboardingStep } from "./step-progress";
 export { ThemeSelector } from "./theme-selector";

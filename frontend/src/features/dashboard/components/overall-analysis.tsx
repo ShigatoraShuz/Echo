@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import type { DashboardInsights } from "@echo/contracts";
 import type { JournalEntry } from "@/features/journal/model/journal.model";
 
@@ -30,56 +31,65 @@ export function OverallAnalysis({ entries, insights }: { entries: JournalEntry[]
           ? "lower"
           : "unchanged";
   return (
-    <section
-      className="rounded-3xl border border-primary/15 bg-card p-5 sm:p-6"
-      aria-labelledby="overall-analysis-title"
-    >
-      <p className="text-xs uppercase tracking-widest text-primary">The bigger picture · past 30 days</p>
-      <h2 id="overall-analysis-title" className="mt-2 font-serif text-3xl">
-        Overall analysis
-      </h2>
-      {summary.total < 3 ? (
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">
-          You have {summary.total} saved reflection{summary.total === 1 ? "" : "s"} in this period. A few more entries
-          will give you more context for noticing patterns.
-        </p>
-      ) : (
-        <div className="mt-5 grid gap-5 sm:grid-cols-3">
-          <div>
-            <p className="text-3xl font-semibold tabular-nums">{summary.total}</p>
-            <p className="mt-1 text-sm text-muted-foreground">reflections across {summary.days} days</p>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Moods you recorded</h3>
-            <p className="mt-2 text-sm capitalize text-muted-foreground">
-              {summary.moods
-                .slice(0, 3)
-                .map(([mood, count]) => `${mood} (${count})`)
-                .join(" · ")}
-            </p>
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Recurring tags</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {summary.themes.length
-                ? summary.themes.map(([tag, count]) => `${tag} (${count})`).join(" · ")
-                : "No repeated tags in this period."}
-            </p>
-          </div>
+    <details className="echo-compact-card group min-w-0 open:lg:col-span-2" aria-labelledby="overall-analysis-title">
+      <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <h2 id="overall-analysis-title" className="text-sm font-semibold text-foreground">Past 30 days</h2>
+          <p className="mt-1 text-lg font-semibold text-foreground">
+            {summary.total} reflection{summary.total === 1 ? "" : "s"}
+            {summary.total > 0 ? ` across ${summary.days} day${summary.days === 1 ? "" : "s"}` : " in this period"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">
+            {direction
+              ? `Journal distress estimate: ${direction} across ${trend.length} real analysis days.`
+              : "No journal estimate comparison yet."}
+          </p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">Reflective patterns, not clinical conclusions.</p>
         </div>
-      )}
-      <div className="mt-5 border-t border-border pt-4">
-        <h3 className="text-sm font-semibold">Journal estimate direction</h3>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {direction
-            ? `Across ${trend.length} days with real analysis, the latest distress estimate is ${direction} compared with the first. Individual days may vary.`
-            : "At least three days with real analysis are needed for this comparison. Simulated results are excluded."}
-        </p>
-        <p className="mt-3 text-xs text-muted-foreground">
-          These summaries describe saved reflections and AI estimates. They are not clinical conclusions or a measure of
-          your progress as a person.
-        </p>
+        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+          <span>Details</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="mt-4 border-t border-border/70 pt-4">
+        {summary.total < 3 ? (
+          <p className="text-sm leading-6 text-muted-foreground">
+            A few more saved reflections in this period will give you more context for noticing patterns.
+          </p>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold">Moods you recorded</h3>
+              <p className="mt-2 text-sm capitalize text-muted-foreground">
+                {summary.moods
+                  .slice(0, 3)
+                  .map(([mood, count]) => `${mood} (${count})`)
+                  .join(" · ")}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Recurring tags</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {summary.themes.length
+                  ? summary.themes.map(([tag, count]) => `${tag} (${count})`).join(" · ")
+                  : "No repeated tags in this period."}
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="mt-4 border-t border-border/70 pt-4">
+          <h3 className="text-sm font-semibold">Journal estimate direction</h3>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {direction
+              ? `Across ${trend.length} days with real analysis, the latest distress estimate is ${direction} compared with the first. Individual days may vary.`
+              : "At least three days with real analysis are needed for this comparison. Simulated results are excluded."}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            These summaries describe saved reflections and AI estimates. They are not clinical conclusions or a measure of
+            your progress as a person.
+          </p>
+        </div>
       </div>
-    </section>
+    </details>
   );
 }

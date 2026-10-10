@@ -13,12 +13,6 @@ import reflectionDesk from "../../../../assets/landing-page/image 10.jpg";
 import livingRoomPortrait from "../../../../assets/landing-page/image 11.jpg";
 import sunlitPortrait from "../../../../assets/landing-page/image 12.jpg";
 import plantPortrait from "../../../../assets/landing-page/image 13.jpg";
-import coffeePortrait from "../../../../assets/landing-page/image 14.jpg";
-import travelReflection from "../../../../assets/landing-page/image 5.jpg";
-import phoneReflection from "../../../../assets/landing-page/image 6.jpg";
-import couchReflection from "../../../../assets/landing-page/image 7.jpg";
-import laptopReflection from "../../../../assets/landing-page/image 8.jpg";
-import deskReflection from "../../../../assets/landing-page/image 9.jpg";
 import yellowCoatPortrait from "../../../../assets/landing-page/iamge 4.jpg";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -42,15 +36,9 @@ export const HERO_GALLERY_IMAGES = [
   getLocalImageSrc(lookingSkyward),
   getLocalImageSrc(joyfulPortrait),
   getLocalImageSrc(yellowCoatPortrait),
-  getLocalImageSrc(travelReflection),
-  getLocalImageSrc(couchReflection),
   getLocalImageSrc(livingRoomPortrait),
   getLocalImageSrc(sunlitPortrait),
-  getLocalImageSrc(coffeePortrait),
   getLocalImageSrc(plantPortrait),
-  getLocalImageSrc(phoneReflection),
-  getLocalImageSrc(laptopReflection),
-  getLocalImageSrc(deskReflection),
   getLocalImageSrc(reflectionDesk),
   getLocalImageSrc(familyAtHome),
   getLocalImageSrc(sereneCloudRoom),
@@ -111,14 +99,14 @@ export function LandingHero({
         }
       >
         <motion.div
-          className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-10 pt-8 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pb-12 sm:pt-10 lg:px-12 lg:pt-12"
+          className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-12 pt-8 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pb-14 sm:pt-10 lg:px-12"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
         >
           {eyebrow ? (
             <motion.p
-              className="inline-flex rounded-full bg-[var(--landing-primary)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--landing-inverse)] shadow-sm sm:text-xs"
+              className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--landing-primary)] sm:text-xs"
               variants={itemVariants}
             >
               {eyebrow}
@@ -127,7 +115,7 @@ export function LandingHero({
 
           <motion.div className="mt-2 w-full overflow-hidden pb-2" variants={itemVariants}>
             <motion.h1
-              className="mx-auto max-w-[1220px] text-[clamp(3.5rem,8vw,8.4rem)] font-medium leading-[0.84] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance]"
+              className="mx-auto max-w-[1120px] text-[clamp(3.35rem,7.2vw,7.2rem)] font-medium leading-[0.88] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance]"
               variants={titleVariants}
             >
               {title}
@@ -135,7 +123,7 @@ export function LandingHero({
           </motion.div>
 
           <motion.p
-            className="mt-5 max-w-2xl text-sm font-medium leading-6 text-[var(--landing-ink)] sm:text-[15px] sm:leading-6"
+            className="mt-5 max-w-[42rem] text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:text-base sm:leading-7"
             variants={itemVariants}
           >
             {subtitle}

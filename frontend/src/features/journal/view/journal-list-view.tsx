@@ -7,10 +7,8 @@ import {
   BookOpen,
   CalendarDays,
   LayoutGrid,
-  ListFilter,
   ListTree,
   PenLine,
-  Sparkles,
 } from "lucide-react";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
 import { JournalFilters } from "../components/journal-filters";
@@ -73,36 +71,37 @@ export function JournalListView() {
   }
 
   return (
-    <div className="space-y-6 [font-family:var(--font-echo-sans)]">
-      <Link href="/journal/drafts" className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card px-4 py-2 text-sm font-semibold text-primary">Unfinished pages · Resume a draft</Link>
+    <div className="flex flex-col gap-5 [font-family:var(--font-echo-sans)] sm:gap-6">
+      <Link href="/journal/drafts" className="order-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--landing-primary)] underline-offset-4 hover:underline sm:order-1 sm:min-h-0 sm:self-start sm:rounded-full sm:border sm:border-primary/20 sm:bg-card sm:px-4 sm:py-2 sm:no-underline">Unfinished pages · Resume a draft</Link>
       {/* ── Top Hero Banner ────────────────────────────────────────── */}
-      <EchoMotionSurface className="relative overflow-hidden rounded-[2rem] border border-[var(--landing-primary-15)] bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.7))] p-6 shadow-[0_18px_48px_rgba(47,53,39,0.07)] sm:p-8">
+      <EchoMotionSurface className="relative order-1 overflow-hidden rounded-2xl bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.7))] p-5 sm:order-2 sm:rounded-[2rem] sm:border sm:border-[var(--landing-primary-15)] sm:p-8 sm:shadow-[0_18px_48px_rgba(47,53,39,0.07)]">
         <div className="relative z-10 max-w-xl">
-          <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          <p className="hidden items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)] sm:flex">
             <span>Your private journal</span>
           </p>
 
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-[var(--landing-ink)] sm:text-4xl [font-family:var(--font-echo-display)]">
-            Pages to return to, at your pace.
+          <h1 className="text-[2rem] font-bold leading-none tracking-tight text-[var(--landing-ink)] sm:mt-2 sm:text-4xl [font-family:var(--font-echo-display)]">
+            <span className="sm:hidden">Your journal</span>
+            <span className="hidden sm:inline">Pages to return to, at your pace.</span>
           </h1>
 
-          <p className="mt-2.5 max-w-md text-xs leading-relaxed text-[var(--landing-muted)] sm:text-sm">
-            Keep small moments, honest thoughts, and the patterns you want to understand a little better.
+          <p className="mt-2 max-w-md text-sm leading-5 text-[var(--landing-muted)] sm:mt-2.5 sm:leading-relaxed">
+            <span className="sm:hidden">A quiet place for what is on your mind.</span>
+            <span className="hidden sm:inline">Keep small moments, honest thoughts, and the patterns you want to understand a little better.</span>
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2.5">
+          <div className="mt-4 flex flex-wrap items-center gap-2.5 sm:mt-5">
             <Link
               href="/journal/new"
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-5 text-sm font-bold text-[var(--landing-inverse)] shadow-sm outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-emerald-600/30 active:scale-[0.98]"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--landing-primary)] px-5 text-sm font-bold text-[var(--landing-inverse)] shadow-sm outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-emerald-600/30 active:scale-[0.98] sm:h-11 sm:w-auto"
             >
               <PenLine className="h-4 w-4" aria-hidden="true" />
               <span>Open today&apos;s page</span>
             </Link>
 
-            <span className="inline-flex h-11 items-center gap-2 rounded-full border border-[var(--landing-primary-15)] bg-white/80 px-4 text-xs font-semibold text-[var(--landing-ink)] shadow-xs">
+            <span className="hidden h-11 items-center gap-2 rounded-full border border-[var(--landing-primary-15)] bg-white/80 px-4 text-xs font-semibold text-[var(--landing-ink)] shadow-xs sm:inline-flex">
               <CalendarDays className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />
-              <span>{entries.length} saved {entries.length === 1 ? "reflection" : "reflections"}</span>
+              <span>{pagination.totalItems} saved {pagination.totalItems === 1 ? "reflection" : "reflections"}</span>
             </span>
           </div>
         </div>
@@ -117,23 +116,25 @@ export function JournalListView() {
       </EchoMotionSurface>
 
       {/* ── History Header & View Mode Switcher ─────────────────────── */}
-      <div className="space-y-4">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      <div className="order-3 space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between gap-3 sm:items-end">
           <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">
+            <p className="hidden text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)] sm:block">
               Reflection history
             </p>
-            <h2 className="mt-0.5 text-xl font-bold tracking-tight text-[var(--landing-ink)] sm:text-2xl [font-family:var(--font-echo-display)]">
-              Your saved pages
+            <h2 className="text-2xl font-bold tracking-tight text-[var(--landing-ink)] sm:mt-0.5 [font-family:var(--font-echo-display)]">
+              <span className="sm:hidden">Saved reflections</span>
+              <span className="hidden sm:inline">Your saved pages</span>
             </h2>
+            <p className="mt-0.5 text-xs text-[var(--landing-muted)] sm:hidden">{pagination.totalItems} saved {pagination.totalItems === 1 ? "page" : "pages"}</p>
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 rounded-full border border-black/10 bg-white p-1 shadow-xs">
+          <div className="flex items-center gap-1 rounded-full border border-black/10 bg-white p-1 shadow-xs" role="group" aria-label="Journal view">
             <button
               type="button"
               onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all duration-150 ${
+              className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-bold transition-all duration-150 sm:min-h-0 sm:min-w-0 sm:px-3 sm:py-1.5 ${
                 viewMode === "timeline"
                   ? "bg-[var(--landing-primary)] text-white shadow-xs"
                   : "text-[var(--landing-muted)] hover:text-[var(--landing-ink)]"
@@ -141,13 +142,13 @@ export function JournalListView() {
               aria-label="Switch to timeline view"
             >
               <ListTree className="h-3.5 w-3.5" />
-              <span>Timeline</span>
+              <span className="hidden sm:inline">Timeline</span>
             </button>
 
             <button
               type="button"
               onClick={() => setViewMode("grid")}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all duration-150 ${
+              className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-bold transition-all duration-150 sm:min-h-0 sm:min-w-0 sm:px-3 sm:py-1.5 ${
                 viewMode === "grid"
                   ? "bg-[var(--landing-primary)] text-white shadow-xs"
                   : "text-[var(--landing-muted)] hover:text-[var(--landing-ink)]"
@@ -155,7 +156,7 @@ export function JournalListView() {
               aria-label="Switch to grid view"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Grid</span>
+              <span className="hidden sm:inline">Grid</span>
             </button>
           </div>
         </div>

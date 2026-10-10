@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, FileText, Lock } from "lucide-react";
+import { ArrowRight, FileText } from "lucide-react";
 import type { JournalEntry } from "../model/journal.model";
 import {
   formatJournalDate,
@@ -14,12 +14,12 @@ interface JournalCardProps {
 }
 
 export function JournalCard({ entry }: JournalCardProps) {
-  const { fullDate, timeString, relativeTime } = formatJournalDate(entry.createdAt);
+  const { timeString, relativeTime } = formatJournalDate(entry.createdAt);
   const moodVisual = getMoodVisual(entry.mood);
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 
   return (
-    <article className="group relative mb-5 flex break-inside-avoid flex-col justify-between overflow-hidden rounded-[1.75rem] border border-border bg-card p-5 shadow-[0_8px_24px_rgba(47,53,39,0.05)] transition-shadow duration-200 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:p-6">
+    <article className="group relative mb-5 flex break-inside-avoid flex-col justify-between overflow-hidden rounded-2xl bg-card p-4 shadow-[0_8px_24px_rgba(47,53,39,0.08)] transition-shadow duration-200 hover:shadow-[0_16px_36px_rgba(47,53,39,0.09)] sm:rounded-[1.75rem] sm:border sm:border-border sm:p-6">
       {/* Top Accent Strip with Mood Color */}
       <div
         className="absolute inset-x-0 top-0 h-1.5 transition-opacity duration-200"
@@ -63,7 +63,7 @@ export function JournalCard({ entry }: JournalCardProps) {
         </Link>
 
         {/* Excerpt */}
-        <p className="mt-3 text-sm leading-6 text-muted-foreground line-clamp-6">
+        <p className="mt-2 text-sm leading-6 text-muted-foreground line-clamp-3 sm:mt-3 sm:line-clamp-6">
           {entry.excerpt || entry.body || "No content preview available."}
         </p>
       </div>

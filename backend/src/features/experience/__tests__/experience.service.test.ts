@@ -50,3 +50,31 @@ describe("ExperienceService.dashboard", () => {
     expect(preferenceChain.eq).toHaveBeenCalledWith("user_id", "user-1");
   });
 });
+
+describe("ExperienceService.supportResources", () => {
+  it("excludes entries without a usable HTTPS source and review date", async () => {
+    const rows = [
+      { id: "legacy", verification_source: "OpenAI Hotline Directory", last_verified_at: "2026-08-25T00:00:00Z" },
+      { id: "undated", verification_source: "https://pia.gov.ph/ncmh", last_verified_at: "not-a-date" },
+      { id: "reviewed", verification_source: "https://pia.gov.ph/ncmh", last_verified_at: "2026-09-29T00:00:00Z" },
+    ];
+    const chain = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+      then: (resolve: (result: { data: typeof rows; error: null }) => unknown) =>
+        Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    chain.select.mockReturnValue(chain);
+    chain.eq.mockReturnValue(chain);
+    chain.order.mockReturnValue(chain);
+    const database = { schema: vi.fn(() => ({ from: vi.fn(() => chain) })) };
+    const service = new ExperienceService(database as unknown as ConstructorParameters<typeof ExperienceService>[0], {} as JournalService, {} as EncryptionService);
+
+    const result = await service.supportResources(undefined, "crisis_hotline", "PH");
+
+    expect(result.map((resource) => resource.id)).toEqual(["reviewed"]);
+    expect(chain.eq).toHaveBeenCalledWith("is_verified", true);
+    expect(chain.eq).toHaveBeenCalledWith("country_code", "PH");
+  });
+});

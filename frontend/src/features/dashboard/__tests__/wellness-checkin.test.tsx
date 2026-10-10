@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WellnessStatus } from "@echo/contracts";
@@ -43,6 +43,38 @@ beforeEach(() => {
 });
 
 describe("dashboard check-in order", () => {
+  it("keeps the dashboard preview interactive without contacting the backend", () => {
+    render(<WellnessCheckin preview />);
+
+    expect(api.getWellnessStatus).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("How have the last two weeks felt?");
+    expect(screen.getByText(/your answers stay on this page/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 of 8 answered");
+    expect(screen.getByRole("button", { name: "Save check-in" })).toBeDisabled();
+
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "1. Little interest or pleasure in doing things" })).getByRole(
+        "radio",
+        { name: "Not at all" },
+      ),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 8 answered");
+    fireEvent.click(screen.getByRole("button", { name: "Later" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 8 answered");
+
+    screen.getAllByRole("radio", { name: "Not at all" }).forEach((option) => fireEvent.click(option));
+    expect(screen.getByRole("status")).toHaveTextContent("8 of 8 answered");
+    expect(screen.getByRole("button", { name: "Save check-in" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save check-in" }));
+
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Preview check-in complete");
+    expect(api.savePhq8).not.toHaveBeenCalled();
+  });
+
   it("dismisses lower-priority screening when an urgent analysis signal arrives", async () => {
     render(<WellnessCheckin />);
 
@@ -279,6 +311,7 @@ describe("dashboard check-in order", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(/answers are still here/i);
+    expect(screen.getByRole("status")).toHaveTextContent("8 of 8 answered");
 
     await act(async () =>
       fireEvent.click(

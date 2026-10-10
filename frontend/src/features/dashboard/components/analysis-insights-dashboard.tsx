@@ -1,51 +1,53 @@
 "use client";
 
-import { Activity, HeartPulse, Radar, Sparkles } from "lucide-react";
+import { Activity, ChevronDown, HeartPulse, Radar } from "lucide-react";
 import type { DashboardInsights, JournalAnalysisResult } from "@echo/contracts";
 import { AnalysisBuddyAction } from "./analysis-buddy-action";
 
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
   if (!insights?.latest)
     return (
-      <section className="echo-card mt-6" aria-labelledby="analysis-empty-title">
-        <div className="echo-feature-icon">
-          <Sparkles aria-hidden="true" />
-        </div>
-        <h2 id="analysis-empty-title" className="text-xl font-semibold text-foreground">
-          Your analysis space is ready
+      <section className="echo-compact-card min-w-0" aria-labelledby="analysis-empty-title">
+        <h2 id="analysis-empty-title" className="text-sm font-semibold text-foreground">
+          Journal analysis
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Choose analysis when saving a reflection to see validated emotion and distress insights. ECHO will not invent
-          a trend before enough data exists.
+        <p className="mt-1 text-lg font-semibold text-foreground">No completed analysis yet</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--landing-muted)]">
+          Choose analysis when saving a reflection. ECHO will not invent a trend before enough data exists.
         </p>
       </section>
     );
   const result = insights.latest;
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (
-    <section className="mt-6 space-y-4" aria-labelledby="analysis-insights-title">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[.16em] text-primary">Journal analysis</p>
-          <h2 id="analysis-insights-title" className="mt-1 text-2xl font-semibold text-foreground">
-            A careful view of your latest reflection
-          </h2>
+    <details className="echo-compact-card group min-w-0 open:lg:col-span-2" aria-labelledby="analysis-insights-title">
+      <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">Journal analysis</h2>
+          <p className="mt-1 text-lg font-semibold capitalize text-foreground">
+            {result.dominantEmotion} emotion · {result.distressBand} distress
+          </p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">Reflective estimate, not a diagnosis.</p>
+          {result.isSimulated ? (
+            <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
+              Simulated analysis
+            </span>
+          ) : null}
         </div>
-        {result.isSimulated ? (
-          <span className="rounded-full border border-amber-700/15 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
-            Simulated analysis
-          </span>
-        ) : null}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-12">
-        <article className="echo-card lg:col-span-5">
+        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+          <span>Details</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="mt-4 grid gap-4 lg:grid-cols-12">
+        <article className="border-t border-border/70 pt-4 lg:col-span-5">
           <div className="flex items-center gap-3">
             <Radar className="h-5 w-5 text-primary" aria-hidden="true" />
             <h3 className="font-semibold">Emotion distribution</h3>
           </div>
           <EmotionRadar result={result} />
         </article>
-        <article className="echo-card lg:col-span-3">
+        <article className="border-t border-border/70 pt-4 lg:col-span-3">
           <div className="flex items-center gap-3">
             <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
             <h3 className="font-semibold">Distress classification</h3>
@@ -57,7 +59,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             Confidence {Math.round(result.distressConfidence * 100)}%
           </p>
         </article>
-        <article className="echo-card lg:col-span-4">
+        <article className="border-t border-border/70 pt-4 lg:col-span-4">
           <div className="flex items-center gap-3">
             <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
             <h3 className="font-semibold">AI-estimated depressive-symptom range</h3>
@@ -69,7 +71,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             This AI-generated estimate is not a diagnosis or completed PHQ-8 assessment.
           </p>
         </article>
-        <article className="echo-card lg:col-span-7">
+        <article className="border-t border-border/70 pt-4 lg:col-span-7">
           <h3 className="font-semibold">Thirty-day emotion and distress mapping</h3>
           {insights.emotionTrend.length < 2 ? (
             <p className="mt-3 text-sm text-muted-foreground">
@@ -84,7 +86,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             </p>
           ) : null}
         </article>
-        <article className="echo-card lg:col-span-5">
+        <article className="border-t border-border/70 pt-4 lg:col-span-5">
           <h3 className="font-semibold">Reviewed CBT-informed recommendation</h3>
           {insights.recommendation ? (
             <>
@@ -97,7 +99,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
           )}
         </article>
       </div>
-    </section>
+    </details>
   );
 }
 

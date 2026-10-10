@@ -12,13 +12,13 @@ const links = [
   { href: "/buddy", label: "Reflect", icon: MessageCircleHeart },
 ];
 
-export function AppTopbar() {
+export function AppTopbar({ preview = false }: { preview?: boolean }) {
   const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-[100] border-b border-border/65 bg-background/90 backdrop-blur-xl">
       <div className="mx-auto flex min-h-[76px] max-w-[1440px] items-center gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8">
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2 rounded-full text-primary outline-none focus-visible:ring-4 focus-visible:ring-ring/20 lg:hidden">
+        <Link href={preview ? "/dashboard-preview" : "/dashboard"} className="flex shrink-0 items-center gap-2 rounded-full text-primary outline-none focus-visible:ring-4 focus-visible:ring-ring/20 lg:hidden">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-subtle">
             <Leaf className="h-5 w-5" aria-hidden="true" />
           </span>
@@ -28,11 +28,11 @@ export function AppTopbar() {
         <nav className="flex min-w-0 items-center gap-0.5 sm:gap-1 lg:hidden" aria-label="App navigation">
           {links.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+            const active = (preview && item.href === "/dashboard") || pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={preview && item.href === "/dashboard" ? "/dashboard-preview" : item.href}
                 className={`inline-flex h-10 items-center gap-2 rounded-full px-2.5 text-sm font-medium outline-none transition-[background-color,color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97] sm:px-4 ${
                   active ? "bg-secondary text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -45,12 +45,18 @@ export function AppTopbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <Link href="/journal/new" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-subtle outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-primary/90 hover:shadow-card focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97] sm:px-4">
-            <PenLine className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Write reflection</span>
-          </Link>
-          <NotificationBell />
-          <AppProfileMenu />
+          {preview ? (
+            <span className="rounded-full bg-secondary px-3 py-2 text-xs font-semibold text-primary">Preview mode</span>
+          ) : (
+            <>
+              <Link href="/journal/new" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-subtle outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-primary/90 hover:shadow-card focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97] sm:px-4">
+                <PenLine className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Write reflection</span>
+              </Link>
+              <NotificationBell />
+              <AppProfileMenu />
+            </>
+          )}
         </div>
       </div>
     </header>

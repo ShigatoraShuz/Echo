@@ -92,7 +92,7 @@ export function GoogleAuthButton({ intent, next }: GoogleAuthButtonProps) {
   const [privacyScrolled, setPrivacyScrolled] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const className = "flex h-10 w-full items-center justify-center gap-3 rounded-full border border-[rgba(83,103,51,0.22)] bg-white/80 px-5 text-sm font-bold text-[var(--landing-ink)] outline-none transition-[transform,background-color,border-color,box-shadow] duration-150 hover:border-[rgba(83,103,51,0.4)] hover:bg-white focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70";
+  const className = "flex h-[3.25rem] w-full items-center justify-center gap-3 rounded-full border border-[rgba(83,103,51,0.22)] bg-white/85 px-5 text-sm font-bold text-[var(--landing-ink)] outline-none transition-[transform,background-color,border-color,box-shadow] duration-200 hover:border-[rgba(83,103,51,0.4)] hover:bg-white hover:shadow-[0_10px_24px_rgba(41,49,27,0.08)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98] disabled:cursor-wait disabled:opacity-70";
 
   const canContinue = termsAccepted && privacyAccepted;
 

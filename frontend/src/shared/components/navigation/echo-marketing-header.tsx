@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Leaf, Menu, ShieldAlert, X } from "lucide-react";
@@ -18,6 +18,7 @@ export function EchoMarketingHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [activeHash, setActiveHash] = useState("");
   const pathname = usePathname();
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
 
   const isActiveLink = (href: string) => {
     if ((href === "/about" || href === "/privacy-policy") && pathname === href) return true;
@@ -26,43 +27,45 @@ export function EchoMarketingHeader() {
   };
 
   useEffect(() => {
-    let animationFrame: number | null = null;
-
-    const updateScrollState = () => {
-      const scrollPosition = window.scrollY;
-      setScrolled((wasScrolled) => (wasScrolled ? scrollPosition > 10 : scrollPosition > 36));
-    };
-
-    const onScroll = () => {
-      if (animationFrame !== null) return;
-      animationFrame = window.requestAnimationFrame(() => {
-        updateScrollState();
-        animationFrame = null;
-      });
-    };
-
-    updateScrollState();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
-    };
+    const sentinel = scrollSentinelRef.current;
+    if (!sentinel) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting), {
+      rootMargin: "-36px 0px 0px 0px",
+      threshold: 0,
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, []);
+
+  useEffect(() => setMobileMenuOpen(false), [pathname]);
 
   useEffect(() => {
-    const onHashChange = () => setActiveHash(window.location.hash);
+    let scrollTimer = 0;
+    const onHashChange = () => {
+      const hash = window.location.hash;
+      setActiveHash(hash);
+      if (pathname !== "/" || (hash !== "#features" && hash !== "#how-it-works")) return;
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        document.querySelector(hash)?.scrollIntoView({ block: "start" });
+      }, 160);
+    };
     onHashChange();
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.clearTimeout(scrollTimer);
+    };
+  }, [pathname]);
 
   return (
     <>
-      {/* ── Desktop navigation: full-width at the top, floating after scroll ── */}
+      <div ref={scrollSentinelRef} className="pointer-events-none absolute inset-x-0 top-0 h-px" aria-hidden="true" />
       <header
         aria-label="Main navigation"
         className={cn(
-          "fixed left-1/2 top-0 z-[1000] hidden -translate-x-1/2 2xl:block",
+          "fixed left-1/2 top-0 z-[1000] hidden -translate-x-1/2 lg:block",
           "bg-[rgba(251,247,238,0.94)] backdrop-blur-[14px]",
           "border border-[var(--landing-sand)]/60",
           "will-change-[width,max-width,border-radius,transform] transition-[width,max-width,border-radius,box-shadow,background-color,border-color,transform] duration-[480ms] ease-[cubic-bezier(0.32,0.72,0,1)]",
@@ -71,7 +74,7 @@ export function EchoMarketingHeader() {
             : "w-full translate-y-0 rounded-none border-x-transparent border-t-transparent shadow-[0_6px_24px_rgba(49,55,36,0.09)]",
         )}
       >
-        <div className="mx-auto flex h-[84px] w-full max-w-[1380px] items-center justify-between px-8 2xl:px-12">
+        <div className="mx-auto flex h-20 w-full max-w-[1380px] items-center justify-between px-5 xl:px-10">
           {/* Brand */}
           <Link
             href="/"
@@ -89,14 +92,14 @@ export function EchoMarketingHeader() {
           </Link>
 
           {/* Nav links */}
-          <nav className="flex items-center gap-1" aria-label="Site links">
+          <nav className="flex items-center gap-0.5" aria-label="Site links">
             {navLinks.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={isActiveLink(item.href) ? "page" : undefined}
                 className={cn(
-                  "rounded-full px-4 py-2.5 text-base font-semibold 2xl:px-5",
+                  "rounded-full px-3 py-2.5 text-sm font-semibold xl:px-4 xl:text-[15px]",
                   "text-[var(--landing-muted)] outline-none",
                   "transition-colors duration-150",
                   "hover:bg-[var(--landing-primary-10)] hover:text-[var(--landing-ink)]",
@@ -113,7 +116,7 @@ export function EchoMarketingHeader() {
             <Link
               href="/crisis"
               className={cn(
-                "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold uppercase tracking-[0.08em]",
+                "inline-flex items-center gap-2 rounded-full px-3 py-2.5 text-xs font-bold uppercase tracking-[0.08em] xl:px-4",
                 "text-[#c0504e] outline-none",
                 "transition-colors duration-150 hover:bg-red-50",
                 "focus-visible:ring-2 focus-visible:ring-red-400/30",
@@ -125,12 +128,12 @@ export function EchoMarketingHeader() {
           </nav>
 
           {/* CTAs */}
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 xl:gap-3">
             <Link
               href="/login"
               className={cn(
-                "inline-flex h-11 items-center justify-center rounded-full px-6",
-                "text-base font-semibold text-[var(--landing-ink)]",
+                "inline-flex h-11 items-center justify-center rounded-full px-4 xl:px-5",
+                "text-sm font-semibold text-[var(--landing-ink)]",
                 "border border-[var(--landing-sand)]",
                 "transition-[background-color,transform] duration-150 hover:bg-[var(--landing-primary-10)]",
                 "outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98]",
@@ -141,8 +144,8 @@ export function EchoMarketingHeader() {
             <Link
               href="/signup"
               className={cn(
-                "inline-flex h-11 items-center justify-center rounded-full px-7",
-                "text-base font-bold text-[var(--landing-inverse)]",
+                "inline-flex h-11 items-center justify-center rounded-full px-5 xl:px-6",
+                "text-sm font-bold text-[var(--landing-inverse)]",
                 "bg-[var(--landing-primary)]",
                 "transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)]",
                 "shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98]",
@@ -154,11 +157,10 @@ export function EchoMarketingHeader() {
         </div>
       </header>
 
-      {/* ── Mobile navigation ─────────────────────────────────────────── */}
       <header
         aria-label="Main navigation"
         className={cn(
-          "fixed left-1/2 top-0 z-[1000] -translate-x-1/2 2xl:hidden",
+          "fixed left-1/2 top-0 z-[1000] -translate-x-1/2 lg:hidden",
           "bg-[rgba(251,247,238,0.94)] backdrop-blur-[14px]",
           "border border-[var(--landing-sand)]/60",
           "will-change-[width,max-width,border-radius,transform] transition-[width,max-width,border-radius,box-shadow,background-color,border-color,transform] duration-[480ms] ease-[cubic-bezier(0.32,0.72,0,1)]",

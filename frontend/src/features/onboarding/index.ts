@@ -10,6 +10,8 @@ export {
   PreferredNameInput,
   OnboardingProfileForm,
   SetupPermissions,
+  ONBOARDING_STEPS,
   StepProgress,
   ThemeSelector,
 } from "./components";
+export type { OnboardingStep } from "./components";

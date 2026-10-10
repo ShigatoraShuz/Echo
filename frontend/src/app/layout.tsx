@@ -59,12 +59,6 @@ export default async function RootLayout({
     <html
       lang="en"
       data-echo-theme="echo-calm"
-      data-echo-motion={
-        process.env.NODE_ENV ===
-        "development"
-          ? "full"
-          : undefined
-      }
       suppressHydrationWarning
     >
       <head>

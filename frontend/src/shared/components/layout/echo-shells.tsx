@@ -43,11 +43,13 @@ export function AppSidebar({
   isMobileOpen,
   onHover,
   onCloseMobile,
+  preview = false,
 }: {
   isExpanded: boolean;
   isMobileOpen: boolean;
   onHover: (state: boolean) => void;
   onCloseMobile: () => void;
+  preview?: boolean;
 }) {
   const pathname = usePathname();
   const activeId = findActiveNavigation(appNavigation, pathname);
@@ -70,7 +72,7 @@ export function AppSidebar({
         rounded-r-[2.5rem] lg:rounded-r-[3.5rem]`}
       >
         <div className="relative flex h-20 lg:h-24 shrink-0 items-center px-6">
-          <Link href="/dashboard" className="flex items-center gap-4 overflow-hidden">
+          <Link href={preview ? "/dashboard-preview" : "/dashboard"} className="flex items-center gap-4 overflow-hidden">
             <div className="flex h-10 w-10 lg:h-12 lg:w-12 shrink-0 items-center justify-center rounded-2xl bg-[#8fc89a] text-[#0d211a] shadow-lg">
               <Leaf className="h-5 w-5 lg:h-6 lg:w-6" strokeWidth={2.5} />
             </div>
@@ -91,11 +93,11 @@ export function AppSidebar({
           {appLinks.map((item) => {
             const Icon = item.icon;
             const itemId = item.label.toLowerCase().replace(/\s+/g, "-");
-            const isActive = activeId === itemId || activeId === item.href.split("/").filter(Boolean)[0];
+            const isActive = (preview && item.href === "/dashboard") || activeId === itemId || activeId === item.href.split("/").filter(Boolean)[0];
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={preview && item.href === "/dashboard" ? "/dashboard-preview" : item.href}
                 onClick={onCloseMobile}
                 className={`group relative flex h-12 items-center rounded-2xl px-4 transition-all ${isActive ? "bg-[#8fc89a] text-[#0d211a]" : "text-white/40 hover:bg-white/5"}`}
               >
@@ -109,9 +111,11 @@ export function AppSidebar({
               </Link>
             );
           })}
-          <div className="pt-6">
-            <ReflectionCalendarModal collapsed={!isExpanded && !isMobileOpen} />
-          </div>
+          {!preview && (
+            <div className="pt-6">
+              <ReflectionCalendarModal collapsed={!isExpanded && !isMobileOpen} />
+            </div>
+          )}
         </nav>
 
         <div className="shrink-0 px-4 pb-8 lg:pb-12 space-y-4">
@@ -147,7 +151,7 @@ export function AppSidebar({
 }
 
 // --- UPDATED APP SHELL ---
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, preview = false }: { children: ReactNode; preview?: boolean }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -162,6 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         isMobileOpen={isMobileOpen}
         onHover={setIsHovered}
         onCloseMobile={() => setIsMobileOpen(false)}
+        preview={preview}
       />
 
       {/* 
@@ -183,8 +188,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* DESKTOP TOP BAR */}
         <div className="sticky top-0 z-[200] hidden bg-[#fcfaf6]/80 backdrop-blur-md lg:block">
-          <AppTopbar />
+          <AppTopbar preview={preview} />
         </div>
+
+        {preview && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/15 bg-secondary px-4 py-2 text-xs text-foreground lg:px-16">
+            <span><strong>Dashboard preview</strong> · Sample data only. Other private pages require sign-in.</span>
+            <Link href="/" className="font-semibold text-primary underline">Exit preview</Link>
+          </div>
+        )}
 
         <main className="flex-1 px-4 py-6 lg:px-16 lg:py-8">
           <div className="mx-auto max-w-[1440px]">{children}</div>
@@ -224,11 +236,15 @@ export function FloatingActionButton({ href, label }: { href: string; label: str
 export function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const usesImmersive = pathname === "/login" || pathname === "/signup" || pathname === "/admin-login";
-  if (!usesImmersive) return <div className="mx-auto max-w-md px-4 py-12">{children}</div>;
+  if (!usesImmersive)
+    return (
+      <div className="echo-fixed-light echo-auth-surface grid min-h-[100dvh] place-items-center px-4 py-12">
+        <div className="w-full max-w-md">{children}</div>
+      </div>
+    );
   return (
-    <div className="grid min-h-[100svh] lg:h-[100svh] lg:grid-cols-[44%_56%] lg:overflow-hidden">
-      {/* Left – full-bleed image, no scroll */}
-      <aside className="relative hidden lg:block">
+    <div className="echo-fixed-light echo-auth-surface grid min-h-[100dvh] lg:h-[100dvh] lg:grid-cols-[44%_56%] lg:overflow-hidden">
+      <aside className="relative hidden overflow-hidden lg:block">
         <Image
           src={authMountainLandscape}
           alt="A quiet mountain and forest landscape"
@@ -237,11 +253,36 @@ export function AuthShell({ children }: { children: ReactNode }) {
           className="object-cover"
           priority
         />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,35,24,0.22),rgba(10,35,24,0.36)_48%,rgba(9,31,21,0.84))]" />
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between p-8 xl:p-10">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-3 rounded-full text-white outline-none focus-visible:ring-4 focus-visible:ring-white/25"
+          >
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-white/15 backdrop-blur-md">
+              <Leaf className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="text-lg font-extrabold tracking-[-0.04em]">ECHO</span>
+          </Link>
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80 backdrop-blur-md">
+            Private by design
+          </span>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-8 text-white xl:p-10">
+          <div className="max-w-md rounded-[1.5rem] border border-white/15 bg-[#102718]/45 p-6 backdrop-blur-md">
+            <ShieldCheck className="h-5 w-5 text-[#cfdda7]" aria-hidden="true" />
+            <p className="mt-4 text-[clamp(2rem,3.3vw,3.6rem)] font-medium leading-[0.92] tracking-[-0.045em] [font-family:var(--font-echo-display)]">
+              A quieter place to come back to yourself.
+            </p>
+            <p className="mt-4 max-w-sm text-sm leading-6 text-white/72">
+              Journal privately, notice patterns, and choose one gentle next step at your own pace.
+            </p>
+          </div>
+        </div>
       </aside>
-      {/* Right – scrolls internally if form grows, never overflows page */}
       <main
         data-lenis-prevent
-        className="flex min-h-[100svh] items-start justify-center bg-[#fbf8f1] px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:items-start lg:overflow-y-auto lg:overscroll-contain lg:px-12 lg:py-8 xl:px-16"
+        className="flex min-h-[100dvh] items-start justify-center px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-12 lg:py-8 xl:px-16"
       >
         {children}
       </main>
@@ -253,7 +294,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="echo-fixed-light echo-public-surface flex min-h-screen flex-col">
       <EchoMarketingHeader />
       <main className="flex-1">{children}</main>
       <EchoMarketingFooter variant="landing" compact={pathname === "/privacy-policy" || pathname === "/about"} />
@@ -263,8 +304,10 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
 export function OnboardingShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#fbf8f1]">
-      <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-24 sm:px-6 lg:px-10 lg:py-12">{children}</div>
+    <div className="echo-fixed-light echo-onboarding-surface min-h-[100dvh] overflow-x-hidden">
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[1440px] items-center px-3 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        {children}
+      </div>
     </div>
   );
 }

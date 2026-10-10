@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -48,14 +49,14 @@ export function EchoDialog({ open, onClose, title, description, children, classN
       document.removeEventListener("keydown", handleKeyDown);
       if (open) { document.body.style.overflow = previousOverflow; previousFocus?.focus(); }
     };
-  }, [open, handleKeyDown]);
+  }, [open, handleKeyDown, dialogRef]);
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
@@ -66,7 +67,7 @@ export function EchoDialog({ open, onClose, title, description, children, classN
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-card p-6 shadow-dialog outline-none motion-fade-in motion-scale-in motion-reduce:animate-none",
+          "max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-card p-6 shadow-dialog outline-none motion-fade-in motion-scale-in motion-reduce:animate-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           sizeStyles[size],
           className
         )}
@@ -89,6 +90,7 @@ export function EchoDialog({ open, onClose, title, description, children, classN
         </div>
         <div className="mt-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

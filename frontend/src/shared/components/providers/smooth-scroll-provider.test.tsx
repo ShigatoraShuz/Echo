@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SmoothScrollProvider } from "./smooth-scroll-provider";
 
-const { renderLenis, useReducedMotion } = vi.hoisted(() => ({
+const { renderLenis, route, useReducedMotion } = vi.hoisted(() => ({
   renderLenis: vi.fn(),
+  route: { pathname: "/" },
   useReducedMotion: vi.fn(),
 }));
 
@@ -20,9 +21,14 @@ vi.mock("@/shared/hooks/use-prefers-reduced-motion", () => ({
   usePrefersReducedMotion: useReducedMotion,
 }));
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => route.pathname,
+}));
+
 describe("SmoothScrollProvider", () => {
   beforeEach(() => {
     renderLenis.mockClear();
+    route.pathname = "/";
     useReducedMotion.mockReturnValue(false);
   });
 
@@ -56,5 +62,18 @@ describe("SmoothScrollProvider", () => {
 
     expect(screen.queryByTestId("lenis-root")).not.toBeInTheDocument();
     expect(screen.getByText("Page content")).toBeVisible();
+  });
+
+  it("uses native scrolling for the crisis route", () => {
+    route.pathname = "/crisis";
+
+    render(
+      <SmoothScrollProvider>
+        <main>Immediate crisis support</main>
+      </SmoothScrollProvider>,
+    );
+
+    expect(screen.queryByTestId("lenis-root")).not.toBeInTheDocument();
+    expect(screen.getByText("Immediate crisis support")).toBeVisible();
   });
 });

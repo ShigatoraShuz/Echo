@@ -13,8 +13,10 @@ interface EchoPageFadeProps {
 /** A restrained route entrance plus semantic, once-only scroll reveals. */
 export function EchoPageFade({ children, className, duration = 420 }: EchoPageFadeProps) {
   const pathname = usePathname();
+  const isImmediateSupportRoute = pathname === "/crisis";
 
   useEffect(() => {
+    if (isImmediateSupportRoute) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const selector = "main section, main article, main [data-echo-reveal-auto]";
@@ -52,10 +54,14 @@ export function EchoPageFade({ children, className, duration = 420 }: EchoPageFa
       mutations.disconnect();
       observer.disconnect();
     };
-  }, [pathname]);
+  }, [isImmediateSupportRoute, pathname]);
 
   return (
-    <div key={pathname} className={cn("echo-page-fade", className)} style={{ animationDuration: `${duration}ms` }}>
+    <div
+      key={pathname}
+      className={cn(!isImmediateSupportRoute && "echo-page-fade", className)}
+      style={isImmediateSupportRoute ? undefined : { animationDuration: `${duration}ms` }}
+    >
       {children}
     </div>
   );

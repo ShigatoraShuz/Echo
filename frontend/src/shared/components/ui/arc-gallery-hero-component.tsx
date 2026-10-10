@@ -172,6 +172,7 @@ export function ArcGalleryHero({
             const angleInRadians = (angle * Math.PI) / 180;
             const x = Math.cos(angleInRadians) * dimensions.radius;
             const y = Math.sin(angleInRadians) * dimensions.radius;
+            const shouldPrioritize = index === 0 || index === 1 || index === 4 || index === 5;
             const cardStyle = {
               width: dimensions.cardSize,
               height: dimensions.cardSize,
@@ -196,7 +197,8 @@ export function ArcGalleryHero({
                     width={dimensions.cardSize}
                     height={dimensions.cardSize}
                     sizes={`${dimensions.cardSize}px`}
-                    priority={index === 0 || index === 1 || index === 4 || index === 5}
+                    priority={shouldPrioritize}
+                    loading={shouldPrioritize ? undefined : "eager"}
                     className="block h-full w-full object-cover"
                     draggable={false}
                   />

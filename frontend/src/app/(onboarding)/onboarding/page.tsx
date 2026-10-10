@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { getOnboardingService } from "@/services/onboarding/onboarding-service.factory";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { StepProgress } from "@/features/onboarding";
 
 type Gender = "woman" | "man" | "non_binary" | "self_describe" | "prefer_not_to_say" | null;
 type Pronouns = "she_her" | "he_him" | "they_them" | "use_my_name" | "self_describe" | "prefer_not_to_say" | null;
@@ -33,6 +34,11 @@ const pronounOptions: Array<[Exclude<Pronouns, null>, string]> = [
   ["use_my_name", "Use my name"],
   ["self_describe", "Self-describe"],
   ["prefer_not_to_say", "Prefer not to say"],
+];
+const onboardingSteps = [
+  { id: 0, label: "Welcome" },
+  { id: 1, label: "About you" },
+  { id: 2, label: "Begin" },
 ];
 
 export default function OnboardingPage() {
@@ -100,12 +106,11 @@ export default function OnboardingPage() {
     router.replace("/login");
     router.refresh();
   }
-  const progress = ((step + 1) / 3) * 100;
   return (
-    <main className="grid min-h-[100svh] place-items-center bg-[radial-gradient(circle_at_top_left,#eff5e7,#fbf8f1_45%,#e4ead9)] p-3 sm:p-6">
+    <main className="grid w-full place-items-center">
       <section
         aria-labelledby="onboarding-title"
-        className="flex max-h-[94svh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-[#526f3525] bg-[#fffdf8] shadow-[0_32px_100px_rgba(30,50,35,.18)]"
+        className="echo-onboarding-card flex max-h-[94dvh] max-w-4xl flex-col overflow-hidden"
       >
         <header className="border-b border-[#526f3520] px-5 py-5 sm:px-8">
           <div className="flex items-center justify-between">
@@ -123,13 +128,7 @@ export default function OnboardingPage() {
               Sign out
             </button>
           </div>
-          <div className="mt-5 h-1.5 rounded-full bg-[#e2e7d9]">
-            <div
-              className="h-full rounded-full bg-[#526f35] transition-[width] duration-200 motion-reduce:transition-none"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs font-bold text-[#677062]">Step {step + 1} of 3</p>
+          <StepProgress steps={onboardingSteps} currentStep={step} className="mt-5" />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-7 sm:px-8 sm:py-9">
           {error && (

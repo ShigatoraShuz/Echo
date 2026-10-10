@@ -22,6 +22,23 @@ function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+function hasReviewableSource(row: DatabaseRow): boolean {
+  const source = asString(row.verification_source);
+  const checkedAt = asString(row.last_verified_at);
+  try {
+    const url = new URL(source);
+    return url.protocol === "https:"
+      && Boolean(url.hostname)
+      && !url.username
+      && !url.password
+      && checkedAt.length > 0
+      && !Number.isNaN(Date.parse(checkedAt))
+      && Date.parse(checkedAt) <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
 function databaseError(message: string): ExternalServiceError {
   return new ExternalServiceError("DATABASE_UNAVAILABLE", message);
 }
@@ -480,7 +497,7 @@ export class ExperienceService {
       },
       "Support resources are temporarily unavailable.",
     );
-    return ((data ?? []) as DatabaseRow[]).map((row) => ({
+    return ((data ?? []) as DatabaseRow[]).filter(hasReviewableSource).map((row) => ({
       id: asString(row.id),
       type: asString(row.support_resource_type),
       organizationName: asString(row.organization_name),

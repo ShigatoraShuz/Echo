@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { getOnboardingService } from "@/services/onboarding/onboarding-service.factory";
+import { ONBOARDING_STEPS, StepProgress } from "@/features/onboarding";
 
 interface ConsentItem {
   key: string;
@@ -99,6 +100,7 @@ export default function ConsentOnboardingPage() {
             title="Consent and disclosures"
             description="Review how ECHO frames reflective support and AI assistance before entering the private app."
           />
+          <StepProgress steps={ONBOARDING_STEPS} currentStep={0} />
           <EchoImage imageKey="plantDeskWarmLight" className="aspect-[4/3]" priority />
           <PrivacyNotice />
         </section>

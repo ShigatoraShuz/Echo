@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "../model/dashboard.model";
+import type { DashboardService } from "@/services/dashboard/dashboard.service";
 import { getDashboardService } from "@/services/dashboard/dashboard-service.factory";
 
-export function useDashboardViewModel(initialTimeRange = "7d") {
+export function useDashboardViewModel(initialTimeRange = "7d", serviceOverride?: DashboardService) {
   const [timeRange, setTimeRange] = useState(initialTimeRange);
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const service = getDashboardService();
+  const service = serviceOverride ?? getDashboardService();
 
   const load = useCallback(
     async (range?: string) => {

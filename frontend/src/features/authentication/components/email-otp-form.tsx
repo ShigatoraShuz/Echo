@@ -116,7 +116,7 @@ export function EmailOtpForm({ onAuthenticated }: { onAuthenticated: () => void 
           {error}
         </p>
       )}
-      <EchoButton type="submit" className="w-full" isLoading={busy} loadingText={sent ? "Verifying…" : "Sending…"}>
+      <EchoButton type="submit" className="h-[3.25rem] w-full rounded-full" isLoading={busy} loadingText={sent ? "Verifying…" : "Sending…"}>
         {sent ? "Verify code and log in" : "Send sign-in code"}
       </EchoButton>
       {sent && (

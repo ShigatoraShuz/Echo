@@ -223,7 +223,8 @@ export default function AdminVerificationsPage() {
               One application at a time. Review the evidence, then approve or explain what needs to change.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/professionals" className="inline-flex h-11 items-center rounded-xl border border-primary/20 px-4 text-sm font-semibold text-primary">Professional access</Link>
             <EchoButton
               type="button"
               variant="outline"

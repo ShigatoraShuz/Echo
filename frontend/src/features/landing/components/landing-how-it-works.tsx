@@ -487,6 +487,7 @@ export function LandingHowItWorks() {
           alt=""
           fill
           sizes="100vw"
+          loading="eager"
           className="object-cover object-center opacity-[0.72]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(247,243,234,0.3)_0%,rgba(247,243,234,0.5)_54%,#f7f3ea_100%)]" />

@@ -29,6 +29,7 @@ export function SignupView({ title, description }: SignupViewProps) {
   const [step, setStep] = useState(0);
   const [birthday, setBirthday] = useState("");
   const [policies, setPolicies] = useState<PolicyDocument[]>([]);
+  const [policiesLoading, setPoliciesLoading] = useState(false);
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [activePolicy, setActivePolicy] = useState<PolicyDocument | null>(null);
   const [optionalAi, setOptionalAi] = useState(false);
@@ -43,11 +44,14 @@ export function SignupView({ title, description }: SignupViewProps) {
   const allReviewed = policies.length === 3 && policies.every((policy) => reviewed.includes(policy.id));
 
   useEffect(() => {
-    if (step === 1 && policies.length === 0)
+    if (step === 1 && policies.length === 0) {
+      setPoliciesLoading(true);
       registrationApi
         .policies()
         .then(setPolicies)
-        .catch((reason) => setError(reason.message));
+        .catch((reason) => setError(reason.message))
+        .finally(() => setPoliciesLoading(false));
+    }
   }, [step, policies.length]);
 
   async function run(action: () => Promise<void>) {
@@ -103,14 +107,14 @@ export function SignupView({ title, description }: SignupViewProps) {
             </span>
             <span className="text-sm font-black tracking-[0.16em]">ECHO</span>
           </div>
-          <h1 className="mt-6 text-[clamp(2.25rem,5vw,3.7rem)] leading-[.95] tracking-[-.045em] [font-family:var(--font-echo-display)]">
+          <h1 className="mt-6 max-w-[40rem] text-[clamp(2.25rem,4vw,3.25rem)] leading-[.95] tracking-[-.045em] [font-family:var(--font-echo-display)] [text-wrap:balance]">
             {title}
           </h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-[#697168]">{description}</p>
         </header>
         <nav
           aria-label="Signup progress"
-          className="mb-8 rounded-[1.35rem] border border-[#526f3514] bg-white/45 p-4 shadow-[0_12px_34px_rgba(38,50,38,.055)] backdrop-blur-sm"
+          className="mb-7 rounded-[1.25rem] border border-[#526f3514] bg-white/55 p-4 shadow-[0_12px_34px_rgba(38,50,38,.055)] backdrop-blur-sm"
         >
           <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[#dfe4d5]">
             <div
@@ -122,6 +126,7 @@ export function SignupView({ title, description }: SignupViewProps) {
             {steps.map((label, index) => (
               <li
                 key={label}
+                aria-current={index === step ? "step" : undefined}
                 className={`text-[11px] font-bold sm:text-xs ${index <= step ? "text-[#43602d]" : "text-[#92988e]"}`}
               >
                 <span className="mr-1.5">{index + 1}</span>
@@ -132,7 +137,7 @@ export function SignupView({ title, description }: SignupViewProps) {
         </nav>
         <section
           aria-live="polite"
-          className="rounded-[2rem] border border-[#526f3524] bg-white/82 p-5 shadow-[0_28px_80px_rgba(38,50,38,.14),0_3px_12px_rgba(38,50,38,.06)] backdrop-blur-xl sm:p-8"
+          className="rounded-[1.5rem] border border-[#526f3524] bg-white/86 p-5 shadow-[0_28px_80px_rgba(38,50,38,.12),0_3px_12px_rgba(38,50,38,.05)] backdrop-blur-xl sm:p-8"
         >
           {error && (
             <div
@@ -184,6 +189,12 @@ export function SignupView({ title, description }: SignupViewProps) {
                 Open each document and reach the end before acknowledging it.
               </p>
               <div className="mt-6 grid gap-3">
+                {policiesLoading ? (
+                  <div role="status" className="flex items-center gap-3 rounded-2xl border border-[#526f3525] bg-[#fffdf8] p-4 text-sm text-[#697168]">
+                    <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                    Loading the agreements for your review…
+                  </div>
+                ) : null}
                 {policies.map((policy) => {
                   const done = reviewed.includes(policy.id);
                   return (
@@ -226,8 +237,8 @@ export function SignupView({ title, description }: SignupViewProps) {
                 </span>
               </label>
               <div className="mt-6 flex gap-3">
-                <button onClick={() => setStep(0)} className="auth-back">
-                  <ArrowLeft className="size-4" />
+                <button type="button" aria-label="Back to eligibility" onClick={() => setStep(0)} className="auth-back">
+                  <ArrowLeft className="size-4" aria-hidden="true" />
                 </button>
                 <button onClick={continueAgreements} disabled={!allReviewed || busy} className="auth-primary mt-0">
                   Continue <ArrowRight className="size-4" />
@@ -298,8 +309,8 @@ export function SignupView({ title, description }: SignupViewProps) {
                 <li>• One number</li>
               </ul>
               <div className="mt-6 flex gap-3">
-                <button onClick={() => setStep(1)} className="auth-back">
-                  <ArrowLeft className="size-4" />
+                <button type="button" aria-label="Back to agreements" onClick={() => setStep(1)} className="auth-back">
+                  <ArrowLeft className="size-4" aria-hidden="true" />
                 </button>
                 <button
                   onClick={createAccount}
@@ -366,7 +377,7 @@ export function SignupView({ title, description }: SignupViewProps) {
           className="mx-auto mt-4 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full border border-[#526f3540] bg-white/60 px-5 text-sm font-bold text-[#526f35] transition-colors hover:bg-[#edf2e4] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#526f3530] active:scale-[.98]"
         >
           <ShieldCheck className="size-4" aria-hidden="true" />
-          Sign as an admin
+          Sign in as an admin
         </Link>
         {activePolicy && (
           <PolicyReviewDialog

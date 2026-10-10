@@ -26,6 +26,17 @@ class ControlledIntersectionObserver implements IntersectionObserver {
 describe("EchoReveal", () => {
   beforeEach(() => {
     vi.stubGlobal("IntersectionObserver", ControlledIntersectionObserver);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 1100,
+      height: 100,
+      left: 0,
+      right: 200,
+      top: 1000,
+      width: 200,
+      x: 0,
+      y: 1000,
+      toJSON: () => ({}),
+    } as DOMRect);
   });
 
   it("reveals media once with the landing motion defaults", () => {
@@ -52,10 +63,15 @@ describe("EchoReveal", () => {
     expect(reveal).toHaveClass("opacity-100", "translate-y-0", "scale-100");
   });
 
-  it("uses the shared reduced-motion fallback class", () => {
+  it("keeps content visible when reduced motion is requested", () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
     render(<EchoReveal variant="card">Feature card</EchoReveal>);
 
     expect(screen.getByText("Feature card")).toHaveClass("echo-scroll-reveal");
-    expect(screen.getByText("Feature card")).not.toHaveClass("motion-reduce:opacity-100");
+    expect(screen.getByText("Feature card")).toHaveClass("opacity-100");
   });
 });

@@ -32,8 +32,8 @@ describe("ArcGalleryHero", () => {
   });
 
   it("keeps all supplied hero photos local and distinct", () => {
-    expect(HERO_GALLERY_IMAGES).toHaveLength(15);
-    expect(new Set(HERO_GALLERY_IMAGES)).toHaveLength(15);
+    expect(HERO_GALLERY_IMAGES).toHaveLength(9);
+    expect(new Set(HERO_GALLERY_IMAGES)).toHaveLength(9);
     expect(HERO_GALLERY_IMAGES.every((src) => !src.startsWith("http"))).toBe(true);
   });
 });

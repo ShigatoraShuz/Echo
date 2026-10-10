@@ -53,7 +53,7 @@ export function AuthFormField({
           required={required}
           aria-invalid={!!error}
           aria-describedby={errorId}
-          className={`h-12 w-full rounded-2xl border ${error ? "border-danger" : "border-input"} bg-background ${leadingIcon ? "pl-10" : "pl-4"} pr-4 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          className={`h-[3.25rem] w-full rounded-[0.875rem] border ${error ? "border-danger" : "border-input"} bg-white/85 ${leadingIcon ? "pl-10" : "pl-4"} pr-4 text-sm text-foreground outline-none transition-[border-color,box-shadow,background-color] duration-200 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10`}
         />
       </div>
       {error ? (

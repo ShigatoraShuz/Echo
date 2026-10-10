@@ -38,9 +38,9 @@
   --landing-inverse-80: rgba(255, 250, 240, 0.8);
   --landing-inverse-85: rgba(255, 250, 240, 0.85);
   --landing-inverse-90: rgba(255, 250, 240, 0.9);
-  --landing-card-radius: 2.25rem;
-  --landing-media-radius: 1.75rem;
-  --landing-panel-radius: 1.5rem;
+  --landing-card-radius: 1.5rem;
+  --landing-media-radius: 1.5rem;
+  --landing-panel-radius: 1.25rem;
   --landing-section-radius: 2rem;
 
   --background: 42 45% 96%;
@@ -123,6 +123,102 @@
   :root[data-echo-theme="echo-calm"] {
     --landing-section-radius: 2.5rem;
   }
+}
+
+.echo-fixed-light {
+  --background: 42 45% 96%;
+  --foreground: 165 28% 13%;
+  --card: 42 45% 98%;
+  --card-foreground: 165 28% 13%;
+  --popover: 42 45% 98%;
+  --popover-foreground: 165 28% 13%;
+  --primary: 160 43% 24%;
+  --primary-foreground: 42 45% 98%;
+  --secondary: 154 23% 88%;
+  --secondary-foreground: 160 43% 20%;
+  --muted: 40 28% 91%;
+  --muted-foreground: 165 12% 40%;
+  --border: 40 24% 86%;
+  --input: 40 24% 88%;
+  --ring: 160 43% 28%;
+  --danger: 9 82% 64%;
+  --danger-foreground: 42 45% 98%;
+  --crisis: 9 82% 64%;
+  --crisis-soft: 12 88% 94%;
+  color-scheme: light;
+  color: var(--landing-ink);
+  font-family: var(--font-echo-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.echo-public-surface {
+  background:
+    radial-gradient(circle at 8% 2%, rgba(220, 232, 214, 0.7), transparent 28rem),
+    var(--landing-cream);
+}
+
+.echo-auth-surface {
+  background:
+    radial-gradient(circle at 92% 4%, rgba(169, 184, 154, 0.28), transparent 28rem),
+    var(--landing-cream);
+}
+
+.echo-onboarding-surface {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(220, 232, 214, 0.82), transparent 30rem),
+    radial-gradient(circle at 96% 90%, rgba(216, 210, 191, 0.42), transparent 26rem),
+    var(--landing-cream);
+}
+
+.echo-crisis-surface {
+  --crisis: 7 68% 46%;
+  --crisis-soft: 10 72% 94%;
+  background: hsl(var(--background));
+}
+
+/* A short, non-flashing cue keeps the emergency action discoverable without delaying it. */
+.echo-crisis-surface .echo-emergency-link {
+  box-shadow: 0 0 0 2px #fffdf8, 0 0 0 4px #173d32;
+  animation: echo-emergency-outline 1.8s ease-out 2;
+}
+
+@keyframes echo-emergency-outline {
+  0%, 100% { box-shadow: 0 0 0 2px #fffdf8, 0 0 0 4px #173d32; }
+  55% { box-shadow: 0 0 0 2px #fffdf8, 0 0 0 8px rgba(23, 61, 50, 0.7); }
+}
+
+.echo-crisis-surface .echo-emergency-link:focus-visible {
+  animation: none;
+  outline-offset: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-crisis-surface .echo-emergency-link { animation: none; }
+}
+
+.echo-crisis-surface .echo-button {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .echo-crisis-surface .echo-button:active {
+    transform: none;
+  }
+}
+
+.echo-onboarding-card {
+  width: 100%;
+  border: 1px solid rgba(83, 103, 51, 0.16);
+  border-radius: 1.5rem;
+  background: rgba(255, 253, 247, 0.92);
+  box-shadow: 0 24px 70px rgba(41, 49, 27, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.echo-fixed-light .echo-card {
+  border-radius: 1.5rem;
 }
 
 :root.dark[data-echo-theme="echo-calm"],
@@ -399,10 +495,14 @@
   html {
     min-height: 100%;
     background: hsl(var(--background));
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   body {
     min-height: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     background:
       radial-gradient(circle at top left, hsl(var(--secondary) / 0.5), transparent 32rem), hsl(var(--background));
     color: hsl(var(--foreground));
@@ -410,6 +510,11 @@
       "rlig" 1,
       "calt" 1;
     text-rendering: optimizeLegibility;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
   }
 
   ::selection {
@@ -1653,7 +1758,7 @@
     @apply text-xs font-black uppercase tracking-[0.18em] text-[#58743b];
   }
   .auth-wizard-input {
-    @apply h-14 w-full rounded-2xl border border-[#526f3540] bg-[#fffdf7] px-4 text-base outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#526f35] focus:ring-4 focus:ring-[#526f3520];
+    @apply h-[3.25rem] w-full rounded-[0.875rem] border border-[#526f3540] bg-[#fffdf7] px-4 text-base outline-none transition-[border-color,box-shadow,background-color] duration-200 focus:border-[#526f35] focus:bg-white focus:ring-4 focus:ring-[#526f3520];
   }
   .auth-primary {
     @apply mt-7 flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#526f35] px-6 font-bold text-white transition-transform duration-150 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50;
@@ -1661,6 +1766,12 @@
   .auth-back {
     @apply grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#526f3540] text-[#526f35] transition-transform duration-150 active:scale-[.97];
   }
+}
+
+.echo-onboarding-surface .echo-input {
+  height: 3.25rem;
+  border-radius: 0.875rem;
+  background: rgba(255, 253, 247, 0.88);
 }
 
 @media (hover: hover) and (pointer: fine) {

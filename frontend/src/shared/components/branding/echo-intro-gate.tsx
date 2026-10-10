@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   type ReactNode,
   useEffect,
@@ -23,6 +24,7 @@ type IntroGateState =
 export function EchoIntroGate({
   children,
 }: EchoIntroGateProps) {
+  const pathname = usePathname();
   const [
     gateState,
     setGateState,
@@ -31,6 +33,10 @@ export function EchoIntroGate({
   );
 
   useEffect(() => {
+    if (pathname === "/crisis") {
+      return;
+    }
+
     const root =
       document.documentElement;
 
@@ -103,7 +109,11 @@ export function EchoIntroGate({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [pathname]);
+
+  if (pathname === "/crisis") {
+    return children;
+  }
 
   if (
     gateState === "checking"

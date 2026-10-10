@@ -46,12 +46,12 @@ export function PasswordField({
           aria-invalid={!!error}
           aria-describedby={errorId}
           autoComplete={autoComplete ?? (label.toLowerCase().includes("confirm") ? "new-password" : "current-password")}
-          className={`h-12 w-full rounded-2xl border ${error ? "border-danger" : "border-input"} bg-background pl-10 pr-10 text-sm text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10`}
+          className={`h-[3.25rem] w-full rounded-[0.875rem] border ${error ? "border-danger" : "border-input"} bg-white/85 pl-10 pr-10 text-sm text-foreground outline-none transition-[border-color,box-shadow,background-color] duration-200 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10`}
         />
         <button
           type="button"
           onClick={onToggleVisibility}
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15"
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

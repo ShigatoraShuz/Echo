@@ -6,6 +6,11 @@ import { registrationApi, type PolicyDocument } from "@/services/authentication/
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { env } from "@/config/environment";
 import { PolicyReviewDialog } from "@/features/authentication/components/policy-review-dialog";
+import { StepProgress } from "@/features/onboarding";
+const accessSteps = [
+  { id: 0, label: "Age check" },
+  { id: 1, label: "Policy review" },
+];
 export default function PolicyUpdatePage() {
   const router = useRouter();
   const [policies, setPolicies] = useState<PolicyDocument[]>([]);
@@ -59,14 +64,15 @@ export default function PolicyUpdatePage() {
   }
   const all = policies.length === 3 && policies.every((p) => reviewed.includes(p.id));
   return (
-    <main className="grid min-h-[100svh] place-items-center bg-[#fbf8f1] p-4">
-      <section className="w-full max-w-3xl rounded-[2rem] border border-[#526f3525] bg-white p-6 shadow-xl sm:p-9">
+    <main className="grid w-full place-items-center">
+      <section className="echo-onboarding-card max-w-3xl p-6 sm:p-9">
         <p className="eyebrow">Policy update</p>
         <h1 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Review what changed</h1>
         <p className="mt-3 text-sm text-[#697168]">Review each current document before returning to your ECHO space.</p>
         <p className="mt-2 text-sm leading-6 text-[#596255]">
           Acknowledging the AI notice does not enable analysis. Your optional analysis preference remains separate.
         </p>
+        <StepProgress steps={accessSteps} currentStep={1} className="mt-6" />
         {loading && (
           <p role="status" className="mt-4 text-sm">
             Loading current documents…

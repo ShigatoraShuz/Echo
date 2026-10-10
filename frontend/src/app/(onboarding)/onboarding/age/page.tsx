@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Loader2 } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { env } from "@/config/environment";
+import { StepProgress } from "@/features/onboarding";
+const accessSteps = [
+  { id: 0, label: "Age check" },
+  { id: 1, label: "Policy review" },
+];
 export default function LegacyAgePage() {
   const router = useRouter();
   const [birthday, setBirthday] = useState("");
@@ -27,14 +32,15 @@ export default function LegacyAgePage() {
     router.refresh();
   }
   return (
-    <main className="grid min-h-[100svh] place-items-center bg-[#fbf8f1] p-4">
-      <section className="w-full max-w-lg rounded-[2rem] border border-[#526f3525] bg-white p-7 shadow-xl sm:p-10">
+    <main className="grid w-full place-items-center">
+      <section className="echo-onboarding-card max-w-lg p-7 sm:p-10">
         <p className="eyebrow">Required for legacy accounts</p>
         <h1 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Confirm you&apos;re 18 or older</h1>
         <p className="mt-3 text-sm leading-7 text-[#697168]">
           Your birthday is used for this check and immediately discarded. ECHO stores only the eligibility result,
           timestamp, and rule version.
         </p>
+        <StepProgress steps={accessSteps} currentStep={0} className="mt-6" />
         {error && (
           <p role="alert" className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-800">
             {error}

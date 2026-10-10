@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CalendarCheck2, ExternalLink, Filter, Phone, Search, ShieldCheck } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
@@ -37,7 +38,10 @@ export default function FindHelpPage() {
         label="Support directory"
         title="Find help"
         description="Philippine support resources checked against official sources. ECHO is not an emergency service or a substitute for professional care."
+        action={<Link href="/professional/request" className="echo-button-primary inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold">Request professional support</Link>}
       />
+
+      <p className="-mt-4 mb-7 text-sm text-muted-foreground">Partner professional? <Link href="/professional" className="font-semibold text-primary underline underline-offset-4">Open your workspace</Link>.</p>
 
       <div className="mb-8">
         <EchoCard

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HeartHandshake, Leaf, Sparkles } from "lucide-react";
 
-import type { Phq8Assessment, WellnessStatus } from "@echo/contracts";
+import { scorePhq8, type Phq8Assessment, type WellnessStatus } from "@echo/contracts";
 import { experienceApi } from "@/services/experience/experience-api";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 
@@ -25,6 +25,12 @@ const choices = ["Not at all", "Several days", "More than half the days", "Nearl
 const WELCOME_SESSION_KEY = "echo.dashboard.welcome-shown";
 
 const AI_INTRO_SEEN_KEY = "echo.dashboard.ai-intro-seen";
+
+const previewStatus: WellnessStatus = {
+  assessment: { due: true, dueAt: null, intervalDays: 7, history: [] },
+  support: { eligible: false, count: 0, windowDays: 14 },
+  urgentJournalId: null,
+};
 
 type Prompt = "phq8" | "support" | "welcome" | "ai-intro" | null;
 
@@ -52,8 +58,8 @@ function setStorageFlag(scope: "local" | "session", key: string): void {
   }
 }
 
-export function WellnessCheckin() {
-  const [status, setStatus] = useState<WellnessStatus | null>(null);
+export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
+  const [status, setStatus] = useState<WellnessStatus | null>(preview ? previewStatus : null);
 
   const [prompt, setPrompt] = useState<Prompt>(null);
 
@@ -70,12 +76,13 @@ export function WellnessCheckin() {
   const urgent = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (preview) return previewStatus;
     const next = await experienceApi.getWellnessStatus();
 
     setStatus(next);
 
     return next;
-  }, []);
+  }, [preview]);
 
   const openWelcomeIfNeeded = useCallback(() => {
     if (urgent.current) return;
@@ -90,6 +97,7 @@ export function WellnessCheckin() {
   }, []);
 
   useEffect(() => {
+    if (preview) return;
     let active = true;
 
     void refresh()
@@ -164,7 +172,7 @@ export function WellnessCheckin() {
 
       window.removeEventListener("echo:safety-support", safety);
     };
-  }, [openWelcomeIfNeeded, refresh]);
+  }, [openWelcomeIfNeeded, preview, refresh]);
 
   async function save() {
     if (busy || answers.some((answer) => answer < 0)) {
@@ -177,6 +185,26 @@ export function WellnessCheckin() {
     submissionId.current ??= crypto.randomUUID();
 
     try {
+      if (preview) {
+        const completedAt = new Date().toISOString();
+        const assessment: Phq8Assessment = {
+          id: submissionId.current,
+          ...scorePhq8(answers),
+          completedAt,
+        };
+        setSaved(assessment);
+        setStatus({
+          ...previewStatus,
+          assessment: {
+            due: false,
+            dueAt: new Date(Date.parse(completedAt) + 7 * 86_400_000).toISOString(),
+            intervalDays: 7,
+            history: [assessment],
+          },
+        });
+        return;
+      }
+
       const result = await experienceApi.savePhq8({
         submissionId: submissionId.current,
         responses: answers,
@@ -232,15 +260,15 @@ export function WellnessCheckin() {
 
   return (
     <>
-      <section className="rounded-3xl border border-primary/15 bg-card px-5 py-4" aria-label="Your check-in">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Leaf className="h-5 w-5 text-primary" aria-hidden="true" />
+      <section className="rounded-3xl border border-primary/15 bg-card px-4 py-3 sm:px-5" aria-label="Your check-in">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <Leaf className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
 
             <div>
-              <h2 className="font-semibold">A moment for you</h2>
+              <h2 className="text-sm font-semibold">A moment for you</h2>
 
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-[var(--landing-muted)]">
                 {status.assessment.due
                   ? "Your PHQ-8 check-in is ready when you are."
                   : `Next check-in: ${new Date(status.assessment.dueAt!).toLocaleDateString()}`}
@@ -316,9 +344,10 @@ export function WellnessCheckin() {
       <EchoDialog
         open={prompt === "phq8"}
         onClose={close}
-        title={saved ? "Your check-in is saved" : "How have the last two weeks felt?"}
+        title={saved ? (preview ? "Preview check-in complete" : "Your check-in is saved") : "How have the last two weeks felt?"}
         description="PHQ-8 is a screening tool, not a diagnosis. You can pause and return from your dashboard."
         size="large"
+        className={saved ? undefined : "md:max-w-4xl"}
       >
         {saved ? (
           <div className="space-y-4">
@@ -351,49 +380,68 @@ export function WellnessCheckin() {
               void save();
             }}
           >
-            <p className="mb-5 text-sm">
-              Over the last 2 weeks, how often have you been bothered by any of the following problems?
-            </p>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm leading-6">
+                Over the last 2 weeks, how often have you been bothered by any of the following problems?
+              </p>
+              <p
+                role="status"
+                aria-live="polite"
+                className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground"
+              >
+                {answers.filter((answer) => answer >= 0).length} of {questions.length} answered
+              </p>
+            </div>
 
-            <div className="space-y-6">
+            <div className="sticky top-0 z-10 grid grid-cols-4 gap-1.5 border-b border-border bg-card pb-2 pt-2 text-center text-xs font-semibold leading-4 text-foreground md:grid-cols-[minmax(0,2.5fr)_repeat(4,minmax(0,1fr))] md:gap-2">
+              <span className="hidden text-left md:block">Question</span>
+              {choices.map((choice) => (
+                <span key={choice} className="text-center">{choice}</span>
+              ))}
+            </div>
+
+            <div>
               {questions.map((question, index) => (
-                <fieldset key={question} disabled={busy}>
-                  <legend className="mb-2 text-sm font-medium">
-                    {index + 1}. {question}
-                  </legend>
+                <fieldset
+                  key={question}
+                  disabled={busy}
+                  className="grid grid-cols-4 gap-1.5 border-b border-border/70 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,2.5fr)_repeat(4,minmax(0,1fr))] md:items-center md:gap-2 md:py-3"
+                >
+                  <legend className="sr-only">{index + 1}. {question}</legend>
+                  <span aria-hidden="true" className="col-span-4 text-sm font-medium leading-5 md:col-span-1">
+                    <span className="mr-2 text-primary">{index + 1}.</span>{question}
+                  </span>
+                  {choices.map((choice, value) => (
+                    <label
+                      key={choice}
+                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-1 py-2 transition-colors focus-within:ring-2 focus-within:ring-primary/40 ${
+                        answers[index] === value ? "border-primary bg-secondary" : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`phq8-${index}`}
+                        value={value}
+                        checked={answers[index] === value}
+                        required
+                        onChange={() => {
+                          submissionId.current = null;
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {choices.map((choice, value) => (
-                      <label
-                        key={choice}
-                        className={`flex min-h-14 cursor-pointer items-start gap-2 rounded-xl border p-3 text-xs ${
-                          answers[index] === value ? "border-primary bg-secondary" : "border-border"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={`phq8-${index}`}
-                          value={value}
-                          checked={answers[index] === value}
-                          required
-                          onChange={() => {
-                            submissionId.current = null;
-
-                            setAnswers((current) => current.map((answer, i) => (i === index ? value : answer)));
-                          }}
-                          className="mt-0.5 accent-primary"
-                        />
-
-                        {choice}
-                      </label>
-                    ))}
-                  </div>
+                          setAnswers((current) => current.map((answer, i) => (i === index ? value : answer)));
+                        }}
+                        className="h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <span className="sr-only">{choice}</span>
+                    </label>
+                  ))}
                 </fieldset>
               ))}
             </div>
 
-            <p className="mt-5 text-xs text-muted-foreground">
-              Your answers are saved privately with your account. This questionnaire does not assess immediate safety.
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              {preview
+                ? "Preview only: your answers stay on this page and are not saved. This questionnaire does not assess immediate safety."
+                : "When you save, your answers are stored privately with your account. This questionnaire does not assess immediate safety."}
             </p>
 
             {error ? (
@@ -402,7 +450,7 @@ export function WellnessCheckin() {
               </p>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="sticky bottom-[-1.5rem] z-10 -mx-6 -mb-6 mt-4 flex flex-wrap items-center gap-2 border-t border-border bg-card px-6 pb-6 pt-3 md:bottom-0 md:mx-0 md:mb-0 md:px-0 md:pb-3">
               <button className="echo-button-primary" disabled={busy || answers.some((answer) => answer < 0)}>
                 {busy ? "Saving…" : "Save check-in"}
               </button>
@@ -411,7 +459,10 @@ export function WellnessCheckin() {
                 Later
               </button>
 
-              <Link href="/crisis" className="self-center text-sm underline">
+              <Link
+                href="/crisis"
+                className="w-full text-center text-sm underline underline-offset-2 focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:ml-auto sm:w-auto"
+              >
                 Need help now?
               </Link>
             </div>

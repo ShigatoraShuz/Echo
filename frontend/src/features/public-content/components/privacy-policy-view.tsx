@@ -174,7 +174,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 function PolicyAccordion({ title, children, index }: { title: string; children: ReactNode; index: number }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(index === 0);
   const uid = useId();
   const buttonId = `policy-trigger-${uid}`;
   const panelId = `policy-panel-${uid}`;
@@ -190,12 +190,7 @@ function PolicyAccordion({ title, children, index }: { title: string; children: 
           onClick={() => setOpen((current) => !current)}
           className="group flex min-h-12 w-full items-center justify-between gap-4 rounded-lg px-5 py-3 text-left text-sm font-bold text-[#234735] outline-none transition-colors duration-150 hover:bg-[#eef1e8] focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f7f3ea]"
         >
-          <span className="flex items-center gap-3">
-            <span className="text-[10px] font-extrabold tabular-nums text-[#7b8a7e]" aria-hidden="true">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            {title}
-          </span>
+          <span>{title}</span>
           <ChevronDown
             className={`h-4 w-4 shrink-0 text-[#56743b] transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
             aria-hidden="true"
@@ -210,7 +205,7 @@ function PolicyAccordion({ title, children, index }: { title: string; children: 
         className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
         <div className="overflow-hidden">
-          <div className="space-y-3 px-12 pb-5 pr-6 text-sm leading-6 text-[#65746b]">{children}</div>
+          <div className="space-y-3 px-5 pb-5 pr-6 text-sm leading-6 text-[#65746b]">{children}</div>
         </div>
       </div>
     </div>
@@ -234,8 +229,8 @@ export function PrivacyPolicyView() {
               id="privacy-title"
               className="mt-4 text-[3rem] font-medium leading-[0.88] tracking-[-0.055em] text-[#123526] [font-family:var(--font-echo-display)] sm:text-[4.25rem] lg:text-[4.65rem]"
             >
-              Your thoughts
-              <br />
+              Your thoughts{" "}
+              <br />{" "}
               stay yours.
               <Leaf className="ml-1 inline h-8 w-8 -rotate-12 text-[#56743b]" strokeWidth={1.2} aria-hidden="true" />
             </h1>

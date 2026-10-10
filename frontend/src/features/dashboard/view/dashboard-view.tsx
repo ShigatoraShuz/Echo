@@ -22,6 +22,7 @@ import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
 import { settingsService } from "@/services/settings/settings.service";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
+import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
 import { WellnessCheckin } from "../components/wellness-checkin";
@@ -68,32 +69,6 @@ function StatusPill({
   );
 }
 
-/*
- * Header metric
- * Flame/icon container removed.
- */
-function TinyMetric({
-  value,
-  label,
-}: {
-  value: string;
-  label: string;
-}) {
-  return (
-    <div className="flex min-w-[138px] items-center rounded-full border border-[var(--landing-primary-10)] bg-[var(--landing-cream-95)] px-4 py-2.5 shadow-[0_10px_28px_rgba(30,53,34,0.08)] backdrop-blur-sm">
-      <span>
-        <strong className="block text-sm font-bold leading-4 text-foreground">
-          {value}
-        </strong>
-
-        <span className="block pt-0.5 text-[10px] text-muted-foreground">
-          {label}
-        </span>
-      </span>
-    </div>
-  );
-}
-
 function buildWellbeingActivity(
   entries: Array<{ createdAt: string }>,
 ) {
@@ -117,8 +92,8 @@ function buildWellbeingActivity(
   );
 }
 
-export function DashboardView() {
-  const { data, isLoading, error } = useDashboardViewModel("7d");
+export function DashboardView({ preview = false }: { preview?: boolean }) {
+  const { data, isLoading, error } = useDashboardViewModel("7d", preview ? dashboardPreviewService : undefined);
 
   const [activityWeeks, setActivityWeeks] = useState(26);
   const [savedDisplayName, setSavedDisplayName] = useState<string | null>(
@@ -126,6 +101,7 @@ export function DashboardView() {
   );
 
   useEffect(() => {
+    if (preview) return;
     let active = true;
 
     void settingsService
@@ -142,7 +118,7 @@ export function DashboardView() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [preview]);
 
   if (isLoading) {
     return <LoadingState label="Loading your ECHO space..." />;
@@ -175,69 +151,32 @@ export function DashboardView() {
   return (
     <EchoReveal direction="up" delay={0}>
       <div className="space-y-4 sm:space-y-5">
-        <WellnessCheckin />
+        <WellnessCheckin preview={preview} />
 
-        {/* HERO */}
-        <header className="echo-dashboard-hero relative isolate flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] p-5 shadow-[0_18px_50px_rgba(30,53,34,0.08)] sm:p-7 lg:flex-row lg:items-center lg:justify-between">
-          <div
-            className="pointer-events-none absolute -right-14 -top-24 h-72 w-72 rounded-full bg-white/55 blur-3xl"
-            aria-hidden="true"
-          />
-
-          <div
-            className="pointer-events-none absolute bottom-0 right-[28%] h-32 w-32 rounded-full bg-[var(--landing-sage)]/20 blur-3xl"
-            aria-hidden="true"
-          />
-
-          <div>
-            <p className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--landing-primary)]">
-              <Leaf
-                className="h-3.5 w-3.5"
-                aria-hidden="true"
-              />
-
-              Your reflection space
-            </p>
-
-            <h1 className="mt-2 text-[clamp(2.1rem,4vw,3.7rem)] font-medium leading-[0.95] tracking-[-0.055em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
+        <header className="echo-dashboard-hero flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6">
+          <div className="min-w-0">
+            <h1 className="break-words text-[clamp(1.75rem,2.5vw,2.5rem)] font-medium leading-tight tracking-[-0.035em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
               Good evening, {savedDisplayName ?? userProfile.name}
             </h1>
 
-            <p className="mt-2 text-sm text-[var(--landing-muted)]">
-              Take one quiet moment to notice how you are arriving today.
+            <p className="mt-1 text-xs text-[var(--landing-muted)]">
+              {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"} <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
             </p>
           </div>
 
-          <div className="relative z-10 flex flex-wrap items-center gap-2">
-
-            {/* Gentle streak */}
-            <TinyMetric
-              value={`${userProfile.streakDays} days`}
-              label="gentle streak"
-            />
-
-            {/* Entries */}
-            <TinyMetric
-              value={`${journalEntries.length} entries`}
-              label="total reflections"
-            />
-
-            <Link
-              href="/journal/new"
-              className="hidden h-[52px] shrink-0 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-5 text-sm font-bold text-[var(--landing-inverse)] shadow-subtle outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] hover:shadow-card focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97] xl:inline-flex"
-            >
-              <PenLine
-                className="h-4 w-4"
-                aria-hidden="true"
-              />
-
-              Write reflection
-            </Link>
-          </div>
+          <Link
+            href="/journal/new"
+            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-sm font-semibold text-[var(--landing-inverse)] outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-ring/20 ${preview ? "" : "sm:hidden"}`}
+          >
+            <PenLine className="h-4 w-4" aria-hidden="true" />
+            Write reflection
+          </Link>
         </header>
 
-        <AnalysisInsightsDashboard insights={data.analysisInsights} />
-        <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <AnalysisInsightsDashboard insights={data.analysisInsights} />
+          <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
+        </div>
 
         {/* DASHBOARD GRID */}
         <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">

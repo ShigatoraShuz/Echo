@@ -23,11 +23,19 @@ export function EchoReveal({
   variant = "text",
 }: EchoRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+    const isInitiallyVisible = rect.bottom >= 0 && rect.top <= window.innerHeight * 0.92;
+    if (!isInitiallyVisible) setVisible(false);
 
     const observer = new IntersectionObserver(
       ([entry]) => {

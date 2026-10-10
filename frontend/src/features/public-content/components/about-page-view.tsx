@@ -188,15 +188,17 @@ function AboutCard({
   body,
   icon: Icon,
   delay = 0,
+  className = "",
 }: {
   title: string;
   body: string;
   icon: LucideIcon;
   delay?: number;
+  className?: string;
 }) {
   return (
-    <EchoReveal direction="up" variant="card" delay={delay} duration={540} className="h-full">
-      <article className="flex h-full min-h-[205px] flex-col rounded-[18px] border border-[#d9ddd2] bg-[#fbf8f1] p-6 shadow-[0_8px_24px_rgba(35,71,53,0.035)]">
+    <EchoReveal direction="up" variant="card" delay={delay} duration={620} className={`h-full ${className}`}>
+      <article className="flex h-full min-h-[205px] flex-col rounded-[var(--landing-card-radius)] border border-[#d9ddd2] bg-[#fbf8f1] p-6 shadow-[0_8px_24px_rgba(35,71,53,0.035)]">
         <span className="grid h-12 w-12 place-items-center rounded-full bg-[#dde8d5] text-[#285d46]">
           <Icon className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" />
         </span>
@@ -237,10 +239,10 @@ export function AboutPageView() {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
-                href="/journal/new"
+                href="/signup"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#123526] px-6 text-sm font-bold text-[#fffaf0] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[#1d4934] focus-visible:ring-4 focus-visible:ring-[#123526]/20 active:scale-[0.97]"
               >
-                Start reflecting
+                Start privately
               </Link>
               <Link
                 href="/#how-it-works"
@@ -311,9 +313,14 @@ export function AboutPageView() {
           </section>
         </EchoReveal>
 
-        <section className="grid gap-4 md:grid-cols-3" aria-label="Why people use ECHO">
+        <section className="grid gap-4 md:grid-cols-12" aria-label="Why people use ECHO">
           {purposeCards.map((card, index) => (
-            <AboutCard key={card.title} {...card} delay={index * 60} />
+            <AboutCard
+              key={card.title}
+              {...card}
+              delay={index * 65}
+              className={index === 0 ? "md:col-span-7 md:row-span-2" : "md:col-span-5"}
+            />
           ))}
         </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactLenis } from "lenis/react";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { usePrefersReducedMotion } from "@/shared/hooks/use-prefers-reduced-motion";
@@ -16,9 +17,10 @@ const smoothScrollOptions = {
 } as const;
 
 export function SmoothScrollProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  if (prefersReducedMotion) {
+  if (prefersReducedMotion || pathname === "/crisis") {
     return children;
   }
 

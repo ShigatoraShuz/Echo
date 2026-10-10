@@ -30,12 +30,12 @@ export const LANDING_PAGE_METADATA = {
 
 export const LANDING_HERO_CONTENT: LandingHeroContent = {
   eyebrow: "Your private wellness companion",
-  title: "Private Reflection",
+  title: "Private reflection, at your pace",
   subtitle:
     "ECHO brings private journaling, guided reflection, six mood check-ins, emotional patterns, and grounding tools together in one calm space.",
   actions: [
     { text: "Start privately", href: "/signup", variant: "primary" },
-    { text: "Explore features", href: "#features", variant: "outline" },
+    { text: "See how it works", href: "#how-it-works", variant: "outline" },
   ],
   stats: [
     { value: "Private", label: "by default", icon: "privacy" },
