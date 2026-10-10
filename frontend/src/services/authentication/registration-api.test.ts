@@ -16,18 +16,18 @@ describe("registration cookie transport", () => {
     vi.unstubAllGlobals();
   });
 
-  it("confirms cookie receipt on the page origin before making Google sign-in available", async () => {
+  it("confirms cookie receipt from the local API before making Google sign-in available", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { nonce, hashedNonce: "hash" } }) });
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { ready: true } }) });
     await expect(registrationApi.googleLoginNonce()).resolves.toEqual({ nonce, hashedNonce: "hash" });
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/v1/registration/google/login-nonce",
+      "http://localhost:4200/api/v1/registration/google/login-nonce",
       expect.objectContaining({ credentials: "include", method: "POST" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "/api/v1/registration/google/login-challenge",
+      "http://localhost:4200/api/v1/registration/google/login-challenge",
       expect.objectContaining({ credentials: "include", body: JSON.stringify({ nonce }) }),
     );
   });
@@ -49,9 +49,10 @@ describe("registration cookie transport", () => {
   });
 
   it.each(["http://localhost:4200/api/v1", "http://127.0.0.1:4200/api/v1"])(
-    "uses first-party registration requests for %s",
+    "uses the browser's loopback host for registration requests to %s",
     (url) => {
-      expect(registrationBaseUrl(url, true)).toBe("/api/v1/registration");
+      expect(registrationBaseUrl(url, true, "127.0.0.1")).toBe("http://127.0.0.1:4200/api/v1/registration");
+      expect(registrationBaseUrl(url, true, "localhost")).toBe("http://localhost:4200/api/v1/registration");
       expect(localRegistrationTarget(url, true)).toBe(`${url}/registration`);
       expect(localRegistrationTarget(url, false)).toBeNull();
     },

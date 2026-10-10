@@ -36,6 +36,11 @@ describe("authentication proxy", () => {
     "/tools/grounding",
     "/settings/privacy",
     "/admin",
+    "/admin/professionals",
+    "/professional/request",
+    "/professional/my-requests",
+    "/professional/access",
+    "/professional/cases/fe000000-0000-4000-8000-000000000001",
     "/onboarding",
     "/onboarding/age",
   ])("blocks signed-out access to %s", async (path) => {
@@ -43,9 +48,13 @@ describe("authentication proxy", () => {
     const location = new URL(response.headers.get("location")!);
 
     expect(response.status).toBe(307);
-    expect(location.pathname).toBe("/login");
+    expect(location.pathname).toBe(
+      path === "/professional/access" || path === "/professional" || path.startsWith("/professional/cases/")
+        ? "/professional/login"
+        : "/login",
+    );
     expect(location.searchParams.get("error")).toBe("login_required");
-    expect(location.searchParams.get("next")).toBe(path);
+    expect(location.searchParams.get("next")).toBe(path === "/professional/access" ? "/professional" : path);
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
 
@@ -56,7 +65,15 @@ describe("authentication proxy", () => {
     expect(location.searchParams.get("next")).toBe("/journal?view=week");
   });
 
-  it.each(["/", "/login", "/signup", "/privacy", "/about"])("keeps public route %s available", async (path) => {
+  it("keeps a safe case deep link when an access check discovers a signed-out session", async () => {
+    const casePath = "/professional/cases/fe000000-0000-4000-8000-000000000001";
+    const response = await proxy(request(`/professional/access?next=${encodeURIComponent(casePath)}`));
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/professional/login");
+    expect(location.searchParams.get("next")).toBe(casePath);
+  });
+
+  it.each(["/", "/login", "/signup", "/professional/login", "/privacy", "/about"])("keeps public route %s available", async (path) => {
     const response = await proxy(request(path));
 
     expect(response.status).toBe(200);
@@ -92,5 +109,26 @@ describe("authentication proxy", () => {
     expect(first.headers.get("Content-Security-Policy")).toContain("https://accounts.google.com");
     const second = request("/login"); await proxy(second);
     expect(first.headers.get("x-nonce")).not.toBe(second.headers.get("x-nonce"));
+  });
+
+  it("allows both local API hosts when registration cookies follow the page host", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://127.0.0.1:4200/api/v1");
+    try {
+      vi.resetModules();
+      const { proxy: localProxy } = await import("./proxy");
+      const response = await localProxy(request("/login"));
+      const policy = response.headers.get("content-security-policy");
+      expect(policy).toContain("http://127.0.0.1:4200");
+      expect(policy).toContain("http://localhost:4200");
+
+      vi.stubEnv("NODE_ENV", "production");
+      vi.resetModules();
+      const { proxy: productionProxy } = await import("./proxy");
+      const productionResponse = await productionProxy(request("/login"));
+      expect(productionResponse.headers.get("content-security-policy")).not.toContain("http://localhost:4200");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

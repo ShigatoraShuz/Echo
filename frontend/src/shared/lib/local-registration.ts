@@ -1,6 +1,6 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
-/** Only a configured loopback API may use the development auth proxy. */
+/** Only a configured loopback API may use local registration cookie transport. */
 export function localRegistrationTarget(apiBaseUrl: string, isDevelopment: boolean): string | null {
   if (!isDevelopment) return null;
   try {
@@ -20,10 +20,15 @@ export function localRegistrationTarget(apiBaseUrl: string, isDevelopment: boole
   }
 }
 
-export function registrationBaseUrl(apiBaseUrl: string, isDevelopment: boolean): string {
-  // Same-origin requests keep HttpOnly and CSRF cookies on the page's host,
-  // including when the developer switches between localhost and 127.0.0.1.
-  return localRegistrationTarget(apiBaseUrl, isDevelopment)
-    ? "/api/v1/registration"
-    : `${apiBaseUrl.replace(/\/$/, "")}/registration`;
+export function registrationBaseUrl(apiBaseUrl: string, isDevelopment: boolean, pageHostname?: string): string {
+  const configured = `${apiBaseUrl.replace(/\/$/, "")}/registration`;
+  const localTarget = localRegistrationTarget(apiBaseUrl, isDevelopment);
+  const hostname = pageHostname ?? (typeof window === "undefined" ? undefined : window.location.hostname);
+  if (!localTarget || !hostname || !LOOPBACK_HOSTS.has(hostname)) return configured;
+
+  // Ports do not affect cookie host matching. Keep the API on the page's
+  // loopback host so HttpOnly signup cookies survive localhost/127 switches.
+  const target = new URL(localTarget);
+  target.hostname = hostname;
+  return target.href.replace(/\/$/, "");
 }

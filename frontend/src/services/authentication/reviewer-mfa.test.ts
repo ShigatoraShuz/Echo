@@ -17,6 +17,12 @@ describe("reviewer MFA",()=>{
  m.listFactors.mockResolvedValue({data:{totp:[],all:[{id:"unfinished",status:"unverified",friendly_name:"ECHO reviewer"},{id:"keep",status:"verified",friendly_name:"ECHO reviewer"}]},error:null});
  expect(await prepareReviewerMfa()).toMatchObject({id:"new"});expect(m.unenroll).toHaveBeenCalledExactlyOnceWith({factorId:"unfinished"});
  });
+ it("keeps reviewer enrollment separate from professional enrollment",async()=>{
+ m.listFactors.mockResolvedValue({data:{totp:[],all:[{id:"reviewer-draft",status:"unverified",friendly_name:"ECHO reviewer"},{id:"professional-draft",status:"unverified",friendly_name:"ECHO professional"}]},error:null});
+ await prepareReviewerMfa("ECHO professional");
+ expect(m.unenroll).toHaveBeenCalledExactlyOnceWith({factorId:"professional-draft"});
+ expect(m.enroll).toHaveBeenCalledWith({factorType:"totp",friendlyName:"ECHO professional"});
+ });
  it("fails closed when assurance cannot be checked",async()=>{
  m.getAuthenticatorAssuranceLevel.mockResolvedValue({data:null,error:{message:"private"}});
  await expect(prepareReviewerMfa()).rejects.toThrow("MFA unavailable");expect(m.enroll).not.toHaveBeenCalled();

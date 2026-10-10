@@ -22,6 +22,7 @@ import { DevelopmentAnalysisRunner } from "./infrastructure/analysis/development
 import { LocalWorkerService } from "./features/analysis/local-worker.service.js";
 import { AnalysisMaintenanceService } from "./features/analysis/analysis-maintenance.service.js";
 import { createRequestUserClient } from "./infrastructure/supabase/supabase-user.client.js";
+import { ProfessionalService } from "./features/professionals/professional.service.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -99,6 +100,7 @@ const registrationService = new RegistrationService(
 );
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
+const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
@@ -140,6 +142,7 @@ const app = createApp({
       service: notificationService,
       verifier,
     },
+    professionals: { service: professionalService, verifier, verificationService },
   },
 });
 

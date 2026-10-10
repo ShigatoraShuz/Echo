@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createMiddlewareSupabaseClient } from "@/infrastructure/supabase/middleware-client";
+import { professionalReturnPath } from "@/features/professionals/professional-return-path";
 
 const authenticatedPrefixes = [
   "/dashboard",
@@ -10,10 +11,12 @@ const authenticatedPrefixes = [
   "/tools",
   "/settings",
   "/admin",
+  "/professional",
   "/onboarding",
 ];
 
 function requiresAuthentication(pathname: string): boolean {
+  if (pathname === "/professional/login") return false;
   return authenticatedPrefixes.some(
     (prefix) =>
       pathname === prefix ||
@@ -70,6 +73,14 @@ const apiOrigin = origin(
   process.env.NEXT_PUBLIC_API_BASE_URL,
 );
 
+// Local registration follows the page's loopback host so its cookies return.
+const alternateLocalApiOrigin =
+  process.env.NODE_ENV === "development" && apiOrigin?.startsWith("http://127.0.0.1:")
+    ? apiOrigin.replace("127.0.0.1", "localhost")
+    : process.env.NODE_ENV === "development" && apiOrigin?.startsWith("http://localhost:")
+      ? apiOrigin.replace("localhost", "127.0.0.1")
+      : null;
+
 function contentSecurityPolicy(
   nonce: string,
 ): string {
@@ -98,7 +109,7 @@ function contentSecurityPolicy(
             "wss:",
           )}`
         : ""
-    }${apiOrigin ? ` ${apiOrigin}` : ""}`,
+    }${apiOrigin ? ` ${apiOrigin}` : ""}${alternateLocalApiOrigin ? ` ${alternateLocalApiOrigin}` : ""}`,
 
     "frame-src https://accounts.google.com",
 
@@ -144,7 +155,12 @@ function redirectToLogin(
   const destination =
     request.nextUrl.clone();
 
-  destination.pathname = "/login";
+  destination.pathname =
+    request.nextUrl.pathname === "/professional" ||
+    request.nextUrl.pathname === "/professional/access" ||
+    request.nextUrl.pathname.startsWith("/professional/cases/")
+      ? "/professional/login"
+      : "/login";
   destination.search = "";
 
   destination.searchParams.set(
@@ -154,7 +170,9 @@ function redirectToLogin(
 
   destination.searchParams.set(
     "next",
-    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    request.nextUrl.pathname === "/professional/access"
+      ? professionalReturnPath(request.nextUrl.searchParams.get("next"))
+      : `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
 
   const redirect =

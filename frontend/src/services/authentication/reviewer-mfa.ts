@@ -1,7 +1,7 @@
 "use client";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 export interface ReviewerFactor { id: string; qrCode?: string }
-export async function prepareReviewerMfa(): Promise<ReviewerFactor | null> {
+export async function prepareReviewerMfa(label = "ECHO reviewer"): Promise<ReviewerFactor | null> {
  const mfa = createBrowserSupabaseClient().auth.mfa;
  const assurance = await mfa.getAuthenticatorAssuranceLevel();
  if (assurance.error) throw new Error("MFA unavailable");
@@ -11,11 +11,11 @@ export async function prepareReviewerMfa(): Promise<ReviewerFactor | null> {
  const existing = factors.data.totp.find((factor) => factor.status === "verified");
  if (existing) return {id:existing.id};
  // Remove only unfinished factors created by this enrollment flow. Never remove verified factors.
- for (const factor of factors.data.all.filter((factor) => factor.status === "unverified" && factor.friendly_name === "ECHO reviewer")) {
+ for (const factor of factors.data.all.filter((factor) => factor.status === "unverified" && factor.friendly_name === label)) {
    const removed = await mfa.unenroll({factorId:factor.id});
    if (removed.error) throw new Error("MFA unavailable");
  }
- const enrolled = await mfa.enroll({factorType:"totp",friendlyName:"ECHO reviewer"});
+ const enrolled = await mfa.enroll({factorType:"totp",friendlyName:label});
  if (enrolled.error || !enrolled.data.totp.qr_code.startsWith("data:image/svg+xml")) throw new Error("MFA unavailable");
  return {id:enrolled.data.id,qrCode:enrolled.data.totp.qr_code};
 }

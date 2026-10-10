@@ -21,6 +21,7 @@ import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 interface LoginViewProps {
   title: string;
   description: string;
+  destination?: string;
 }
 
 const loginRouteMessages: Record<string, string> = {
@@ -33,10 +34,11 @@ const loginRouteMessages: Record<string, string> = {
   google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
 };
 
-export function LoginView({ title, description }: LoginViewProps) {
+export function LoginView({ title, description, destination }: LoginViewProps) {
   const [method, setMethod] = useState<"code" | "password">("code");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const next = safeRedirectPath(destination ?? searchParams.get("next"));
   const {
     email,
     password,
@@ -58,7 +60,6 @@ export function LoginView({ title, description }: LoginViewProps) {
 
     const session = await submit();
     if (session) {
-      const next = safeRedirectPath(searchParams.get("next"));
       router.replace(next);
       router.refresh();
     }
@@ -68,9 +69,9 @@ export function LoginView({ title, description }: LoginViewProps) {
   const routeMessage = routeError ? loginRouteMessages[routeError] : undefined;
 
   return (
-    <div className="w-full max-w-[26rem] [font-family:var(--font-echo-sans)]">
+    <div className="w-full max-w-[28rem] py-3 [font-family:var(--font-echo-sans)] lg:py-5">
       <EchoReveal direction="down" duration={260}>
-        <section className="rounded-[1.75rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-5 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.16)] backdrop-blur-md sm:px-6 sm:py-6 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
+        <section className="rounded-[1.5rem] border border-[rgba(83,103,51,0.16)] bg-[rgba(255,253,247,0.94)] px-5 py-6 text-[var(--landing-ink)] shadow-[0_24px_70px_rgba(41,49,27,0.13)] backdrop-blur-md sm:px-7 sm:py-7 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:shadow-none lg:backdrop-blur-none">
           <header className="text-center">
             <div className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] shadow-[0_10px_24px_rgba(41,49,27,0.1)]">
               <Leaf className="h-5 w-5" strokeWidth={2.1} aria-hidden="true" />
@@ -86,11 +87,11 @@ export function LoginView({ title, description }: LoginViewProps) {
           ) : null}
 
           <div className="mt-4 space-y-2">
-            <SecureGoogleLoginButton />
+            <SecureGoogleLoginButton successPath={next} />
             <AuthDivider />
           </div>
 
-          {method === "code" ? <EmailOtpForm onAuthenticated={() => { router.replace(safeRedirectPath(searchParams.get("next"))); router.refresh(); }} /> : <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
+          {method === "code" ? <EmailOtpForm onAuthenticated={() => { router.replace(next); router.refresh(); }} /> : <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
             <AuthStatusMessage status={status} error={error} />
 
             <AuthFormField
@@ -137,7 +138,7 @@ export function LoginView({ title, description }: LoginViewProps) {
               type="submit"
               variant="primary"
               size="medium"
-              className="h-10 w-full rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] shadow-[0_12px_24px_rgba(83,103,51,0.24)] hover:bg-[var(--landing-primary-hover)]"
+              className="h-[3.25rem] w-full rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] shadow-[0_12px_24px_rgba(83,103,51,0.2)] hover:bg-[var(--landing-primary-hover)]"
               isLoading={status === "submitting"}
               loadingText="Logging in..."
               disabled={status === "success"}
@@ -160,6 +161,12 @@ export function LoginView({ title, description }: LoginViewProps) {
                 className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
               >
                 Create an account
+              </Link>
+            </p>
+            <p className="mt-2 text-xs text-[var(--landing-muted)]">
+              {destination ? "Looking for your personal ECHO space?" : "Approved professional?"}{" "}
+              <Link href={destination ? "/login" : "/professional/login"} className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline">
+                {destination ? "Personal sign in" : "Professional sign in"}
               </Link>
             </p>
           </footer>

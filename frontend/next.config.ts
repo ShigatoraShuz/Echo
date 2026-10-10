@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
-import { localRegistrationTarget } from "./src/shared/lib/local-registration";
 
 function readBackendDevelopmentEnvironment(): Record<string, string> {
   if (process.env.NODE_ENV === "production") return {};
@@ -23,10 +22,6 @@ function readBackendDevelopmentEnvironment(): Record<string, string> {
 const backendDevelopmentEnvironment = readBackendDevelopmentEnvironment();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
-const registrationProxyTarget = localRegistrationTarget(
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
-  process.env.NODE_ENV === "development",
-);
 const securityHeaders = [
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -62,16 +57,6 @@ const nextConfig: NextConfig = {
         hostname: "plus.unsplash.com",
       },
     ],
-  },
-  async rewrites() {
-    return registrationProxyTarget
-      ? [
-          {
-            source: "/api/v1/registration/:path*",
-            destination: `${registrationProxyTarget}/:path*`,
-          },
-        ]
-      : [];
   },
   async headers() {
     return [

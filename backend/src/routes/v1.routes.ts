@@ -21,6 +21,8 @@ import { createAccessGuard, createAccessRouter } from "../features/access/access
 import { createAuthMiddleware } from "../shared/middleware/auth.middleware.js";
 import type { LocalWorkerService } from "../features/analysis/local-worker.service.js";
 import { createLocalWorkerRouter } from "../features/analysis/local-worker.routes.js";
+import type { ProfessionalService } from "../features/professionals/professional.service.js";
+import { createProfessionalRouter } from "../features/professionals/professional.routes.js";
 
 export interface V1RouterOptions {
   registration?: { service: RegistrationService; allowedOrigin: string };
@@ -52,6 +54,7 @@ export interface V1RouterOptions {
     verifier: AccessTokenVerifier;
   };
   localWorker?: { service: LocalWorkerService };
+  professionals?: { service: ProfessionalService; verifier: AccessTokenVerifier; verificationService: VerificationService };
 }
 
 export function createV1Router(options: V1RouterOptions = {}): Router {
@@ -84,5 +87,7 @@ export function createV1Router(options: V1RouterOptions = {}): Router {
   if (options.onboarding) router.use(createOnboardingRouter(options.onboarding.service, options.onboarding.verifier));
   if (options.notifications)
     router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier));
+  if (options.professionals)
+    router.use(createProfessionalRouter(options.professionals.service, options.professionals.verifier, options.professionals.verificationService));
   return router;
 }
