@@ -151,12 +151,25 @@ export function AppSidebar({
 }
 
 // --- UPDATED APP SHELL ---
-export function AppShell({ children, preview = false }: { children: ReactNode; preview?: boolean }) {
+export function AppShell({
+  children,
+  preview = false,
+  containedViewport = false,
+  publicAccess = false,
+}: {
+  children: ReactNode;
+  preview?: boolean;
+  containedViewport?: boolean;
+  publicAccess?: boolean;
+}) {
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   return (
-    <div className="relative min-h-screen bg-[#fcfaf6]">
+    <div
+      data-echo-app-shell
+      className={`relative bg-[#fcfaf6] ${containedViewport ? "h-[100dvh] overflow-hidden" : "min-h-screen"}`}
+    >
       <div className="fixed inset-0 z-0">
         <RadialBackground />
       </div>
@@ -174,9 +187,13 @@ export function AppShell({ children, preview = false }: { children: ReactNode; p
           - Mobile: pl-0 (Sidebar is hidden/overlay)
           - Desktop: pl-24 (Static space for sidebar)
       */}
-      <div className="relative z-10 flex min-h-screen flex-col transition-[padding] duration-500 lg:pl-24">
+      <div
+        className={`relative z-10 flex flex-col transition-[padding] duration-500 lg:pl-24 ${
+          containedViewport ? "h-full min-h-0" : "min-h-screen"
+        }`}
+      >
         {/* MOBILE TOP BAR (Trigger) */}
-        <div className="sticky top-0 z-[200] flex items-center justify-between border-b border-black/5 bg-[#fcfaf6]/80 px-4 py-3 backdrop-blur-md lg:hidden">
+        <div className="sticky top-0 z-[200] flex shrink-0 items-center justify-between border-b border-black/5 bg-[#fcfaf6]/80 px-4 py-3 backdrop-blur-md lg:hidden">
           <button onClick={() => setIsMobileOpen(true)} className="p-2 text-emerald-950">
             <Menu size={24} />
           </button>
@@ -187,8 +204,8 @@ export function AppShell({ children, preview = false }: { children: ReactNode; p
         </div>
 
         {/* DESKTOP TOP BAR */}
-        <div className="sticky top-0 z-[200] hidden bg-[#fcfaf6]/80 backdrop-blur-md lg:block">
-          <AppTopbar preview={preview} />
+        <div className="sticky top-0 z-[200] hidden shrink-0 bg-[#fcfaf6]/80 backdrop-blur-md lg:block">
+          <AppTopbar preview={preview} publicAccess={publicAccess} />
         </div>
 
         {preview && (
@@ -198,8 +215,14 @@ export function AppShell({ children, preview = false }: { children: ReactNode; p
           </div>
         )}
 
-        <main className="flex-1 px-4 py-6 lg:px-16 lg:py-8">
-          <div className="mx-auto max-w-[1440px]">{children}</div>
+        <main
+          className={`min-h-0 flex-1 px-4 lg:px-16 ${
+            containedViewport ? "overflow-hidden py-3 lg:py-3" : "py-6 lg:py-8"
+          }`}
+        >
+          <div className={`mx-auto w-full max-w-[1440px] ${containedViewport ? "h-full min-h-0" : ""}`}>
+            {children}
+          </div>
         </main>
       </div>
     </div>

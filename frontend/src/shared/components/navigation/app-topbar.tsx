@@ -12,7 +12,13 @@ const links = [
   { href: "/buddy", label: "Reflect", icon: MessageCircleHeart },
 ];
 
-export function AppTopbar({ preview = false }: { preview?: boolean }) {
+export function AppTopbar({
+  preview = false,
+  publicAccess = false,
+}: {
+  preview?: boolean;
+  publicAccess?: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -47,6 +53,15 @@ export function AppTopbar({ preview = false }: { preview?: boolean }) {
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {preview ? (
             <span className="rounded-full bg-secondary px-3 py-2 text-xs font-semibold text-primary">Preview mode</span>
+          ) : publicAccess ? (
+            <>
+              <Link href="/login" className="inline-flex h-10 items-center rounded-full border border-border/70 bg-card px-4 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20">
+                Log in
+              </Link>
+              <Link href="/signup" className="inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-subtle outline-none transition-[background-color,transform] hover:bg-primary/90 focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]">
+                Start privately
+              </Link>
+            </>
           ) : (
             <>
               <Link href="/journal/new" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground shadow-subtle outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-primary/90 hover:shadow-card focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97] sm:px-4">
