@@ -4,10 +4,7 @@ import { normalizeError } from "@/shared/errors/normalize-error";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { failureResult, successResult } from "@/infrastructure/api/service-result";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
-import type { JournalEntryResponseDTO } from "@/features/journal/model/journal.dto";
-import { mapEntryResponseToDomain } from "@/features/journal/model/journal.mapper";
 import type { DashboardData } from "@/features/dashboard/model/dashboard.model";
-import type { DashboardInsights } from "@echo/contracts";
 
 export function createDashboardHttpAdapter(): DashboardService {
   const client = createApiClient({
@@ -15,27 +12,28 @@ export function createDashboardHttpAdapter(): DashboardService {
     tokenProvider: supabaseAuthTokenProvider,
   });
 
+  type DashboardSummary = { id: string; title: string; mood: DashboardData["journalEntries"][number]["mood"]; emotions: string[]; tags: string[]; created_at: string };
   type DashboardResponse = Omit<DashboardData, "latestEntry" | "journalEntries"> & {
-    latestEntry: JournalEntryResponseDTO | null;
-    journalEntries: JournalEntryResponseDTO[];
+    latestEntry: DashboardSummary | null;
+    journalEntries: DashboardSummary[];
   };
+  const mapSummary = (entry: DashboardSummary) => ({
+    id: entry.id, title: entry.title, mood: entry.mood,
+    emotions: entry.emotions, tags: entry.tags, createdAt: entry.created_at,
+  });
 
   return {
     async getDashboardData(timeRange?: string) {
       try {
         const queryParam = timeRange ? `?range=${encodeURIComponent(timeRange)}` : "";
-        const [response, insightsResponse] = await Promise.all([
-          client.get<{
+        const response = await client.get<{
             success: true;
             data: DashboardResponse;
-          }>(`/dashboard${queryParam}`),
-          client.get<{ success: true; data: DashboardInsights }>("/dashboard/insights"),
-        ]);
+          }>(`/dashboard${queryParam}`);
         return successResult({
           ...response.data,
-          latestEntry: response.data.latestEntry ? mapEntryResponseToDomain(response.data.latestEntry) : null,
-          journalEntries: response.data.journalEntries.map(mapEntryResponseToDomain),
-          analysisInsights: insightsResponse.data,
+          latestEntry: response.data.latestEntry ? mapSummary(response.data.latestEntry) : null,
+          journalEntries: response.data.journalEntries.map(mapSummary),
         });
       } catch (error) {
         return failureResult(normalizeError(error));

@@ -70,8 +70,9 @@ export function EmotionTrendChart({ points }: EmotionTrendChartProps) {
       {/* SVG line chart */}
       <div className="relative overflow-hidden rounded-2xl bg-[var(--landing-surface)] p-1">
         <svg
+          key={points.map((point) => `${point.label}:${point.value}`).join("|")}
           viewBox={`0 0 ${W} ${H}`}
-          className="w-full"
+          className="echo-chart-line-reveal w-full"
           style={{ height: 120 }}
           aria-label="Mood trend line chart"
           role="img"

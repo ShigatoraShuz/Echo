@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BuddyView } from "../buddy-view";
 import { useBuddyViewModel } from "@/features/buddy/view-model/use-buddy-view-model";
+import type { BuddyConversation, BuddyPagination } from "@/features/buddy/model/buddy.model";
 
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
@@ -58,25 +59,27 @@ vi.mock("@/shared/components/ui/echo-motion-surface", () => ({
 function setupMock() {
   return {
     accessStatus: "allowed" as const,
+    historyEnabled: true,
     isLoadingMessages: false,
     isSending: false,
     messages: [{ id: "1", conversationId: "conv-1", content: "Hello", role: "buddy" as const, timestamp: "8:00 PM" }],
-    activeConversationId: "conv-1",
-    error: null,
+    activeConversationId: "conv-1" as string | null,
+    error: null as string | null,
     sendMessage: vi.fn().mockResolvedValue(undefined),
     loadConversations: vi.fn(),
     selectConversation: vi.fn(),
     createConversation: vi.fn(),
     renameConversation: vi.fn(),
+    pinConversation: vi.fn(),
     deleteConversation: vi.fn(),
     retryMessage: vi.fn(),
     sendFeedback: vi.fn(),
-    conversations: [],
+    conversations: [] as BuddyConversation[],
     searchConversations: vi.fn(),
     isLoadingList: false,
     selectedConversation: null,
     searchQuery: "",
-    pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } as BuddyPagination,
     isStreaming: false,
     streamingContent: "",
   };
@@ -156,5 +159,35 @@ describe("BuddyView", () => {
     render(<BuddyView />);
 
     expect(screen.getByRole("button", { name: /start voice input/i })).toBeDisabled();
+  });
+
+  it("hides pin actions without the pin migration and offers history retry", async () => {
+    const user = userEvent.setup();
+    const base = setupMock();
+    const mock = {
+      ...base,
+      activeConversationId: null,
+      error: "Buddy history could not be loaded.",
+      pagination: { ...base.pagination, pinsAvailable: false },
+      conversations: [{ id: "conv-1", title: "Evening", pinnedAt: null, lastMessageAt: "Today" }] as BuddyConversation[],
+    };
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+
+    render(<BuddyView />);
+    expect(screen.queryByText("Pinned chats")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pin Evening" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry history" }));
+    expect(mock.loadConversations).toHaveBeenCalled();
+  });
+
+  it("preserves the draft when sending fails", async () => {
+    const user = userEvent.setup();
+    const mock = setupMock();
+    mock.sendMessage.mockResolvedValue(false);
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    render(<BuddyView />);
+    await user.type(screen.getByLabelText(/message buddy/i), "Please stay with me");
+    await user.click(screen.getByRole("button", { name: /send message/i }));
+    expect(screen.getByLabelText(/message buddy/i)).toHaveValue("Please stay with me");
   });
 });

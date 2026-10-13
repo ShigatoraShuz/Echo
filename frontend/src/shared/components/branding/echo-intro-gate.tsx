@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   type ReactNode,
   useEffect,
   useState,
 } from "react";
 
-import { EchoAppIntro } from "./echo-app-intro";
+const EchoAppIntro = dynamic(() => import("./echo-app-intro").then((module) => module.EchoAppIntro));
 
 const INTRO_KEY =
   "echo.app-intro.seen";

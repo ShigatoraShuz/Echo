@@ -91,16 +91,25 @@ export class DataExportService {
         });
       if (started.error || typeof started.data !== "string") throw unavailable();
       requestId = started.data;
-      const [snapshot, account] = await Promise.all([
+      const [snapshot, account, calendar, buddyMetadata] = await Promise.all([
         this.database.schema("user_service").rpc("collect_user_export", { p_user_id: userId }),
         this.database.auth.admin.getUserById(userId),
+        this.database.schema("user_service").from("calendar_items").select("*").eq("user_id", userId).limit(2501),
+        this.database.schema("buddy_service").from("buddy_conversations").select("id,pinned_at,title_ciphertext,preview_ciphertext").eq("user_id", userId).limit(2501),
       ]);
       if (snapshot.error?.message.includes("EXPORT_TOO_LARGE"))
         throw new PayloadTooLargeError(
           "This export exceeds automatic delivery limits. Contact support for a larger export.",
         );
-      if (snapshot.error || !snapshot.data || account.error || account.data.user?.id !== userId) throw unavailable();
-      const collections = decryptExportCollections(snapshot.data as Collections, this.encryption);
+      if (snapshot.error || !snapshot.data || account.error || account.data.user?.id !== userId || calendar.error || buddyMetadata.error) throw unavailable();
+      if ((calendar.data?.length ?? 0) > 2500 || (buddyMetadata.data?.length ?? 0) > 2500) throw new PayloadTooLargeError("Your export exceeds automatic delivery limits. Contact support for a larger export.");
+      const rawCollections = snapshot.data as Collections;
+      const buddyById = new Map((buddyMetadata.data ?? []).map((row) => [row.id, row]));
+      const collections = decryptExportCollections({
+        ...rawCollections,
+        "user_service.calendar_items": calendar.data ?? [],
+        "buddy_service.buddy_conversations": (rawCollections["buddy_service.buddy_conversations"] ?? []).map((row) => ({ ...row, ...(buddyById.get(row.id as string) ?? {}) })),
+      }, this.encryption);
       const attachments = await this.collectFiles(userId, collections);
       const plaintext = JSON.stringify({
         format: "echo-account-export-v1",

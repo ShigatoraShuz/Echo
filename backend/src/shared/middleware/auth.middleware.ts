@@ -7,6 +7,8 @@ export interface AccessTokenVerifier {
   getUser(accessToken: string): Promise<AuthenticatedUser | null>;
 }
 
+const verifiedRequests = new WeakMap<Request, { token: string; verifier: AccessTokenVerifier; user: AuthenticatedUser }>();
+
 export function createAuthMiddleware(verifier: AccessTokenVerifier) {
   return async (request: Request, _response: Response, next: NextFunction): Promise<void> => {
     try {
@@ -24,7 +26,10 @@ export function createAuthMiddleware(verifier: AccessTokenVerifier) {
 
       let user: AuthenticatedUser | null;
       try {
-        user = await verifier.getUser(accessToken);
+        const previous = verifiedRequests.get(request);
+        user = previous?.token === accessToken && previous.verifier === verifier
+          ? previous.user
+          : await verifier.getUser(accessToken);
       } catch {
         console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "signature_failure" }));
         user = null;
@@ -36,6 +41,7 @@ export function createAuthMiddleware(verifier: AccessTokenVerifier) {
 
       console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "accepted" }));
       request.auth = { ...user, accessToken };
+      verifiedRequests.set(request, { token: accessToken, verifier, user });
       setVerifiedAccessToken(accessToken);
       next();
     } catch (error) {

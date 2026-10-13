@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +12,6 @@ import {
   LoaderCircle,
   LogOut,
   Mail,
-  MapPin,
   Pencil,
   Phone,
   Plus,
@@ -35,17 +33,16 @@ import {
   useState,
 } from "react";
 
-import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
+import { ThemeControls } from "@/shared/theme";
 
 import {
   AvatarUpload,
   ChangePasswordForm,
   ExportDataSection,
   SettingsHeader,
-  SettingsRow,
   SettingsSection,
   SettingsShell,
 } from "../components";
@@ -78,15 +75,6 @@ const timezoneOptions = [
   "America/New_York",
   "America/Los_Angeles",
 ];
-
-const emptyContact: TrustedContactInput = {
-  contactName: "",
-  contactEmail: null,
-  contactPhone: null,
-  relationship: "",
-  isPrimary: false,
-  permissionAcknowledged: false,
-};
 
 // -----------------------------------------------------------------------------
 // UI UTILITIES
@@ -304,7 +292,7 @@ function Toggle({
               "bg-white",
               "shadow-md",
               "transition-transform duration-300",
-              "ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "ease-[cubic-bezier(0.22,1,0.36,1)]",
               checked
                 ? "translate-x-6"
                 : "translate-x-1",
@@ -472,7 +460,7 @@ export function ProfileSettingsView() {
       <div className="w-full min-w-0">
         <SettingsHeader
           title="Profile"
-          description="Manage your dashboard identity and local time preferences."
+          description="Manage your dashboard identity, appearance, and local time preferences."
         />
 
         <StateMessage
@@ -481,14 +469,14 @@ export function ProfileSettingsView() {
           onRetry={() => void refresh()}
         />
 
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         {form && (
           <form
             onSubmit={submit}
             className="
               w-full
               min-w-0
-              space-y-5
-              sm:space-y-6
+              space-y-3
             "
           >
             <SettingsSection
@@ -621,6 +609,10 @@ export function ProfileSettingsView() {
             </SettingsSection>
           </form>
         )}
+          <SettingsSection title="Appearance" description="Choose the look and motion of your space." className="self-start">
+            <ThemeControls compact />
+          </SettingsSection>
+        </div>
       </div>
     </SettingsShell>
   );
@@ -650,6 +642,7 @@ export function PrivacySettingsView() {
     if (settings) {
       setForm({
         journalAiAnalysisEnabled: settings.privacy.journalAiAnalysisEnabled ?? false,
+        buddyHistoryEnabled: settings.privacy.buddyHistoryEnabled ?? true,
         facialAnalysisEnabled:
           settings.privacy
             .facialAnalysisEnabled,
@@ -731,6 +724,16 @@ export function PrivacySettingsView() {
                 onChange={() => {}}
                 label="Encrypted Records"
                 description="Your entries are encrypted at rest and read through authenticated ECHO services."
+              />
+
+              <Toggle
+                checked={form.buddyHistoryEnabled}
+                disabled={settings?.privacy.buddyHistoryAvailable === false}
+                onChange={(value) => setForm({ ...form, buddyHistoryEnabled: value })}
+                label="Save Buddy history"
+                description={settings?.privacy.buddyHistoryAvailable === false
+                  ? "Buddy history controls need the database update before they can be changed."
+                  : "When off, new Buddy chats are temporary. Previously saved chats stay available until you delete them."}
               />
 
               <Toggle
@@ -1263,6 +1266,11 @@ export function SecuritySettingsView() {
             <p className="text-xs text-muted-foreground">
               2FA is managed via your Supabase account settings. Contact support to enable it.
             </p>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-border/60 bg-card p-5">
+            <p className="text-sm font-semibold text-foreground">Automatic sign-out</p>
+            <p className="mt-1 text-xs text-muted-foreground">Your current browser session ends after 30 minutes without activity. Activity in another open ECHO tab keeps that session active.</p>
           </div>
 
           <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">

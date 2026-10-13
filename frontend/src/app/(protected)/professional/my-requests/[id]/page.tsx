@@ -1,6 +1,6 @@
-import { MyRequestDetailView } from "@/features/professionals/view/my-requests-view";
+import { redirect } from "next/navigation";
 
 export default async function MyRequestPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <MyRequestDetailView id={id} />;
+  redirect(`/professional-support/requests/${encodeURIComponent(id)}`);
 }

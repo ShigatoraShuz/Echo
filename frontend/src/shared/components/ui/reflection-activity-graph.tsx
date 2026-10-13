@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { cn } from "@/shared/lib/utils";
+import { usePrefersReducedMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 
 export type ReflectionActivity = {
   date: string;
@@ -77,7 +78,7 @@ export function buildReflectionActivityWeeks(
   activity: ReflectionActivity[],
   weekCount: number,
 ): ActivityCell[][] {
-  const safeWeekCount = Math.max(4, Math.min(30, Math.round(weekCount)));
+  const safeWeekCount = Math.max(4, Math.min(52, Math.round(weekCount)));
   const totals = new Map<string, number>();
 
   for (const item of activity) {
@@ -256,7 +257,7 @@ export function ReflectionActivityGraph({
   pluralLabel = "reflections",
   className,
 }: ReflectionActivityGraphProps) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
   const activityWeeks = React.useMemo(
     () => buildReflectionActivityWeeks(data, weeks),
     [data, weeks],
@@ -356,20 +357,13 @@ export function ReflectionActivityGraph({
             >
               {activityWeeks.map((week, weekIndex) => (
                 <div
-                  key={week[0]?.date ?? weekIndex}
+                  key={`${weeks}-${week[0]?.date ?? weekIndex}`}
                   className="grid grid-rows-7"
                   style={{ gap: cellGap }}
                   role="row"
                 >
-                  {week.map((cell, dayIndex) => {
-                    const entranceDelay = reducedMotion
-                      ? 0
-                      : weekIndex * 0.025 + dayIndex * 0.014;
-                    const ambientDelay =
-                      entranceDelay + ((weekIndex * 7 + dayIndex) % 9) * 0.12;
-
-                    return (
-                      <motion.button
+                  {week.map((cell, dayIndex) => (
+                      <button
                         key={cell.date}
                         type="button"
                         role="gridcell"
@@ -379,61 +373,14 @@ export function ReflectionActivityGraph({
                           pluralLabel,
                         )}
                         className={cn(
-                          "relative cursor-pointer rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow,transform] duration-150 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
+                          "echo-heatmap-tile relative cursor-pointer rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow] duration-150 hover:brightness-110 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
                         )}
                         style={{
                           width: cellSize,
                           height: cellSize,
+                          animationDelay: `${420 + Math.min(weekIndex * 18 + dayIndex * 10, 720)}ms`,
                           ...getCellStyle(cell.level),
                         }}
-                        initial={
-                          reducedMotion
-                            ? false
-                            : { opacity: 0, scale: 0.88, y: 3 }
-                        }
-                        animate={
-                          reducedMotion
-                            ? { opacity: 1, scale: 1, y: 0 }
-                            : {
-                                opacity: [
-                                  1,
-                                  cell.level === 0 ? 0.82 : 0.9,
-                                  1,
-                                ],
-                                scale: [
-                                  1,
-                                  cell.level === 0 ? 0.96 : 0.94,
-                                  1,
-                                ],
-                                y: 0,
-                              }
-                        }
-                        transition={
-                          reducedMotion
-                            ? { duration: 0 }
-                            : {
-                                opacity: {
-                                  duration: 3.1,
-                                  delay: ambientDelay,
-                                  ease: "easeInOut",
-                                  repeat: Infinity,
-                                },
-                                scale: {
-                                  duration: 3.1,
-                                  delay: ambientDelay,
-                                  ease: "easeInOut",
-                                  repeat: Infinity,
-                                },
-                                y: {
-                                  type: "spring",
-                                  stiffness: 520,
-                                  damping: 28,
-                                  delay: entranceDelay,
-                                },
-                              }
-                        }
-                        whileHover={reducedMotion ? undefined : { scale: 1.22, zIndex: 10 }}
-                        whileTap={reducedMotion ? undefined : { scale: 0.94 }}
                         onMouseEnter={(event) =>
                           showTooltip(event.currentTarget, cell)
                         }
@@ -442,8 +389,7 @@ export function ReflectionActivityGraph({
                         }
                         onBlur={() => setHoveredCell(null)}
                       />
-                    );
-                  })}
+                  ))}
                 </div>
               ))}
             </div>

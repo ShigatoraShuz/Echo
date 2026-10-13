@@ -33,6 +33,7 @@ import { getJournalService } from "@/services/journal/journal-service.factory";
 import { TrustedSupportRequest } from "./trusted-support-request";
 
 const STORAGE_KEY = "echo:active-analysis";
+const VISIBILITY_KEY = "echo:active-analysis:visibility";
 const stageLabels: Record<string, string> = {
   queued: "Journal saved",
   waiting_for_provider: "Journal saved",
@@ -109,6 +110,15 @@ function storedSubmission(): JournalSubmissionResponse | null {
   }
 }
 
+function clearStoredAnalysis() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(VISIBILITY_KEY);
+  } catch {
+    /* Browser storage can be unavailable without stopping analysis. */
+  }
+}
+
 export function AnalysisStatusExperience() {
   const [submission, setSubmission] = useState<JournalSubmissionResponse | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
@@ -130,6 +140,17 @@ export function AnalysisStatusExperience() {
   const currentProgress = useRef<AnalysisProgress | null>(null);
   const notifiedJob = useRef<string | null>(null);
 
+  const changeVisibility = useCallback((state: "open" | "minimized" | "dismissed") => {
+    try {
+      if (state === "open") localStorage.removeItem(VISIBILITY_KEY);
+      else if (submission) localStorage.setItem(VISIBILITY_KEY, `${submission.analysisJobId}:${state}`);
+    } catch {
+      /* The current view still responds when browser storage is unavailable. */
+    }
+    setMinimized(state === "minimized");
+    setDismissed(state === "dismissed");
+  }, [submission]);
+
   const update = useCallback((next: AnalysisProgress) => {
     const current = currentProgress.current;
     if (current?.jobId === next.jobId && Date.parse(next.updatedAt) < Date.parse(current.updatedAt)) return;
@@ -138,6 +159,7 @@ export function AnalysisStatusExperience() {
     currentProgress.current = monotonic;
     setProgress(monotonic);
     if (next.status === "safety_action_required" && current?.status !== "safety_action_required") {
+      try { localStorage.removeItem(VISIBILITY_KEY); } catch { /* Keep urgent support visible. */ }
       setMinimized(false);
       setDismissed(false);
       window.dispatchEvent(new CustomEvent("echo:safety-support", { detail: { journalId: next.journalId } }));
@@ -152,8 +174,19 @@ export function AnalysisStatusExperience() {
   }, []);
 
   useEffect(() => {
-    setSubmission(storedSubmission());
+    const saved = storedSubmission();
+    setSubmission(saved);
+    if (saved) {
+      try {
+        const visibility = localStorage.getItem(VISIBILITY_KEY);
+        setMinimized(visibility === `${saved.analysisJobId}:minimized`);
+        setDismissed(visibility === `${saved.analysisJobId}:dismissed`);
+      } catch {
+        /* A fresh view is available when browser storage cannot be read. */
+      }
+    }
     const listener = (event: Event) => {
+      try { localStorage.removeItem(VISIBILITY_KEY); } catch { /* New progress still opens. */ }
       setProgress(null);
       currentProgress.current = null;
       setSubmission((event as CustomEvent<JournalSubmissionResponse>).detail);
@@ -165,7 +198,7 @@ export function AnalysisStatusExperience() {
     try {
       const { data } = createBrowserSupabaseClient().auth.onAuthStateChange((event) => {
         if (event === "SIGNED_OUT") {
-          localStorage.removeItem(STORAGE_KEY);
+          clearStoredAnalysis();
           setSubmission(null);
           setProgress(null);
           currentProgress.current = null;
@@ -193,7 +226,7 @@ export function AnalysisStatusExperience() {
         setSubmission(null);
         setProgress(null);
         currentProgress.current = null;
-        localStorage.removeItem(STORAGE_KEY);
+        clearStoredAnalysis();
       }
     };
     void poll();
@@ -250,7 +283,7 @@ export function AnalysisStatusExperience() {
     dialogRef.current?.focus();
     const previousFocus = document.activeElement as HTMLElement | null;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMinimized(true);
+      if (event.key === "Escape") changeVisibility("minimized");
       if (event.key === "Tab") {
         const elements = dialogRef.current?.querySelectorAll<HTMLElement>(
           'a[href],button:not([disabled]),input,select,[tabindex="0"]',
@@ -275,7 +308,7 @@ export function AnalysisStatusExperience() {
       window.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [submission, minimized, dismissed, progress?.status]);
+  }, [submission, minimized, dismissed, progress?.status, changeVisibility]);
 
   if (!submission || dismissed) return null;
   const status = progress?.status ?? submission.status;
@@ -287,7 +320,7 @@ export function AnalysisStatusExperience() {
     return (
       <button
         type="button"
-        onClick={() => setMinimized(false)}
+        onClick={() => changeVisibility("open")}
         className="fixed bottom-5 right-5 z-[70] inline-flex items-center gap-3 rounded-full border border-primary/15 bg-card px-4 py-3 text-sm font-semibold text-primary shadow-[0_18px_50px_rgba(20,45,40,.16)] outline-none transition-[transform,box-shadow] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[.97]"
       >
         <Leaf className="h-4 w-4" aria-hidden="true" /> {label} <ChevronUp className="h-4 w-4" aria-hidden="true" />
@@ -325,7 +358,7 @@ export function AnalysisStatusExperience() {
             <div className="flex gap-1">
               <button
                 type="button"
-                onClick={() => setMinimized(true)}
+                onClick={() => changeVisibility("minimized")}
                 aria-label="Minimize analysis progress"
                 className="grid h-9 w-9 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-4 focus-visible:ring-primary/20"
               >
@@ -333,7 +366,7 @@ export function AnalysisStatusExperience() {
               </button>
               <button
                 type="button"
-                onClick={() => setDismissed(true)}
+                onClick={() => changeVisibility("dismissed")}
                 aria-label="Close analysis progress"
                 className="grid h-9 w-9 place-items-center rounded-full outline-none hover:bg-secondary focus-visible:ring-4 focus-visible:ring-primary/20"
               >
@@ -377,7 +410,7 @@ export function AnalysisStatusExperience() {
               <button
                 type="button"
                 className="echo-button mt-4 border border-border"
-                onClick={() => setMinimized(true)}
+                onClick={() => changeVisibility("minimized")}
               >
                 Keep support available
               </button>
@@ -406,7 +439,7 @@ export function AnalysisStatusExperience() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/10 bg-card/55 px-4 py-3">
               <p className="text-xs leading-5 text-muted-foreground">You can safely close this window. Your analysis will continue in the background.</p>
               {env.enableAnalysisPreview ? (
-                <Link href="/analysis-preview" onClick={() => setDismissed(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
+                <Link href="/analysis-preview" onClick={() => changeVisibility("dismissed")} className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
                   Preview analysis page <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               ) : null}
@@ -421,7 +454,7 @@ export function AnalysisStatusExperience() {
                 <Link
                   onClick={() => {
                     setDismissed(true);
-                    localStorage.removeItem(STORAGE_KEY);
+                    clearStoredAnalysis();
                   }}
                   href={`/journal/${submission.journalId}`}
                   className="echo-button inline-flex items-center gap-2 bg-primary text-primary-foreground transition-transform duration-150 ease-out active:scale-[.97]"
@@ -434,7 +467,7 @@ export function AnalysisStatusExperience() {
           {failed ? (
             <button
               type="button"
-              onClick={() => setDismissed(true)}
+              onClick={() => changeVisibility("dismissed")}
               className="echo-button mt-6 border border-border bg-card text-foreground"
             >
               Close

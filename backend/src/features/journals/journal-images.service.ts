@@ -156,6 +156,31 @@ export class JournalImagesService {
     );
   }
 
+  async listForJournals(userId: string, journalIds: string[]): Promise<Map<string, Array<{ id: string; url: string }>>> {
+    const images = new Map<string, Array<{ id: string; url: string }>>();
+    if (journalIds.length === 0) return images;
+    const { data, error } = await this.database
+      .schema("journal_service")
+      .from("journal_images")
+      .select("id,journal_id,storage_path")
+      .eq("user_id", userId)
+      .in("journal_id", journalIds)
+      .eq("uploaded", true)
+      .order("created_at", { ascending: true });
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal photos could not be loaded.");
+    const signed = await Promise.all((data ?? []).map(async (row) => {
+      const result = await this.database.storage.from("journal-images").createSignedUrl(row.storage_path, 300);
+      return result.data ? { journalId: String(row.journal_id), id: String(row.id), url: result.data.signedUrl } : null;
+    }));
+    for (const image of signed) {
+      if (!image) continue;
+      const items = images.get(image.journalId) ?? [];
+      items.push({ id: image.id, url: image.url });
+      images.set(image.journalId, items);
+    }
+    return images;
+  }
+
   async cleanup(): Promise<void> {
     const { data, error } = await this.database
       .schema("journal_service")

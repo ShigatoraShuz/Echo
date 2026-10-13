@@ -69,6 +69,31 @@ describe("backend-owned analysis progress", () => {
     });
     expect(api.getAnalysisStatus).toHaveBeenCalledTimes(2);
   });
+  it("keeps a closed pending analysis hidden after navigation while polling continues", async () => {
+    api.getAnalysisStatus.mockResolvedValue(status("waiting_for_provider", 0));
+    const view = render(<AnalysisStatusExperience />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => screen.getByRole("button", { name: "Close analysis progress" }).click());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.unmount();
+
+    render(<AnalysisStatusExperience />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(api.getAnalysisStatus).toHaveBeenCalledTimes(3);
+  });
+  it("reopens urgent support even after the user closed ordinary progress", async () => {
+    api.getAnalysisStatus
+      .mockResolvedValueOnce(status("waiting_for_provider", 0))
+      .mockResolvedValue(status("safety_action_required", 30, "2026-08-31T00:00:01Z"));
+    await act(async () => { render(<AnalysisStatusExperience />); });
+    act(() => screen.getByRole("button", { name: "Close analysis progress" }).click());
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    expect(screen.getByRole("dialog", { name: "Support is ready" })).toBeInTheDocument();
+    expect(localStorage.getItem("echo:active-analysis:visibility")).toBeNull();
+  });
   it("clears inaccessible or deleted saved job identifiers", async () => {
     api.getAnalysisStatus.mockResolvedValue({ success: false, error: { code: "NOT_FOUND" } });
     await act(async () => {

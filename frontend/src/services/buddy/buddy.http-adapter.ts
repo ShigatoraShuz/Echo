@@ -1,14 +1,14 @@
-import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
+import type { BuddyService } from "@/services/buddy/buddy.service";
 import type {
   BuddyConversation,
   BuddyMessage,
-  BuddySession,
   BuddyServiceError,
 } from "@/features/buddy/model/buddy.model";
 import { env } from "@/config/environment";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
+import type { VerificationSnapshot } from "@/services/verification/verification-api";
 
 interface ApiEnvelope<T> {
   success: true;
@@ -16,7 +16,9 @@ interface ApiEnvelope<T> {
 }
 
 interface BuddySessionResponse {
-  conversationId: string;
+  conversationId: string | null;
+  persisted?: boolean;
+  conversation?: BuddyHistoryRow;
   messages: Array<{
     id: string;
     role: "user" | "buddy";
@@ -27,9 +29,20 @@ interface BuddySessionResponse {
 
 interface BuddyHistoryRow {
   id: string;
-  conversation_status: string;
-  last_message_at: string;
+  title?: string;
+  archived?: boolean;
+  last_message_at: string | null;
   created_at: string;
+  pinned_at?: string | null;
+  preview?: string;
+}
+
+interface BuddyHistoryPage {
+  conversations: BuddyHistoryRow[];
+  total: number;
+  page: number;
+  page_size: number;
+  pinsAvailable?: boolean;
 }
 
 const NOT_SUPPORTED_MESSAGE =
@@ -58,16 +71,16 @@ function toBuddyError(error: unknown): BuddyServiceError {
 function mapConversation(row: BuddyHistoryRow): BuddyConversation {
   return {
     id: row.id,
-    // The backend does not persist conversation titles or per-conversation
-    // message summaries yet; the UI falls back to these neutral values.
-    title: "Buddy conversation",
-    lastMessage: "",
+    title: row.title || "Buddy conversation",
+    lastMessage: row.preview ?? "",
     lastMessageAt: row.last_message_at
       ? new Date(row.last_message_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
       : "",
+    lastMessageAtIso: row.last_message_at ?? "",
     messageCount: 0,
     mood: "neutral",
     createdAt: row.created_at,
+    pinnedAt: row.pinned_at ?? null,
   };
 }
 
@@ -90,23 +103,24 @@ export function createBuddyHttpAdapter(): BuddyService {
   return {
     async getAccessStatus(signal) {
       try {
-        await client.get<ApiEnvelope<BuddySessionResponse>>("/buddy/session", { signal });
-        return { success: true, data: { canAccessAi: true } };
+        const response = await client.get<ApiEnvelope<VerificationSnapshot>>("/verification", { signal });
+        const privacy = response.data.canAccessAi
+          ? await client.get<ApiEnvelope<{ buddyHistoryEnabled: boolean }>>("/buddy/privacy", { signal })
+          : null;
+        return { success: true, data: { canAccessAi: response.data.canAccessAi, accessRequirement: response.data.accessRequirement,
+          buddyHistoryEnabled: privacy?.data.buddyHistoryEnabled ?? true } };
       } catch (error) {
-        const code = normalizeError(error).code;
-        if (normalizeError(error).statusCode === 403 || code === "AUTHENTICATION_ERROR" || code === "AUTHORIZATION_ERROR" || code === "VERIFICATION_REQUIRED") {
-          return { success: true, data: { canAccessAi: false } };
-        }
         return { success: false, error: toBuddyError(error) };
       }
     },
 
-    async listConversations(page, pageSize, signal) {
+    async listConversations(page, pageSize, signal, query = "") {
       try {
-        const response = await client.get<ApiEnvelope<BuddyHistoryRow[]>>("/buddy/history", { signal });
-        const all = response.data.map(mapConversation);
-        const start = (page - 1) * pageSize;
-        const conversations = all.slice(start, start + pageSize);
+        const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+        if (query.trim()) params.set("query", query.trim());
+        const response = await client.get<ApiEnvelope<BuddyHistoryPage>>(`/buddy/history?${params}`, { signal });
+        const conversations = response.data.conversations.map(mapConversation);
+        const totalItems = response.data.total;
         return {
           success: true,
           data: {
@@ -114,8 +128,9 @@ export function createBuddyHttpAdapter(): BuddyService {
             pagination: {
               page,
               pageSize,
-              totalItems: all.length,
-              totalPages: Math.max(1, Math.ceil(all.length / pageSize)),
+              totalItems,
+              totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
+              pinsAvailable: response.data.pinsAvailable ?? true,
             },
           },
         };
@@ -124,27 +139,15 @@ export function createBuddyHttpAdapter(): BuddyService {
       }
     },
 
-    async searchConversations(query, signal) {
-      try {
-        const response = await client.get<ApiEnvelope<BuddyHistoryRow[]>>("/buddy/history", { signal });
-        const q = query.toLowerCase();
-        const filtered = response.data
-          .map(mapConversation)
-          .filter((conversation) => conversation.id.toLowerCase().includes(q));
-        return { success: true, data: filtered };
-      } catch (error) {
-        return { success: false, error: toBuddyError(error) };
-      }
-    },
-
     async getConversation(id, signal) {
       try {
-        const response = await client.get<ApiEnvelope<BuddySessionResponse>>("/buddy/session", { signal });
+        const response = await client.get<ApiEnvelope<BuddySessionResponse>>(`/buddy/conversations/${encodeURIComponent(id)}`, { signal });
         const { conversationId, messages } = response.data;
+        if (!conversationId) return { success: false, error: { code: "NOT_FOUND", message: "Conversation not found." } };
         return {
           success: true,
           data: {
-            conversation: { ...mapConversation({ id: conversationId, conversation_status: "active", last_message_at: "", created_at: "" }), id },
+            conversation: mapConversation(response.data.conversation ?? { id: conversationId, last_message_at: null, created_at: "" }),
             messages: mapMessages(conversationId, messages),
           },
         };
@@ -153,28 +156,43 @@ export function createBuddyHttpAdapter(): BuddyService {
       }
     },
 
+    async pinConversation(id, pinned) {
+      try {
+        const response = await client.put<ApiEnvelope<{ pinned_at: string | null }>, { pinned: boolean }>(`/buddy/conversations/${encodeURIComponent(id)}/pin`, { pinned });
+        return { success: true, data: response.data.pinned_at };
+      } catch (error) { return { success: false, error: toBuddyError(error) }; }
+    },
+
     async createConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
+      try {
+        const response = await client.post<ApiEnvelope<BuddyHistoryRow>>("/buddy/conversations", {});
+        return { success: true, data: mapConversation(response.data) };
+      } catch (error) { return { success: false, error: toBuddyError(error) }; }
     },
 
-    async renameConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
+    async renameConversation(id, title) {
+      try {
+        const response = await client.patch<ApiEnvelope<BuddyHistoryRow>, { title: string }>(`/buddy/conversations/${encodeURIComponent(id)}`, { title });
+        return { success: true, data: mapConversation(response.data) };
+      } catch (error) { return { success: false, error: toBuddyError(error) }; }
     },
 
-    async deleteConversation() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
+    async deleteConversation(id) {
+      try {
+        await client.delete(`/buddy/conversations/${encodeURIComponent(id)}`);
+        return { success: true, data: undefined };
+      } catch (error) { return { success: false, error: toBuddyError(error) }; }
     },
 
     async sendMessage(input) {
       try {
-        const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string }>(
+        const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string; conversationId?: string }>(
           "/buddy/messages",
-          { content: input.content },
+          { content: input.content, conversationId: input.conversationId },
         );
-        const messages = mapMessages(response.data.conversationId, response.data.messages);
-        const reply = messages[messages.length - 1];
-        return reply
-          ? { success: true, data: reply }
+        const messages = mapMessages(response.data.conversationId ?? "temporary", response.data.messages).slice(-2);
+        return messages.length === 2
+          ? { success: true, data: { conversationId: response.data.conversationId, persisted: response.data.persisted !== false, messages } }
           : { success: false, error: { code: "UNKNOWN", message: "Buddy did not return a reply." } };
       } catch (error) {
         return { success: false, error: toBuddyError(error) };

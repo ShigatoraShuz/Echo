@@ -1,3 +1,3 @@
-import { MyRequestsView } from "@/features/professionals/view/my-requests-view";
+import { redirect } from "next/navigation";
 
-export default function MyRequestsPage() { return <MyRequestsView />; }
+export default function MyRequestsPage() { redirect("/professional-support/requests"); }

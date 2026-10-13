@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BookOpen,
   CalendarRange,
-  Check,
   ChevronRight,
   HeartPulse,
   Leaf,
@@ -17,10 +16,8 @@ import {
 } from "lucide-react";
 import reflectionLandscape from "../../../../assets/growth-doorway-hill.png";
 import { ErrorState, LoadingState } from "@/shared/components/feedback";
-import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
-import { settingsService } from "@/services/settings/settings.service";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
@@ -40,7 +37,7 @@ function DashboardCard({
   return (
     <EchoMotionSurface
       data-testid={testId}
-      className={`echo-dashboard-card min-w-0 rounded-[1.75rem] border border-[var(--landing-primary-10)] bg-[rgba(255,253,247,0.84)] p-5 shadow-[0_16px_42px_rgba(30,53,34,0.07)] backdrop-blur-sm sm:p-6 ${className}`}
+      className={`echo-dashboard-card min-w-0 rounded-[1.75rem] border border-[var(--landing-primary-10)] bg-[rgba(255,253,247,0.84)] p-4 shadow-[0_16px_42px_rgba(30,53,34,0.07)] backdrop-blur-sm sm:p-5 xl:p-4 ${className}`}
     >
       {children}
     </EchoMotionSurface>
@@ -96,29 +93,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   const { data, isLoading, error } = useDashboardViewModel("7d", preview ? dashboardPreviewService : undefined);
 
   const [activityWeeks, setActivityWeeks] = useState(26);
-  const [savedDisplayName, setSavedDisplayName] = useState<string | null>(
-    null,
-  );
-
-  useEffect(() => {
-    if (preview) return;
-    let active = true;
-
-    void settingsService
-      .get()
-      .then((settings) => {
-        if (active) {
-          setSavedDisplayName(settings.profile.displayName);
-        }
-      })
-      .catch(() => {
-        // Dashboard content can still render if the optional profile refresh fails.
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [preview]);
 
   if (isLoading) {
     return <LoadingState label="Loading your ECHO space..." />;
@@ -149,37 +123,36 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   );
 
   return (
-    <EchoReveal direction="up" delay={0}>
-      <div className="space-y-4 sm:space-y-5">
+    <div className="echo-dashboard-welcome space-y-3 sm:space-y-4 xl:space-y-3">
         <WellnessCheckin preview={preview} />
 
-        <header className="echo-dashboard-hero flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h1 className="break-words text-[clamp(1.75rem,2.5vw,2.5rem)] font-medium leading-tight tracking-[-0.035em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
-              Good evening, {savedDisplayName ?? userProfile.name}
-            </h1>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-12">
+          <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 lg:col-span-2 xl:col-span-6">
+            <div className="min-w-0">
+              <h1 className="break-words text-[clamp(1.75rem,2.5vw,2.5rem)] font-medium leading-tight tracking-[-0.035em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
+                Good evening, {userProfile.name}
+              </h1>
 
-            <p className="mt-1 text-xs text-[var(--landing-muted)]">
-              {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"} <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
-            </p>
-          </div>
+              <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"} <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
+              </p>
+            </div>
 
-          <Link
-            href="/journal/new"
-            className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-sm font-semibold text-[var(--landing-inverse)] outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-ring/20 ${preview ? "" : "sm:hidden"}`}
-          >
-            <PenLine className="h-4 w-4" aria-hidden="true" />
-            Write reflection
-          </Link>
-        </header>
+            <Link
+              href="/journal/new"
+              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-sm font-semibold text-[var(--landing-inverse)] outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-ring/20 ${preview ? "" : "sm:hidden"}`}
+            >
+              <PenLine className="h-4 w-4" aria-hidden="true" />
+              Write reflection
+            </Link>
+          </header>
 
-        <div className="grid gap-3 lg:grid-cols-2">
           <AnalysisInsightsDashboard insights={data.analysisInsights} />
           <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
         </div>
 
         {/* DASHBOARD GRID */}
-        <div className="echo-card-motion-grid grid gap-4 lg:grid-cols-12">
+        <div className="echo-card-motion-grid grid gap-3 lg:grid-cols-12">
 
           {/* EMOTION WHEEL */}
           <DashboardCard className="bg-[linear-gradient(145deg,rgba(255,253,247,0.92),rgba(230,239,224,0.82))] lg:col-span-5">
@@ -187,7 +160,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           </DashboardCard>
 
           {/* CURRENT DISTRESS */}
-          <DashboardCard className="bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
+          <DashboardCard className="echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
               Wellbeing signal
             </p>
@@ -196,7 +169,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               Current distress
             </h2>
 
-            <div className="mt-4 flex items-end gap-1.5">
+            <div className="mt-3 flex items-end gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.06em]">
                 {latestAnalysis?.distressBand ?? "Not available"}
               </span>
@@ -207,7 +180,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
             </div>
 
 
-            <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="mt-2 flex items-center justify-between gap-3">
               <StatusPill
                 tone={needsSupport ? "warm" : "calm"}
               >
@@ -222,78 +195,19 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               />
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
               A reflective signal to help you decide what might support you next.
             </p>
           </DashboardCard>
 
-          {/* CHECK-IN PLAN */}
-          <DashboardCard className="bg-[linear-gradient(150deg,rgba(255,253,247,0.94),rgba(245,235,221,0.78))] lg:col-span-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
-                  A gentle next step
-                </p>
-
-                <h2 className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-                  Your check-in plan
-                </h2>
-              </div>
-
-              <span className="text-sm font-semibold text-primary">
-                24%
-              </span>
-            </div>
-
-            <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-secondary">
-              <span className="w-[30%] bg-primary" />
-              <span className="w-[25%] bg-[hsl(var(--happy))]" />
-              <span className="w-[20%] bg-[hsl(var(--calm))]" />
-            </div>
-
-            <ul className="mt-4 space-y-2.5">
-              {[
-                "Choose a check-in rhythm",
-                "Save one grounding tool",
-                "Set your privacy preferences",
-              ].map((task, index) => (
-                <li
-                  key={task}
-                  className="flex items-center gap-2.5 text-xs text-muted-foreground"
-                >
-                  <span
-                    className={`grid h-4 w-4 place-items-center rounded-full border ${
-                      index === 0
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border"
-                    }`}
-                  >
-                    {index === 0 ? (
-                      <Check
-                        className="h-3 w-3"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                  </span>
-
-                  {task}
-
-                  <span className="ml-auto text-[10px]">
-                    {index === 0 ? "done" : "5 min"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </DashboardCard>
-
           {/* REFLECTION SPACE */}
-          <DashboardCard className="relative min-h-[250px] overflow-hidden lg:col-span-5">
+          <DashboardCard className="relative min-h-[250px] overflow-hidden lg:col-span-4 xl:min-h-[220px]">
             <div className="relative z-10 max-w-[60%] sm:max-w-[56%]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Reflection space
               </p>
 
-              <h2 className="mt-2 text-3xl font-medium leading-[0.98] tracking-[-0.05em] [font-family:var(--font-echo-display)] sm:text-4xl">
+              <h2 className="mt-2 text-3xl font-medium leading-[0.98] tracking-[-0.05em] [font-family:var(--font-echo-display)] sm:text-4xl xl:text-3xl">
                 Write what is present today
               </h2>
 
@@ -303,7 +217,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
               <Link
                 href="/journal/new"
-                className="mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-xs font-bold text-[var(--landing-inverse)] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
+                className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-xs font-bold text-[var(--landing-inverse)] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
               >
                 New entry
 
@@ -343,12 +257,12 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               </Link>
             </div>
 
-            <div className="mt-3 divide-y divide-border/65">
+            <div className="mt-2 divide-y divide-border/65">
               {recentEntries.map((entry) => (
                 <Link
                   key={entry.id}
                   href={`/journal/${entry.id}`}
-                  className="flex items-center gap-3 py-2.5 outline-none transition-colors hover:text-primary focus-visible:rounded-lg focus-visible:ring-2 focus-visible:ring-ring/30"
+                  className="flex items-center gap-3 py-2 outline-none transition-colors hover:text-primary focus-visible:rounded-lg focus-visible:ring-2 focus-visible:ring-ring/30"
                 >
                   <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-primary">
                     <BookOpen
@@ -382,7 +296,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           </DashboardCard>
 
           {/* WEEKLY DIGEST */}
-          <DashboardCard className="lg:col-span-4">
+          <DashboardCard className="lg:col-span-4 xl:col-span-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
               Weekly digest
             </p>
@@ -391,7 +305,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               This week&apos;s patterns
             </h2>
 
-            <ul className="mt-4 space-y-3">
+            <ul className="mt-3 space-y-2">
               {weeklyDigest
                 .slice(0, 3)
                 .map((item) => (
@@ -409,7 +323,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
                 ))}
             </ul>
 
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-secondary/70 p-3">
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-secondary/70 p-2.5">
               <Leaf
                 className="h-4 w-4 text-primary"
                 aria-hidden="true"
@@ -423,10 +337,10 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
           {/* WELLBEING ACTIVITY */}
           <DashboardCard
-            className="overflow-hidden lg:col-span-8"
+            className="overflow-hidden lg:col-span-8 xl:col-span-4"
             testId="wellbeing-activity-card"
           >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
                   Wellbeing activity
@@ -435,10 +349,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
                 <h2 className="mt-1 text-xl font-semibold tracking-[-0.04em]">
                   Your reflection rhythm
                 </h2>
-
-                <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
-                  A private view of the days you checked in, reflected, or made a little room for yourself.
-                </p>
               </div>
 
               <label className="relative inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-background/80 px-3 text-xs font-semibold text-foreground shadow-subtle">
@@ -482,46 +392,20 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               </label>
             </div>
 
-            <div className="mt-5 grid gap-3 border-y border-border/60 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
-              <div>
-                <strong className="block text-3xl font-semibold tracking-[-0.055em] text-foreground">
-                  {userProfile.streakDays} days
-                </strong>
-
-                <span className="mt-1 block text-[11px] text-muted-foreground">
-                  Current gentle check-in streak
-                </span>
-              </div>
-
-              <div className="border-border/60 sm:border-l sm:pl-5">
-                <strong className="block text-3xl font-semibold tracking-[-0.055em] text-foreground">
-                  {journalEntries.length} entries
-                </strong>
-
-                <span className="mt-1 block text-[11px] text-muted-foreground">
-                  Private reflections kept close
-                </span>
-              </div>
-
-              <StatusPill tone="sage">
-                Most reflective in the morning
-              </StatusPill>
-            </div>
-
             <ReflectionActivityGraph
               data={wellbeingActivity}
               weeks={activityWeeks}
-              cellSize={15}
-              cellGap={4}
+              cellSize={14}
+              cellGap={2}
               ariaLabel="Wellbeing activity by day, Monday through Sunday"
               singularLabel="wellbeing activity"
               pluralLabel="wellbeing activities"
-              className="mt-4"
+              className="mt-2"
             />
 
-            <div className="mt-4 flex items-center justify-between gap-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+            <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/60 pt-2 text-xs text-muted-foreground">
               <span>
-                Your rhythm remains private. Hover over a day for details.
+                Your rhythm remains private. Select a day for details.
               </span>
 
               <Link
@@ -539,13 +423,13 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           </DashboardCard>
 
           {/* PRIVACY */}
-          <DashboardCard className="overflow-hidden border-white/10 bg-[var(--landing-footer)] text-[var(--landing-inverse)] lg:col-span-4">
+          <DashboardCard className="overflow-hidden border-white/10 bg-[var(--landing-footer)] text-[var(--landing-inverse)] lg:col-span-4 xl:col-span-2">
             <LockKeyhole
               className="h-5 w-5 text-primary-foreground/80"
               aria-hidden="true"
             />
 
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-foreground/65">
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-foreground/65">
               Private by design
             </p>
 
@@ -559,7 +443,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
             <Link
               href="/settings/privacy"
-              className="mt-4 inline-flex h-9 items-center rounded-xl bg-card px-3 text-xs font-semibold text-primary outline-none transition-[transform,background-color] duration-150 ease-out hover:bg-card/90 focus-visible:ring-4 focus-visible:ring-white/25 active:scale-[0.97]"
+              className="mt-3 inline-flex h-9 items-center rounded-xl bg-card px-3 text-xs font-semibold text-primary outline-none transition-[transform,background-color] duration-150 ease-out hover:bg-card/90 focus-visible:ring-4 focus-visible:ring-white/25 active:scale-[0.97]"
             >
               Review privacy
             </Link>
@@ -574,7 +458,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
           Your private reflections are for support, not diagnosis.
         </p>
-      </div>
-    </EchoReveal>
+    </div>
   );
 }

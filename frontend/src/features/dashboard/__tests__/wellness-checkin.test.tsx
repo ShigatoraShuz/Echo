@@ -49,6 +49,7 @@ describe("dashboard check-in order", () => {
     expect(api.getWellnessStatus).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Open check-in panel" }));
     fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
     expect(screen.getByRole("dialog")).toHaveAccessibleName("How have the last two weeks felt?");
     expect(screen.getByText(/your answers stay on this page/i)).toBeInTheDocument();
@@ -63,6 +64,7 @@ describe("dashboard check-in order", () => {
     );
     expect(screen.getByRole("status")).toHaveTextContent("1 of 8 answered");
     fireEvent.click(screen.getByRole("button", { name: "Later" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open check-in panel" }));
     fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
     expect(screen.getByRole("status")).toHaveTextContent("1 of 8 answered");
 
@@ -75,10 +77,34 @@ describe("dashboard check-in order", () => {
     expect(api.savePhq8).not.toHaveBeenCalled();
   });
 
+  it("slides the edge tab open on hover and focus, and keeps closed actions out of the tab order", () => {
+    render(<WellnessCheckin preview />);
+
+    const dock = screen.getByRole("complementary", { name: "Your check-in" });
+    const trigger = screen.getByRole("button", { name: "Open check-in panel" });
+    expect(dock.parentElement).toBe(document.body);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Take the check-in" })).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(dock);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Take the check-in" })).toBeVisible();
+
+    fireEvent.mouseLeave(dock);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.focus(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(dock, { key: "Escape" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("dismisses lower-priority screening when an urgent analysis signal arrives", async () => {
     render(<WellnessCheckin />);
 
-    await screen.findByRole("dialog");
+    await screen.findByRole("button", { name: "Open check-in panel" });
+    fireEvent.click(screen.getByRole("button", { name: "Open check-in panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await act(async () => {
       window.dispatchEvent(new CustomEvent("echo:safety-support"));
@@ -91,12 +117,17 @@ describe("dashboard check-in order", () => {
     });
   });
 
-  it("gives a due PHQ-8 precedence over repeated support and optional welcome", async () => {
+  it("offers a due PHQ-8 from the edge without opening a dashboard modal automatically", async () => {
     render(<WellnessCheckin />);
 
-    expect(await screen.findByRole("dialog")).toHaveAccessibleName("How have the last two weeks felt?");
+    const trigger = await screen.findByRole("button", { name: "Open check-in panel" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     expect(api.claimSupportPrompt).not.toHaveBeenCalled();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("How have the last two weeks felt?");
 
     expect(
       screen.getByRole("button", {
@@ -112,11 +143,7 @@ describe("dashboard check-in order", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    expect(
-      screen.getByRole("button", {
-        name: "Take the check-in",
-      }),
-    ).toBeEnabled();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
   });
 
   it("keeps urgent support available without opening a screening modal", async () => {
@@ -294,7 +321,9 @@ describe("dashboard check-in order", () => {
 
     render(<WellnessCheckin />);
 
-    await screen.findByRole("dialog");
+    await screen.findByRole("button", { name: "Open check-in panel" });
+    fireEvent.click(screen.getByRole("button", { name: "Open check-in panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
 
     for (const radio of screen.getAllByRole("radio", {
       name: "Several days",

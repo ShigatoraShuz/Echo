@@ -19,8 +19,7 @@ pnpm-debug.log*
 **/*.log
 **/*.tsbuildinfo
 frontend/.codex-qa/
-frontend/.next-corrupt-*/
-frontend/.next-journal-preview/
+frontend/.next-*/
 .impeccable/review/
 *-design-qa-comparison.png
 *-implementation*.png

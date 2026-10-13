@@ -55,9 +55,9 @@ describe("useGroundingViewModel", () => {
 
     const { result } = renderHook(() => useGroundingViewModel());
     act(() => {
-      result.current.selectTechnique("5-4-3-2-1");
+      result.current.selectTechnique("sensory-5-4-3-2-1");
     });
-    expect(result.current.technique).toBe("5-4-3-2-1");
+    expect(result.current.technique).toBe("sensory-5-4-3-2-1");
     expect(result.current.remainingSeconds).toBe(120);
     expect(result.current.isRunning).toBe(false);
   });
@@ -87,5 +87,27 @@ describe("useGroundingViewModel", () => {
     });
     expect(result.current.remainingSeconds).toBe(600);
     expect(result.current.isRunning).toBe(false);
+  });
+
+  it("starts a selected practice and saves it once when elapsed", async () => {
+    vi.useFakeTimers();
+    try {
+      const mockService = createMockService();
+      vi.mocked(getGroundingService).mockReturnValue(mockService);
+      const { result } = renderHook(() => useGroundingViewModel());
+      await act(async () => { await Promise.resolve(); });
+
+      act(() => result.current.startPractice("body-scan", 2));
+      expect(result.current.isRunning).toBe(true);
+      expect(result.current.technique).toBe("body-scan");
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(result.current.remainingSeconds).toBe(0);
+      expect(result.current.isRunning).toBe(false);
+      expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(mockService.saveSession).toHaveBeenCalledWith(expect.objectContaining({ type: "body-scan", duration: 120 }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

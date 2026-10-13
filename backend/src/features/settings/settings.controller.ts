@@ -14,6 +14,7 @@ const profileSchema = z.strictObject({
 
 const privacySchema = z.strictObject({
   journalAiAnalysisEnabled: z.boolean().optional(),
+  buddyHistoryEnabled: z.boolean().optional(),
   facialAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
   lockScreenPrivate: z.boolean(),

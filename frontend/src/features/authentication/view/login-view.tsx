@@ -31,6 +31,9 @@ const loginRouteMessages: Record<string, string> = {
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before logging in.",
   sign_in_session_expired: "Your sign-in session expired. Please log in again.",
+  idle_timeout: "You were signed out after 30 minutes without activity. Please log in again.",
+  session_changed: "Your session changed. Please log in again.",
+  auth_unavailable: "Your session could not be checked. Please log in again.",
   google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
 };
 

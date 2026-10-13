@@ -41,7 +41,7 @@ export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalE
     privacyStatus: mapPrivacyStatus(dto.privacy_status),
     analysisConsent: dto.analysis_consent,
     riskScore: dto.risk_score,
-    riskBand: mapRiskBand(dto.risk_band),
+    riskBand: dto.risk_band ? mapRiskBand(dto.risk_band) : null,
     summary: dto.summary,
     perspective: dto.perspective,
     createdAt: dto.created_at,

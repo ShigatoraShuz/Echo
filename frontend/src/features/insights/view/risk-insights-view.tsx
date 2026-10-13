@@ -1,5 +1,5 @@
 "use client";
-import { AlertTriangle, ListChecks, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ListChecks } from "lucide-react";
 import { useInsightsViewModel } from "../view-model/use-insights-view-model";
 import { DataChartCard, RiskBadge, RiskScoreRing } from "@/shared/components/data-display";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
@@ -48,7 +48,7 @@ export function RiskInsightsView() {
 
           <aside className="space-y-6">
             <EchoCard title="Current band" description="Latest support signal.">
-              <RiskScoreRing score={risk?.score ?? 0} band={risk?.band ?? "low"} />
+              {risk ? <RiskScoreRing score={risk.score} band={risk.band} /> : <p className="text-sm text-muted-foreground">{vm.isLoading ? "Loading signal…" : "No analysis is available yet."}</p>}
             </EchoCard>
             <EchoCard title="Contributing signals" description="Plain-language observations from entries.">
               <div className="space-y-3">
@@ -69,12 +69,6 @@ export function RiskInsightsView() {
                 If distress feels urgent, use crisis support now. ECHO does not diagnose or monitor emergencies.
               </p>
             </div>
-            <EchoCard compact>
-              <div className="flex gap-3">
-                <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-                <p className="text-sm leading-6 text-muted-foreground">Future backend scoring should remain explainable and user-controlled.</p>
-              </div>
-            </EchoCard>
           </aside>
         </div>
       </VerifiedFeatureGate>

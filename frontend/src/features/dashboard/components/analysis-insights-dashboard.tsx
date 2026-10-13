@@ -7,7 +7,7 @@ import { AnalysisBuddyAction } from "./analysis-buddy-action";
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
   if (!insights?.latest)
     return (
-      <section className="echo-compact-card min-w-0" aria-labelledby="analysis-empty-title">
+      <section className="echo-compact-card min-w-0 xl:col-span-3 xl:p-4" aria-labelledby="analysis-empty-title">
         <h2 id="analysis-empty-title" className="text-sm font-semibold text-foreground">
           Journal analysis
         </h2>
@@ -20,7 +20,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
   const result = insights.latest;
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (
-    <details className="echo-compact-card group min-w-0 open:lg:col-span-2" aria-labelledby="analysis-insights-title">
+    <details className="echo-compact-card group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="analysis-insights-title">
       <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0">
           <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">Journal analysis</h2>
@@ -116,10 +116,11 @@ function EmotionRadar({ result }: { result: JournalAnalysisResult }) {
   return (
     <div className="mt-3 grid items-center gap-3 sm:grid-cols-[180px_1fr]">
       <svg
+        key={result.emotionDistribution.map((item) => `${item.emotion}:${item.value}`).join("|")}
         viewBox="0 0 180 180"
         role="img"
         aria-label={`Dominant emotion ${result.dominantEmotion}`}
-        className="mx-auto h-44 w-44"
+        className="echo-chart-wheel-reveal mx-auto h-44 w-44"
       >
         <polygon
           points="90,28 143.7,59 143.7,121 90,152 36.3,121 36.3,59"
@@ -147,10 +148,11 @@ function TrendBars({ insights }: { insights: DashboardInsights }) {
     <div className="mt-4 space-y-3">
       <p className="text-xs text-muted-foreground">Latest completed result per day. Missing days are not filled in.</p>
       <svg
+        key={insights.emotionTrend.map((point) => `${point.date}:${Object.values(point.values).join(",")}`).join("|")}
         viewBox="0 0 420 150"
         role="img"
         aria-label="Dated emotion distributions, from zero to one hundred percent"
-        className="w-full"
+        className="echo-chart-line-reveal w-full"
       >
         <path d="M20 10V130H400" fill="none" stroke="currentColor" className="text-border" />
         {emotions.map((emotion, index) => (

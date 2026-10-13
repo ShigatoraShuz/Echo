@@ -6,6 +6,7 @@ import { ArrowLeft, Download, Trash2, Tag, Calendar, Info } from "lucide-react";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 import { JournalAnalysisPanel } from "../components/journal-analysis-panel";
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
+import { JournalPhotoStack } from "../components/journal-photo-stack";
 import { EchoCard } from "@/shared/components/ui/echo-card";
 import { EchoBadge } from "@/shared/components/ui/echo-badge";
 import { EchoButton } from "@/shared/components/ui/echo-button";
@@ -43,22 +44,19 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   if (!entry) return null;
 
   return (
-    <div className="mx-auto max-w-7xl pb-20">
-      {/* 1. REFINED HEADER AREA */}
-      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between border-b border-border pb-8">
-        <div className="space-y-4">
+    <div className="flex min-w-0 flex-col gap-3 lg:h-full lg:min-h-0">
+      <div className="echo-workspace-enter flex shrink-0 flex-col gap-3 rounded-[1.5rem] border border-border/70 bg-card/85 p-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 space-y-1">
           <Link href="/journal" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground transition-colors hover:text-primary">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Pages
           </Link>
-          <h1 className="text-4xl font-medium tracking-tight text-foreground lg:text-5xl [font-family:var(--font-echo-display)]">
+          <h1 className="break-words text-[clamp(1.75rem,2vw,2rem)] font-medium tracking-tight text-foreground [font-family:var(--font-echo-display)]">
             {entry.title}
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            A review of your reflection, emotion tags, and ECHO perspective.
-          </p>
+          <p className="text-xs text-muted-foreground">Your private reflection and ECHO perspective</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <EchoButton variant="outline" onClick={exportEntry} isLoading={isExporting} className="rounded-xl">
             <Download className="h-4 w-4 mr-2" /> Export
           </EchoButton>
@@ -68,31 +66,29 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         </div>
       </div>
 
-      {/* 2. MAIN CONTENT GRID */}
-      <div className="grid gap-8 lg:grid-cols-12">
-        
-        {/* LEFT COLUMN: The Reflection */}
-        <div className="space-y-8 lg:col-span-8">
-          <EchoCard className="overflow-hidden border-none bg-card shadow-xl shadow-slate-200/50">
-            <div className="flex items-center justify-between border-b border-border px-8 py-4 bg-secondary/30">
+      {error && <p role="alert" className="shrink-0 rounded-xl border border-danger/30 bg-crisis-soft px-4 py-2 text-sm text-danger">{error}</p>}
+
+      <div className="grid min-w-0 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,62fr)_minmax(280px,38fr)]">
+        <div className="echo-panel-scroll min-w-0 space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1" tabIndex={0} aria-label="Full reflection">
+          <EchoCard className="overflow-hidden border border-border/70 bg-card/90 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border bg-secondary/30 px-5 py-3">
               <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                <Calendar className="h-3 w-3" /> {entry.createdAt}
+                <Calendar className="h-3 w-3" /> {new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeStyle: "short" }).format(new Date(entry.createdAt))}
               </span>
               <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : "default"}>
                 {entry.mood}
               </EchoBadge>
             </div>
             
-            <div className="p-8">
-              {!!entry.images?.length && <div className="mb-6 grid gap-3 sm:grid-cols-2">{entry.images.map((photo,index) => <img key={photo.id} src={photo.url} alt={`Photo ${index+1} from this reflection`} referrerPolicy="no-referrer" className="max-h-96 w-full rounded-2xl object-cover" />)}</div>}
-              <div className="prose prose-slate max-w-none">
-                <p className="text-lg leading-[1.8] text-foreground whitespace-pre-line font-light">
+            <div className="p-5 sm:p-6">
+              {!!entry.images?.length && <div className="mb-5 max-w-2xl"><JournalPhotoStack images={entry.images} /></div>}
+              <div className="max-w-none">
+                <p className="whitespace-pre-wrap break-words text-lg leading-[1.7] text-foreground [font-family:var(--font-echo-display)]">
                   {entry.body}
                 </p>
               </div>
 
-              {/* Emotions & Tags inside the main card for context */}
-              <div className="mt-12 flex flex-wrap gap-2 border-t border-border pt-8">
+              <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
                 {entry.emotions.map((emotion) => (
                   <span key={emotion} className="rounded-lg bg-secondary px-3 py-1.5 text-[11px] font-bold text-primary">
                     {emotion}
@@ -110,27 +106,26 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
           <JournalAnalysisPanel analysis={analysis} />
         </div>
 
-        {/* RIGHT COLUMN: Metadata & Signal */}
-        <aside className="space-y-6 lg:col-span-4">
+        <aside className="echo-panel-scroll min-w-0 space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1" aria-label="Reflection analysis" tabIndex={0}>
           {analysis?.result ? <>
-          <EchoCard className="sticky top-6 border-border bg-secondary/50">
-            <h2 className="mb-6 text-sm font-bold uppercase tracking-widest text-muted-foreground">Distress Signal</h2>
+          <EchoCard className="border-border bg-secondary/50">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted-foreground">Distress Signal</h2>
             
             <div className="flex flex-col items-center text-center">
               <div
-                className="relative grid h-40 w-40 place-items-center rounded-full shadow-inner shadow-black/5"
+                className="relative grid h-28 w-28 place-items-center rounded-full shadow-inner shadow-black/5"
                 style={{
                   background: "hsl(var(--secondary))",
                 }}
               >
                 {/* Inner White Circle */}
-                <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-card shadow-2xl">
-                  <span className="text-2xl font-semibold capitalize text-foreground leading-none">{analysis.result.distressBand}</span>
+                <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-card shadow-lg">
+                  <span className="text-xl font-semibold capitalize text-foreground leading-none">{analysis.result.distressBand}</span>
                   <span className="mt-2 text-[10px] text-muted-foreground">AI distress estimate</span>
                 </div>
               </div>
 
-              <div className="mt-8 space-y-3 px-4">
+              <div className="mt-4 space-y-2 px-2">
                 <EchoBadge variant={entry.riskBand === "high" || entry.riskBand === "severe" ? "danger" : entry.riskBand === "moderate" ? "warning" : "success"} className="px-4 py-1">
                   Band: {analysis.result.distressBand}{analysis.isDemoData ? " (simulated)" : ""}
                 </EchoBadge>
@@ -157,8 +152,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         isDeleting={isDeleting}
         entryTitle={entry.title}
         onDelete={async () => {
-          await deleteEntry();
-          if (!isDeleting) router.push("/journal");
+          if (await deleteEntry()) router.push("/journal");
         }}
         onClose={() => setShowDeleteDialog(false)}
       />

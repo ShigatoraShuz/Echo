@@ -116,6 +116,7 @@ export function useJournalDetailViewModel(id: string) {
     } else {
       dispatch({ type: "DELETE_ERROR", error: result.error.message });
     }
+    return result.success;
   }, [id, service]);
 
   const exportEntry = useCallback(async () => {

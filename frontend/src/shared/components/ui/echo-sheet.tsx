@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { shouldReduceMotion } from "@/shared/hooks/use-prefers-reduced-motion";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 
 interface EchoSheetProps {
   open: boolean;
@@ -15,8 +18,11 @@ interface EchoSheetProps {
 }
 
 export function EchoSheet({ open, onClose, title, description, children, side = "right", className }: EchoSheetProps) {
+  const [present, setPresent] = useState(open);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useFocusTrap(open);
+  const titleId = useId();
+  const descriptionId = useId();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -27,45 +33,62 @@ export function EchoSheet({ open, onClose, title, description, children, side = 
 
   useEffect(() => {
     if (open) {
-      document.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
-      panelRef.current?.focus();
+      setPresent(true);
+      return;
     }
+    if (!present) return;
+    const timeout = window.setTimeout(() => setPresent(false), shouldReduceMotion() ? 0 : 180);
+    return () => window.clearTimeout(timeout);
+  }, [open, present]);
+
+  useEffect(() => {
+    if (!present) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [present]);
+
+  useEffect(() => {
+    if (!open || !present) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    document.addEventListener("keydown", handleKeyDown);
+    panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      previousFocus?.focus();
     };
-  }, [open, handleKeyDown]);
+  }, [open, present, handleKeyDown, panelRef]);
 
-  if (!open) return null;
+  if (!present) return null;
 
-  const sideStyles = side === "left"
-    ? "left-0 motion-slide-from-left"
-    : "right-0 motion-slide-from-right";
-
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm motion-fade-in"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      data-state={open ? "open" : "closing"}
+      data-side={side}
+      aria-hidden={!open}
+      inert={!open}
+      className="echo-sheet-overlay fixed inset-0 z-[400] bg-black/50"
+      onClick={(event) => { if (open && event.target === overlayRef.current) onClose(); }}
     >
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="sheet-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "fixed top-0 bottom-0 flex w-full max-w-md flex-col bg-card shadow-dialog outline-none motion-duration-300",
-          sideStyles,
+          "echo-sheet-panel fixed top-0 bottom-0 flex w-full max-w-md flex-col bg-card shadow-dialog outline-none",
+          side === "left" ? "left-0" : "right-0",
           className
         )}
       >
         <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
           <div className="space-y-0.5 min-w-0">
-            <h2 id="sheet-title" className="text-lg font-semibold text-foreground">{title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
             {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
+              <p id={descriptionId} className="text-sm text-muted-foreground">{description}</p>
             )}
           </div>
           <button
@@ -79,6 +102,7 @@ export function EchoSheet({ open, onClose, title, description, children, side = 
         </div>
         <div data-lenis-prevent className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

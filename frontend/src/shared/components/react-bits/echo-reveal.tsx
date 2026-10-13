@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/shared/lib/utils";
+import { shouldReduceMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 
 interface EchoRevealProps {
   children: React.ReactNode;
@@ -28,7 +29,7 @@ export function EchoReveal({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (shouldReduceMotion()) return;
     if (typeof IntersectionObserver === "undefined") {
       return;
     }

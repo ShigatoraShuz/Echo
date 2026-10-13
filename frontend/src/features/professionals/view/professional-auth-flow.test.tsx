@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   pathname: "/professional",
   getCurrentSession: vi.fn(),
   caseDetail: vi.fn(),
+  caseMessages: vi.fn(),
+  markCaseMessagesRead: vi.fn(),
   close: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
@@ -24,7 +26,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => mocks.pathname,
 }));
 vi.mock("@/services/professionals/professional-api", () => ({
-  professionalApi: { memberships: mocks.memberships, caseDetail: mocks.caseDetail, close: mocks.close },
+  professionalApi: {
+    memberships: mocks.memberships,
+    caseDetail: mocks.caseDetail,
+    caseMessages: mocks.caseMessages,
+    markCaseMessagesRead: mocks.markCaseMessagesRead,
+    close: mocks.close,
+  },
 }));
 vi.mock("@/services/authentication/reviewer-mfa", () => ({
   prepareReviewerMfa: mocks.prepareMfa,
@@ -53,6 +61,8 @@ beforeEach(() => {
   mocks.searchParams = new URLSearchParams();
   mocks.pathname = "/professional";
   mocks.getCurrentSession.mockResolvedValue({ success: true, data: null });
+  mocks.caseMessages.mockResolvedValue({ messages: [], nextCursor: null });
+  mocks.markCaseMessagesRead.mockResolvedValue({ read: true });
 });
 
 describe("professional auth flow", () => {
@@ -117,7 +127,7 @@ describe("professional auth flow", () => {
   it("removes displayed case data when an action loses authorization", async () => {
     mocks.caseDetail.mockResolvedValue({
       request: { id: "case1", status: "assigned", sharingActive: false, preferredTime: "", summary: null },
-      sharedJournals: [], appointments: [], referrals: [], notes: [], viewer: "professional",
+      sharedJournals: [], sharedPhq8: [], appointments: [], appointmentChangeRequests: [], referrals: [], notes: [], viewer: "professional",
     });
     mocks.close.mockRejectedValue(new AppError({
       code: "AUTHORIZATION_ERROR", userMessage: "Access revoked", statusCode: 403,

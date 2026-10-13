@@ -57,7 +57,7 @@ const selfHelpLinks = [
     icon: MessageCircleHeart,
   },
   {
-    href: "/professional/request",
+    href: "/professional-support/requests/new",
     title: "Professional support",
     description: "Send a private support request.",
     icon: HandHeart,

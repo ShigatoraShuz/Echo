@@ -23,6 +23,8 @@ function notificationHref(item: NotificationItem): string | null {
       return "/settings/export";
     case "trusted_contact":
       return "/settings/trusted-contacts";
+    case "professional_case":
+      return item.resourceId ? `/professional-support/requests/${encodeURIComponent(item.resourceId)}` : "/professional-support";
     default:
       return null;
   }

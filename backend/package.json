@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
-    "start": "node --env-file=.env dist/server.js",
+    "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -13,7 +13,9 @@
     "admin:verification": "node --env-file=.env scripts/verification-admin.mjs",
     "admin:super": "node --env-file=.env scripts/verification-admin.mjs",
     "backfill:journal-ciphertext": "tsx --env-file=.env scripts/journal-ciphertext-backfill.mts",
-    "retention:analysis": "tsx --env-file=.env scripts/analysis-retention.mts"
+    "backfill:buddy-history": "tsx --env-file=.env scripts/buddy-history-backfill.mts",
+    "retention:analysis": "tsx --env-file=.env scripts/analysis-retention.mts",
+    "retention:professional": "tsx --env-file=.env scripts/professional-retention.mts"
   },
   "dependencies": {
     "@echo/contracts": "0.1.0",

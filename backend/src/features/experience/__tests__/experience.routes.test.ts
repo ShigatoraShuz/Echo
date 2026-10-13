@@ -11,12 +11,18 @@ function createHarness(verified = true) {
     buddySession: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
     sendBuddyMessage: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
     buddyHistory: vi.fn().mockResolvedValue([]),
+    buddyPrivacy: vi.fn().mockResolvedValue({ buddyHistoryEnabled: true }),
+    createBuddyConversation: vi.fn().mockResolvedValue({ id: "conversation-1" }),
+    renameBuddyConversation: vi.fn().mockResolvedValue({ id: "conversation-1", title: "Updated" }),
+    deleteBuddyConversation: vi.fn().mockResolvedValue({ deleted: true }),
+    pinBuddyConversation: vi.fn().mockResolvedValue({ id: "conversation-1", pinned_at: "2026-10-12T00:00:00Z" }),
     emotionInsights: vi.fn().mockResolvedValue({ emotionWheel: [], moodTrend: [], summary: "No entries." }),
     completeGrounding: vi.fn().mockResolvedValue({
       id: "session-1",
       completedAt: "2026-07-25T00:00:00.000Z",
       completedSessions: 1,
     }),
+    groundingHistory: vi.fn().mockResolvedValue([{ id: "session-1", type: "box-breathing", duration: 120, pace: "gentle", completedAt: "2026-07-25T00:00:00.000Z" }]),
     supportResources: vi.fn().mockResolvedValue([{ id: "resource-1", name: "Verified support" }]),
   };
   const verifier = {
@@ -78,7 +84,48 @@ describe("experience routes", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ content: "I feel overwhelmed." });
     expect(valid.status).toBe(201);
-    expect(service.sendBuddyMessage).toHaveBeenCalledWith("user-1", "I feel overwhelmed.");
+    expect(service.sendBuddyMessage).toHaveBeenCalledWith("user-1", "I feel overwhelmed.", undefined);
+  });
+
+  it("opens and pins only a validated conversation id through the authenticated route", async () => {
+    const { app, service } = createHarness();
+    const id = "1db44bd7-fd60-468a-abdb-d97972d4650a";
+    const invalid = await request(app).get("/api/v1/buddy/conversations/not-a-uuid").set("Authorization", "Bearer valid-token");
+    expect(invalid.status).toBe(400);
+    const opened = await request(app).get(`/api/v1/buddy/conversations/${id}`).set("Authorization", "Bearer valid-token");
+    expect(opened.status).toBe(200);
+    expect(service.buddySession).toHaveBeenCalledWith("user-1", id);
+    const pinned = await request(app).put(`/api/v1/buddy/conversations/${id}/pin`).set("Authorization", "Bearer valid-token").send({ pinned: true });
+    expect(pinned.status).toBe(200);
+    expect(service.pinBuddyConversation).toHaveBeenCalledWith("user-1", id, true);
+  });
+
+  it("creates, renames, and deletes only through authenticated Buddy routes", async () => {
+    const { app, service } = createHarness();
+    const id = "1db44bd7-fd60-468a-abdb-d97972d4650a";
+    expect((await request(app).post("/api/v1/buddy/conversations")).status).toBe(401);
+    const created = await request(app).post("/api/v1/buddy/conversations").set("Authorization", "Bearer valid-token").send({});
+    expect(created.status).toBe(201);
+    expect(service.createBuddyConversation).toHaveBeenCalledWith("user-1");
+    const invalid = await request(app).patch(`/api/v1/buddy/conversations/${id}`).set("Authorization", "Bearer valid-token").send({ title: " " });
+    expect(invalid.status).toBe(400);
+    const renamed = await request(app).patch(`/api/v1/buddy/conversations/${id}`).set("Authorization", "Bearer valid-token").send({ title: " Updated " });
+    expect(renamed.status).toBe(200);
+    expect(service.renameBuddyConversation).toHaveBeenCalledWith("user-1", id, "Updated");
+    const deleted = await request(app).delete(`/api/v1/buddy/conversations/${id}`).set("Authorization", "Bearer valid-token");
+    expect(deleted.status).toBe(200);
+    expect(service.deleteBuddyConversation).toHaveBeenCalledWith("user-1", id);
+  });
+
+  it("validates Buddy history pagination before loading owner data", async () => {
+    const { app, service } = createHarness();
+    const invalid = await request(app).get("/api/v1/buddy/history?pageSize=500").set("Authorization", "Bearer valid-token");
+    expect(invalid.status).toBe(400);
+    expect(service.buddyHistory).not.toHaveBeenCalled();
+
+    const valid = await request(app).get("/api/v1/buddy/history?page=2&pageSize=20&query=calm").set("Authorization", "Bearer valid-token");
+    expect(valid.status).toBe(200);
+    expect(service.buddyHistory).toHaveBeenCalledWith("user-1", { page: 2, pageSize: 20, query: "calm" });
   });
 
   it("blocks Buddy until account verification is approved", async () => {
@@ -110,6 +157,15 @@ describe("experience routes", () => {
       durationSeconds: 120,
       pace: "gentle",
     });
+  });
+
+  it("loads grounding history only for the authenticated owner", async () => {
+    const { app, service } = createHarness();
+    expect((await request(app).get("/api/v1/grounding/sessions")).status).toBe(401);
+    const response = await request(app).get("/api/v1/grounding/sessions").set("Authorization", "Bearer valid-token");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+    expect(service.groundingHistory).toHaveBeenCalledWith("user-1");
   });
 
   it("serves emotion insights for authenticated users", async () => {

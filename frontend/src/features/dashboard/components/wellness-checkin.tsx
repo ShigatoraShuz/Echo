@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HeartHandshake, Leaf, Sparkles } from "lucide-react";
+import { createPortal } from "react-dom";
+import { HeartHandshake, Leaf, Sparkles, X } from "lucide-react";
 
 import { scorePhq8, type Phq8Assessment, type WellnessStatus } from "@echo/contracts";
 import { experienceApi } from "@/services/experience/experience-api";
@@ -69,11 +70,16 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
 
   const submissionId = useRef<string | null>(null);
+  const dockTrigger = useRef<HTMLButtonElement>(null);
 
   const initialized = useRef(false);
   const urgent = useRef(false);
+
+  useEffect(() => setMounted(true), []);
 
   const refresh = useCallback(async () => {
     if (preview) return previewStatus;
@@ -113,7 +119,6 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
         }
 
         if (next.assessment.due) {
-          setPrompt("phq8");
           return;
         }
 
@@ -240,6 +245,11 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
     setPrompt(null);
   };
 
+  const closeDock = () => {
+    dockTrigger.current?.focus();
+    setDockOpen(false);
+  };
+
   if (!status) {
     return error ? (
       <p role="status" className="rounded-2xl border border-border bg-card p-4 text-sm">
@@ -260,86 +270,120 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
 
   return (
     <>
-      <section className="rounded-3xl border border-primary/15 bg-card px-4 py-3 sm:px-5" aria-label="Your check-in">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <Leaf className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+      {status.urgentJournalId ? (
+        <section className="rounded-2xl border border-primary/25 bg-secondary p-4" role="status">
+          <p className="font-semibold">Support is available right now.</p>
 
-            <div>
-              <h2 className="text-sm font-semibold">A moment for you</h2>
+          <p className="mt-1 text-sm">
+            A safety signal paused your journal analysis. This is not a diagnosis. If you feel unsafe, reach someone
+            who can stay with you.
+          </p>
 
-              <p className="text-xs text-[var(--landing-muted)]">
-                {status.assessment.due
-                  ? "Your PHQ-8 check-in is ready when you are."
-                  : `Next check-in: ${new Date(status.assessment.dueAt!).toLocaleDateString()}`}
-              </p>
-            </div>
-          </div>
+          <Link className="mt-3 inline-flex font-semibold underline" href="/crisis">
+            Open crisis support
+          </Link>
+        </section>
+      ) : null}
 
-          {status.assessment.due ? (
-            <button className="echo-button-primary rounded-full" onClick={() => setPrompt("phq8")}>
-              Take the check-in
-            </button>
-          ) : null}
-        </div>
-
-        {status.urgentJournalId ? (
-          <div className="mt-4 rounded-2xl border border-primary/25 bg-secondary p-4" role="status">
-            <p className="font-semibold">Support is available right now.</p>
-
-            <p className="mt-1 text-sm">
-              A safety signal paused your journal analysis. This is not a diagnosis. If you feel unsafe, reach someone
-              who can stay with you.
-            </p>
-
-            <Link className="mt-3 inline-flex font-semibold underline" href="/crisis">
-              Open crisis support
-            </Link>
-          </div>
-        ) : null}
-
-        {status.support.eligible ? (
+      {mounted && !status.urgentJournalId ? createPortal(
+        <aside
+          className="echo-checkin-dock fixed right-0 top-28 z-[250] flex max-h-[calc(100dvh-8rem)] w-[min(22rem,calc(100vw-0.75rem))] rounded-l-2xl border border-primary/15 bg-card shadow-xl transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:top-1/3 sm:max-h-[calc(66dvh-1rem)]"
+          style={{ transform: dockOpen ? "translateX(0)" : "translateX(calc(100% - 3rem))" }}
+          aria-label="Your check-in"
+          onMouseEnter={() => setDockOpen(true)}
+          onMouseLeave={(event) => {
+            if (!event.currentTarget.contains(document.activeElement)) setDockOpen(false);
+          }}
+          onFocusCapture={() => setDockOpen(true)}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setDockOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeDock();
+          }}
+        >
           <button
-            className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-primary underline"
-            onClick={async () => {
-              try {
-                const result = await experienceApi.claimSupportPrompt();
-
-                if (result.show) {
-                  setPrompt("support");
-                }
-              } catch {
-                setError("Please try again. Find Help remains available.");
-              }
-            }}
+            ref={dockTrigger}
+            type="button"
+            className="flex w-12 shrink-0 flex-col items-center justify-center gap-2 rounded-l-2xl bg-primary py-4 text-xs font-semibold text-primary-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/40"
+            aria-label="Open check-in panel"
+            aria-controls="echo-checkin-panel"
+            aria-expanded={dockOpen}
+            onClick={() => setDockOpen(true)}
           >
-            <HeartHandshake className="h-4 w-4" aria-hidden="true" />
-            Explore support for recent patterns
+            <Leaf className="h-5 w-5" aria-hidden="true" />
+            <span className="[writing-mode:vertical-rl]">Check-in</span>
           </button>
-        ) : null}
 
-        {status.assessment.history.length > 0 ? (
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer text-muted-foreground">Your screening history</summary>
+          <div id="echo-checkin-panel" className="min-w-0 flex-1 overflow-y-auto p-4" inert={!dockOpen} aria-hidden={!dockOpen}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold">A moment for you</h2>
+                <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                  {status.assessment.due
+                    ? "Your PHQ-8 check-in is ready when you are."
+                    : `Next check-in: ${new Date(status.assessment.dueAt!).toLocaleDateString()}`}
+                </p>
+              </div>
+              <button type="button" className="rounded-full p-1 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" aria-label="Close check-in panel" onClick={closeDock}>
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
 
-            <ol className="mt-2 space-y-2">
-              {status.assessment.history.map((item) => (
-                <li key={item.id} className="flex flex-wrap justify-between gap-2 border-t border-border pt-2">
-                  <time>{new Date(item.completedAt).toLocaleDateString()}</time>
+            {status.assessment.due ? (
+              <button className="echo-button-primary mt-4 rounded-full" onClick={() => { closeDock(); setPrompt("phq8"); }}>
+                Take the check-in
+              </button>
+            ) : null}
 
-                  <span>
-                    {item.score}/24 · {item.severity.replaceAll("_", " ")}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            {status.support.eligible ? (
+              <button
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary underline"
+                onClick={async () => {
+                  try {
+                    const result = await experienceApi.claimSupportPrompt();
 
-            <p className="mt-2 text-xs text-muted-foreground">
-              Self-reported screening results, separate from AI journal estimates. Not a diagnosis.
-            </p>
-          </details>
-        ) : null}
-      </section>
+                    if (result.show) {
+                      closeDock();
+                      setPrompt("support");
+                    }
+                  } catch {
+                    setError("Please try again. Find Help remains available.");
+                  }
+                }}
+              >
+                <HeartHandshake className="h-4 w-4" aria-hidden="true" />
+                Explore support for recent patterns
+              </button>
+            ) : null}
+
+            {error ? <p className="mt-3 text-xs text-destructive" role="alert">{error}</p> : null}
+
+            {status.assessment.history.length > 0 ? (
+              <details className="mt-4 text-sm">
+                <summary className="cursor-pointer text-muted-foreground">Your screening history</summary>
+
+                <ol className="mt-2 space-y-2">
+                  {status.assessment.history.map((item) => (
+                    <li key={item.id} className="flex flex-wrap justify-between gap-2 border-t border-border pt-2">
+                      <time>{new Date(item.completedAt).toLocaleDateString()}</time>
+
+                      <span>
+                        {item.score}/24 · {item.severity.replaceAll("_", " ")}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Self-reported screening results, separate from AI journal estimates. Not a diagnosis.
+                </p>
+              </details>
+            ) : null}
+          </div>
+        </aside>,
+        document.body,
+      ) : null}
 
       <EchoDialog
         open={prompt === "phq8"}

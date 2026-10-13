@@ -8,7 +8,7 @@ import { PageHeader } from "@/shared/components/layout/page-header";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { professionalApi, type Membership, type QueueRequest } from "@/services/professionals/professional-api";
+import { professionalApi, type Membership, type PractitionerProfile, type QueueRequest } from "@/services/professionals/professional-api";
 import { ProfessionalShell, ProfessionalSkeleton, RequestStatus } from "../components/professional-shell";
 
 const date = (value: string) =>
@@ -24,6 +24,8 @@ export function ProfessionalDashboard() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState("");
+  const [practitioners, setPractitioners] = useState<PractitionerProfile[]>([]);
+  const [assignee, setAssignee] = useState<Record<string, string>>({});
   const queueRequest = useRef(0);
 
   useEffect(() => {
@@ -71,11 +73,20 @@ export function ProfessionalDashboard() {
       queueRequest.current += 1;
     };
   }, [refresh]);
+  useEffect(() => {
+    if (!organizationId) return;
+    let active = true;
+    void professionalApi.directory({ organizationId, limit: 30 }).then((result) => {
+      if (active) setPractitioners(result.practitioners);
+    }).catch(() => { if (active) setPractitioners([]); });
+    return () => { active = false; };
+  }, [organizationId]);
   const activeMembership = memberships?.find((item) => item.organizationId === organizationId);
   const canClaim =
     activeMembership?.role === "counselor" ||
     activeMembership?.role === "psychologist" ||
     activeMembership?.role === "social_worker";
+  const canAssign = activeMembership?.role === "coordinator" || activeMembership?.role === "org_admin";
   const visible = useMemo(
     () => (requests ?? []).filter((item) => filter === "all" || item.status === filter),
     [requests, filter],
@@ -96,6 +107,14 @@ export function ProfessionalDashboard() {
     } finally {
       setBusyId("");
     }
+  }
+  async function assign(id: string) {
+    const profileId = assignee[id];
+    if (!profileId) return;
+    setBusyId(id); setError("");
+    try { await professionalApi.assign(id, profileId); await refresh(); }
+    catch (reason) { setError(normalizeError(reason).userMessage); }
+    finally { setBusyId(""); }
   }
 
   return (
@@ -122,7 +141,7 @@ export function ProfessionalDashboard() {
             An ECHO administrator must approve your organization and professional role after checking your credentials.
             An ordinary verified account does not grant case access.
           </p>
-          <Link href="/professional/request" className="mt-5 inline-flex text-sm font-semibold text-primary underline">
+          <Link href="/professional-support" className="mt-5 inline-flex text-sm font-semibold text-primary underline">
             Looking for support as an ECHO user?
           </Link>
         </section>
@@ -204,6 +223,11 @@ export function ProfessionalDashboard() {
                       >
                         Accept request
                       </EchoButton>
+                    ) : item.status === "submitted" && canAssign ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label><span className="sr-only">Choose practitioner for request {item.id.slice(0, 8)}</span><select className="min-h-10 rounded-xl border border-border bg-background px-3 text-xs" value={assignee[item.id] ?? ""} onChange={(event) => setAssignee((current) => ({ ...current, [item.id]: event.target.value }))}><option value="">Choose practitioner</option>{practitioners.map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select></label>
+                        <EchoButton size="small" disabled={!assignee[item.id]} isLoading={busyId === item.id} onClick={() => void assign(item.id)}>Assign</EchoButton>
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">Assigned elsewhere</span>
                     )}

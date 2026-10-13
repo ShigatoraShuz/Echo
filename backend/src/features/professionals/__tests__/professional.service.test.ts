@@ -79,11 +79,23 @@ describe("professional membership access status", () => {
   it("reports active, expired, suspended, and pending access without granting a role to sign-in alone", async () => {
     const rows = [
       { id: "m1", organization_id: ORG, role: "counselor", status: "active", credential_expires_at: "2099-12-31" },
-      { id: "m2", organization_id: "expired", role: "psychologist", status: "active", credential_expires_at: "2020-01-01" },
+      {
+        id: "m2",
+        organization_id: "expired",
+        role: "psychologist",
+        status: "active",
+        credential_expires_at: "2020-01-01",
+      },
       { id: "m3", organization_id: "suspended", role: "coordinator", status: "active", credential_expires_at: null },
       { id: "m4", organization_id: "pending", role: "org_admin", status: "pending", credential_expires_at: null },
       { id: "m5", organization_id: "org-pending", role: "coordinator", status: "active", credential_expires_at: null },
-      { id: "m6", organization_id: "member-suspended", role: "coordinator", status: "suspended", credential_expires_at: null },
+      {
+        id: "m6",
+        organization_id: "member-suspended",
+        role: "coordinator",
+        status: "suspended",
+        credential_expires_at: null,
+      },
     ];
     const organizations = [
       { id: ORG, status: "active" },
@@ -107,8 +119,83 @@ describe("professional membership access status", () => {
     const service = new ProfessionalService(database, encryption, {} as JournalService);
     const result = await service.memberships(USER);
     expect(result.memberships.map((item) => item.accessState)).toEqual([
-      "active", "credential_expired", "suspended_organization", "pending_membership",
-      "pending_organization", "suspended_membership",
+      "active",
+      "credential_expired",
+      "suspended_organization",
+      "pending_membership",
+      "pending_organization",
+      "suspended_membership",
     ]);
+  });
+});
+
+describe("user support overview", () => {
+  it("returns only recent messages from the user's active case", async () => {
+    const createdAt = "2026-10-12T01:00:00.000Z";
+    const gte = vi.fn();
+    const from = vi.fn((table: string) => {
+      let columns = "";
+      const query = {
+        select: (value: string) => {
+          columns = value;
+          return query;
+        },
+        in: () => query,
+        eq: () => query,
+        neq: () => query,
+        gte: (field: string, value: string) => {
+          gte(field, value);
+          return query;
+        },
+        order: () => query,
+        limit: async () => ({
+          data:
+            table === "case_messages" && columns.includes("body_encrypted")
+              ? [
+                  {
+                    id: "m1",
+                    request_id: REQUEST,
+                    sender_kind: "professional",
+                    body_encrypted: encryptText("Your appointment is ready", encryption),
+                    created_at: createdAt,
+                  },
+                ]
+              : [],
+          error: null,
+        }),
+        then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+          resolve({
+            data:
+              table === "case_messages" ? [{ request_id: REQUEST, sender_user_id: OTHER, created_at: createdAt }] : [],
+            error: null,
+          }),
+      };
+      return query;
+    });
+    const database = { schema: () => ({ from }) } as unknown as SupabaseClient;
+    const service = new ProfessionalService(database, encryption, {} as JournalService);
+    vi.spyOn(service, "listOwnRequests").mockResolvedValue({
+      requests: [
+        {
+          id: REQUEST,
+          organizationId: ORG,
+          assignedTo: null,
+          status: "submitted",
+          createdAt,
+          updatedAt: createdAt,
+          sharingActive: true,
+          sharedJournalCount: 0,
+          sharedPhq8Count: 0,
+        },
+      ],
+    } as never);
+    vi.spyOn(service, "listOrganizations").mockResolvedValue({ organizations: [] });
+    vi.spyOn(service, "directory").mockResolvedValue({ practitioners: [], nextCursor: null });
+    const overview = await service.hub(USER);
+    expect(overview.recentMessages).toEqual([
+      { id: "m1", requestId: REQUEST, sender: "professional", body: "Your appointment is ready", createdAt },
+    ]);
+    expect(overview.unreadCount).toBe(1);
+    expect(gte).toHaveBeenCalledWith("starts_at", expect.any(String));
   });
 });

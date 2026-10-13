@@ -36,8 +36,8 @@ function validateAdapter(value: string | undefined): DataAdapter {
 }
 
 export const env: EnvironmentConfig = {
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4200/api/v1",
-  dataAdapter: validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
+  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || (process.env.NODE_ENV !== "production" ? "http://localhost:4200/api/v1" : ""),
+  dataAdapter: process.env.NODE_ENV === "production" ? "http" : validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
   enableAnalysisPreview: process.env.NODE_ENV === "development",
   enableBuddy: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_BUDDY),
   enableFacialAnalysis:

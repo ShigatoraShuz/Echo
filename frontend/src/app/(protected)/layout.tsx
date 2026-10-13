@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createServerSupabaseClient } from "@/infrastructure/supabase/server-client";
+import { AnalysisStatusExperience } from "@/features/journal/components/analysis-status-experience";
+import { AnalysisCompletionToast } from "@/features/journal/components/analysis-completion-toast";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +15,15 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   }
 
   const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?error=login_required");
+  const { data, error } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (error || !claims?.sub) redirect("/login?error=login_required");
 
   return (
-    <PrivateSessionBoundary key={user.id} userId={user.id}>
+    <PrivateSessionBoundary key={claims.sub} userId={claims.sub}>
       {children}
+      <AnalysisStatusExperience />
+      <AnalysisCompletionToast />
     </PrivateSessionBoundary>
   );
 }

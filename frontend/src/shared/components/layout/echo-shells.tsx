@@ -4,9 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { motion } from "framer-motion";
 import {
   BarChart3,
   BookOpen,
+  CalendarDays,
   Bot,
   HeartHandshake,
   Home,
@@ -16,6 +18,7 @@ import {
   ShieldAlert,
   Wind,
   ShieldCheck,
+  Stethoscope,
   Menu,
   X,
 } from "lucide-react";
@@ -24,18 +27,21 @@ import { AppTopbar } from "@/shared/components/navigation/app-topbar";
 import { EchoMarketingHeader } from "@/shared/components/navigation/echo-marketing-header";
 import { EchoMarketingFooter } from "@/shared/components/navigation/echo-marketing-footer";
 import { RadialBackground } from "@/shared/components/ui/light-theme-tailwind-css-background-snippet";
-import { ReflectionCalendarModal } from "@/features/journal/components/reflection-calendar-modal";
 import authMountainLandscape from "../../../../assets/65d9d1e4-d8ca-4f30-9136-adc6924b5d82.png";
 
-const appLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/journal", label: "Journal", icon: BookOpen },
-  { href: "/buddy", label: "Buddy", icon: Bot },
-  { href: "/insights/emotion", label: "Insights", icon: BarChart3 },
-  { href: "/tools/grounding", label: "Grounding", icon: Wind },
-  { href: "/support/find-help", label: "Find help", icon: HeartHandshake },
-  { href: "/settings/profile", label: "Settings", icon: Settings },
-];
+const navigationIcons = {
+  home: Home,
+  bookOpen: BookOpen,
+  calendarDays: CalendarDays,
+  bot: Bot,
+  barChart3: BarChart3,
+  wind: Wind,
+  stethoscope: Stethoscope,
+  heartHandshake: HeartHandshake,
+  settings: Settings,
+} as const;
+
+const appLinks = appNavigation.map((item) => ({ ...item, icon: navigationIcons[item.iconKey as keyof typeof navigationIcons] }));
 
 // --- RESPONSIVE SIDEBAR ---
 export function AppSidebar({
@@ -64,7 +70,11 @@ export function AppSidebar({
       <aside
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
-        className={`fixed left-0 top-0 z-[300] flex h-screen flex-col border-r border-white/10 bg-[#0d211a] text-white transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-[25px_0_60px_rgba(0,0,0,0.25)] 
+        onFocusCapture={() => onHover(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) onHover(false);
+        }}
+        className={`fixed left-0 top-0 z-[300] flex h-screen flex-col border-r border-white/10 bg-[#0d211a] text-white shadow-[25px_0_60px_rgba(0,0,0,0.25)] transition-[width,transform,border-radius] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)]
         /* Mobile logic */
         ${isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full lg:translate-x-0"} 
         /* Desktop logic */
@@ -77,7 +87,7 @@ export function AppSidebar({
               <Leaf className="h-5 w-5 lg:h-6 lg:w-6" strokeWidth={2.5} />
             </div>
             <span
-              className={`text-xl lg:text-2xl font-black tracking-tighter transition-all duration-300 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0 invisible"}`}
+              className={`text-xl lg:text-2xl font-black tracking-tighter transition-opacity duration-150 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0"}`}
             >
               ECHO
             </span>
@@ -92,30 +102,25 @@ export function AppSidebar({
         <nav className="flex-1 space-y-2 px-3 lg:px-4 py-6 lg:py-8 overflow-y-auto overflow-x-hidden scrollbar-none">
           {appLinks.map((item) => {
             const Icon = item.icon;
-            const itemId = item.label.toLowerCase().replace(/\s+/g, "-");
-            const isActive = (preview && item.href === "/dashboard") || activeId === itemId || activeId === item.href.split("/").filter(Boolean)[0];
+            const isActive = (preview && item.href === "/dashboard") || activeId === item.id;
             return (
               <Link
                 key={item.href}
                 href={preview && item.href === "/dashboard" ? "/dashboard-preview" : item.href}
                 onClick={onCloseMobile}
-                className={`group relative flex h-12 items-center rounded-2xl px-4 transition-all ${isActive ? "bg-[#8fc89a] text-[#0d211a]" : "text-white/40 hover:bg-white/5"}`}
+                aria-current={isActive ? "page" : undefined}
+                className={`group relative flex h-12 items-center rounded-2xl px-4 transition-[background-color,color,box-shadow] duration-200 ease-out ${isActive ? "bg-[#8fc89a] text-[#0d211a] shadow-[0_8px_22px_rgba(143,200,154,0.16)]" : "text-white/65 hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white"}`}
               >
-                {isActive && <div className="absolute left-0 h-6 w-1 rounded-r-full bg-white lg:block hidden" />}
-                <Icon className="h-5 w-5 shrink-0" />
+                {isActive && <motion.div layoutId="echo-sidebar-active-indicator" className="absolute left-0 hidden h-6 w-1 rounded-r-full bg-white lg:block" transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} />}
+                <Icon className="h-5 w-5 shrink-0 transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5" />
                 <span
-                  className={`ml-4 text-sm font-bold transition-all duration-300 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0 invisible"}`}
+                  className={`ml-4 text-sm font-bold transition-[opacity] duration-150 ease-out ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0"}`}
                 >
                   {item.label}
                 </span>
               </Link>
             );
           })}
-          {!preview && (
-            <div className="pt-6">
-              <ReflectionCalendarModal collapsed={!isExpanded && !isMobileOpen} />
-            </div>
-          )}
         </nav>
 
         <div className="shrink-0 px-4 pb-8 lg:pb-12 space-y-4">
@@ -125,7 +130,7 @@ export function AppSidebar({
           >
             <ShieldAlert className="h-5 w-5 shrink-0" />
             <span
-              className={`ml-4 text-[11px] font-black uppercase tracking-widest transition-all ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0 invisible"}`}
+                className={`ml-4 text-[11px] font-black uppercase tracking-widest transition-opacity duration-150 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0"}`}
             >
               Crisis Support
             </span>
@@ -138,7 +143,7 @@ export function AppSidebar({
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div
-              className={`flex flex-col transition-all duration-300 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0 invisible"}`}
+              className={`flex flex-col transition-opacity duration-150 ${isExpanded || isMobileOpen ? "opacity-100" : "opacity-0"}`}
             >
               <span className="text-[10px] font-black text-white uppercase">Private</span>
               <span className="text-[9px] font-medium text-[#8fc89a]/80">Encrypted</span>
@@ -154,21 +159,25 @@ export function AppSidebar({
 export function AppShell({
   children,
   preview = false,
+  staticAccountControls = false,
   containedViewport = false,
   publicAccess = false,
 }: {
   children: ReactNode;
   preview?: boolean;
+  staticAccountControls?: boolean;
   containedViewport?: boolean;
   publicAccess?: boolean;
 }) {
+  const pathname = usePathname();
+  const workspaceRoute = !preview && /^\/(journal|buddy|calendar|settings|tools\/grounding|professional-support)(\/|$)/.test(pathname);
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   return (
     <div
       data-echo-app-shell
-      className={`relative bg-[#fcfaf6] ${containedViewport ? "h-[100dvh] overflow-hidden" : "min-h-screen"}`}
+      className={`relative bg-[#fcfaf6] ${containedViewport ? "h-[100dvh] overflow-hidden" : "min-h-screen"} ${workspaceRoute ? "echo-workspace-shell" : ""}`}
     >
       <div className="fixed inset-0 z-0">
         <RadialBackground />
@@ -188,7 +197,7 @@ export function AppShell({
           - Desktop: pl-24 (Static space for sidebar)
       */}
       <div
-        className={`relative z-10 flex flex-col transition-[padding] duration-500 lg:pl-24 ${
+        className={`echo-workspace-content relative z-10 flex flex-col transition-[padding] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${isHovered ? "lg:pl-72" : "lg:pl-24"} ${
           containedViewport ? "h-full min-h-0" : "min-h-screen"
         }`}
       >
@@ -205,7 +214,7 @@ export function AppShell({
 
         {/* DESKTOP TOP BAR */}
         <div className="sticky top-0 z-[200] hidden shrink-0 bg-[#fcfaf6]/80 backdrop-blur-md lg:block">
-          <AppTopbar preview={preview} publicAccess={publicAccess} />
+          <AppTopbar preview={preview || staticAccountControls} publicAccess={publicAccess} />
         </div>
 
         {preview && (
@@ -216,11 +225,18 @@ export function AppShell({
         )}
 
         <main
-          className={`min-h-0 flex-1 px-4 lg:px-16 ${
-            containedViewport ? "overflow-hidden py-3 lg:py-3" : "py-6 lg:py-8"
+          className={`echo-workspace-main min-h-0 flex-1 px-4 ${workspaceRoute ? "py-3 lg:px-6 lg:py-4" : "lg:px-16"} ${
+            containedViewport
+              ? "overflow-hidden py-3 lg:py-3"
+              : workspaceRoute ? "" : `py-6 ${preview || pathname === "/dashboard" ? "lg:py-5" : "lg:py-8"}`
           }`}
         >
-          <div className={`mx-auto w-full max-w-[1440px] ${containedViewport ? "h-full min-h-0" : ""}`}>
+          <div
+            key={pathname}
+            className={`echo-workspace-page mx-auto w-full ${workspaceRoute ? "max-w-none" : "max-w-[1440px]"} ${containedViewport ? "h-full min-h-0" : ""} ${
+              pathname === "/dashboard" || pathname === "/dashboard-preview" ? "" : "echo-app-page-enter"
+            }`}
+          >
             {children}
           </div>
         </main>

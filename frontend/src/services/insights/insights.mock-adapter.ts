@@ -1,5 +1,4 @@
 import type { InsightsService, InsightsServiceResult } from "@/services/insights/insights.service";
-import type { EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, InsightTimeRange, FacialTrendPoint } from "@/features/insights/model/insights.model";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -11,7 +10,66 @@ function makeError(code: string, message: string): InsightsServiceResult<never> 
 
 export function createInsightsMockAdapter(): InsightsService {
   const service: InsightsService = {
-    async getEmotionSummary(timeRange, signal) {
+    async getAnalysisOverview(timeRange, customRange, signal) {
+      await delay(180);
+      if (signal?.aborted) return makeError("NETWORK", "Request cancelled");
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+        success: true,
+        data: {
+          latestResultId: "00000000-0000-4000-8000-000000000010",
+          latest: {
+            schemaVersion: "echo-journal-analysis-v1",
+            thresholdVersion: "echo-thresholds-v1",
+            providerName: "echo-development-stub",
+            modelVersion: "deterministic-fixtures-v1",
+            isSimulated: true,
+            emotionDistribution: [
+              { emotion: "joy", value: 0.14 },
+              { emotion: "calm", value: 0.38 },
+              { emotion: "sadness", value: 0.08 },
+              { emotion: "anxiety", value: 0.16 },
+              { emotion: "anger", value: 0.05 },
+              { emotion: "hope", value: 0.19 },
+            ],
+            dominantEmotion: "calm",
+            emotionConfidence: 0.86,
+            distressBand: "low",
+            distressConfidence: 0.88,
+            depressiveSymptomRange: { lower: 0, upper: 4 },
+            recommendationFeatures: ["paced_breathing", "grounding"],
+            facialExpressionAnalysis: null,
+          },
+          recommendation: {
+            id: "00000000-0000-4000-8000-000000000011",
+            title: "A slower breath",
+            description: "Let the exhale last a little longer than the inhale.",
+            activity: "paced_breathing",
+          },
+          emotionTrend: [
+            { date: "2026-10-07", values: { joy: 0.12, calm: 0.28, sadness: 0.1, anxiety: 0.22, anger: 0.08, hope: 0.2 }, isSimulated: true },
+            { date: "2026-10-08", values: { joy: 0.14, calm: 0.34, sadness: 0.08, anxiety: 0.18, anger: 0.06, hope: 0.2 }, isSimulated: true },
+            { date: "2026-10-09", values: { joy: 0.16, calm: 0.31, sadness: 0.08, anxiety: 0.17, anger: 0.08, hope: 0.2 }, isSimulated: true },
+            { date: "2026-10-10", values: { joy: 0.12, calm: 0.42, sadness: 0.07, anxiety: 0.12, anger: 0.06, hope: 0.21 }, isSimulated: true },
+          ],
+          distressTrend: [
+            { date: "2026-10-07", band: "mild", value: 0.25, isSimulated: true },
+            { date: "2026-10-08", band: "mild", value: 0.25, isSimulated: true },
+            { date: "2026-10-09", band: "low", value: 0, isSimulated: true },
+            { date: "2026-10-10", band: "low", value: 0, isSimulated: true },
+          ],
+          period: {
+            range: timeRange,
+            from: timeRange === "custom" && customRange ? customRange.from : "2026-09-12",
+            to: timeRange === "custom" && customRange ? customRange.to : today,
+            analyzedReflectionCount: 4,
+          },
+          facialStatus: "captured_pending_provider",
+        },
+      };
+    },
+
+    async getEmotionSummary(_timeRange, signal) {
       await delay(200 + Math.random() * 200);
       if (signal?.aborted) return makeError("NETWORK", "Request cancelled");
       return {
@@ -41,12 +99,12 @@ export function createInsightsMockAdapter(): InsightsService {
         },
       };
     },
-    async getMoodTrend(timeRange, signal) {
+    async getMoodTrend(_timeRange, signal) {
       await delay(150);
       if (signal?.aborted) return makeError("NETWORK", "Request cancelled");
       return { success: true, data: { points: [] } };
     },
-    async getJournalBreakdown(timeRange, signal) {
+    async getJournalBreakdown() {
       await delay(100);
       return {
         success: true,
@@ -57,7 +115,7 @@ export function createInsightsMockAdapter(): InsightsService {
         ],
       };
     },
-    async getRiskSignal(signal) {
+    async getRiskSignal() {
       await delay(150);
       return {
         success: true,

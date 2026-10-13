@@ -166,12 +166,6 @@ export function createJournalMockAdapter(): JournalService {
         case "oldest":
           filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
           break;
-        case "highest-risk":
-          filtered.sort((a, b) => b.riskScore - a.riskScore);
-          break;
-        case "lowest-risk":
-          filtered.sort((a, b) => a.riskScore - b.riskScore);
-          break;
       }
 
       const totalItems = filtered.length;

@@ -1,23 +1,25 @@
 "use client";
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { MotionConfig } from "framer-motion";
 import {
   defaultEchoTheme,
   ECHO_THEME_STORAGE_KEY,
   type EchoThemeMode,
+  type EchoMotionMode,
   type EchoThemePreferences,
   type EchoThemeVariant,
   isEchoThemeMode,
+  isEchoMotionMode,
   isEchoThemeVariant,
   normalizeThemePreferences,
 } from "./theme";
-import { AnalysisStatusExperience } from "@/features/journal/components/analysis-status-experience";
-import { AnalysisCompletionToast } from "@/features/journal/components/analysis-completion-toast";
 
 type ThemeContextValue = EchoThemePreferences & {
   resolvedMode: "light" | "dark";
   setVariant: (variant: EchoThemeVariant) => void;
   setMode: (mode: EchoThemeMode) => void;
+  setMotion: (motion: EchoMotionMode) => void;
   setTheme: (preferences: Partial<EchoThemePreferences>) => void;
 };
 
@@ -51,7 +53,9 @@ function applyPreferences(preferences: EchoThemePreferences, resolvedMode: "ligh
   const isDarkPresentation = resolvedMode === "dark" || preferences.variant === "echo-night";
   root.dataset.echoTheme = preferences.variant;
   root.dataset.echoMode = preferences.mode;
+  root.dataset.echoMotion = preferences.motion;
   root.classList.toggle("dark", isDarkPresentation);
+  window.dispatchEvent(new Event("echo:motion-preference-changed"));
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -120,22 +124,30 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [setTheme],
   );
 
+  const setMotion = useCallback(
+    (motion: EchoMotionMode) => {
+      if (isEchoMotionMode(motion)) setTheme({ motion });
+    },
+    [setTheme],
+  );
+
   const value = useMemo<ThemeContextValue>(
     () => ({
       ...preferences,
       resolvedMode: preferences.variant === "echo-night" ? "dark" : resolvedMode,
       setVariant,
       setMode,
+      setMotion,
       setTheme,
     }),
-    [preferences, resolvedMode, setMode, setTheme, setVariant],
+    [preferences, resolvedMode, setMode, setMotion, setTheme, setVariant],
   );
 
   return (
     <ThemeContext.Provider value={value}>
-      {children}
-      <AnalysisStatusExperience />
-      <AnalysisCompletionToast />
+      <MotionConfig reducedMotion={preferences.motion === "full" ? "never" : "user"}>
+        {children}
+      </MotionConfig>
     </ThemeContext.Provider>
   );
 }

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
   createClient: vi.fn(),
-  getUser: vi.fn(),
+  getClaims: vi.fn(),
 }));
 
 vi.mock("@/infrastructure/supabase/config", () => ({
@@ -24,13 +24,14 @@ function request(path: string) {
 describe("authentication proxy", () => {
   beforeEach(() => {
     mocks.getConfig.mockReturnValue({ url: "https://example.supabase.co", publishableKey: "test-key" });
-    mocks.getUser.mockResolvedValue({ data: { user: null } });
-    mocks.createClient.mockReturnValue({ auth: { getUser: mocks.getUser } });
+    mocks.getClaims.mockResolvedValue({ data: null });
+    mocks.createClient.mockReturnValue({ auth: { getClaims: mocks.getClaims } });
   });
 
   it.each([
     "/dashboard",
     "/journal/entry/new",
+    "/calendar",
     "/buddy",
     "/insights/emotion",
     "/tools/grounding",

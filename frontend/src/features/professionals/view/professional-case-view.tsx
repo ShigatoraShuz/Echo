@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, BookOpen, CalendarDays, FileText, HeartHandshake, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, BookOpen, CalendarDays, FileText, HeartHandshake, MessageCircle, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/shared/components/layout/page-header";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { professionalApi, type CaseDetail } from "@/services/professionals/professional-api";
+import { professionalApi, type CaseDetail, type CaseMessage } from "@/services/professionals/professional-api";
 import { ProfessionalShell, ProfessionalSkeleton, RequestStatus } from "../components/professional-shell";
 
 const format = (value: string) =>
@@ -23,10 +23,18 @@ export function ProfessionalCaseView({ id }: { id: string }) {
   const [end, setEnd] = useState("");
   const [mode, setMode] = useState<"in_person" | "online" | "phone">("in_person");
   const [locationHint, setLocationHint] = useState("");
+  const [messages, setMessages] = useState<CaseMessage[]>([]);
+  const [messageCursor, setMessageCursor] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const messageClientId = useRef<string | null>(null);
   const refresh = useCallback(async () => {
     setDetail(null);
     try {
-      setDetail(await professionalApi.caseDetail(id));
+      const [caseDetail, caseMessages] = await Promise.all([professionalApi.caseDetail(id), professionalApi.caseMessages(id)]);
+      setDetail(caseDetail);
+      setMessages(caseMessages.messages);
+      setMessageCursor(caseMessages.nextCursor);
+      void professionalApi.markCaseMessagesRead(id).catch(() => undefined);
       setError("");
     } catch (reason) {
       setError(normalizeError(reason).userMessage);
@@ -37,7 +45,7 @@ export function ProfessionalCaseView({ id }: { id: string }) {
   }, [refresh]);
 
   async function act(
-    kind: "note" | "referral" | "appointment" | "cancel" | "close",
+    kind: "note" | "referral" | "appointment" | "cancel" | "complete" | "close",
     event?: FormEvent<HTMLFormElement>,
     appointmentId?: string,
   ) {
@@ -68,6 +76,7 @@ export function ProfessionalCaseView({ id }: { id: string }) {
         setLocationHint("");
       }
       if (kind === "cancel" && appointmentId) await professionalApi.cancelAppointment(appointmentId);
+      if (kind === "complete" && appointmentId) await professionalApi.completeAppointment(appointmentId);
       if (kind === "close") await professionalApi.close(id);
       await refresh();
     } catch (reason) {
@@ -81,6 +90,30 @@ export function ProfessionalCaseView({ id }: { id: string }) {
     } finally {
       setBusy("");
     }
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!message.trim()) return;
+    setBusy("message"); setError("");
+    try {
+      messageClientId.current ??= crypto.randomUUID();
+      await professionalApi.sendCaseMessage(id, { clientMessageId: messageClientId.current, body: message.trim() });
+      messageClientId.current = null; setMessage(""); await refresh();
+    }
+    catch (reason) { setError(normalizeError(reason).userMessage); }
+    finally { setBusy(""); }
+  }
+
+  async function loadOlderMessages() {
+    if (!messageCursor) return;
+    setBusy("older-messages"); setError("");
+    try {
+      const result = await professionalApi.caseMessages(id, messageCursor);
+      setMessages((current) => [...result.messages, ...current]);
+      setMessageCursor(result.nextCursor);
+    } catch (reason) { setError(normalizeError(reason).userMessage); }
+    finally { setBusy(""); }
   }
 
   const closed = detail?.request.status === "closed" || detail?.request.status === "declined";
@@ -143,12 +176,30 @@ export function ProfessionalCaseView({ id }: { id: string }) {
                 </div>
               </section>
             ) : null}
+            {detail.request.sharingActive && detail.sharedPhq8.length > 0 ? (
+              <section className="rounded-3xl border border-border/70 bg-card p-5 sm:p-7">
+                <h2 className="text-2xl [font-family:var(--font-echo-display)]">Selected PHQ-8 results</h2>
+                <p className="mt-1 text-xs text-muted-foreground">Minimized, non-diagnostic snapshots. Raw answers are not shared.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">{detail.sharedPhq8.map((item) => <div key={item.id} className="rounded-2xl bg-secondary/45 p-4"><strong className="text-sm">{item.label}</strong><p className="mt-2 text-2xl font-bold text-primary">{item.score}<span className="ml-1 text-xs font-normal text-muted-foreground">/ 24</span></p><p className="mt-1 text-xs capitalize text-muted-foreground">{item.severity.replaceAll("_", " ")} · {item.context}</p></div>)}</div>
+              </section>
+            ) : null}
+            <section className="rounded-3xl border border-border/70 bg-card p-5 sm:p-7">
+              <h2 className="flex items-center gap-2 text-2xl [font-family:var(--font-echo-display)]"><MessageCircle size={19} className="text-primary" /> Case messages</h2>
+              <div className="mt-4 max-h-80 space-y-3 overflow-y-auto rounded-2xl bg-secondary/30 p-3">{messageCursor ? <button type="button" className="mx-auto block text-xs font-bold text-primary underline" disabled={Boolean(busy)} onClick={() => void loadOlderMessages()}>Load older messages</button> : null}{messages.length ? messages.map((item) => <div key={item.id} className={`max-w-[85%] rounded-2xl p-3 text-sm ${item.sender === "professional" ? "ml-auto bg-primary text-primary-foreground" : "bg-card"}`}><p>{item.body}</p><time className="mt-1 block text-[10px] opacity-70">{format(item.createdAt)}</time></div>) : <p className="p-3 text-sm text-muted-foreground">No case messages yet.</p>}</div>
+              {!closed ? <form className="mt-3 flex items-end gap-2" onSubmit={(event) => void sendMessage(event)}><label className="min-w-0 flex-1"><span className="sr-only">Message the user</span><textarea required maxLength={4000} rows={2} className="echo-input resize-none" value={message} onChange={(event) => { messageClientId.current = null; setMessage(event.target.value); }} placeholder="Write a case-linked message" /></label><EchoButton type="submit" size="small" isLoading={busy === "message"}>Send</EchoButton></form> : <p className="mt-3 text-xs text-muted-foreground">Closed cases are read-only.</p>}
+            </section>
             <section className="rounded-3xl border border-border/70 bg-card p-5 sm:p-7">
               <h2 className="flex items-center gap-2 text-2xl [font-family:var(--font-echo-display)]">
                 <CalendarDays size={19} className="text-primary" />
                 Appointments
               </h2>
               <div className="mt-4 space-y-2">
+                {detail.appointmentChangeRequests.filter((item) => item.status === "pending").map((item) => (
+                  <div key={item.id} className="rounded-xl border border-primary/20 bg-secondary/45 p-4 text-sm">
+                    <strong>Change requested</strong>
+                    <p className="mt-1 text-xs text-muted-foreground">Preferred time: {item.preferredTime}</p>
+                  </div>
+                ))}
                 {detail.appointments.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No appointment offered yet.</p>
                 ) : (
@@ -160,15 +211,25 @@ export function ProfessionalCaseView({ id }: { id: string }) {
                         {item.mode.replace("_", " ")} · {item.locationHint || "Details to be arranged"}
                       </p>
                       {!closed && (item.status === "proposed" || item.status === "confirmed") ? (
-                        <EchoButton
-                          size="small"
-                          variant="outline"
-                          className="mt-3"
-                          disabled={Boolean(busy)}
-                          onClick={() => void act("cancel", undefined, item.id)}
-                        >
-                          Cancel appointment
-                        </EchoButton>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.status === "confirmed" ? (
+                            <EchoButton
+                              size="small"
+                              disabled={Boolean(busy)}
+                              onClick={() => void act("complete", undefined, item.id)}
+                            >
+                              Mark complete
+                            </EchoButton>
+                          ) : null}
+                          <EchoButton
+                            size="small"
+                            variant="outline"
+                            disabled={Boolean(busy)}
+                            onClick={() => void act("cancel", undefined, item.id)}
+                          >
+                            Cancel appointment
+                          </EchoButton>
+                        </div>
                       ) : null}
                     </div>
                   ))

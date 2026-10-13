@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "@/shared/lib/utils";
+import { shouldReduceMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 
 type MotionSurfaceElement = "section" | "article" | "div";
 
@@ -47,7 +48,7 @@ export function EchoMotionSurface({
       onPointerMove?.(event);
       if (!tilt || event.pointerType === "touch") return;
       if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (shouldReduceMotion()) return;
 
       const surface = surfaceRef.current;
       if (!surface) return;
@@ -86,7 +87,7 @@ export function EchoMotionSurface({
     "data-tilt": tilt ? "true" : "false",
     style: {
       ...style,
-      "--echo-card-entry-delay": `${Math.max(0, entryDelay)}ms`,
+      ...(entryDelay > 0 ? { "--echo-card-entry-delay": `${entryDelay}ms` } : {}),
     } as MotionSurfaceStyle,
     onPointerMove: handlePointerMove,
     onPointerLeave: handlePointerLeave,

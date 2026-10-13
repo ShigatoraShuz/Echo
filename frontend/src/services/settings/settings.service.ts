@@ -86,7 +86,8 @@ export const settingsService: SettingsService = {
     return body.data;
   },
   updatePrivacy(updates) {
-    return unwrap(client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", updates));
+    const { buddyHistoryAvailable: _availability, ...choices } = updates;
+    return unwrap(client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", choices));
   },
   updateNotifications(updates) {
     return unwrap(client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>("/settings/notifications", updates));

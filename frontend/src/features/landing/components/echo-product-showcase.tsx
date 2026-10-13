@@ -32,7 +32,7 @@ interface ShowcaseImage {
 
 const showcaseImages: ShowcaseImage[] = [
   {
-    src: "/landing/showcase/echo-dashboard-preview.png",
+    src: "/landing/showcase/echo-dashboard-preview-v2.png",
     alt: "ECHO dashboard screen with reflection cards and wellbeing signals.",
     label: "Dashboard",
     icon: LayoutDashboard,

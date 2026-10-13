@@ -59,6 +59,7 @@ export function JournalListView() {
 
     return groups;
   }, [entries]);
+  const contentKey = `${viewMode}:${pagination.page}:${filters.query}:${filters.mood}:${filters.sort}:${filters.dateFrom}:${filters.dateTo}:${isLoading}`;
 
   if (error && entries.length === 0) {
     return (
@@ -174,6 +175,7 @@ export function JournalListView() {
         />
 
         {/* ── Content Stream ────────────────────────────────────────── */}
+        <div key={contentKey} className="echo-member-content-swap">
         {isLoading ? (
           <EchoLoadingState variant="skeleton" count={4} />
         ) : entries.length === 0 ? (
@@ -216,6 +218,7 @@ export function JournalListView() {
             ))}
           </div>
         )}
+        </div>
 
         {/* ── Pagination ────────────────────────────────────────────── */}
         {pagination.totalPages > 1 && (

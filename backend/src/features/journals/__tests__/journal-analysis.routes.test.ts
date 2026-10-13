@@ -20,8 +20,8 @@ const input = {
   analysisConsent: true,
 };
 
-function appWith(create: ReturnType<typeof vi.fn>, status = vi.fn()) {
-  const service = { create, getAnalysisStatus: status } as unknown as JournalService;
+function appWith(create: ReturnType<typeof vi.fn>, status = vi.fn(), dashboardInsights = vi.fn()) {
+  const service = { create, getAnalysisStatus: status, dashboardInsights } as unknown as JournalService;
   const app = express();
   app.use(express.json());
   app.use(createJournalsRouter(service, verifier, verification as never));
@@ -78,5 +78,28 @@ describe("journal analysis submission routes", () => {
       .send(input);
     expect(response.status).toBe(403);
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates and forwards a custom analysis range", async () => {
+    const dashboardInsights = vi.fn().mockResolvedValue({ latest: null, recommendation: null, emotionTrend: [], distressTrend: [] });
+    const response = await request(appWith(vi.fn(), vi.fn(), dashboardInsights))
+      .get("/dashboard/insights?range=custom&from=2026-09-01&to=2026-09-30")
+      .set("Authorization", "Bearer token");
+
+    expect(response.status).toBe(200);
+    expect(dashboardInsights).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000001",
+      { range: "custom", from: "2026-09-01", to: "2026-09-30" },
+    );
+  });
+
+  it("rejects an incomplete custom analysis range", async () => {
+    const dashboardInsights = vi.fn();
+    const response = await request(appWith(vi.fn(), vi.fn(), dashboardInsights))
+      .get("/dashboard/insights?range=custom&from=2026-09-01")
+      .set("Authorization", "Bearer token");
+
+    expect(response.status).toBe(400);
+    expect(dashboardInsights).not.toHaveBeenCalled();
   });
 });

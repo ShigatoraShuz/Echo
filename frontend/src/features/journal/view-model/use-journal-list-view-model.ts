@@ -34,7 +34,7 @@ function reducer(state: ListState, action: ListAction): ListState {
     case "LOAD_ERROR":
       return { ...state, isLoading: false, error: action.error };
     case "SET_FILTERS":
-      return { ...state, filters: { ...state.filters, ...action.filters } };
+      return { ...state, filters: { ...state.filters, ...action.filters }, pagination: { ...state.pagination, page: 1 } };
     case "SET_SEARCH":
       return { ...state, searchInput: action.searchInput };
     case "SET_PAGE":
@@ -42,7 +42,7 @@ function reducer(state: ListState, action: ListAction): ListState {
     case "DELETE_ENTRY":
       return { ...state, entries: state.entries.filter((e) => e.id !== action.id) };
     case "RESET_FILTERS":
-      return { ...state, filters: DefaultJournalFilters, searchInput: "" };
+      return { ...state, filters: DefaultJournalFilters, searchInput: "", pagination: { ...state.pagination, page: 1 } };
     default:
       return state;
   }
@@ -126,9 +126,12 @@ export function useJournalListViewModel() {
       const result = await service.deleteEntry(id);
       if (result.success) {
         dispatch({ type: "DELETE_ENTRY", id });
+        const nextPage = state.entries.length === 1 && state.pagination.page > 1 ? state.pagination.page - 1 : state.pagination.page;
+        if (nextPage !== state.pagination.page) dispatch({ type: "SET_PAGE", page: nextPage });
+        else void loadEntries(state.filters, nextPage);
       }
     },
-    [service]
+    [service, loadEntries, state.entries.length, state.filters, state.pagination.page]
   );
 
   const resetFilters = useCallback(() => {

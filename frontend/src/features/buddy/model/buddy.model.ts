@@ -5,9 +5,11 @@ export interface BuddyConversation {
   title: string;
   lastMessage: string;
   lastMessageAt: string;
+  lastMessageAtIso?: string;
   messageCount: number;
   mood: BuddyMood;
   createdAt: string;
+  pinnedAt?: string | null;
 }
 
 export interface BuddyMessage {
@@ -33,8 +35,14 @@ export interface CreateConversationInput {
 }
 
 export interface SendMessageInput {
-  conversationId: string;
+  conversationId?: string;
   content: string;
+}
+
+export interface BuddySendResult {
+  conversationId: string | null;
+  persisted: boolean;
+  messages: BuddyMessage[];
 }
 
 export type BuddyServiceErrorCode =
@@ -56,4 +64,5 @@ export interface BuddyPagination {
   pageSize: number;
   totalItems: number;
   totalPages: number;
+  pinsAvailable?: boolean;
 }

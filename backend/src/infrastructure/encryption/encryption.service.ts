@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 
 export interface EncryptedPayload {
   ciphertext: string;
@@ -10,6 +10,7 @@ export interface EncryptedPayload {
 export interface EncryptionService {
   encrypt(plaintext: string): EncryptedPayload;
   decrypt(payload: EncryptedPayload): string;
+  searchHashes(token: string): string[];
 }
 
 export function decodeEncryptionKey(base64Key: string): Buffer {
@@ -41,6 +42,11 @@ export function createEncryptionService(base64Key: string, keyVersion: number, p
   }
 
   return {
+    searchHashes(token) {
+      return [...keys.entries()].sort(([a], [b]) => b - a).map(([version, material]) =>
+        `${version}:${createHmac("sha256", material).update("echo:buddy-search:v1:").update(token).digest("hex")}`,
+      );
+    },
     encrypt(plaintext) {
       const iv = randomBytes(12);
       const cipher = createCipheriv("aes-256-gcm", key, iv);

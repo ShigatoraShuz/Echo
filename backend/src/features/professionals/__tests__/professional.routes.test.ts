@@ -12,6 +12,10 @@ const ORG = "fe000000-0000-4000-8000-000000000003";
 function harness() {
   const service = {
     createRequest: vi.fn().mockResolvedValue({ request: { id: CASE } }),
+    hub: vi.fn().mockResolvedValue({ activeCases: [], recentCases: [] }),
+    directory: vi.fn().mockResolvedValue({ practitioners: [], nextCursor: null }),
+    sendMessage: vi.fn().mockResolvedValue({ message: { id: CASE } }),
+    completeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "completed" }),
     detail: vi.fn().mockResolvedValue({ request: { id: CASE } }),
     memberships: vi.fn().mockResolvedValue({ userId: USER, memberships: [] }),
     listOrganizationsForAdmin: vi.fn().mockResolvedValue({ organizations: [] }),
@@ -65,10 +69,13 @@ describe("professional portal routes", () => {
     const { app, service } = harness();
     const path = "/api/v1/professional/my-requests";
     const input = {
+      submissionId: "fe000000-0000-4000-8000-000000000004",
       organizationId: ORG,
+      preferredProfileId: null,
       summary: "I would like scheduled professional support.",
       preferredTime: "Weekday afternoons",
       journalIds: [],
+      phq8Ids: [],
       consent: false,
     };
     expect(
@@ -91,6 +98,27 @@ describe("professional portal routes", () => {
     );
   });
 
+  it("loads the owner-scoped hub and validates idempotent case messages", async () => {
+    const { app, service } = harness();
+    const hub = await request(app).get("/api/v1/professional/hub").set("Authorization", "Bearer basic");
+    expect(hub.status).toBe(200);
+    expect(service.hub).toHaveBeenCalledWith(USER);
+
+    const path = `/api/v1/professional/my-requests/${CASE}/messages`;
+    expect((await request(app).post(path).set("Authorization", "Bearer basic").send({ body: "hello" })).status).toBe(400);
+    const sent = await request(app).post(path).set("Authorization", "Bearer basic").send({
+      clientMessageId: "fe000000-0000-4000-8000-000000000005",
+      body: "Could we discuss the next appointment?",
+    });
+    expect(sent.status).toBe(201);
+    expect(service.sendMessage).toHaveBeenCalledWith(
+      USER,
+      CASE,
+      "fe000000-0000-4000-8000-000000000005",
+      "Could we discuss the next appointment?",
+    );
+  });
+
   it("requires MFA before opening a professional case", async () => {
     const { app, service } = harness();
     const path = `/api/v1/professional/cases/${CASE}`;
@@ -98,6 +126,15 @@ describe("professional portal routes", () => {
     expect(service.detail).not.toHaveBeenCalled();
     expect((await request(app).get(path).set("Authorization", "Bearer mfa")).status).toBe(200);
     expect(service.detail).toHaveBeenCalledWith(USER, CASE, "professional");
+  });
+
+  it("requires MFA before a professional completes an appointment", async () => {
+    const { app, service } = harness();
+    const path = `/api/v1/professional/appointments/${CASE}/complete`;
+    expect((await request(app).post(path).set("Authorization", "Bearer basic")).status).toBe(403);
+    expect(service.completeAppointment).not.toHaveBeenCalled();
+    expect((await request(app).post(path).set("Authorization", "Bearer mfa")).status).toBe(200);
+    expect(service.completeAppointment).toHaveBeenCalledWith(USER, CASE);
   });
 
   it("requires recent MFA and administrator authorization for provisioning", async () => {

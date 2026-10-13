@@ -16,6 +16,13 @@ export function SecureGoogleButton({ intent, successPath }: { intent: "login" | 
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && window.location.hostname === "127.0.0.1") {
+      const url = new URL(window.location.href);
+      url.hostname = "localhost";
+      window.location.replace(url.href);
+      return;
+    }
+
     const element = host.current;
     if (!element || !clientId) return;
     let active = true;

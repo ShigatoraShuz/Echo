@@ -1,8 +1,8 @@
 import { ChevronDown } from "lucide-react";
 import type { DashboardInsights } from "@echo/contracts";
-import type { JournalEntry } from "@/features/journal/model/journal.model";
+import type { DashboardEntry } from "../model/dashboard.model";
 
-export function summarizeReflections(entries: JournalEntry[], now = Date.now()) {
+export function summarizeReflections(entries: DashboardEntry[], now = Date.now()) {
   const recent = entries.filter(
     (entry) => Date.parse(entry.createdAt) >= now - 30 * 86_400_000 && Date.parse(entry.createdAt) <= now,
   );
@@ -19,7 +19,7 @@ export function summarizeReflections(entries: JournalEntry[], now = Date.now()) 
       .slice(0, 3),
   };
 }
-export function OverallAnalysis({ entries, insights }: { entries: JournalEntry[]; insights?: DashboardInsights }) {
+export function OverallAnalysis({ entries, insights }: { entries: DashboardEntry[]; insights?: DashboardInsights }) {
   const summary = summarizeReflections(entries);
   const trend = insights?.distressTrend.filter((point) => !point.isSimulated) ?? [];
   const direction =
@@ -31,7 +31,7 @@ export function OverallAnalysis({ entries, insights }: { entries: JournalEntry[]
           ? "lower"
           : "unchanged";
   return (
-    <details className="echo-compact-card group min-w-0 open:lg:col-span-2" aria-labelledby="overall-analysis-title">
+    <details className="echo-compact-card group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="overall-analysis-title">
       <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0">
           <h2 id="overall-analysis-title" className="text-sm font-semibold text-foreground">Past 30 days</h2>

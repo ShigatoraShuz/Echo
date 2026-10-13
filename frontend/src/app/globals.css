@@ -805,6 +805,145 @@
   }
 }
 
+.echo-app-page-enter {
+  animation: echo-card-fade 180ms ease-out both;
+}
+
+@media (min-width: 1024px) and (min-height: 700px) {
+  .echo-workspace-shell { height: 100dvh; overflow: hidden; }
+  .echo-workspace-content { height: 100%; min-height: 0; }
+  .echo-workspace-main { overflow: hidden; }
+  .echo-workspace-page { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
+
+.echo-panel-scroll { scrollbar-width: thin; scrollbar-color: hsl(var(--primary) / .3) transparent; overscroll-behavior: contain; }
+.echo-workspace-enter { animation: echo-card-enter 420ms cubic-bezier(.22, 1, .36, 1) both; }
+.echo-reading-swap { animation: echo-card-enter 260ms cubic-bezier(.22, 1, .36, 1) both; }
+.echo-workspace-tile { transition: transform 180ms cubic-bezier(.22, 1, .36, 1), background-color 180ms ease, border-color 180ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .echo-workspace-tile:hover { transform: translateY(-2px); }
+}
+
+.echo-member-content-swap {
+  animation: echo-card-fade 180ms ease-out both;
+}
+
+.echo-buddy-message-enter {
+  animation: echo-card-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes echo-dialog-panel-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes echo-dialog-panel-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.98); }
+}
+
+.echo-dialog-overlay[data-state="open"] {
+  animation: echo-card-fade 180ms ease-out both;
+}
+
+.echo-dialog-panel {
+  animation: echo-dialog-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.echo-dialog-overlay[data-state="closing"] {
+  animation: echo-card-fade 180ms ease-out reverse both;
+  pointer-events: none;
+}
+
+.echo-dialog-overlay[data-state="closing"] .echo-dialog-panel {
+  animation: echo-dialog-panel-out 180ms ease-in both;
+}
+
+@keyframes echo-sheet-panel-in {
+  from { opacity: 0.8; transform: translateX(var(--echo-sheet-offset)); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes echo-sheet-panel-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0.8; transform: translateX(var(--echo-sheet-offset)); }
+}
+
+.echo-sheet-overlay {
+  --echo-sheet-offset: 100%;
+}
+
+.echo-sheet-overlay[data-side="left"] {
+  --echo-sheet-offset: -100%;
+}
+
+.echo-sheet-overlay[data-state="open"] {
+  animation: echo-card-fade 180ms ease-out both;
+}
+
+.echo-sheet-overlay[data-state="open"] .echo-sheet-panel {
+  animation: echo-sheet-panel-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.echo-sheet-overlay[data-state="closing"] {
+  animation: echo-card-fade 180ms ease-out reverse both;
+  pointer-events: none;
+}
+
+.echo-sheet-overlay[data-state="closing"] .echo-sheet-panel {
+  animation: echo-sheet-panel-out 180ms ease-in both;
+}
+
+@keyframes echo-heatmap-flow {
+  0% {
+    opacity: 0.12;
+    transform: translate3d(-0.5rem, 0.3rem, 0) scale(0.7);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translate3d(0.05rem, -0.05rem, 0) scale(1.06);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.echo-heatmap-tile {
+  transform-origin: center;
+  animation: echo-heatmap-flow 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes echo-chart-wheel-enter {
+  from { opacity: 0.65; clip-path: circle(10% at 50% 50%); }
+  to { opacity: 1; clip-path: circle(75% at 50% 50%); }
+}
+
+@keyframes echo-chart-line-enter {
+  from { opacity: 0.65; clip-path: inset(0 94% 0 0); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+
+.echo-chart-wheel-reveal {
+  animation: echo-chart-wheel-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.echo-chart-line-reveal {
+  animation: echo-chart-line-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes echo-insights-bar-grow {
+  from { transform: scaleX(0); opacity: 0.5; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+.echo-insights-bar {
+  transform-origin: left center;
+  animation: echo-insights-bar-grow 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .echo-motion-card {
   --echo-card-transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0);
   --echo-card-glare-x: 50%;
@@ -815,8 +954,37 @@
   backface-visibility: hidden;
   transform: var(--echo-card-transform);
   transform-style: preserve-3d;
-  animation: echo-card-enter 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.echo-dashboard-welcome .echo-dashboard-hero {
+  animation: echo-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.echo-dashboard-welcome > .grid > .echo-compact-card {
+  animation: echo-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 90ms;
+}
+
+.echo-dashboard-welcome > .grid > .echo-compact-card:nth-child(2) {
+  animation-delay: 180ms;
+}
+
+.echo-dashboard-welcome > .grid > .echo-compact-card:nth-child(3) {
+  animation-delay: 270ms;
+}
+
+.echo-dashboard-welcome .echo-motion-card {
+  animation: echo-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--echo-card-entry-delay, 0ms);
+}
+
+.echo-insights-dashboard .echo-motion-card {
+  animation: echo-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--echo-card-entry-delay, 0ms);
+}
+
+.echo-dashboard-welcome .echo-motion-card.echo-immediate-card {
+  animation: none;
 }
 
 .echo-motion-card::after {
@@ -837,24 +1005,16 @@
   transition: opacity 160ms ease;
 }
 
-.echo-card-motion-grid > .echo-motion-card:nth-child(2) {
-  --echo-card-entry-delay: 45ms;
-}
-
-.echo-card-motion-grid > .echo-motion-card:nth-child(3) {
-  --echo-card-entry-delay: 90ms;
-}
-
-.echo-card-motion-grid > .echo-motion-card:nth-child(4) {
-  --echo-card-entry-delay: 135ms;
-}
-
-.echo-card-motion-grid > .echo-motion-card:nth-child(5) {
+.echo-card-motion-grid > .echo-motion-card:first-child {
   --echo-card-entry-delay: 180ms;
 }
 
-.echo-card-motion-grid > .echo-motion-card:nth-child(n + 6) {
-  --echo-card-entry-delay: 220ms;
+.echo-card-motion-grid > .echo-motion-card:nth-child(2) {
+  --echo-card-entry-delay: 270ms;
+}
+
+.echo-card-motion-grid > .echo-motion-card:nth-child(n + 3) {
+  --echo-card-entry-delay: 360ms;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1706,37 +1866,64 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .echo-motion-card {
+  html:not([data-echo-motion="full"]) .echo-app-page-enter,
+  html:not([data-echo-motion="full"]) .echo-workspace-enter,
+  html:not([data-echo-motion="full"]) .echo-reading-swap,
+  html:not([data-echo-motion="full"]) .echo-member-content-swap,
+  html:not([data-echo-motion="full"]) .echo-buddy-message-enter,
+  html:not([data-echo-motion="full"]) .echo-dialog-overlay,
+  html:not([data-echo-motion="full"]) .echo-dialog-panel,
+  html:not([data-echo-motion="full"]) .echo-sheet-overlay,
+  html:not([data-echo-motion="full"]) .echo-sheet-panel,
+  html:not([data-echo-motion="full"]) .echo-heatmap-tile,
+  html:not([data-echo-motion="full"]) .echo-chart-wheel-reveal,
+  html:not([data-echo-motion="full"]) .echo-chart-line-reveal,
+  html:not([data-echo-motion="full"]) .echo-insights-bar,
+  html:not([data-echo-motion="full"]) .echo-insights-dashboard .echo-motion-card,
+  html:not([data-echo-motion="full"]) .echo-dashboard-welcome .echo-dashboard-hero,
+  html:not([data-echo-motion="full"]) .echo-dashboard-welcome > .grid > .echo-compact-card,
+  html:not([data-echo-motion="full"]) .echo-dashboard-welcome .echo-motion-card {
+    animation: none;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-motion-card {
     --echo-card-transform: none;
-    animation: echo-card-fade 180ms ease both;
-    animation-delay: var(--echo-card-entry-delay, 0ms);
     transform: none;
     transition: box-shadow 160ms ease;
   }
 
-  .echo-motion-card::after {
+  html:not([data-echo-motion="full"]) .echo-motion-card::after {
     display: none;
   }
 
-  .echo-app-sidebar-shell,
-  .echo-app-sidebar,
-  .echo-app-sidebar__toggle,
-  .echo-app-sidebar__brand-label,
-  .echo-app-sidebar__nav-label,
-  .echo-app-sidebar__footer-label,
-  .echo-app-sidebar__nav-link,
-  .echo-app-sidebar__footer-link {
+  html:not([data-echo-motion="full"]) .echo-checkin-dock {
     transition: none;
   }
+
+  html:not([data-echo-motion="full"]) .echo-app-sidebar-shell,
+  html:not([data-echo-motion="full"]) .echo-workspace-content,
+  html:not([data-echo-motion="full"]) .echo-workspace-tile,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__toggle,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__brand-label,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__nav-label,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__footer-label,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__nav-link,
+  html:not([data-echo-motion="full"]) .echo-app-sidebar__footer-link {
+    transition: none;
+  }
+
+  html:not([data-echo-motion="full"]) .echo-workspace-tile:hover { transform: none; }
 
   .echo-breathing-circle {
     animation: none;
   }
 
-  .grounding-session-orb,
-  .grounding-session-orb[data-running="true"] {
+  html:not([data-echo-motion="full"]) .grounding-session-orb,
+  html:not([data-echo-motion="full"]) .grounding-session-orb[data-running="true"] {
     animation: none;
-    transform: scale(0.94);
+    transform: scale(0.94) !important;
+    transition: none !important;
   }
 }
 

@@ -23,6 +23,7 @@ import { LocalWorkerService } from "./features/analysis/local-worker.service.js"
 import { AnalysisMaintenanceService } from "./features/analysis/analysis-maintenance.service.js";
 import { createRequestUserClient } from "./infrastructure/supabase/supabase-user.client.js";
 import { ProfessionalService } from "./features/professionals/professional.service.js";
+import { CalendarService } from "./features/calendar/calendar.service.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -101,6 +102,7 @@ const registrationService = new RegistrationService(
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
 const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService);
+const calendarService = new CalendarService(supabaseAdmin, encryptionService);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
@@ -142,11 +144,12 @@ const app = createApp({
       service: notificationService,
       verifier,
     },
+    calendar: { service: calendarService, verifier },
     professionals: { service: professionalService, verifier, verificationService },
   },
 });
 
-const server = app.listen(environment.PORT, () => {
+const server = app.listen(environment.PORT, "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
 });
 const maintenance = new AnalysisMaintenanceService(supabaseAdmin);

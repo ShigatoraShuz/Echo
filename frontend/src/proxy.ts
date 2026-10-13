@@ -6,12 +6,14 @@ import { professionalReturnPath } from "@/features/professionals/professional-re
 const authenticatedPrefixes = [
   "/dashboard",
   "/journal",
+  "/calendar",
   "/buddy",
   "/insights",
   "/tools",
   "/settings",
   "/admin",
   "/professional",
+  "/professional-support",
   "/onboarding",
 ];
 
@@ -273,11 +275,10 @@ export async function proxy(
       response,
     );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (!user) {
+  if (!claims?.sub) {
     return redirectToLogin(
       request,
       response,

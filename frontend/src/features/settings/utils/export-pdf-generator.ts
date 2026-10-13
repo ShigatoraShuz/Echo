@@ -183,10 +183,10 @@ export async function generateEchoPdfExport({
     return acc;
   }, {});
   const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-  const avgRisk =
-    totalEntries > 0
-      ? Math.round(entries.reduce((s, e) => s + e.riskScore, 0) / totalEntries)
-      : 0;
+  const scoredEntries = entries.filter((entry) => entry.riskScore !== null);
+  const avgRisk = scoredEntries.length
+    ? Math.round(scoredEntries.reduce((sum, entry) => sum + (entry.riskScore ?? 0), 0) / scoredEntries.length)
+    : null;
 
   setFont("bold", 13, PALETTE.text);
   doc.text("Wellbeing at a Glance", MARGIN, y);
@@ -195,7 +195,7 @@ export async function generateEchoPdfExport({
   const stats = [
     { label: "Total Reflections", value: String(totalEntries) },
     { label: "Primary Mood", value: moodEmoji(topMood) },
-    { label: "Avg. Distress Score", value: `${avgRisk} / 100` },
+    { label: "Avg. Distress Score", value: avgRisk === null ? "Unavailable" : `${avgRisk} / 100` },
   ];
 
   const colW = CONTENT_W / 3;
@@ -278,11 +278,13 @@ export async function generateEchoPdfExport({
     y += 16;
 
     // Mood + risk badge
-    const [rc0, rc1, rc2] = riskColor(entry.riskBand);
-    doc.setFillColor(rc0, rc1, rc2);
-    doc.roundedRect(MARGIN, y, 32, 7, 2, 2, "F");
-    setFont("bold", 7.5, PALETTE.white);
-    doc.text(entry.riskBand.toUpperCase(), MARGIN + 2.5, y + 4.8);
+    if (entry.riskBand) {
+      const [rc0, rc1, rc2] = riskColor(entry.riskBand);
+      doc.setFillColor(rc0, rc1, rc2);
+      doc.roundedRect(MARGIN, y, 32, 7, 2, 2, "F");
+      setFont("bold", 7.5, PALETTE.white);
+      doc.text(entry.riskBand.toUpperCase(), MARGIN + 2.5, y + 4.8);
+    }
 
     doc.setFillColor(...PALETTE.primaryBg);
     doc.roundedRect(MARGIN + 35, y, 32, 7, 2, 2, "F");
@@ -328,14 +330,16 @@ export async function generateEchoPdfExport({
 
     // Risk score mini-bar
     setFont("normal", 8, PALETTE.muted);
-    doc.text(`Distress score: ${entry.riskScore}/100`, MARGIN, y + 3.5);
+    doc.text(entry.riskScore === null ? "Distress score: unavailable" : `Distress score: ${entry.riskScore}/100`, MARGIN, y + 3.5);
     const barTotal = CONTENT_W * 0.35;
     doc.setFillColor(...PALETTE.primaryBg);
     doc.roundedRect(MARGIN + 38, y, barTotal, 5, 1.5, 1.5, "F");
-    const [fr0, fr1, fr2] = riskColor(entry.riskBand);
-    doc.setFillColor(fr0, fr1, fr2);
-    const filled = barTotal * Math.min(1, entry.riskScore / 100);
-    if (filled > 0) doc.roundedRect(MARGIN + 38, y, filled, 5, 1.5, 1.5, "F");
+    if (entry.riskBand && entry.riskScore !== null) {
+      const [fr0, fr1, fr2] = riskColor(entry.riskBand);
+      doc.setFillColor(fr0, fr1, fr2);
+      const filled = barTotal * Math.min(1, entry.riskScore / 100);
+      if (filled > 0) doc.roundedRect(MARGIN + 38, y, filled, 5, 1.5, 1.5, "F");
+    }
 
     y += 12;
     drawHRule(y, [220, 228, 210]);

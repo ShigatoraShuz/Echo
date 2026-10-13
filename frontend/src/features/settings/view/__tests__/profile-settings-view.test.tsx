@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ProfileSettingsView } from "../settings-views";
 import { useSettingsViewModel } from "@/features/settings/view-model/use-settings-view-model";
 import { settingsService } from "@/services/settings/settings.service";
+import { ThemeProvider } from "@/shared/theme";
 
 vi.mock("@/shared/components/layout/echo-shells", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -83,12 +84,12 @@ describe("ProfileSettingsView", () => {
     const mock = setupMock();
     vi.mocked(useSettingsViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useSettingsViewModel>);
 
-    render(<ProfileSettingsView />);
+    render(<ThemeProvider><ProfileSettingsView /></ThemeProvider>);
 
     const displayName = screen.getByDisplayValue("Mira");
     await user.clear(displayName);
     await user.type(displayName, "Mira Updated");
-    await user.selectOptions(screen.getByRole("combobox"), "Asia/Tokyo");
+    await user.selectOptions(screen.getByRole("option", { name: "Asia/Tokyo" }).closest("select")!, "Asia/Tokyo");
     await user.click(screen.getByRole("button", { name: /save profile/i }));
 
     expect(settingsService.updateProfile).toBeDefined();

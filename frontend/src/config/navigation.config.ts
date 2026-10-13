@@ -3,6 +3,7 @@ import { ROUTES } from "@/config/routes.config";
 export type NavigationIconKey =
   | "home"
   | "bookOpen"
+  | "calendarDays"
   | "bot"
   | "barChart3"
   | "wind"
@@ -20,7 +21,8 @@ export type NavigationIconKey =
   | "info"
   | "privacy"
   | "terms"
-  | "penLine";
+  | "penLine"
+  | "stethoscope";
 
 export interface NavigationEntry {
   id: string;
@@ -47,9 +49,11 @@ export const publicNavigation: NavigationEntry[] = [
 export const appNavigation: NavigationEntry[] = [
   { id: "dashboard", label: "Dashboard", href: ROUTES.dashboard.index, iconKey: "home", match: "exact" },
   { id: "journal", label: "Journal", href: ROUTES.journal.list, iconKey: "bookOpen", match: "prefix" },
+  { id: "calendar", label: "Calendar", href: ROUTES.calendar, iconKey: "calendarDays", match: "exact" },
   { id: "buddy", label: "Buddy", href: ROUTES.buddy.chat, iconKey: "bot", match: "prefix" },
-  { id: "insights", label: "Insights", href: ROUTES.insights.emotion, iconKey: "barChart3", match: "prefix" },
+  { id: "insights", label: "Insights", href: ROUTES.insights.index, iconKey: "barChart3", match: "prefix" },
   { id: "grounding", label: "Grounding", href: ROUTES.tools.grounding, iconKey: "wind", match: "exact" },
+  { id: "professional-support", label: "Professional support", href: ROUTES.professionalSupport.index, iconKey: "stethoscope", match: "prefix" },
   { id: "find-help", label: "Find help", href: ROUTES.support.findHelp, iconKey: "heartHandshake", match: "exact" },
   { id: "settings", label: "Settings", href: ROUTES.settings.profile, iconKey: "settings", match: "prefix" },
 ];
@@ -68,7 +72,7 @@ export const mobileNavigation: NavigationEntry[] = [
   { id: "mobile-dashboard", label: "Home", href: ROUTES.dashboard.index, iconKey: "home", match: "exact" },
   { id: "mobile-journal", label: "Journal", href: ROUTES.journal.list, iconKey: "bookOpen", match: "prefix" },
   { id: "mobile-buddy", label: "Buddy", href: ROUTES.buddy.chat, iconKey: "bot", match: "exact" },
-  { id: "mobile-insights", label: "Insights", href: ROUTES.insights.emotion, iconKey: "barChart3", match: "prefix" },
+  { id: "mobile-insights", label: "Insights", href: ROUTES.insights.index, iconKey: "barChart3", match: "prefix" },
   { id: "mobile-settings", label: "Settings", href: ROUTES.settings.profile, iconKey: "settings", match: "prefix" },
 ];
 
@@ -89,7 +93,7 @@ export function findActiveNavigation(
     if (entry.match === "exact") {
       if (entry.href === currentPath) return entry.id;
     } else {
-      if (currentPath.startsWith(entry.href)) return entry.id;
+      if (currentPath === entry.href || currentPath.startsWith(`${entry.href}/`)) return entry.id;
     }
   }
   return null;

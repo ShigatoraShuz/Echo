@@ -11,6 +11,8 @@ export interface ProfileSettings {
 
 export interface PrivacySettings {
   journalAiAnalysisEnabled?: boolean;
+  buddyHistoryEnabled: boolean;
+  buddyHistoryAvailable?: boolean;
   journalPrivate: true;
   facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;

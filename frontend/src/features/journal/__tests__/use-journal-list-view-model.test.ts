@@ -222,6 +222,15 @@ describe("useJournalListViewModel", () => {
 
   it("deletes entry from list", async () => {
     const mockService = createMockService();
+    const initial = await mockService.listEntries();
+    mockService.listEntries.mockClear();
+    mockService.deleteEntry.mockImplementation(async () => {
+      mockService.listEntries.mockResolvedValue({
+        success: true,
+        data: { entries: initial.data.entries.slice(1), pagination: { ...initial.data.pagination, totalItems: 1 } },
+      });
+      return { success: true, data: undefined };
+    });
     vi.mocked(getJournalService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useJournalListViewModel());

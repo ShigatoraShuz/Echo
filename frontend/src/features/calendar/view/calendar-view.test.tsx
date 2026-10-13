@@ -1,0 +1,81 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { CalendarView } from "./calendar-view";
+
+const mocks = vi.hoisted(() => ({
+  listItems: vi.fn(),
+  createItem: vi.fn(),
+  listEntries: vi.fn(),
+  getAnalysis: vi.fn(),
+  updateItem: vi.fn(),
+  removeItem: vi.fn(),
+}));
+
+vi.mock("@/services/calendar/calendar-api", () => ({
+  calendarApi: { list: mocks.listItems, create: mocks.createItem, update: mocks.updateItem, remove: mocks.removeItem },
+}));
+vi.mock("@/services/journal/journal-service.factory", () => ({
+  getJournalService: () => ({ listEntries: mocks.listEntries, getAnalysis: mocks.getAnalysis }),
+}));
+
+describe("CalendarView", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("saves a dated item in the calendar without implying a timed notification", async () => {
+    mocks.listItems.mockResolvedValue([]);
+    mocks.listEntries.mockResolvedValue({ success: true, data: { entries: [], pagination: { totalPages: 1 } } });
+    mocks.createItem.mockImplementation(async (input) => ({ ...input, id: "item-1", completedAt: null }));
+    const user = userEvent.setup();
+    render(<CalendarView />);
+
+    await waitFor(() => expect(screen.getByText(/0 reflections · 0 saved items/)).toBeInTheDocument());
+    await user.type(screen.getByLabelText("Add to this day"), "Review tomorrow's journal");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Review tomorrow's journal")).toBeInTheDocument();
+    expect(mocks.createItem).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "reminder", content: "Review tomorrow's journal" }),
+    );
+    expect(screen.getByText(/No timed notification is sent/)).toBeInTheDocument();
+  });
+
+  it("shows completed analysis and lets the owner finish and remove a saved reminder", async () => {
+    const today = new Date();
+    const selectedDay = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const item = { id: "item-1", scheduledOn: selectedDay, scheduledTime: null, kind: "reminder", content: "Take a walk", completedAt: null };
+    mocks.listItems.mockResolvedValue([item]);
+    mocks.listEntries.mockResolvedValue({ success: true, data: { entries: [{ id: "journal-1", title: "A quiet page", body: "Today felt calm", excerpt: "Today felt calm", mood: "calm", createdAt: today.toISOString(), analysisConsent: true }], pagination: { totalPages: 1 } } });
+    mocks.getAnalysis.mockResolvedValue({ success: true, data: { id: "analysis-1", isDemoData: false, summary: "A steadier day", result: { recommendationFeatures: ["slower_breath"] } } });
+    mocks.updateItem.mockResolvedValue({ ...item, completedAt: today.toISOString() });
+    mocks.removeItem.mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    render(<CalendarView />);
+
+    expect(await screen.findByText("A steadier day")).toBeInTheDocument();
+    expect(screen.getByText(/Suggested next steps: slower breath/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Mark complete" }));
+    expect(await screen.findByRole("button", { name: "Mark incomplete" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Delete reminder" }));
+    await waitFor(() => expect(screen.queryByText("Take a walk")).not.toBeInTheDocument());
+    expect(mocks.removeItem).toHaveBeenCalledWith("item-1");
+  });
+
+  it("keeps reflections visible when saved calendar items fail to load and allows retry", async () => {
+    mocks.listItems.mockRejectedValueOnce(new Error("Calendar items could not be loaded.")).mockResolvedValue([]);
+    mocks.listEntries.mockResolvedValue({
+      success: true,
+      data: { entries: [{ id: "journal-1", title: "A quiet page", body: "Today felt calm", excerpt: "Today felt calm", mood: "calm", createdAt: new Date().toISOString(), analysisConsent: false }], pagination: { totalPages: 1 } },
+    });
+    const user = userEvent.setup();
+    render(<CalendarView />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something unexpected happened.");
+    expect(screen.getByRole("link", { name: "A quiet page" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(mocks.listItems).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+});

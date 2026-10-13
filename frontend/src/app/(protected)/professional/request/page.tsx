@@ -1,3 +1,3 @@
-import { SupportRequestView } from "@/features/professionals/view/support-request-view";
+import { redirect } from "next/navigation";
 
-export default function RequestSupportPage() { return <SupportRequestView />; }
+export default function RequestSupportPage() { redirect("/professional-support/requests/new"); }

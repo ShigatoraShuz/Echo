@@ -1,5 +1,5 @@
-import type { GroundingService, GroundingServiceResult } from "@/services/grounding/grounding.service";
-import type { GroundingSession, PaceType } from "@/features/grounding/model/grounding.model";
+import type { GroundingService } from "@/services/grounding/grounding.service";
+import type { ExerciseType, PaceType } from "@/features/grounding/model/grounding.model";
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -21,7 +21,19 @@ const BACKEND_PACES: Record<PaceType, "gentle" | "slower" | "steady"> = {
   fast: "steady",
 };
 
-const NOT_SUPPORTED_MESSAGE = "Grounding history is not available in this build of the backend.";
+interface GroundingHistoryItem {
+  id: string;
+  type: ExerciseType;
+  duration: number;
+  pace: "gentle" | "slower" | "steady";
+  completedAt: string;
+}
+
+const FRONTEND_PACES: Record<GroundingHistoryItem["pace"], PaceType> = {
+  gentle: "slow",
+  slower: "medium",
+  steady: "fast",
+};
 
 export function createGroundingHttpAdapter(): GroundingService {
   const client = createApiClient({
@@ -52,13 +64,26 @@ export function createGroundingHttpAdapter(): GroundingService {
             state: "completed",
           },
         };
-      } catch (error) {
+      } catch {
         return { success: false, error: { code: "UNKNOWN", message: "The grounding session could not be saved." } };
       }
     },
 
-    async getHistory() {
-      return { success: false, error: { code: "UNKNOWN", message: NOT_SUPPORTED_MESSAGE } };
+    async getHistory(limit = 250) {
+      try {
+        const response = await client.get<ApiEnvelope<GroundingHistoryItem[]>>("/grounding/sessions");
+        return {
+          success: true,
+          data: response.data.slice(0, limit).map((item) => ({
+            ...item,
+            pace: FRONTEND_PACES[item.pace] ?? "slow",
+            progress: 100,
+            state: "completed" as const,
+          })),
+        };
+      } catch {
+        return { success: false, error: { code: "UNKNOWN", message: "Grounding history could not be loaded." } };
+      }
     },
   };
 }

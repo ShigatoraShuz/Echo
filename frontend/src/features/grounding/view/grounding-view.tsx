@@ -1,304 +1,264 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  HandHeart,
-  Leaf,
-  Pause,
-  Play,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Wind,
+  ArrowLeft, ArrowRight, ChevronDown, Clock3, Heart, Leaf, Moon,
+  Pause, Play, RotateCcw, Search, ShieldCheck, Sparkles, Sun, Waves, Wind,
 } from "lucide-react";
-import { useGroundingViewModel, type GroundingTechnique } from "../view-model/use-grounding-view-model";
+import {
+  groundingCategories, groundingPractices, type GroundingCategory, type GroundingPractice,
+} from "../model/grounding-practices";
+import { useGroundingViewModel } from "../view-model/use-grounding-view-model";
 
-const groundingPractices = [
-  {
-    id: "box-breathing" as GroundingTechnique,
-    title: "Box breathing",
-    shortLabel: "Breathe",
-    description: "Settle into an even rhythm: in, hold, out, rest.",
-    idleCue: "Find a comfortable position and let your shoulders drop.",
-    activeCue: "Follow the circle. Nothing needs to be forced.",
-    icon: Wind,
-  },
-  {
-    id: "5-4-3-2-1" as GroundingTechnique,
-    title: "5-4-3-2-1 senses",
-    shortLabel: "Notice",
-    description: "Return to the present through what your senses can notice.",
-    idleCue: "Begin with five things you can see around you.",
-    activeCue: "Notice slowly. There is no need to find perfect answers.",
-    icon: HandHeart,
-  },
-  {
-    id: "window-reset" as GroundingTechnique,
-    title: "Window reset",
-    shortLabel: "Observe",
-    description: "Rest your attention on light, color, shape, and movement.",
-    idleCue: "Choose one calm point beyond the room to look toward.",
-    activeCue: "Let your eyes wander gently across the scene.",
-    icon: Leaf,
-  },
+const categoryIcons = {
+  All: Sparkles, Breathing: Wind, Mindfulness: Leaf, "Body relaxation": Heart,
+  Focus: Sun, "Mood boost": Sparkles, Sleep: Moon,
+} as const;
+const artIcons = { leaves: Leaf, water: Waves, sunlight: Sun, horizon: Sparkles } as const;
+const artClasses = {
+  leaves: "bg-[radial-gradient(circle_at_74%_20%,#e8efd7_0%,transparent_36%),linear-gradient(135deg,#476e58,#a8c6a4_58%,#e7e4be)]",
+  water: "bg-[radial-gradient(ellipse_at_50%_75%,#afd4cf_0%,transparent_48%),linear-gradient(160deg,#285975,#5c9bb0_55%,#c4ded1)]",
+  sunlight: "bg-[radial-gradient(circle_at_79%_18%,#fff2c5_0%,transparent_42%),linear-gradient(145deg,#9aae81,#c7c99c_65%,#e3d1a0)]",
+  horizon: "bg-[radial-gradient(circle_at_75%_38%,#f4c99b_0%,transparent_36%),linear-gradient(165deg,#777e8a,#b8a4a0_60%,#e2c9ad)]",
+} as const;
+const paceOptions = [
+  { value: "gentle", label: "Gentle" }, { value: "slower", label: "Slower" }, { value: "steady", label: "Steady" },
 ] as const;
+const durationOptions = [2, 3, 5, 10] as const;
 
-const durations = [2, 5, 10] as const;
-const paces = [
-  { value: "gentle" as const, label: "Gentle", detail: "Long, easy rhythm" },
-  { value: "slower" as const, label: "Slower", detail: "More room between cues" },
-  { value: "steady" as const, label: "Steady", detail: "A little more momentum" },
-];
+function formatTime(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
-const cycleSeconds = { gentle: 10, slower: 8, steady: 6 } as const;
+function PracticeArt({ art, compact = false }: { art: GroundingPractice["art"]; compact?: boolean }) {
+  const Icon = artIcons[art];
+  return (
+    <div className={`relative isolate overflow-hidden ${compact ? "h-10 w-10 rounded-xl" : "h-28 w-full rounded-t-[1.15rem]"} ${artClasses[art]}`} aria-hidden="true">
+      <div className="absolute -bottom-12 -left-10 h-28 w-48 rotate-[-16deg] rounded-[50%] border-[12px] border-white/15" />
+      <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/15 blur-xl" />
+      <Icon className={`absolute text-white/75 drop-shadow-sm ${compact ? "inset-2 h-6 w-6" : "bottom-4 right-5 h-12 w-12"}`} strokeWidth={1.2} />
+    </div>
+  );
+}
 
-function formatTime(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+function PracticeCard({ practice, onStart }: { practice: GroundingPractice; onStart: (practice: GroundingPractice) => void }) {
+  return (
+    <article className="echo-workspace-tile overflow-hidden rounded-[1.2rem] border border-border/70 bg-card/95 shadow-sm">
+      <PracticeArt art={practice.art} />
+      <div className="p-3.5">
+        <h3 className="line-clamp-2 min-h-8 text-sm font-semibold leading-4 text-foreground">{practice.title}</h3>
+        <p className="mt-1 line-clamp-2 min-h-9 text-xs leading-[1.15rem] text-muted-foreground">{practice.description}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><Clock3 size={12} />{practice.minutes} min</span>
+          <span>{practice.category}</span>
+        </div>
+        <button type="button" onClick={() => onStart(practice)} aria-label={`Start ${practice.title}`} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Play size={13} aria-hidden="true" />Start
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function GroundingSession({
+  practice, vm, onClose,
+}: {
+  practice: GroundingPractice;
+  vm: ReturnType<typeof useGroundingViewModel>;
+  onClose: () => void;
+}) {
+  const [senseStep, setSenseStep] = useState(0);
+  const elapsed = vm.totalSeconds - vm.remainingSeconds;
+  const cycleSeconds = vm.pace === "slower" ? 12 : vm.pace === "steady" ? 7 : 10;
+  const boxPhase = Math.floor(elapsed / cycleSeconds) % 4;
+  const breathPhase = elapsed % 19 < 4 ? 0 : elapsed % 19 < 11 ? 1 : 2;
+  const breathFraction = (elapsed % cycleSeconds) / cycleSeconds;
+  const orbScale = practice.id === "box-breathing"
+    ? boxPhase === 0 ? 0.88 + breathFraction * 0.24 : boxPhase === 1 ? 1.12 : boxPhase === 2 ? 1.12 - breathFraction * 0.24 : 0.88
+    : practice.id === "4-7-8-breathing"
+      ? breathPhase === 0 ? 0.88 + (elapsed % 19) / 4 * 0.24 : breathPhase === 1 ? 1.12 : 1.12 - ((elapsed % 19) - 11) / 8 * 0.24
+      : 1;
+  const cueIndex = practice.id === "box-breathing" ? boxPhase
+    : practice.id === "4-7-8-breathing" ? breathPhase
+      : practice.id === "sensory-5-4-3-2-1" ? senseStep
+        : Math.min(practice.cues.length - 1, Math.floor(elapsed / Math.max(1, vm.totalSeconds / practice.cues.length)));
+  const progress = Math.round((elapsed / vm.totalSeconds) * 100);
+  return (
+    <div className="echo-workspace-enter grid min-h-0 gap-3 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)]">
+      <section className="flex min-h-[31rem] flex-col overflow-hidden rounded-[1.5rem] bg-[#14382d] p-4 text-[#fffaf0] shadow-xl lg:min-h-0 lg:p-6" aria-labelledby="session-heading">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b8d8be]">Your practice</p>
+            <h2 id="session-heading" className="mt-1 text-xl [font-family:var(--font-echo-display)]">{practice.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} disabled={vm.isSaving} className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-xs text-white/85 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <ArrowLeft size={13} /> Browse
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-5 text-center">
+          <div className="relative grid h-32 w-32 place-items-center rounded-full border border-white/15 sm:h-40 sm:w-40">
+            <div className="absolute inset-3 rounded-full border border-white/15" />
+            <div className="grounding-session-orb absolute inset-7 rounded-full bg-[radial-gradient(circle_at_35%_28%,#ecf5e6,#a8d1b1_55%,#649877)] shadow-[0_0_48px_#94c5a05c] transition-transform duration-700" style={{ transform: `scale(${orbScale})` }} aria-hidden="true" />
+            <span className="relative z-10 text-xs font-bold text-[#163a2e]">{vm.remainingSeconds === 0 ? "Done" : vm.isRunning ? "Here" : "Paused"}</span>
+          </div>
+          <p className="mt-4 text-5xl tabular-nums [font-family:var(--font-echo-display)]" aria-label={`${formatTime(vm.remainingSeconds)} remaining`}>{formatTime(vm.remainingSeconds)}</p>
+          <p className="mt-2 max-w-md text-sm leading-6 text-white/75" aria-live="polite">
+            {vm.remainingSeconds === 0 ? "A little space for yourself. Take your time." : practice.cues[cueIndex]}
+          </p>
+          {practice.id === "sensory-5-4-3-2-1" && vm.remainingSeconds > 0 && (
+            <button type="button" onClick={() => setSenseStep((step) => Math.min(4, step + 1))} disabled={senseStep === 4} className="mt-3 rounded-full border border-white/25 px-3 py-1.5 text-xs hover:bg-white/10 disabled:opacity-50">
+              {senseStep === 4 ? "Final sense" : `Next sense · ${senseStep + 1} of 5`}
+            </button>
+          )}
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={vm.toggleRunning} disabled={vm.remainingSeconds === 0 || vm.isSaving} className="inline-flex h-10 items-center gap-2 rounded-full bg-[#fffaf0] px-5 text-sm font-semibold text-[#173f31] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-45">
+              {vm.isRunning ? <Pause size={15} /> : <Play size={15} />}{vm.isRunning ? "Pause" : "Continue"}
+            </button>
+            <button type="button" onClick={() => { setSenseStep(0); vm.reset(); }} disabled={vm.isSaving} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/20 px-4 text-sm hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <RotateCcw size={14} />Reset
+            </button>
+          </div>
+          {vm.status && <p role="status" className="mt-4 text-xs text-[#d5e9d7]">{vm.status}</p>}
+        </div>
+        <div className="h-1.5 rounded-full bg-white/15" role="progressbar" aria-label="Practice progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+          <div className="h-full rounded-full bg-[#a9d4af] transition-[width] duration-200" style={{ width: `${progress}%` }} />
+        </div>
+      </section>
+      <aside className="echo-panel-scroll min-h-0 space-y-3 overflow-y-auto rounded-[1.5rem] border border-border/70 bg-card/90 p-4 lg:p-5" aria-label="Practice settings">
+        <h3 className="text-base font-semibold text-foreground">Make it yours</h3>
+        <p className="text-xs leading-5 text-muted-foreground">Pause to adjust your pace or duration. Your timer restarts after a change.</p>
+        <fieldset disabled={vm.isRunning || vm.isSaving}>
+          <legend className="mb-2 text-xs font-semibold text-foreground">Duration</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {durationOptions.map((minutes) => <button key={minutes} type="button" onClick={() => vm.selectDuration(minutes)} aria-pressed={vm.durationMinutes === minutes} className={`rounded-xl border px-2 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${vm.durationMinutes === minutes ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-foreground"}`}>{minutes} min</button>)}
+          </div>
+        </fieldset>
+        <fieldset disabled={vm.isRunning || vm.isSaving}>
+          <legend className="mb-2 text-xs font-semibold text-foreground">Pace</legend>
+          <div className="grid grid-cols-3 gap-1.5">
+            {paceOptions.map((pace) => <button key={pace.value} type="button" onClick={() => vm.selectPace(pace.value)} aria-pressed={vm.pace === pace.value} className={`rounded-xl border px-1 py-2 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${vm.pace === pace.value ? "border-primary bg-secondary text-primary" : "border-border bg-background text-muted-foreground"}`}>{pace.label}</button>)}
+          </div>
+        </fieldset>
+        <Link href="/crisis" className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline underline-offset-2">Need more support? <ArrowRight size={13} /></Link>
+      </aside>
+    </div>
+  );
 }
 
 export function GroundingView() {
   const vm = useGroundingViewModel();
-  const [senseStep, setSenseStep] = useState(0);
-  const senseCues = ["Name five things you can see", "Notice four things you can feel", "Listen for three sounds", "Notice two scents, or recall two you like", "Notice one taste, or take a sip of water"];
-  const elapsed = vm.totalSeconds-vm.remainingSeconds;
-  const phaseSeconds = cycleSeconds[vm.pace];
-  const phase = Math.floor(elapsed/phaseSeconds)%4;
-  const breathCues = ["Breathe in gently", "Hold, only if comfortable", "Breathe out slowly", "Rest for a moment"];
-  const fraction = (elapsed%phaseSeconds)/phaseSeconds;
-  const orbScale = phase===0 ? .82+fraction*.26 : phase===1 ? 1.08 : phase===2 ? 1.08-fraction*.26 : .82;
-  const selected = groundingPractices.find((practice) => practice.id === vm.technique) ?? groundingPractices[0];
-  const SelectedIcon = selected.icon;
-  const elapsedPercent = vm.totalSeconds
-    ? Math.min(100, Math.max(0, ((vm.totalSeconds - vm.remainingSeconds) / vm.totalSeconds) * 100))
-    : 0;
-  const hasEnded = vm.remainingSeconds === 0;
-  const isComplete = vm.remainingSeconds === 0 && !vm.isSaving;
-  const sessionStyle = { "--grounding-cycle": `${cycleSeconds[vm.pace]}s` } as CSSProperties;
+  const [category, setCategory] = useState<GroundingCategory>("All");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"relevant" | "shortest" | "name">("relevant");
+  const [showAll, setShowAll] = useState(false);
+  const [activePractice, setActivePractice] = useState<GroundingPractice | null>(null);
+  const [showProgressInfo, setShowProgressInfo] = useState(false);
+  const browseRef = useRef<HTMLElement>(null);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const items = groundingPractices.filter((practice) =>
+      (category === "All" || practice.category === category)
+      && (!needle || `${practice.title} ${practice.description} ${practice.category}`.toLowerCase().includes(needle)));
+    return sort === "shortest" ? [...items].sort((a, b) => a.minutes - b.minutes)
+      : sort === "name" ? [...items].sort((a, b) => a.title.localeCompare(b.title)) : items;
+  }, [category, query, sort]);
+  const showRecommended = category === "All" && !query.trim() && !showAll;
+  const browseItems = showRecommended ? filtered.slice(4) : filtered;
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weekdays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + index);
+    return { label: date.toLocaleDateString("en-US", { weekday: "short" }), key: date.toDateString() };
+  });
+  const completedDays = new Set((vm.history ?? []).map((item) => new Date(item.completedAt).toDateString()));
+  const weeklyCount = weekdays.filter((day) => completedDays.has(day.key)).length;
+
+  function startPractice(practice: GroundingPractice, minutes = practice.minutes) {
+    setActivePractice(practice);
+    vm.startPractice(practice.id, minutes);
+  }
 
   return (
-    <div className="pb-6">
-      <header className="flex flex-col gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-secondary/55 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            Grounding studio
-          </div>
-          <h1 className="max-w-3xl text-4xl font-medium leading-[0.96] tracking-[-0.055em] text-foreground [font-family:var(--font-echo-display)] sm:text-5xl lg:text-[3.65rem]">
-            Take one quiet minute.
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
-            Pick what feels manageable. ECHO will hold the time so you can stay with the moment.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-subtle">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-primary">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-xs font-semibold text-foreground">Private by default</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">Saved only when you complete a practice.</p>
-          </div>
-        </div>
+    <div className="grounding-workspace flex min-h-0 flex-col gap-3 pb-3 lg:h-full lg:pb-0">
+      <header className="echo-workspace-enter relative isolate min-h-32 overflow-hidden rounded-[1.5rem] border border-border/60 bg-[var(--landing-cream)] px-5 py-4 sm:px-6 lg:shrink-0" style={{ backgroundImage: "url('/grounding-landscape.svg')", backgroundPosition: "center", backgroundSize: "cover" }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-primary">Grounding</p>
+        <h1 className="mt-1 text-[clamp(1.7rem,2.8vw,2.5rem)] leading-tight text-foreground [font-family:var(--font-echo-display)]">Take a moment. Breathe.</h1>
+        <p className="mt-1 max-w-[36rem] text-xs leading-5 text-muted-foreground sm:text-sm">Simple practices to help you feel more present, at your own pace.</p>
       </header>
 
-      <section className="py-6" aria-labelledby="practice-heading">
-        <div className="mb-3 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.17em] text-primary">Choose a practice</p>
-            <h2 id="practice-heading" className="mt-1 text-lg font-semibold tracking-[-0.025em] text-foreground">
-              What would help right now?
-            </h2>
+      {!activePractice && (
+        <div className="echo-workspace-enter flex flex-col gap-2 rounded-[1.2rem] border border-border/70 bg-card/90 p-2 shadow-sm lg:shrink-0 xl:flex-row xl:items-center">
+          <div className="echo-panel-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto" role="group" aria-label="Filter grounding practices">
+            {groundingCategories.map((item) => {
+              const Icon = categoryIcons[item];
+              return <button key={item} type="button" onClick={() => { setCategory(item); setShowAll(false); }} aria-pressed={category === item} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${category === item ? "bg-primary text-primary-foreground" : "border border-border/65 bg-background text-foreground hover:bg-secondary"}`}><Icon size={14} aria-hidden="true" />{item}</button>;
+            })}
           </div>
-          <p className="hidden text-xs text-muted-foreground sm:block">You can switch before starting.</p>
+          <label className="flex h-9 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 xl:w-48">
+            <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Search exercises</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises" className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground" />
+          </label>
         </div>
+      )}
 
-        <div className="grid gap-2.5 md:grid-cols-3">
-          {groundingPractices.map((practice, index) => {
-            const Icon = practice.icon;
-            const active = vm.technique === practice.id;
-            return (
-              <button
-                key={practice.id}
-                type="button"
-                onClick={() => {setSenseStep(0);vm.selectTechnique(practice.id);}}
-                aria-pressed={active}
-                disabled={vm.isRunning}
-                className={`group flex min-h-28 items-start gap-3 rounded-[1.4rem] border p-4 text-left outline-none transition-[transform,background-color,border-color,box-shadow] duration-150 active:scale-[0.98] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-60 ${
-                  active
-                    ? "border-[#173f31] bg-[#173f31] text-[#fffaf0] shadow-[0_14px_34px_rgba(18,51,40,0.18)]"
-                    : "border-border/70 bg-card/80 text-foreground hover:border-primary/25 hover:bg-card"
-                }`}
-              >
-                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${active ? "bg-white/10 text-[#dce8d6]" : "bg-secondary text-primary"}`}>
-                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${active ? "text-[#b9d1bd]" : "text-primary"}`}>
-                    0{index + 1} · {practice.shortLabel}
-                  </span>
-                  <strong className="mt-1 block text-[15px] leading-5">{practice.title}</strong>
-                  <span className={`mt-1 block text-xs leading-5 ${active ? "text-white/65" : "text-muted-foreground"}`}>
-                    {practice.description}
-                  </span>
-                </span>
-                <CheckCircle2 className={`mt-1 h-4 w-4 shrink-0 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`} aria-hidden="true" />
-              </button>
-            );
-          })}
+      {activePractice ? (
+        <GroundingSession key={activePractice.id} practice={activePractice} vm={vm} onClose={() => { vm.reset(); setActivePractice(null); }} />
+      ) : (
+        <div className="grid min-h-0 gap-3 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)]">
+          <div className="echo-panel-scroll min-h-0 space-y-3 lg:overflow-y-auto lg:pr-1">
+            {showRecommended && (
+              <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4" aria-labelledby="recommended-heading">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div><h2 id="recommended-heading" className="text-base font-semibold text-foreground">A gentle place to begin</h2><p className="text-xs text-muted-foreground">Choose the practice that fits this moment.</p></div>
+                  <button type="button" onClick={() => { setShowAll(true); browseRef.current?.scrollIntoView({ block: "nearest" }); }} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">See all <ArrowRight size={13} /></button>
+                </div>
+                <div className="grid gap-2.5 sm:grid-cols-2 min-[1380px]:grid-cols-4">
+                  {groundingPractices.slice(0, 4).map((practice) => <PracticeCard key={practice.id} practice={practice} onStart={startPractice} />)}
+                </div>
+              </section>
+            )}
+            <section ref={browseRef} className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4" aria-labelledby="browse-heading">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div><h2 id="browse-heading" className="text-base font-semibold text-foreground">Browse grounding exercises</h2><p className="text-xs text-muted-foreground">{filtered.length} practice{filtered.length === 1 ? "" : "s"} available</p></div>
+                <label className="relative flex items-center gap-1 rounded-xl border border-border/70 bg-background px-2.5 py-1.5 text-xs text-muted-foreground">
+                  Sort by
+                  <select aria-label="Sort exercises" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="appearance-none bg-transparent pr-4 font-medium text-foreground outline-none">
+                    <option value="relevant">Suggested</option><option value="shortest">Shortest</option><option value="name">Name</option>
+                  </select><ChevronDown size={12} className="pointer-events-none absolute right-2" />
+                </label>
+              </div>
+              {browseItems.length ? <div className="grid gap-2 sm:grid-cols-2 min-[1380px]:grid-cols-4">
+                {browseItems.map((practice) => <button key={practice.id} type="button" onClick={() => startPractice(practice)} className="echo-workspace-tile flex min-h-20 items-center gap-3 rounded-[1rem] border border-border/70 bg-background p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <PracticeArt art={practice.art} compact /><span className="min-w-0 flex-1"><strong className="block truncate text-xs text-foreground">{practice.title}</strong><span className="mt-0.5 block line-clamp-2 text-[11px] leading-4 text-muted-foreground">{practice.description}</span><span className="mt-1 block text-[10px] text-muted-foreground">{practice.minutes} min · {practice.category}</span></span><Play size={15} className="shrink-0 text-primary" aria-hidden="true" />
+                </button>)}
+              </div> : <p role="status" className="rounded-xl bg-secondary/50 p-5 text-sm text-muted-foreground">No practices match your search. Try a different term or category.</p>}
+            </section>
+          </div>
+          <aside className="echo-panel-scroll min-h-0 space-y-3 lg:overflow-y-auto lg:pr-1" aria-label="Grounding progress and support">
+            <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm" aria-labelledby="wellbeing-heading">
+              <div className="flex items-start justify-between gap-2"><div><h2 id="wellbeing-heading" className="text-sm font-semibold text-foreground">Your wellbeing</h2><p className="mt-0.5 text-xs text-muted-foreground">Small steps, this week.</p></div><button type="button" onClick={() => setShowProgressInfo((value) => !value)} aria-label="About weekly progress" aria-expanded={showProgressInfo} className="rounded-full p-1 text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ShieldCheck size={17} /></button></div>
+              {showProgressInfo && <p className="mt-2 rounded-lg bg-secondary/50 p-2 text-[11px] leading-4 text-muted-foreground">A day counts when you complete a practice and it is saved to your private account.</p>}
+              {vm.historyError ? <p role="alert" className="mt-4 text-xs text-muted-foreground">{vm.historyError}</p>
+                : vm.history === null ? <p role="status" className="mt-4 text-xs text-muted-foreground">Loading your practices…</p>
+                  : <><div className="mt-4 flex items-center gap-3"><div className="grid h-20 w-20 shrink-0 place-items-center rounded-full p-2" style={{ background: `conic-gradient(#255843 ${weeklyCount / 7 * 360}deg, #e2e9df 0)` }}><span className="grid h-full w-full place-items-center rounded-full bg-card text-primary"><Leaf size={24} /></span></div><div><p className="text-xl font-semibold text-foreground">{weeklyCount} / 7</p><p className="text-xs text-muted-foreground">days practiced</p></div></div><div className="mt-4 grid grid-cols-7 gap-1">{weekdays.map((day) => <div key={day.key} className="text-center" role="img" aria-label={`${day.label}: ${completedDays.has(day.key) ? "completed" : "no completed practice"}`}><p className="text-[10px] text-muted-foreground">{day.label}</p><span className={`mx-auto mt-1 block h-3.5 w-3.5 rounded-full ${completedDays.has(day.key) ? "bg-primary" : "bg-secondary"}`} /></div>)}</div></>}
+            </section>
+            <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm" aria-labelledby="suggestion-heading">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">A small step for today</p>
+              <div className="mt-2 overflow-hidden rounded-xl"><PracticeArt art="leaves" /></div>
+              <h2 id="suggestion-heading" className="mt-3 text-sm font-semibold text-foreground">Take a deep breath</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">A short breathing practice can help you pause and reset.</p>
+              <button type="button" onClick={() => startPractice(groundingPractices[0], 2)} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Play size={13} />Start 2-minute exercise</button>
+            </section>
+            <section className="echo-workspace-enter flex gap-2 rounded-[1.5rem] border border-border/70 bg-secondary/60 p-4" aria-label="Remember">
+              <Heart size={18} className="shrink-0 text-primary" aria-hidden="true" /><div><h2 className="text-xs font-semibold text-foreground">Remember</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">It is okay to pause. Your feelings are valid, and small steps count.</p><Link href="/crisis" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary underline underline-offset-2">Need immediate support? <ArrowRight size={12} /></Link></div>
+            </section>
+          </aside>
         </div>
-      </section>
-
-      <div className="grid gap-5 min-[1180px]:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.62fr)]">
-        <section
-          className="relative isolate min-h-[34rem] overflow-hidden rounded-[2.25rem] bg-[#123328] p-5 text-[#fffaf0] shadow-[0_30px_80px_rgba(18,51,40,0.22)] sm:p-7 lg:min-h-[38rem] lg:p-9"
-          aria-labelledby="session-title"
-          style={sessionStyle}
-        >
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_42%,rgba(158,197,166,0.19),transparent_17rem),radial-gradient(circle_at_100%_0%,rgba(255,241,205,0.09),transparent_24rem)]" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-40 -left-36 -z-10 h-96 w-96 rounded-full border border-white/[0.05]" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-28 -left-24 -z-10 h-72 w-72 rounded-full border border-white/[0.06]" aria-hidden="true" />
-
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.08] text-[#c7ddca]">
-                <SelectedIcon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9fc1a6]">Current practice</p>
-                <h2 id="session-title" className="mt-1 text-lg font-semibold tracking-[-0.02em]">{selected.title}</h2>
-              </div>
-            </div>
-            <span className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-white/75">
-              {vm.durationMinutes} min
-            </span>
-          </div>
-
-          <div className="flex min-h-[27rem] flex-col items-center justify-center py-8 text-center lg:min-h-[30rem]">
-            <div className="relative grid h-48 w-48 place-items-center sm:h-56 sm:w-56">
-              <div className="absolute inset-0 rounded-full border border-[#b9d1bd]/15" aria-hidden="true" />
-              <div className="absolute inset-5 rounded-full border border-[#b9d1bd]/20" aria-hidden="true" />
-              <div style={{transform:`scale(${vm.technique === "box-breathing" ? orbScale : 1})`,transitionDuration:"1000ms"}} className="grounding-session-orb absolute inset-9 rounded-full bg-[radial-gradient(circle_at_38%_30%,#eff7e9_0%,#b9d8bd_38%,#6f9f7e_100%)] shadow-[0_0_70px_rgba(169,209,177,0.25),inset_0_1px_18px_rgba(255,255,255,0.55)] motion-reduce:!transform-none motion-reduce:!transition-none" aria-hidden="true" />
-              <span className="relative z-10 text-xs font-semibold tracking-wide text-[#173f31]">
-                {hasEnded ? (vm.isSaving ? "Saving" : "Complete") : vm.isRunning ? vm.technique === "box-breathing" ? ["Inhale","Hold","Exhale","Rest"][phase] : "Notice" : "Ready"}
-              </span>
-            </div>
-
-            <p className="mt-7 text-[clamp(3.6rem,8vw,5.4rem)] font-medium leading-none tracking-[-0.07em] [font-family:var(--font-echo-display)]" aria-label={`${formatTime(vm.remainingSeconds)} remaining`}>
-              {formatTime(vm.remainingSeconds)}
-            </p>
-            <p className="mt-3 min-h-6 max-w-md text-sm leading-6 text-white/65" aria-live="polite">
-              {hasEnded
-                ? vm.isSaving
-                  ? "Finishing your practice…"
-                  : "You made a little room. Take your time before moving on."
-                : vm.isRunning
-                  ? vm.technique === "box-breathing" ? breathCues[phase] : vm.technique === "5-4-3-2-1" ? senseCues[senseStep] : selected.activeCue
-                  : selected.idleCue}
-            </p>
-
-            {vm.technique === "5-4-3-2-1" && !hasEnded && <div className="mt-4 flex items-center gap-3"><span className="text-xs text-white/70">Sense {senseStep+1} of 5</span><button className="rounded-full border border-white/30 px-4 py-2 text-sm" onClick={() => setSenseStep(step=>(step+1)%5)}>{senseStep===4 ? "Notice again" : "Next sense"}</button></div>}
-
-            <div className="mt-6 flex flex-wrap justify-center gap-2.5">
-              <button type="button" onClick={vm.toggleRunning} disabled={vm.remainingSeconds === 0 || vm.isSaving} className="inline-flex h-12 min-w-40 items-center justify-center gap-2 rounded-full bg-[#fffaf0] px-6 text-sm font-bold text-[#173f31] shadow-[0_10px_24px_rgba(0,0,0,0.18)] outline-none transition-[transform,background-color,box-shadow] duration-150 hover:bg-white active:scale-[0.97] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-white/25 disabled:cursor-not-allowed disabled:opacity-45">
-                {vm.isRunning ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4 fill-current" aria-hidden="true" />}
-                {vm.isRunning ? "Pause" : vm.remainingSeconds < vm.totalSeconds ? "Continue" : "Begin practice"}
-              </button>
-              <button type="button" onClick={vm.reset} className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 text-sm font-semibold text-white/80 outline-none transition-[transform,background-color,border-color] duration-150 hover:border-white/25 hover:bg-white/10 active:scale-[0.97] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-white/20">
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Reset
-              </button>
-            </div>
-
-            {vm.status ? (
-              <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-[#dce8d6]" role="status">
-                {isComplete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : null}
-                {vm.status}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="absolute inset-x-5 bottom-5 sm:inset-x-7 sm:bottom-7 lg:inset-x-9 lg:bottom-8">
-            <div className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.13em] text-white/45">
-              <span>{vm.isRunning ? "Session in progress" : vm.isSaving ? "Finishing session" : isComplete ? "Session complete" : "Your session"}</span>
-              <span>{Math.round(elapsedPercent)}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Session progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(elapsedPercent)}>
-              <div className="h-full rounded-full bg-[#b9d8bd] transition-[width] duration-200 ease-out" style={{ width: `${elapsedPercent}%` }} />
-            </div>
-          </div>
-        </section>
-
-        <aside className="space-y-4">
-          <section className="rounded-[2rem] border border-border/70 bg-card/90 p-5 shadow-[0_18px_48px_rgba(20,45,40,0.07)] sm:p-6" aria-labelledby="settings-heading">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-primary">Session settings</p>
-                <h2 id="settings-heading" className="mt-1 text-xl font-semibold tracking-[-0.03em] text-foreground">Make it yours</h2>
-              </div>
-              <Clock3 className="mt-1 h-5 w-5 text-primary" aria-hidden="true" />
-            </div>
-
-            <fieldset className="mt-6" disabled={vm.isRunning}>
-              <legend className="text-xs font-semibold text-foreground">How much time?</legend>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {durations.map((duration) => {
-                  const active = vm.durationMinutes === duration;
-                  return (
-                    <button key={duration} type="button" onClick={() => vm.selectDuration(duration)} aria-pressed={active} className={`h-11 rounded-xl border text-sm font-semibold outline-none transition-[transform,background-color,border-color,color] duration-150 active:scale-[0.97] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-45 ${active ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-background text-muted-foreground hover:border-primary/30"}`}>
-                      {duration} min
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <fieldset className="mt-6" disabled={vm.isRunning}>
-              <legend className="text-xs font-semibold text-foreground">Choose a pace</legend>
-              <div className="mt-2 space-y-2">
-                {paces.map((pace) => {
-                  const active = vm.pace === pace.value;
-                  return (
-                    <button key={pace.value} type="button" onClick={() => vm.selectPace(pace.value)} aria-pressed={active} className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left outline-none transition-[transform,background-color,border-color] duration-150 active:scale-[0.98] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-45 ${active ? "border-primary/35 bg-secondary/70" : "border-border/70 bg-background hover:border-primary/25"}`}>
-                      <span>
-                        <span className="block text-sm font-semibold text-foreground">{pace.label}</span>
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{pace.detail}</span>
-                      </span>
-                      <span className={`h-3.5 w-3.5 rounded-full border ${active ? "border-primary bg-primary shadow-[inset_0_0_0_3px_hsl(var(--secondary))]" : "border-border"}`} aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <p className="mt-5 text-[11px] leading-5 text-muted-foreground">Settings pause while the timer runs, so the rhythm stays consistent.</p>
-          </section>
-
-          <section className="rounded-[1.6rem] border border-primary/15 bg-secondary/55 p-5" aria-label="Practice history">
-            <div className="flex items-center gap-4">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-card text-primary shadow-subtle">
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-3xl font-semibold leading-none tracking-[-0.05em] text-foreground">{vm.completedSessions ?? "—"}</p>
-                <p className="mt-1 text-xs text-muted-foreground">private practices completed</p>
-              </div>
-            </div>
-          </section>
-
-          <Link href="/crisis" className="group flex items-center justify-between gap-4 rounded-[1.4rem] border border-danger/20 bg-crisis-soft/70 p-4 outline-none transition-[transform,background-color,border-color] duration-150 hover:border-danger/30 hover:bg-crisis-soft active:scale-[0.985] motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-danger/15">
-            <span>
-              <span className="block text-xs font-semibold text-foreground">Need more support right now?</span>
-              <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">Open immediate support options.</span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-danger" aria-hidden="true" />
-          </Link>
-        </aside>
-      </div>
+      )}
     </div>
   );
 }
