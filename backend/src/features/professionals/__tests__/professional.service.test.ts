@@ -199,3 +199,29 @@ describe("user support overview", () => {
     expect(gte).toHaveBeenCalledWith("starts_at", expect.any(String));
   });
 });
+
+describe("owner calendar appointments", () => {
+  it("filters dates through the owner relationship without limiting appointments to recent cases", async () => {
+    const owner = vi.fn().mockReturnThis();
+    const fromDate = vi.fn().mockReturnThis();
+    const untilDate = vi.fn().mockReturnThis();
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      eq: owner,
+      gte: fromDate,
+      lt: untilDate,
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    const from = vi.fn(() => query);
+    const database = { schema: () => ({ from }) } as unknown as SupabaseClient;
+    const service = new ProfessionalService(database, encryption, {} as JournalService);
+    const range = { from: "2026-10-01T00:00:00.000Z", to: "2026-11-01T00:00:00.000Z" };
+
+    await expect(service.listOwnAppointments(USER, range)).resolves.toEqual({ appointments: [] });
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("support_requests!inner()"));
+    expect(owner).toHaveBeenCalledWith("support_requests.user_id", USER);
+    expect(fromDate).toHaveBeenCalledWith("starts_at", range.from);
+    expect(untilDate).toHaveBeenCalledWith("starts_at", range.to);
+  });
+});

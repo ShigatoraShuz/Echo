@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Plus, Stethoscope, Trash2 } from "lucide-react";
 import { toLocalDateKey } from "../model/calendar-date";
 import { useCalendarViewModel } from "../view-model/use-calendar-view-model";
 
@@ -11,7 +11,8 @@ const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function CalendarView() {
   const {
-    month, days, selected, selectedEntries, selectedItems, entryCounts, itemCounts, analyses,
+    month, days, selected, selectedEntries, selectedItems, selectedAppointments,
+    entryCounts, itemCounts, appointmentCounts, analyses,
     loading, saving, error, content, time, kind, setSelected, setContent, setTime, setKind,
     goToday, shiftMonth, addItem, toggleItem, removeItem, retry,
   } = useCalendarViewModel();
@@ -26,7 +27,7 @@ export function CalendarView() {
           A place for each day
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--landing-muted)]">
-          Revisit saved reflections, their completed analysis, and the reminders you choose to keep.
+          Revisit reflections, professional appointments, and the reminders you choose to keep.
         </p>
       </header>
       {error && (
@@ -82,12 +83,13 @@ export function CalendarView() {
               const key = toLocalDateKey(day);
               const count = entryCounts.get(key) ?? 0;
               const plans = itemCounts.get(key) ?? 0;
+              const appointments = appointmentCounts.get(key) ?? 0;
               return (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setSelected(key)}
-                  aria-label={`${dateLabel.format(day)}: ${count} reflections, ${plans} calendar items`}
+                  aria-label={`${dateLabel.format(day)}: ${count} reflections, ${plans} calendar items, ${appointments} appointments`}
                   aria-pressed={selected === key}
                   className={`echo-workspace-tile aspect-square min-w-0 rounded-xl border p-1.5 text-left text-xs outline-none focus-visible:ring-4 focus-visible:ring-ring/20 sm:text-sm lg:aspect-auto lg:min-h-0 ${selected === key ? "border-[var(--landing-primary)] bg-[var(--landing-sage-soft)] text-[var(--landing-primary)]" : "border-[var(--landing-primary-10)] bg-[var(--landing-surface)] hover:border-[var(--landing-primary)]"} ${day.getMonth() !== month.getMonth() ? "opacity-45" : ""}`}
                 >
@@ -95,13 +97,14 @@ export function CalendarView() {
                   <span className="mt-1 flex gap-1">
                     {count > 0 && <span className="h-1.5 w-1.5 rounded-full bg-[var(--landing-primary)]" />}
                     {plans > 0 && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                    {appointments > 0 && <span className="h-1.5 w-1.5 rounded-full bg-sky-600" />}
                   </span>
                 </button>
               );
             })}
           </div>
           <p className="mt-2 text-xs text-[var(--landing-muted)]">
-            Green: reflections · Gold: saved reminders or notes
+            Green: reflections · Gold: reminders or notes · Blue: professional appointments
           </p>
         </section>
         <aside key={selected} className="echo-reading-swap echo-panel-scroll min-w-0 space-y-3 lg:min-h-0 lg:overflow-y-auto" tabIndex={0} aria-label="Selected day details">
@@ -112,7 +115,7 @@ export function CalendarView() {
             <p className="mt-1 text-xs text-[var(--landing-muted)]">
               {loading
                 ? "Loading the day…"
-                : `${selectedEntries.length} reflections · ${selectedItems.length} saved items`}
+                : `${selectedEntries.length} reflections · ${selectedItems.length} saved items · ${selectedAppointments.length} ${selectedAppointments.length === 1 ? "appointment" : "appointments"}`}
             </p>
             <div className="mt-3 space-y-2">
               {selectedEntries.map((entry) => {
@@ -164,6 +167,31 @@ export function CalendarView() {
                 <p className="text-sm text-[var(--landing-muted)]">No reflections saved for this day.</p>
               )}
             </div>
+          </section>
+          <section className="rounded-[1.5rem] border border-[var(--landing-primary-15)] bg-white/90 p-4 shadow-sm" aria-labelledby="calendar-appointments-heading">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="calendar-appointments-heading" className="text-xl text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
+                Professional appointments
+              </h2>
+              <Stethoscope size={18} className="text-sky-700" aria-hidden="true" />
+            </div>
+            {selectedAppointments.length ? (
+              <ul className="mt-4 space-y-2">
+                {selectedAppointments.map((appointment) => (
+                  <li key={appointment.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 p-3">
+                    <p className="text-sm font-semibold text-[var(--landing-ink)]">
+                      {new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(new Date(appointment.startsAt))}
+                      {" · "}{appointment.mode.replaceAll("_", " ")}
+                    </p>
+                    <p className="mt-1 text-xs capitalize text-[var(--landing-muted)]">{appointment.status}</p>
+                    {appointment.locationHint ? <p className="mt-1 text-xs text-[var(--landing-muted)]">{appointment.locationHint}</p> : null}
+                    <Link href="/professional-support/appointments" className="mt-2 inline-block text-xs font-semibold text-[var(--landing-primary)] underline-offset-4 hover:underline">
+                      View appointment
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-3 text-sm text-[var(--landing-muted)]">No professional appointments on this day.</p>}
           </section>
           <section className="rounded-[1.5rem] border border-[var(--landing-primary-15)] bg-white/90 p-4 shadow-sm">
             <h2 className="text-xl text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">

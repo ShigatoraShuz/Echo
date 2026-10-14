@@ -33,18 +33,31 @@ export function BuddyView() {
   const conversationScrollRef = useRef<HTMLDivElement>(null);
   const initialMessageIds = useRef(new Set<string>());
   const historyReady = useRef(false);
-  const openedFromHistory = useRef(false);
   const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
-  const { accessStatus, selectConversation } = vm;
+  const { accessStatus, selectConversation, clearConversation } = vm;
+  const activeConversation = vm.conversations.find((conversation) => conversation.id === vm.activeConversationId);
   const savedChatReadOnly = Boolean(vm.activeConversationId && !vm.historyEnabled);
   const pinsAvailable = vm.pagination.pinsAvailable !== false;
 
   useEffect(() => {
-    if (openedFromHistory.current || accessStatus !== "allowed") return;
-    openedFromHistory.current = true;
+    if (accessStatus !== "allowed") return;
+    const syncFromUrl = () => {
+      const id = new URLSearchParams(window.location.search).get("conversation");
+      if (id) void selectConversation(id);
+      else clearConversation();
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, [accessStatus, selectConversation, clearConversation]);
+
+  useEffect(() => {
+    if (!vm.activeConversationId || !vm.historyEnabled) return;
     const id = new URLSearchParams(window.location.search).get("conversation");
-    if (id) void selectConversation(id);
-  }, [accessStatus, selectConversation]);
+    if (id !== vm.activeConversationId) {
+      window.history.replaceState(null, "", `/buddy?conversation=${encodeURIComponent(vm.activeConversationId)}`);
+    }
+  }, [vm.activeConversationId, vm.historyEnabled]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,6 +113,12 @@ export function BuddyView() {
     if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");
   }
 
+  function openConversation(id: string) {
+    if (id === vm.activeConversationId) return;
+    window.history.pushState(null, "", `/buddy?conversation=${encodeURIComponent(id)}`);
+    void vm.selectConversation(id);
+  }
+
   function openRename(conversation: BuddyConversation) {
     setRenameTarget(conversation);
     setRenameTitle(conversation.title);
@@ -147,8 +166,8 @@ export function BuddyView() {
                 <Bot className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <h2 className="font-semibold tracking-[-0.025em]">Quiet conversation room</h2>
-                <p className="mt-0.5 text-xs text-[var(--landing-inverse-80)]">Listen, type, or speak. No diagnosis.</p>
+                <h2 className="font-semibold tracking-[-0.025em]">{activeConversation?.title ?? "Quiet conversation room"}</h2>
+                <p className="mt-0.5 text-xs text-[var(--landing-inverse-80)]">{vm.activeConversationId ? "Continue this conversation anytime from History." : "Listen, type, or speak. No diagnosis."}</p>
               </div>
             </div>
             <span className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/80 sm:inline-flex">
@@ -243,12 +262,12 @@ export function BuddyView() {
               <h2 className="flex items-center gap-1 text-xs font-semibold text-[var(--landing-ink)] sm:text-base"><Pin size={15} className="hidden shrink-0 text-[var(--landing-primary)] sm:block"/>Pinned chats</h2>
               <Link href="/buddy/history" className="text-xs font-semibold text-[var(--landing-primary)]">See all</Link>
             </div>
-            <div className="mt-4 space-y-1">{vm.conversations.filter((conversation) => conversation.pinnedAt).map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl bg-white/60 p-2"><button type="button" onClick={() => void vm.selectConversation(conversation.id)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-[var(--landing-ink)] hover:underline">{conversation.title}</button><button type="button" onClick={() => openRename(conversation)} aria-label={`Rename ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pencil size={15}/></button><button type="button" onClick={() => void vm.pinConversation(conversation.id, false)} aria-label={`Unpin ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pin size={15} fill="currentColor"/></button></div>)}{!vm.conversations.some((conversation) => conversation.pinnedAt) && <p className="text-sm text-[var(--landing-muted)]">Pin a conversation from History to keep it here.</p>}</div>
+            <div className="mt-4 space-y-1">{vm.conversations.filter((conversation) => conversation.pinnedAt).map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl bg-white/60 p-2"><button type="button" onClick={() => openConversation(conversation.id)} aria-current={vm.activeConversationId === conversation.id ? "true" : undefined} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-[var(--landing-ink)] hover:underline">{conversation.title}</button><button type="button" onClick={() => openRename(conversation)} aria-label={`Rename ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pencil size={15}/></button><button type="button" onClick={() => void vm.pinConversation(conversation.id, false)} aria-label={`Unpin ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pin size={15} fill="currentColor"/></button></div>)}{!vm.conversations.some((conversation) => conversation.pinnedAt) && <p className="text-sm text-[var(--landing-muted)]">Pin a conversation from History to keep it here.</p>}</div>
           </EchoMotionSurface> : null}
 
           <EchoMotionSurface tilt={false} className="echo-workspace-enter aspect-square overflow-y-auto rounded-[1.5rem] border border-[var(--landing-primary-10)] bg-white/90 p-3 shadow-sm sm:aspect-auto lg:shrink-0 lg:overflow-visible lg:p-4">
             <div className="flex items-center justify-between"><h2 className="flex items-center gap-1 text-xs font-semibold text-[var(--landing-ink)] sm:text-base"><History size={15} className="hidden shrink-0 text-[var(--landing-primary)] sm:block"/>History</h2><Link href="/buddy/history" className="text-xs font-semibold text-[var(--landing-primary)]">See all</Link></div>
-            <div className="mt-3 space-y-1">{vm.conversations.slice(0, 4).map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl border-b border-[var(--landing-primary-10)] py-2"><button type="button" onClick={() => void vm.selectConversation(conversation.id)} aria-current={vm.activeConversationId === conversation.id ? "true" : undefined} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm font-medium text-[var(--landing-ink)]">{conversation.title}</span><span className="block truncate text-xs text-[var(--landing-muted)]">{conversation.lastMessage || "No messages yet"}</span><span className="text-xs text-[var(--landing-muted)]">{conversation.lastMessageAt}</span></button><button type="button" onClick={() => openRename(conversation)} aria-label={`Rename ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pencil size={15}/></button>{pinsAvailable ? <button type="button" onClick={() => void vm.pinConversation(conversation.id, !conversation.pinnedAt)} aria-label={`${conversation.pinnedAt ? "Unpin" : "Pin"} ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pin size={15} fill={conversation.pinnedAt ? "currentColor" : "none"}/></button> : null}</div>)}{vm.conversations.length === 0 && <p className="text-sm text-[var(--landing-muted)]">Your conversations will appear here.</p>}{!pinsAvailable ? <p className="pt-2 text-xs text-[var(--landing-muted)]">Pinning is temporarily unavailable.</p> : null}</div>
+            <div className="mt-3 space-y-1">{vm.conversations.slice(0, 4).map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl border-b border-[var(--landing-primary-10)] py-2"><button type="button" onClick={() => openConversation(conversation.id)} aria-current={vm.activeConversationId === conversation.id ? "true" : undefined} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm font-medium text-[var(--landing-ink)]">{conversation.title}</span><span className="block truncate text-xs text-[var(--landing-muted)]">{conversation.lastMessage || "No messages yet"}</span><span className="text-xs text-[var(--landing-muted)]">{conversation.lastMessageAt}</span></button><button type="button" onClick={() => openRename(conversation)} aria-label={`Rename ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pencil size={15}/></button>{pinsAvailable ? <button type="button" onClick={() => void vm.pinConversation(conversation.id, !conversation.pinnedAt)} aria-label={`${conversation.pinnedAt ? "Unpin" : "Pin"} ${conversation.title}`} className="rounded-full p-2 text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"><Pin size={15} fill={conversation.pinnedAt ? "currentColor" : "none"}/></button> : null}</div>)}{vm.conversations.length === 0 && <p className="text-sm text-[var(--landing-muted)]">Your conversations will appear here.</p>}{!pinsAvailable ? <p className="pt-2 text-xs text-[var(--landing-muted)]">Pinning is temporarily unavailable.</p> : null}</div>
           </EchoMotionSurface>
 
           <EchoMotionSurface tilt={false} className="col-span-2 rounded-[1.5rem] border border-[var(--landing-primary-10)] bg-white/90 p-4 shadow-sm lg:col-span-1 lg:shrink-0"><div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--landing-ink)]"><BookOpen size={18} className="text-[var(--landing-primary)]"/>From your journal</h2><Link href="/journal" className="text-xs font-semibold text-[var(--landing-primary)]">See all</Link></div>{recentJournal ? <Link href={`/journal/${encodeURIComponent(recentJournal.id)}`} className="mt-3 block rounded-xl bg-[var(--landing-cream)] p-3 text-sm text-[var(--landing-ink)]"><span className="font-semibold">{recentJournal.title}</span><span className="mt-1 block line-clamp-2 text-xs text-[var(--landing-muted)]">{recentJournal.excerpt || recentJournal.body}</span></Link> : <p className="mt-3 text-sm text-[var(--landing-muted)]">Your recent reflection will appear here.</p>}</EchoMotionSurface>

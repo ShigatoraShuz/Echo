@@ -169,6 +169,9 @@ export function createSettingsController(service: SettingsService) {
     async requestDeletion(request: Request, response: Response) {
       sendSuccess(response, await service.requestDeletion(userId(request)), 201);
     },
+    async getDeletionCenter(request: Request, response: Response) {
+      sendSuccess(response, await service.getDeletionCenter(userId(request)));
+    },
     async cancelDeletion(request: Request, response: Response) {
       sendSuccess(response, await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")));
     },

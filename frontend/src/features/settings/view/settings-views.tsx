@@ -60,6 +60,7 @@ import type {
 
 import { settingsService } from "@/services/settings/settings.service";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import { normalizeError } from "@/shared/errors/normalize-error";
 
 // -----------------------------------------------------------------------------
 // CONSTANTS
@@ -319,23 +320,12 @@ function Field({
 }) {
   return (
     <div className="w-full min-w-0 space-y-1.5">
-      <label
-        className="
-          ml-1
-          block
-          text-[11px]
-          font-black
-          uppercase
-          tracking-[0.12em]
-          text-muted-foreground
-        "
-      >
-        {label}
+      <label className="block w-full min-w-0">
+        <span className="ml-1 block text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="mt-1.5 block w-full min-w-0">{children}</span>
       </label>
-
-      <div className="w-full min-w-0">
-        {children}
-      </div>
 
       {hint && (
         <p
@@ -1079,7 +1069,7 @@ export function NotificationSettingsView() {
                 isLoading={saving}
                 disabled={
                   isReminderOn &&
-                  !form.reminderTime
+                  (!form.reminderTime || !form.reminderTimezone)
                 }
                 className="
                   h-11
@@ -1403,19 +1393,16 @@ export function TrustedContactsSettingsView() {
 
   async function handleSave() {
     if (!isFormValid) return;
-    if (editId) {
-      await run(
+    const saved = editId
+      ? await run(
         () => settingsService.updateContact(editId, form),
         "Contact updated.",
-      );
-    } else {
-      await run(
+      )
+      : await run(
         () => settingsService.createContact(form),
         "Contact added to your support circle.",
       );
-    }
-    resetForm();
-    void refresh();
+    if (saved) resetForm();
   }
 
   async function handleSetPrimary(contact: TrustedContact) {
@@ -1431,13 +1418,12 @@ export function TrustedContactsSettingsView() {
         }),
       `${contact.contactName} is now your primary contact.`,
     );
-    void refresh();
   }
 
   async function handleRemove(id: string) {
-    await run(() => settingsService.removeContact(id), "Contact removed.");
-    setDeleteConfirmId(null);
-    void refresh();
+    if (await run(() => settingsService.removeContact(id), "Contact removed.")) {
+      setDeleteConfirmId(null);
+    }
   }
 
   if (loading) {
@@ -1733,6 +1719,9 @@ export function TrustedContactsSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function ExportSettingsView() {
+  const [deletionBusy, setDeletionBusy] = useState(false);
+  const [deletionError, setDeletionError] = useState<string | null>(null);
+  const [deletionConfirmed, setDeletionConfirmed] = useState(false);
   const {
     settings,
     loading,
@@ -1823,7 +1812,8 @@ export function ExportSettingsView() {
           title="Account Deletion"
           description="Once deleted, your data cannot be recovered."
         >
-          {settings?.deletionRequest ? (
+          {deletionError && <p role="alert" className="mb-4 text-sm text-destructive">{deletionError}</p>}
+          {settings?.deletionRequest?.status === "pending" ? (
             <div className="flex flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
@@ -1832,7 +1822,7 @@ export function ExportSettingsView() {
                     Deletion Scheduled
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Your account is scheduled for deletion.
+                    Your account is scheduled for deletion. Until then, you can sign in only to export data or cancel.
                     {settings.deletionRequest.scheduledFor && (
                       <> Scheduled for {formatDate(settings.deletionRequest.scheduledFor)}.</>
                     )}
@@ -1862,20 +1852,32 @@ export function ExportSettingsView() {
                     Delete your account
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    This will permanently remove your profile, all journal entries, AI analyses, and
-                    chat history. This action cannot be undone.
+                    Your account will have a 30-day cancellation window. During it, only data export and cancellation remain available. After that, live data is removed; provider backups and restricted content-free audit records follow their documented retention periods.
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    Requesting deletion also withdraws open professional cases and cancels appointments. Cancelling account deletion will not reopen them.
                   </p>
                 </div>
               </div>
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input type="checkbox" checked={deletionConfirmed} onChange={(event) => setDeletionConfirmed(event.target.checked)} className="mt-1" />
+                I understand these changes and want to request account deletion.
+              </label>
               <EchoButton
                 type="button"
                 variant="danger"
-                onClick={() =>
-                  void run(
-                    () => settingsService.requestDeletion(),
-                    "Deletion requested. You can cancel within 30 days.",
-                  )
-                }
+                disabled={deletionBusy || !deletionConfirmed}
+                onClick={() => void (async () => {
+                  setDeletionBusy(true);
+                  setDeletionError(null);
+                  try {
+                    await settingsService.requestDeletion();
+                    window.location.assign("/deletion");
+                  } catch (cause) {
+                    setDeletionError(normalizeError(cause).userMessage);
+                    setDeletionBusy(false);
+                  }
+                })()}
                 className="h-11 w-full rounded-full border-destructive bg-destructive/10 px-8 text-destructive hover:bg-destructive hover:text-white sm:w-auto"
               >
                 <Trash2 className="mr-2 h-4 w-4" />

@@ -14,8 +14,14 @@
     "admin:super": "node --env-file=.env scripts/verification-admin.mjs",
     "backfill:journal-ciphertext": "tsx --env-file=.env scripts/journal-ciphertext-backfill.mts",
     "backfill:buddy-history": "tsx --env-file=.env scripts/buddy-history-backfill.mts",
+    "backfill:buddy-ciphertext:live": "tsx --env-file=.env scripts/buddy-ciphertext-live-backfill.mts",
+    "verify:buddy-history": "tsx --env-file=.env scripts/buddy-history-verify.mts",
     "retention:analysis": "tsx --env-file=.env scripts/analysis-retention.mts",
-    "retention:professional": "tsx --env-file=.env scripts/professional-retention.mts"
+    "retention:professional": "tsx --env-file=.env scripts/professional-retention.mts",
+    "retention:categories": "tsx --env-file=.env scripts/category-retention.mts",
+    "retention:active-policy": "tsx --env-file=.env scripts/audit-retention.mts",
+    "erasure:restore": "tsx --env-file=.env scripts/account-erasure-restore.mts",
+    "worker:account-erasure": "node --env-file=.env dist/workers/account-erasure.js"
   },
   "dependencies": {
     "@echo/contracts": "0.1.0",

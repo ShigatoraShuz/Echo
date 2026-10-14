@@ -95,7 +95,7 @@ describe("settingsService", () => {
       exportHistory: [],
     };
     api.post
-      .mockResolvedValueOnce({ success: true, data: exportSnapshot })
+      .mockResolvedValueOnce({ success: true, data: exportSnapshot.latestExport })
       .mockResolvedValueOnce({ success: true, data: snapshot });
     api.patch.mockResolvedValue({ success: true, data: snapshot });
 

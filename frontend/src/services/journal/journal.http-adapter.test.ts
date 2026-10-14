@@ -29,4 +29,33 @@ describe("journal HTTP pagination", () => {
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer access-token" }) }),
     );
   });
+
+  it("sends only accepted draft fields", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      data: { id: "current", title: "Note", body: "A thought", mood: "calm", emotions: [], tags: [], privacy_status: "private", analysis_consent: false, updated_at: "2026-10-13T00:00:00Z" },
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    const { createJournalHttpAdapter } = await import("./journal.http-adapter");
+    await createJournalHttpAdapter().saveDraft({
+      id: "client-only", updatedAt: "2026-10-13T00:00:00Z", title: "Note", body: "A thought",
+      mood: "calm", emotions: [], tags: [], privacyStatus: "private", analysisConsent: false,
+    });
+    const request = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual({
+      title: "Note", body: "A thought", mood: "calm", emotions: [], tags: [],
+      privacyStatus: "private", analysisConsent: false,
+    });
+  });
+
+  it("keeps a confirmed journal save successful when the follow-up read fails", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: { journalId: "saved-id", status: "saved" } }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: false, error: { message: "Read unavailable" } }), { status: 503, headers: { "content-type": "application/json" } })));
+    const { createJournalHttpAdapter } = await import("./journal.http-adapter");
+    const result = await createJournalHttpAdapter().createEntry({
+      title: "A moment", body: "A short reflection", mood: "calm", emotions: [], tags: [],
+      privacyStatus: "private", analysisConsent: false,
+    }, { idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    expect(result).toMatchObject({ success: true, data: { id: "saved-id", title: "A moment" } });
+  });
 });

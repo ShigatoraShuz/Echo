@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getAnalysis: vi.fn(),
   updateItem: vi.fn(),
   removeItem: vi.fn(),
+  listAppointments: vi.fn(),
 }));
 
 vi.mock("@/services/calendar/calendar-api", () => ({
@@ -18,9 +19,15 @@ vi.mock("@/services/calendar/calendar-api", () => ({
 vi.mock("@/services/journal/journal-service.factory", () => ({
   getJournalService: () => ({ listEntries: mocks.listEntries, getAnalysis: mocks.getAnalysis }),
 }));
+vi.mock("@/services/professionals/professional-api", () => ({
+  professionalApi: { appointments: mocks.listAppointments },
+}));
 
 describe("CalendarView", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.listAppointments.mockResolvedValue({ appointments: [] });
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it("saves a dated item in the calendar without implying a timed notification", async () => {
@@ -77,5 +84,43 @@ describe("CalendarView", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(mocks.listItems).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("shows a proposed appointment on its local calendar day and links to its controls", async () => {
+    const today = new Date();
+    const startsAt = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15).toISOString();
+    mocks.listItems.mockResolvedValue([]);
+    mocks.listEntries.mockResolvedValue({ success: true, data: { entries: [], pagination: { totalPages: 1 } } });
+    mocks.listAppointments.mockResolvedValue({ appointments: [{
+      id: "appointment-1", requestId: "request-1", startsAt,
+      endsAt: new Date(new Date(startsAt).getTime() + 3_600_000).toISOString(),
+      mode: "online", locationHint: "Private video room", status: "proposed",
+    }] });
+    render(<CalendarView />);
+
+    expect(await screen.findByText("Private video room")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View appointment" })).toHaveAttribute("href", "/professional-support/appointments");
+    expect(screen.getByText(/0 reflections · 0 saved items · 1 appointment$/)).toBeInTheDocument();
+    expect(mocks.listAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expect.any(String), to: expect.any(String) }),
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("keeps reflections available when professional appointments fail to load", async () => {
+    mocks.listItems.mockResolvedValue([]);
+    mocks.listAppointments.mockRejectedValue(new Error("Appointments unavailable"));
+    mocks.listEntries.mockResolvedValue({
+      success: true,
+      data: { entries: [{
+        id: "journal-1", title: "A quiet page", body: "Today felt calm", excerpt: "Today felt calm",
+        mood: "calm", createdAt: new Date().toISOString(), analysisConsent: false,
+      }], pagination: { totalPages: 1 } },
+    });
+
+    render(<CalendarView />);
+    expect(await screen.findByRole("link", { name: "A quiet page" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("No professional appointments on this day.")).toBeInTheDocument();
   });
 });

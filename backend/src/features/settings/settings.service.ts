@@ -104,6 +104,27 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function deletionValue(value: Row) {
+  return {
+    id: stringValue(value.id),
+    status: stringValue(value.request_status),
+    requestedAt: stringValue(value.requested_at),
+    scheduledFor: nullableString(value.scheduled_for),
+    cancelledAt: nullableString(value.cancelled_at),
+    completedAt: nullableString(value.completed_at),
+  };
+}
+
+function exportValue(value: Row) {
+  return {
+    id: stringValue(value.id),
+    status: stringValue(value.request_status),
+    requestedAt: stringValue(value.requested_at),
+    completedAt: nullableString(value.completed_at),
+    expiresAt: nullableString(value.expires_at),
+  };
+}
+
 export class SettingsService {
   constructor(
     private readonly administrativeDatabase: SupabaseClient,
@@ -217,6 +238,7 @@ export class SettingsService {
           .from("account_deletion_requests")
           .select("id, request_status, requested_at, scheduled_for, cancelled_at, completed_at")
           .eq("user_id", userId)
+          .in("request_status", ["pending", "processing"])
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -326,16 +348,7 @@ export class SettingsService {
       })),
       latestExport: exportHistory[0] ?? null,
       exportHistory,
-      deletionRequest: latestDeletion
-        ? {
-            id: stringValue((latestDeletion as Row).id),
-            status: stringValue((latestDeletion as Row).request_status),
-            requestedAt: stringValue((latestDeletion as Row).requested_at),
-            scheduledFor: nullableString((latestDeletion as Row).scheduled_for),
-            cancelledAt: nullableString((latestDeletion as Row).cancelled_at),
-            completedAt: nullableString((latestDeletion as Row).completed_at),
-          }
-        : null,
+      deletionRequest: latestDeletion ? deletionValue(latestDeletion as Row) : null,
     };
   }
 
@@ -510,8 +523,12 @@ export class SettingsService {
 
   async requestExport(userId: string) {
     if (!this.exports) throw new ExternalServiceError("EXPORT_UNAVAILABLE", "Data export is not configured.");
-    await this.exports.prepare(userId);
-    return this.get(userId);
+    const requestId = await this.exports.prepare(userId);
+    const { data, error } = await this.administrativeDatabase.schema("user_service").from("data_export_requests")
+      .select("id,request_status,requested_at,completed_at,expires_at")
+      .eq("id", requestId).eq("user_id", userId).single();
+    if (error || !data) throw databaseError("Your export status could not be loaded.");
+    return exportValue(data as Row);
   }
 
   async downloadExport(userId: string, requestId: string) {
@@ -524,7 +541,26 @@ export class SettingsService {
       .schema("user_service")
       .rpc("request_account_deletion", { p_user_id: userId });
     if (error || !data) throw databaseError("Your deletion request could not be created.");
-    return this.get(userId);
+    const center = await this.getDeletionCenter(userId);
+    if (!center.deletionRequest) throw databaseError("Your deletion status could not be loaded.");
+    return center.deletionRequest;
+  }
+
+  async getDeletionCenter(userId: string) {
+    const [deletion, exports] = await Promise.all([
+      this.administrativeDatabase.schema("user_service").from("account_deletion_requests")
+        .select("id,request_status,requested_at,scheduled_for,cancelled_at,completed_at")
+        .eq("user_id", userId).in("request_status", ["pending", "processing"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      this.administrativeDatabase.schema("user_service").from("data_export_requests")
+        .select("id,request_status,requested_at,completed_at,expires_at")
+        .eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
+    ]);
+    if (deletion.error || exports.error) throw databaseError("Your deletion status could not be loaded.");
+    return {
+      deletionRequest: deletion.data ? deletionValue(deletion.data as Row) : null,
+      exportHistory: (exports.data ?? []).map((row) => exportValue(row as Row)),
+    };
   }
 
   async cancelDeletion(userId: string, requestId: string) {
@@ -533,7 +569,12 @@ export class SettingsService {
       .rpc("cancel_account_deletion", { p_user_id: userId, p_request_id: requestId });
     if (error) throw databaseError("Your deletion request could not be cancelled.");
     if (data !== true) throw new NotFoundError("No pending deletion request was found.");
-    return this.get(userId);
+    const { data: cancelled, error: readError } = await this.administrativeDatabase.schema("user_service")
+      .from("account_deletion_requests")
+      .select("id,request_status,requested_at,scheduled_for,cancelled_at,completed_at")
+      .eq("id", requestId).eq("user_id", userId).single();
+    if (readError || !cancelled) throw databaseError("Your cancellation status could not be loaded.");
+    return deletionValue(cancelled as Row);
   }
 
   async changePassword(

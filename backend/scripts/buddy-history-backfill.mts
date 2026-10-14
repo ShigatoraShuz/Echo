@@ -30,7 +30,7 @@ while (true) {
     for (let offset = 0; ; offset += 500) {
       const result = await database.schema("buddy_service").from("buddy_messages")
         .select("id,content").eq("user_id", conversation.user_id)
-        .eq("conversation_id", conversation.id).order("created_at").order("id").range(offset, offset + 499);
+        .eq("conversation_id", conversation.id).order("created_at").order("role", { ascending: false }).order("id").range(offset, offset + 499);
       if (result.error) throw new Error("Buddy message backfill read failed.");
       allMessages.push(...(result.data ?? []));
       if ((result.data?.length ?? 0) < 500) break;
@@ -59,7 +59,7 @@ while (true) {
           .upsert(rows.slice(start, start + 500), {
             onConflict: "user_id,conversation_id,source_type,source_id,token_hash", ignoreDuplicates: true,
           });
-        if (indexError) throw new Error("Buddy search backfill write failed.");
+        if (indexError) throw new Error(`Buddy search backfill write failed (${indexError.code}).`);
       }
       const { data: verified, error: verifyError } = await database.schema("buddy_service").from("buddy_conversations")
         .select("title,title_ciphertext").eq("id", conversation.id).eq("user_id", conversation.user_id).single();

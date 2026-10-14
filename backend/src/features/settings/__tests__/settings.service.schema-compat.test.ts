@@ -36,6 +36,7 @@ function legacyDatabase() {
         return query;
       }),
       eq: vi.fn(() => updating ? Promise.resolve({ error: updateError }) : query),
+      in: vi.fn(() => query),
       maybeSingle: vi.fn(async () => ({ data: rows[table] ?? null, error: null })),
       then: (resolve: (value: { data: unknown; error: null }) => unknown) =>
         Promise.resolve({ data: rows[table] ?? [], error: null }).then(resolve),

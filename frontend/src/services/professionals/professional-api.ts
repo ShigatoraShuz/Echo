@@ -136,7 +136,10 @@ export const professionalApi = {
   sendMessage: (id: string, input: { clientMessageId: string; body: string }) =>
     post<{ message: CaseMessage }>(`/professional/my-requests/${id}/messages`, input),
   markMessagesRead: (id: string) => patch<{ read: true }>(`/professional/my-requests/${id}/messages/read`, {}),
-  appointments: () => get<{ appointments: ProfessionalAppointment[] }>("/professional/appointments"),
+  appointments: (range?: { from: string; to: string }, signal?: AbortSignal) => {
+    const params = range ? `?${new URLSearchParams(range)}` : "";
+    return get<{ appointments: ProfessionalAppointment[] }>(`/professional/appointments${params}`, signal);
+  },
   requestAppointmentChange: (id: string, preferredTime: string) =>
     post<{ changeRequestId: string }>(`/professional/appointments/${id}/change-requests`, { preferredTime }),
   respondAppointment: (id: string, accept: boolean) =>

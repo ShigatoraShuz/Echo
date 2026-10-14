@@ -1,5 +1,6 @@
 import type {
   DeletionRequest,
+  DeletionCenter,
   ExportRequest,
   NotificationSettings,
   PrivacySettings,
@@ -26,6 +27,7 @@ export interface SettingsService {
   authorizePdfExport(): Promise<{ authorized: true }>;
   downloadExport(id: string): Promise<Blob>;
   requestDeletion(): Promise<DeletionRequest>;
+  getDeletionCenter(): Promise<DeletionCenter>;
   cancelDeletion(id: string): Promise<DeletionRequest>;
   getSecurityAuditEvents(limit?: number): Promise<{ auditEvents: SecurityAuditEvent[] }>;
   changePassword(input: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<{ passwordChanged: true }>;
@@ -108,11 +110,7 @@ export const settingsService: SettingsService = {
     return unwrap(client.post<ApiEnvelope<{ authorized: true }>>("/settings/data-exports/pdf-authorization"));
   },
   async requestExport() {
-    const snapshot = await unwrap(client.post<ApiEnvelope<SettingsSnapshot>>("/settings/data-exports"));
-    if (!snapshot.latestExport) {
-      throw new Error("The export request could not be loaded after it was recorded.");
-    }
-    return snapshot.latestExport;
+    return unwrap(client.post<ApiEnvelope<ExportRequest>>("/settings/data-exports"));
   },
   async downloadExport(id) {
     const token = await supabaseAuthTokenProvider.getAccessToken();
@@ -125,6 +123,9 @@ export const settingsService: SettingsService = {
   },
   requestDeletion() {
     return unwrap(client.post<ApiEnvelope<DeletionRequest>>("/settings/account-deletion"));
+  },
+  getDeletionCenter() {
+    return unwrap(client.get<ApiEnvelope<DeletionCenter>>("/settings/account-deletion"));
   },
   cancelDeletion(id) {
     return unwrap(client.patch<ApiEnvelope<DeletionRequest>>(

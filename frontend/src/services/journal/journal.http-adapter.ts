@@ -1,11 +1,7 @@
-import type { JournalService, JournalServiceResult } from "@/services/journal/journal.service";
+import type { JournalService } from "@/services/journal/journal.service";
 import type {
-  JournalEntry,
   JournalDraft,
-  JournalAnalysis,
-  CreateJournalInput,
   UpdateJournalInput,
-  JournalSearchFilters,
   JournalServiceError,
 } from "@/features/journal/model/journal.model";
 import type {
@@ -122,10 +118,23 @@ export function createJournalHttpAdapter(): JournalService {
         });
         if ("analysisJobId" in response.data)
           return { success: true, data: { kind: "analysis" as const, submission: response.data } };
-        const entry = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
-          `/journals/${response.data.journalId}`,
-        );
-        return { success: true, data: mapEntryResponseToDomain(entry.data) };
+        try {
+          const entry = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
+            `/journals/${response.data.journalId}`,
+          );
+          return { success: true, data: mapEntryResponseToDomain(entry.data) };
+        } catch {
+          // The POST confirmed persistence. The detail page will retry the authoritative read.
+          const now = new Date().toISOString();
+          return { success: true, data: {
+            id: response.data.journalId, title: input.title, body: input.body,
+            excerpt: input.body.slice(0, 180), mood: input.mood, emotions: input.emotions,
+            tags: input.tags, privacyStatus: input.privacyStatus,
+            analysisConsent: input.analysisConsent, riskScore: null, riskBand: null,
+            summary: "No analysis result is available.", perspective: null,
+            createdAt: now, updatedAt: now, images: [],
+          } };
+        }
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }
@@ -151,9 +160,10 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async saveDraft(draft) {
       try {
-        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, JournalDraft>(
+        const { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent } = draft;
+        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, Pick<JournalDraft, "submissionKey" | "title" | "body" | "mood" | "emotions" | "tags" | "privacyStatus" | "analysisConsent">>(
           "/journals/draft",
-          draft,
+          { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent },
         );
         return { success: true, data: mapDraftResponseToDomain(response.data) };
       } catch (error) {

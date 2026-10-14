@@ -60,6 +60,11 @@ export interface DeletionRequest {
   completedAt: string | null;
 }
 
+export interface DeletionCenter {
+  deletionRequest: DeletionRequest | null;
+  exportHistory: ExportRequest[];
+}
+
 export interface SecurityAuditEvent {
   id: string;
   eventType: string;

@@ -112,6 +112,18 @@ describe("authentication proxy", () => {
     expect(first.headers.get("x-nonce")).not.toBe(second.headers.get("x-nonce"));
   });
 
+  it("allows private journal photos from the configured Supabase origin", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://journal.example.supabase.co");
+    try {
+      vi.resetModules();
+      const { proxy: configuredProxy } = await import("./proxy");
+      const policy = (await configuredProxy(request("/login"))).headers.get("content-security-policy");
+      expect(policy).toMatch(/img-src[^;]*https:\/\/journal\.example\.supabase\.co/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("allows both local API hosts when registration cookies follow the page host", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://127.0.0.1:4200/api/v1");

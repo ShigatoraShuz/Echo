@@ -886,12 +886,13 @@ export class JournalService {
           tags: input.tags,
           privacy_status: input.privacyStatus,
           analysis_consent: input.analysisConsent,
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },
       )
       .select("*")
       .single();
-    if (error || !data) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be saved.");
+    if (error || !data) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "save draft" }, "Your draft could not be saved.");
     return this.toDraftResponse(data as JournalRow);
   }
 
@@ -902,7 +903,7 @@ export class JournalService {
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be loaded.");
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "load draft" }, "Your draft could not be loaded.");
     return data ? this.toDraftResponse(data as JournalRow) : null;
   }
 
@@ -914,7 +915,7 @@ export class JournalService {
       .eq("user_id", userId);
     if (submissionKey) query = query.eq("submission_key", submissionKey);
     const {error} = await query;
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be removed.");
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "remove draft" }, "Your draft could not be removed.");
   }
 
   async analyze(userId: string, journalId: string): Promise<AnalysisResponse> {

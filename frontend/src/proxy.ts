@@ -15,6 +15,7 @@ const authenticatedPrefixes = [
   "/professional",
   "/professional-support",
   "/onboarding",
+  "/deletion",
 ];
 
 function requiresAuthentication(pathname: string): boolean {
@@ -27,6 +28,8 @@ function requiresAuthentication(pathname: string): boolean {
 }
 
 const accessDestinations: Record<string, string> = {
+  DELETION_PENDING:
+    "/deletion",
   ACCOUNT_UNAVAILABLE:
     "/login?error=account_unavailable",
   EMAIL_VERIFICATION_REQUIRED:
@@ -100,7 +103,7 @@ function contentSecurityPolicy(
 
     "style-src 'self' 'unsafe-inline' https://accounts.google.com",
 
-    "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
+    `img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com${supabaseOrigin ? ` ${supabaseOrigin}` : ""}`,
 
     "font-src 'self' data:",
 

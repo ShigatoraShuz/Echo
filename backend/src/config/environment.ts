@@ -34,6 +34,7 @@ const environmentSchema = z.object({
       return parsed as Record<string, string>;
     } catch { context.addIssue({ code: "custom", message: "Invalid previous key configuration." }); return z.NEVER; }
   }),
+  ACCOUNT_ERASURE_HMAC_KEY_BASE64: base64KeySchema.optional(),
   AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker"]).default("disabled"),
   AI_DEVELOPMENT_USER_IDS: z.string().default(""),
   AI_WORKER_TOKEN: z.string().min(32).optional(),

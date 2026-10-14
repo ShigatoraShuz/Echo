@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
+import type { JournalDraft } from "../model/journal.model";
 const service = vi.hoisted(() => ({
   getDraft: vi.fn(),
   saveDraft: vi.fn(),
@@ -48,5 +49,17 @@ describe("draft restoration", () => {
       expect.objectContaining({ idempotencyKey: draft.submissionKey }),
     );
     expect(service.deleteDraft).toHaveBeenCalledWith(draft.submissionKey);
+  });
+  it("persists an intentionally cleared draft before leaving", async () => {
+    service.getDraft.mockResolvedValue({ success: true, data: {
+      id: "current", title: "Old title", body: "Old text", mood: "calm", emotions: [], tags: [],
+      privacyStatus: "private", analysisConsent: false, updatedAt: "2026-10-13T00:00:00Z",
+    } });
+    service.saveDraft.mockImplementation(async (draft: JournalDraft) => ({ success: true, data: draft }));
+    const { result } = renderHook(() => useJournalEditorViewModel());
+    await waitFor(() => expect(result.current.draftReady).toBe(true));
+    act(() => { result.current.setTitle(""); result.current.setBody(""); });
+    await act(async () => expect(await result.current.saveDraftNow()).toBe(true));
+    expect(service.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ title: "", body: "" }));
   });
 });

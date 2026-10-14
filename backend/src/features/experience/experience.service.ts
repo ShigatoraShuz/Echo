@@ -116,7 +116,10 @@ export class ExperienceService {
   private async historyEnabled(userId: string): Promise<boolean> {
     const { data, error } = await this.reader.schema("user_service").from("privacy_preferences")
       .select("buddy_history_enabled").eq("user_id", userId).maybeSingle();
-    if (error) throw databaseError("Buddy privacy settings could not be loaded.");
+    throwIfDatabaseError(error, {
+      module: "experience.buddy", schema: "user_service", table: "privacy_preferences",
+      operation: "select Buddy history preference",
+    }, "Buddy privacy settings could not be loaded.");
     return data?.buddy_history_enabled !== false;
   }
 
@@ -315,7 +318,9 @@ export class ExperienceService {
       .select("*")
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .order("role", { ascending: false })
+      .order("id", { ascending: true });
     throwIfDatabaseError(
       error,
       {

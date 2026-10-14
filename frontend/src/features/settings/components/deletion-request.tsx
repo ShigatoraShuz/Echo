@@ -22,7 +22,7 @@ export function DeletionRequestSection({ onRequestDeletion, isRequesting, hasPen
       </div>
 
       {hasPendingRequest ? (
-        <p className="text-sm text-warning">A deletion request is already pending. Check your email for confirmation.</p>
+        <p className="text-sm text-warning">A deletion request is already pending. You can view or cancel it in Settings.</p>
       ) : (
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm text-foreground">

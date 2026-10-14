@@ -161,7 +161,16 @@ export function createProfessionalRouter(
     sendSuccess(response, await service.markMessagesRead(request.auth!.id, requireUuidParam(request, "requestId")));
   });
   router.get("/professional/appointments", async (request, response) => {
-    sendSuccess(response, await service.listOwnAppointments(request.auth!.id));
+    const range = parse(z.strictObject({
+      from: z.iso.datetime({ offset: true }).optional(),
+      to: z.iso.datetime({ offset: true }).optional(),
+    }), request.query);
+    if (Boolean(range.from) !== Boolean(range.to) ||
+        (range.from && range.to && (Date.parse(range.from) >= Date.parse(range.to) ||
+          Date.parse(range.to) - Date.parse(range.from) > 62 * 86_400_000))) {
+      throw new ValidationError({ range: ["Choose a valid appointment range of up to 62 days."] });
+    }
+    sendSuccess(response, await service.listOwnAppointments(request.auth!.id, range));
   });
   router.post("/professional/appointments/:appointmentId/respond", async (request, response) => {
     const { accept } = parse(z.strictObject({ accept: z.boolean() }), request.body);

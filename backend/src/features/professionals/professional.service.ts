@@ -927,12 +927,12 @@ export class ProfessionalService {
     return { eventId: data.id as string };
   }
 
-  async listOwnAppointments(userId: string) {
-    const { requests } = await this.listOwnRequests(userId);
-    if (requests.length === 0) return { appointments: [] };
-    const { data, error } = await this.database.schema("professional_service").from("appointments")
-      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status")
-      .in("request_id", requests.map((item) => item.id)).order("starts_at", { ascending: false }).limit(100);
+  async listOwnAppointments(userId: string, range: { from?: string; to?: string } = {}) {
+    let query = this.database.schema("professional_service").from("appointments")
+      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status,support_requests!inner()")
+      .eq("support_requests.user_id", userId);
+    if (range.from && range.to) query = query.gte("starts_at", range.from).lt("starts_at", range.to);
+    const { data, error } = await query.order("starts_at", { ascending: false }).limit(100);
     if (error) throw databaseError("Appointments could not be loaded.");
     return { appointments: ((data ?? []) as Row[]).map((item) => ({
       id: value(item, "id"), requestId: value(item, "request_id"), startsAt: value(item, "starts_at"),

@@ -316,7 +316,7 @@ async function run() {
     ...authenticated,
     method: "POST",
   });
-  if (exportSettings?.latestExport?.status !== "requested") {
+  if (exportSettings?.status !== "completed") {
     throw new Error("Data export request was not persisted.");
   }
 
@@ -324,14 +324,14 @@ async function run() {
     ...authenticated,
     method: "POST",
   });
-  if (deletionSettings?.deletionRequest?.status !== "pending" || !deletionSettings.deletionRequest.id) {
+  if (deletionSettings?.status !== "pending" || !deletionSettings.id) {
     throw new Error("Account deletion request was not persisted.");
   }
   const cancelledDeletionSettings = await api(
-    `/settings/account-deletion/${encodeURIComponent(deletionSettings.deletionRequest.id)}/cancel`,
+    `/settings/account-deletion/${encodeURIComponent(deletionSettings.id)}/cancel`,
     { ...authenticated, method: "PATCH" },
   );
-  if (cancelledDeletionSettings?.deletionRequest?.status !== "cancelled") {
+  if (cancelledDeletionSettings?.status !== "cancelled") {
     throw new Error("Account deletion request was not cancelled.");
   }
   checks.push("all settings actions");
@@ -468,17 +468,41 @@ async function run() {
   }
   checks.push("verification submission and admin approval");
 
-  const buddy = await api("/buddy/session", authenticated);
-  if (!buddy?.conversationId) throw new Error("Buddy session was not created.");
+  const emptyBuddy = await api("/buddy/session", authenticated);
+  if (emptyBuddy?.conversationId !== null) throw new Error("A new Buddy session resumed an older chat.");
+  const buddy = await api("/buddy/conversations", {
+    ...authenticated,
+    method: "POST",
+    body: {},
+  });
+  if (!buddy?.id) throw new Error("Buddy conversation was not created.");
   const buddyReply = await api("/buddy/messages", {
     ...authenticated,
     method: "POST",
-    body: { content: "I feel a little overwhelmed today." },
+    body: { content: "I feel a little overwhelmed today.", conversationId: buddy.id },
   });
-  if (!buddyReply?.messages?.some((message) => message.role === "buddy")) {
+  if (buddyReply?.conversationId !== buddy.id || !buddyReply?.messages?.some((message) => message.role === "buddy")) {
     throw new Error("Buddy response was not persisted and returned.");
   }
-  checks.push("buddy encrypted conversation");
+  const reopenedBuddy = await api(`/buddy/conversations/${buddy.id}`, authenticated);
+  if (reopenedBuddy?.messages?.length !== 2 || reopenedBuddy.messages[0].content !== "I feel a little overwhelmed today.") {
+    throw new Error("Saved Buddy conversation did not reopen with both messages.");
+  }
+  const renamedBuddy = await api(`/buddy/conversations/${buddy.id}`, {
+    ...authenticated, method: "PATCH", body: { title: "QA Buddy conversation" },
+  });
+  if (renamedBuddy?.title !== "QA Buddy conversation") throw new Error("Buddy rename was not saved.");
+  const pinnedBuddy = await api(`/buddy/conversations/${buddy.id}/pin`, {
+    ...authenticated, method: "PUT", body: { pinned: true },
+  });
+  if (!pinnedBuddy?.pinned_at) throw new Error("Buddy pin was not saved.");
+  const buddySearch = await api("/buddy/history?query=overwhelmed", authenticated);
+  if (!buddySearch?.conversations?.some((conversation) => conversation.id === buddy.id)) {
+    throw new Error("Buddy message search did not find the conversation.");
+  }
+  await api(`/buddy/conversations/${buddy.id}`, { ...authenticated, method: "DELETE" });
+  await apiFailure(`/buddy/conversations/${buddy.id}`, 404, authenticated);
+  checks.push("buddy create, send, reopen, rename, pin, search, and delete");
 
   const insights = await api("/insights/emotions", authenticated);
   if (!Array.isArray(insights?.emotionWheel) || !Array.isArray(insights?.moodTrend)) {

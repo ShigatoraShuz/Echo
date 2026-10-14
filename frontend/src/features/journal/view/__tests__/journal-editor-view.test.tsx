@@ -55,6 +55,7 @@ function setupMock() {
     reset: vi.fn(),
     clearError: vi.fn(),
     retryAutosave: vi.fn(),
+    saveDraftNow: vi.fn().mockResolvedValue(true),
   };
 }
 
@@ -76,6 +77,7 @@ describe("JournalEditorView", () => {
     await user.type(screen.getByLabelText(/title/i), "Morning reflection");
     await user.type(screen.getByLabelText(/start writing/i), "I felt steady today.");
     await user.click(screen.getByRole("button", { name: /happy/i }));
+    await user.click(screen.getByText("More options"));
     await user.click(screen.getByLabelText(/allow a reflective summary after saving/i));
     await user.click(screen.getByRole("button", { name: /save reflection/i }));
 
@@ -94,5 +96,14 @@ describe("JournalEditorView", () => {
 
     expect(screen.queryByText(/a prompt, if it helps/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/echo is private by design/i)).not.toBeInTheDocument();
+  });
+
+  it("saves pending writing before returning to the overview", async () => {
+    const user = userEvent.setup();
+    const mock = setupMock();
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    render(<JournalEditorView />);
+    await user.click(screen.getByRole("link", { name: /all reflections/i }));
+    expect(mock.saveDraftNow).toHaveBeenCalledOnce();
   });
 });

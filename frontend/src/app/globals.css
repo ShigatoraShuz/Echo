@@ -191,6 +191,136 @@
   outline-offset: 9px;
 }
 
+.journal-photo-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.8rem;
+  max-width: 43rem;
+  margin-inline: auto;
+  padding: 0.5rem 0.25rem;
+}
+
+.journal-polaroid {
+  flex: 0 0 auto;
+  width: min(36vw, 13rem);
+  min-width: 0;
+  padding: 0.5rem 0.5rem 0.9rem;
+  background: #fffefa;
+  box-shadow: 0 13px 30px rgba(27, 49, 37, 0.17), 0 2px 7px rgba(27, 49, 37, 0.07);
+  transform-origin: 50% 85%;
+  animation: journal-photo-develop 540ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: box-shadow 240ms ease, transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.journal-polaroid__window {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: hsl(var(--secondary));
+}
+
+.journal-polaroid__image {
+  transition: transform 450ms cubic-bezier(0.16, 1, 0.3, 1), filter 450ms ease;
+}
+
+.journal-polaroid__caption {
+  padding-top: 0.55rem;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  font-family: var(--font-echo-display);
+  font-size: 0.9rem;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.journal-gallery-card {
+  animation: journal-card-slide 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.journal-gallery-card__link {
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms ease;
+}
+
+.journal-reading-page,
+.journal-writing-page {
+  animation: journal-page-settle 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.journal-ink-arrive {
+  animation: journal-ink-arrive 380ms cubic-bezier(0.16, 1, 0.3, 1) 140ms backwards;
+}
+
+.journal-timeline-card {
+  animation: journal-card-slide 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.journal-reading-swap,
+.journal-draft-card {
+  animation: journal-card-slide 360ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.journal-writing-page #journal-title,
+.journal-writing-page #journal-body {
+  transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.journal-writing-page #journal-title:focus-visible {
+  box-shadow: inset 0 -2px 0 hsl(var(--primary) / 0.3);
+}
+
+.journal-writing-page #journal-body:focus-visible {
+  background: hsl(var(--primary) / 0.025);
+}
+
+@keyframes journal-photo-develop {
+  from { opacity: 0.75; transform: translateY(18px) rotate(-4deg) scale(0.94); filter: saturate(0.72) brightness(1.08); }
+  to { opacity: 1; transform: translateY(0) rotate(0) scale(1); filter: saturate(1) brightness(1); }
+}
+
+@keyframes journal-card-slide {
+  from { opacity: 0.78; transform: translateX(15px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes journal-page-settle {
+  from { opacity: 0.88; transform: translateY(12px) scale(0.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes journal-ink-arrive {
+  from { opacity: 0.72; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .journal-polaroid:hover { transform: translateY(-4px) rotate(-1.2deg); box-shadow: 0 21px 42px rgba(27, 49, 37, 0.2), 0 4px 10px rgba(27, 49, 37, 0.08); }
+  .journal-polaroid:hover .journal-polaroid__image,
+  .journal-gallery-card__link:hover .journal-polaroid__image,
+  .journal-gallery-card__link:focus-visible .journal-polaroid__image { transform: scale(1.06); filter: saturate(1.07); }
+  .journal-gallery-card__link:hover { transform: translateY(-4px) rotate(0.6deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-echo-motion="full"]) .journal-polaroid,
+  html:not([data-echo-motion="full"]) .journal-gallery-card,
+  html:not([data-echo-motion="full"]) .journal-reading-page,
+  html:not([data-echo-motion="full"]) .journal-writing-page,
+  html:not([data-echo-motion="full"]) .journal-ink-arrive,
+  html:not([data-echo-motion="full"]) .journal-timeline-card,
+  html:not([data-echo-motion="full"]) .journal-reading-swap,
+  html:not([data-echo-motion="full"]) .journal-draft-card { animation: none; }
+
+  html:not([data-echo-motion="full"]) .journal-polaroid,
+  html:not([data-echo-motion="full"]) .journal-gallery-card__link,
+  html:not([data-echo-motion="full"]) .journal-polaroid__image,
+  html:not([data-echo-motion="full"]) .journal-polaroid:hover,
+  html:not([data-echo-motion="full"]) .journal-gallery-card__link:hover,
+  html:not([data-echo-motion="full"]) .journal-gallery-card__link:hover .journal-polaroid__image,
+  html:not([data-echo-motion="full"]) .journal-gallery-card__link:focus-visible .journal-polaroid__image { transform: none; transition: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .echo-crisis-surface .echo-emergency-link { animation: none; }
 }

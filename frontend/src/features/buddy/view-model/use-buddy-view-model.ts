@@ -134,6 +134,11 @@ const selectConversation = useCallback(async (id: string) => {
     return null;
   }, [service, state.historyEnabled]);
 
+  const clearConversation = useCallback(() => {
+    activeConversationIdRef.current = null;
+    dispatch({ type: "NEW_TEMPORARY_CONVERSATION" });
+  }, []);
+
   const sendMessage = useCallback(async (conversationId: string | null, content: string) => {
     let targetId = conversationId;
     if (state.historyEnabled && !targetId) {
@@ -240,6 +245,7 @@ const retryMessage = useCallback(async (conversationId: string) => {
     selectConversation,
     sendMessage,
     createConversation,
+    clearConversation,
     renameConversation,
     pinConversation,
     deleteConversation,

@@ -119,7 +119,7 @@ function clearStoredAnalysis() {
   }
 }
 
-export function AnalysisStatusExperience() {
+export function AnalysisStatusExperience({ initialSubmission = null }: { initialSubmission?: JournalSubmissionResponse | null }) {
   const [submission, setSubmission] = useState<JournalSubmissionResponse | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
   const [minimized, setMinimized] = useState(false);
@@ -174,7 +174,7 @@ export function AnalysisStatusExperience() {
   }, []);
 
   useEffect(() => {
-    const saved = storedSubmission();
+    const saved = initialSubmission ?? storedSubmission();
     setSubmission(saved);
     if (saved) {
       try {
@@ -212,7 +212,7 @@ export function AnalysisStatusExperience() {
       window.removeEventListener("echo:analysis-submitted", listener);
       unsubscribe?.();
     };
-  }, []);
+  }, [initialSubmission]);
 
   useEffect(() => {
     if (!submission) return;

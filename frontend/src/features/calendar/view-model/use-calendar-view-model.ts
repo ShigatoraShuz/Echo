@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { DefaultJournalFilters, type JournalAnalysis, type JournalEntry } from "@/features/journal/model/journal.model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 import { calendarApi, type CalendarItem } from "@/services/calendar/calendar-api";
+import { professionalApi, type ProfessionalAppointment } from "@/services/professionals/professional-api";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { getCalendarDays, toLocalDateKey } from "../model/calendar-date";
 
@@ -12,6 +13,7 @@ export function useCalendarViewModel() {
   const [selected, setSelected] = useState(() => toLocalDateKey(new Date()));
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [items, setItems] = useState<CalendarItem[]>([]);
+  const [appointments, setAppointments] = useState<ProfessionalAppointment[]>([]);
   const [analyses, setAnalyses] = useState<Record<string, JournalAnalysis | null | false>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,8 +39,20 @@ export function useCalendarViewModel() {
     for (const item of items) counts.set(item.scheduledOn, (counts.get(item.scheduledOn) ?? 0) + 1);
     return counts;
   }, [items]);
+  const visibleAppointments = useMemo(() => appointments.filter((item) =>
+    ["proposed", "confirmed", "completed"].includes(item.status)), [appointments]);
+  const appointmentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const appointment of visibleAppointments) {
+      const day = toLocalDateKey(new Date(appointment.startsAt));
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    return counts;
+  }, [visibleAppointments]);
   const selectedEntries = useMemo(() => entries.filter((entry) => toLocalDateKey(new Date(entry.createdAt)) === selected), [entries, selected]);
   const selectedItems = useMemo(() => items.filter((item) => item.scheduledOn === selected), [items, selected]);
+  const selectedAppointments = useMemo(() => visibleAppointments.filter((item) =>
+    toLocalDateKey(new Date(item.startsAt)) === selected), [visibleAppointments, selected]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,9 +61,18 @@ export function useCalendarViewModel() {
     async function load() {
       try {
         const journal = getJournalService();
-        const [savedItems, first] = await Promise.all([
+        let itemError: string | null = null;
+        let appointmentError: string | null = null;
+        const [savedItems, scheduled, first] = await Promise.all([
           calendarApi.list(from, to, controller.signal).catch((cause: unknown) => {
-            if (!controller.signal.aborted) setError(normalizeError(cause).userMessage);
+            itemError = normalizeError(cause).userMessage;
+            return null;
+          }),
+          professionalApi.appointments({
+            from: days[0].toISOString(),
+            to: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
+          }, controller.signal).catch((cause: unknown) => {
+            appointmentError = normalizeError(cause).userMessage;
             return null;
           }),
           journal.listEntries({ ...DefaultJournalFilters, dateFrom: from, dateTo: to }, 1, 50, controller.signal),
@@ -64,8 +87,10 @@ export function useCalendarViewModel() {
           allEntries.push(...next.data.entries);
         }
         if (!controller.signal.aborted) {
-          if (savedItems) setItems(savedItems);
+          setItems(savedItems ?? []);
+          setAppointments(scheduled?.appointments ?? []);
           setEntries(allEntries);
+          setError([itemError, appointmentError].filter(Boolean).join(" ") || null);
         }
       } catch (cause) {
         if (!controller.signal.aborted) setError(normalizeError(cause).userMessage);
@@ -75,7 +100,7 @@ export function useCalendarViewModel() {
     }
     void load();
     return () => controller.abort();
-  }, [from, to, reloadCount]);
+  }, [from, to, days, last, reloadCount]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -138,7 +163,8 @@ export function useCalendarViewModel() {
   }
 
   return {
-    month, days, selected, selectedEntries, selectedItems, entryCounts, itemCounts, analyses,
+    month, days, selected, selectedEntries, selectedItems, selectedAppointments,
+    entryCounts, itemCounts, appointmentCounts, analyses,
     loading, saving, error, content, time, kind, setSelected, setContent, setTime, setKind,
     goToday, shiftMonth, addItem, toggleItem, removeItem, retry: () => setReloadCount((count) => count + 1),
   };

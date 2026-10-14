@@ -20,7 +20,7 @@ export function JournalTimelineEntry({ entry, isLast = false }: JournalTimelineE
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 
   return (
-    <article className="group relative flex items-start gap-4 sm:gap-6">
+    <article className="journal-timeline-card group relative flex items-start gap-4 sm:gap-6">
       {/* ── Left Timeline Spine ────────────────────────────────────── */}
       <div className="relative flex flex-col items-center">
         {/* Date square pill */}

@@ -9,6 +9,8 @@ do $$
 declare chat_id uuid;
 declare pinned_id uuid;
 begin
+  if not has_column_privilege('authenticated','user_service.privacy_preferences','buddy_history_enabled','UPDATE')
+    then raise exception 'Users cannot change their Buddy history preference'; end if;
   if has_table_privilege('authenticated','buddy_service.buddy_conversations','INSERT, UPDATE, DELETE')
     or has_table_privilege('authenticated','buddy_service.buddy_messages','INSERT')
     then raise exception 'Direct Buddy writes remain available to clients'; end if;

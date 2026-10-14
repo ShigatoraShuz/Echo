@@ -16,6 +16,7 @@ function harness() {
     directory: vi.fn().mockResolvedValue({ practitioners: [], nextCursor: null }),
     sendMessage: vi.fn().mockResolvedValue({ message: { id: CASE } }),
     completeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "completed" }),
+    listOwnAppointments: vi.fn().mockResolvedValue({ appointments: [] }),
     detail: vi.fn().mockResolvedValue({ request: { id: CASE } }),
     memberships: vi.fn().mockResolvedValue({ userId: USER, memberships: [] }),
     listOrganizationsForAdmin: vi.fn().mockResolvedValue({ organizations: [] }),
@@ -135,6 +136,19 @@ describe("professional portal routes", () => {
     expect(service.completeAppointment).not.toHaveBeenCalled();
     expect((await request(app).post(path).set("Authorization", "Bearer mfa")).status).toBe(200);
     expect(service.completeAppointment).toHaveBeenCalledWith(USER, CASE);
+  });
+
+  it("accepts a bounded calendar range and rejects incomplete or oversized ranges", async () => {
+    const { app, service } = harness();
+    const path = "/api/v1/professional/appointments";
+    const authorization = "Bearer basic";
+    const from = "2026-10-01T00:00:00.000Z";
+    const to = "2026-11-01T00:00:00.000Z";
+    expect((await request(app).get(path).set("Authorization", authorization).query({ from })).status).toBe(400);
+    expect((await request(app).get(path).set("Authorization", authorization).query({ from, to: "2027-01-01T00:00:00.000Z" })).status).toBe(400);
+    const result = await request(app).get(path).set("Authorization", authorization).query({ from, to });
+    expect(result.status).toBe(200);
+    expect(service.listOwnAppointments).toHaveBeenCalledWith(USER, { from, to });
   });
 
   it("requires recent MFA and administrator authorization for provisioning", async () => {

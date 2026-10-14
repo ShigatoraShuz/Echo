@@ -183,7 +183,7 @@ export function JournalNotebookView() {
         tabIndex={0}
       >
         {selected ? (
-          <article key={selected.id} className="echo-reading-swap">
+          <article key={selected.id} className="journal-reading-swap">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--landing-muted)]">

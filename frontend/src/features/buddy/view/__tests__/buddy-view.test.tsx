@@ -68,6 +68,7 @@ function setupMock() {
     sendMessage: vi.fn().mockResolvedValue(undefined),
     loadConversations: vi.fn(),
     selectConversation: vi.fn(),
+    clearConversation: vi.fn(),
     createConversation: vi.fn(),
     renameConversation: vi.fn(),
     pinConversation: vi.fn(),
@@ -90,6 +91,43 @@ describe("BuddyView", () => {
     vi.clearAllMocks();
     MockRecognition.instance = null;
     vi.unstubAllGlobals();
+    window.history.replaceState(null, "", "/buddy");
+  });
+
+  it("reopens a previous chat and keeps its URL for reload and browser back", async () => {
+    const user = userEvent.setup();
+    const mock = setupMock();
+    mock.conversations = [
+      { id: "conv-1", title: "First chat", pinnedAt: null } as BuddyConversation,
+      { id: "conv-2", title: "Earlier chat", pinnedAt: null } as BuddyConversation,
+    ];
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+
+    render(<BuddyView />);
+    await user.click(screen.getByText("Earlier chat").closest("button")!);
+    expect(mock.selectConversation).toHaveBeenCalledWith("conv-2");
+    expect(window.location.search).toBe("?conversation=conv-2");
+
+    window.history.pushState(null, "", "/buddy?conversation=conv-1");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(mock.selectConversation).toHaveBeenCalledWith("conv-1");
+  });
+
+  it("loads a linked older chat and sends the next message to that chat", async () => {
+    window.history.replaceState(null, "", "/buddy?conversation=conv-2");
+    const mock = setupMock();
+    mock.activeConversationId = null;
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    const { rerender } = render(<BuddyView />);
+    expect(mock.selectConversation).toHaveBeenCalledWith("conv-2");
+
+    mock.activeConversationId = "conv-2";
+    mock.messages = [{ id: "old-reply", conversationId: "conv-2", content: "An earlier reply", role: "buddy", timestamp: "8:00 PM" }];
+    rerender(<BuddyView />);
+    await userEvent.setup().type(screen.getByLabelText(/message buddy/i), "Following up");
+    await userEvent.setup().click(screen.getByRole("button", { name: /send message/i }));
+    expect(mock.sendMessage).toHaveBeenCalledWith("conv-2", "Following up");
+    expect(screen.getByText("An earlier reply")).toBeInTheDocument();
   });
 
   it("supports prompt chips, typing, and sending", async () => {

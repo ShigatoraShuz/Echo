@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createServerSupabaseClient } from "@/infrastructure/supabase/server-client";
-import { AnalysisStatusExperience } from "@/features/journal/components/analysis-status-experience";
+import { AnalysisStatusGateway } from "@/features/journal/components/analysis-status-gateway";
 import { AnalysisCompletionToast } from "@/features/journal/components/analysis-completion-toast";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   return (
     <PrivateSessionBoundary key={claims.sub} userId={claims.sub}>
       {children}
-      <AnalysisStatusExperience />
+      <AnalysisStatusGateway />
       <AnalysisCompletionToast />
     </PrivateSessionBoundary>
   );

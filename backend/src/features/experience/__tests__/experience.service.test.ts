@@ -91,6 +91,29 @@ describe("ExperienceService.buddyHistory", () => {
 });
 
 describe("ExperienceService.Buddy privacy", () => {
+  it("orders tied exchange timestamps with the user message before Buddy's reply", async () => {
+    const messages = {
+      select: vi.fn(), eq: vi.fn(), order: vi.fn(),
+      then: (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
+    };
+    messages.select.mockReturnValue(messages);
+    messages.eq.mockReturnValue(messages);
+    messages.order.mockReturnValue(messages);
+    const conversation = {
+      select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: { id: "conv-1", user_id: "owner" }, error: null })),
+    };
+    conversation.select.mockReturnValue(conversation);
+    conversation.eq.mockReturnValue(conversation);
+    const database = { schema: vi.fn(() => ({ from: vi.fn((table: string) => table === "buddy_messages" ? messages : conversation) })) };
+    const service = new ExperienceService(database as never, {} as JournalService, {} as EncryptionService);
+    await service.buddySession("owner", "conv-1");
+    expect(messages.order.mock.calls).toEqual([
+      ["created_at", { ascending: true }],
+      ["role", { ascending: false }],
+      ["id", { ascending: true }],
+    ]);
+  });
+
   it("does not reopen the latest saved conversation for an unselected session", async () => {
     const database = { schema: vi.fn() };
     const service = new ExperienceService(database as never, {} as JournalService, {} as EncryptionService);

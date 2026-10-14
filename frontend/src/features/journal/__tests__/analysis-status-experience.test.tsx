@@ -13,7 +13,8 @@ vi.mock("@/infrastructure/supabase/browser-client", () => ({
 const submission = {
   journalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   analysisJobId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-  status: "waiting_for_provider",
+  status: "waiting_for_provider" as const,
+  facialStatus: "not_requested" as const,
 };
 const status = (state: string, progress: number, time = "2026-08-31T00:00:00Z") => ({
   success: true,
@@ -27,6 +28,15 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 describe("backend-owned analysis progress", () => {
+  it("opens a new submission when browser storage is unavailable", async () => {
+    localStorage.clear();
+    api.getAnalysisStatus.mockResolvedValue(status("waiting_for_provider", 0));
+    await act(async () => {
+      render(<AnalysisStatusExperience initialSubmission={submission} />);
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("keeps polling while waiting even when Realtime is offline", async () => {
     api.getAnalysisStatus
       .mockResolvedValueOnce(status("waiting_for_provider", 0))
