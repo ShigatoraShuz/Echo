@@ -44,7 +44,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
   if (!usesImmersive)
     return (
       <div className="echo-fixed-light echo-auth-surface grid min-h-[100dvh] place-items-center px-4 py-12">
-        <div className="w-full max-w-md">{children}</div>
+        <div className="min-w-0 w-full max-w-md">{children}</div>
       </div>
     );
   return (
@@ -87,7 +87,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </aside>
       <main
         data-lenis-prevent
-        className="flex min-h-[100dvh] items-start justify-center px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-12 lg:py-8 xl:px-16"
+        className="flex min-h-[100dvh] min-w-0 items-start justify-center px-5 py-7 sm:px-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-12 lg:py-8 xl:px-16"
       >
         {children}
       </main>

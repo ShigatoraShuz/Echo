@@ -58,6 +58,11 @@ ai-service/model-artifacts/*
 
 # Local tooling and QA artefacts
 .playwright-mcp/
+**/playwright-report/
+**/test-results/
+frontend/.qa-staging/
+frontend/playwright-staging-report/
+frontend/playwright-staging-performance.json
 .understand-anything/
 settings-audit/
 design-qa-assets/

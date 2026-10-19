@@ -86,7 +86,25 @@ describe("CalendarView", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
-  it("shows a proposed appointment on its local calendar day and links to its controls", async () => {
+  it("shows an analysis load failure instead of checking forever", async () => {
+    mocks.listItems.mockResolvedValue([]);
+    mocks.listEntries.mockResolvedValue({
+      success: true,
+      data: { entries: [{
+        id: "journal-1", title: "A quiet page", body: "Today felt calm", excerpt: "Today felt calm",
+        mood: "calm", createdAt: new Date().toISOString(), analysisConsent: true,
+      }], pagination: { totalPages: 1 } },
+    });
+    mocks.getAnalysis.mockRejectedValue(new Error("offline"));
+
+    render(<CalendarView />);
+
+    expect(await screen.findByRole("link", { name: "A quiet page" })).toBeInTheDocument();
+    expect(await screen.findByText(/Analysis could not be loaded/)).toBeInTheDocument();
+    expect(screen.queryByText(/Checking for completed analysis/)).not.toBeInTheDocument();
+  });
+
+  it.each(["proposed", "confirmed"])("shows a %s appointment on its local calendar day and links to its controls", async (status) => {
     const today = new Date();
     const startsAt = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 15).toISOString();
     mocks.listItems.mockResolvedValue([]);
@@ -94,7 +112,7 @@ describe("CalendarView", () => {
     mocks.listAppointments.mockResolvedValue({ appointments: [{
       id: "appointment-1", requestId: "request-1", startsAt,
       endsAt: new Date(new Date(startsAt).getTime() + 3_600_000).toISOString(),
-      mode: "online", locationHint: "Private video room", status: "proposed",
+      mode: "online", locationHint: "Private video room", status,
     }] });
     render(<CalendarView />);
 

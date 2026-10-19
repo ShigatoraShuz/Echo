@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { type ChangeEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, LockKeyhole, Save } from "lucide-react";
 import { analysisFixtureSchema } from "@echo/contracts";
 import journalLandscape from "../../../../assets/growth-doorway-hill.png";
 import { env } from "@/config/environment";
 import { settingsService } from "@/services/settings";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
 import { JournalMoodSelector } from "../components/journal-mood-selector";
@@ -18,9 +19,10 @@ import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view
 
 interface JournalPhotoPreview {
   id: string;
-  file: File;
+  file?: File;
   name: string;
   src: string;
+  status: "uploading" | "saved" | "error";
 }
 
 export function JournalEditorView() {
@@ -33,12 +35,20 @@ export function JournalEditorView() {
   } = useJournalEditorViewModel();
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
   const [photoError, setPhotoError] = useState("");
+  const [photosLoaded, setPhotosLoaded] = useState(false);
   const photosRef = useRef<JournalPhotoPreview[]>([]);
+  const journalService = getJournalService();
+  const photoBackGuardRef = useRef(false);
   const faceCaptureRef = useRef<JournalFaceCaptureHandle>(null);
   const [facialAllowed, setFacialAllowed] = useState(false);
   const [facialRequested, setFacialRequested] = useState(false);
 
-  useEffect(() => { if (savedEntry) router.push(`/journal/${savedEntry.id}`); }, [savedEntry, router]);
+  useEffect(() => {
+    if (!savedEntry) return;
+    const destination = `/journal/${savedEntry.id}`;
+    if (photoBackGuardRef.current) router.replace(destination);
+    else router.push(destination);
+  }, [savedEntry, router]);
   useEffect(() => {
     if (!env.enableFacialAnalysis) return;
     let active = true;
@@ -54,9 +64,78 @@ export function JournalEditorView() {
     }
   }, [analysisConsent]);
   useEffect(() => { photosRef.current = photos; }, [photos]);
+  const loadDraftPhotos = useCallback(async () => {
+    setPhotosLoaded(false);
+    try {
+      const result = await journalService.listDraftImages();
+      if (!result.success) throw new Error(result.error.message);
+      setPhotos((current) => [
+        ...current,
+        ...result.data.filter((image) => !current.some((photo) => photo.id === image.id))
+          .map((image, index) => ({ id: image.id, src: image.url, name: `Draft photo ${index + 1}`, status: "saved" as const })),
+      ]);
+      setPhotoError("");
+      setPhotosLoaded(true);
+    } catch (failure) {
+      setPhotoError(`${failure instanceof Error ? failure.message : "Draft photos could not be loaded."} Retry loading your draft photos before publishing.`);
+    }
+  }, [journalService]);
+  useEffect(() => { if (draftReady) void loadDraftPhotos(); }, [draftReady, loadDraftPhotos]);
+  const pendingPhotos = photos.some((photo) => photo.status !== "saved");
+  useEffect(() => {
+    if (!pendingPhotos || savedEntry || analysisSubmission || photoBackGuardRef.current) return;
+    window.history.pushState({ echoJournalPhotoGuard: true }, "", window.location.href);
+    photoBackGuardRef.current = true;
+  }, [pendingPhotos, savedEntry, analysisSubmission]);
+  useEffect(() => {
+    const restorePhotoGuard = () => {
+      window.history.pushState({ echoJournalPhotoGuard: true }, "", window.location.href);
+      photoBackGuardRef.current = true;
+    };
+    const onBack = () => {
+      if (!photoBackGuardRef.current) return;
+      photoBackGuardRef.current = false;
+      if (!photosRef.current.some((photo) => photo.status !== "saved") || savedEntry || analysisSubmission) {
+        window.history.back();
+        return;
+      }
+      if (isSaving || !window.confirm("Some photos have not finished saving. Leave without them?")) {
+        restorePhotoGuard();
+        return;
+      }
+      void saveDraftNow().then((saved) => {
+        if (saved) window.history.back();
+        else restorePhotoGuard();
+      }).catch(() => {
+        setPhotoError("Your draft could not be saved. Please try again.");
+        restorePhotoGuard();
+      });
+    };
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, [analysisSubmission, isSaving, saveDraftNow, savedEntry]);
+  useEffect(() => {
+    const leaveWithPhotos = (event: globalThis.MouseEvent) => {
+      if (!photosRef.current.length || savedEntry || analysisSubmission || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      const link = target instanceof Element ? target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download")) return;
+      const destination = new URL(link.href, window.location.href);
+      if (destination.origin !== window.location.origin || destination.pathname === window.location.pathname || destination.pathname === "/crisis" || destination.pathname === "/crisis-help") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (isSaving || (photosRef.current.some((photo) => photo.status !== "saved") &&
+        !window.confirm("Some photos have not finished saving. Leave without them?"))) return;
+      void saveDraftNow().then((saved) => {
+        if (saved) router.replace(`${destination.pathname}${destination.search}${destination.hash}`);
+      });
+    };
+    document.addEventListener("click", leaveWithPhotos, true);
+    return () => document.removeEventListener("click", leaveWithPhotos, true);
+  }, [analysisSubmission, isSaving, router, saveDraftNow, savedEntry]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (photosRef.current.length && !savedEntry && !analysisSubmission) {
+      if (photosRef.current.some((photo) => photo.status !== "saved") && !savedEntry && !analysisSubmission) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -64,36 +143,71 @@ export function JournalEditorView() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [savedEntry, analysisSubmission]);
-  useEffect(() => () => photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.src)), []);
+  useEffect(() => () => photosRef.current.forEach((photo) => {
+    if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src);
+  }), []);
 
+  const persistPhoto = async (photo: JournalPhotoPreview) => {
+    if (!photo.file) return;
+    setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, status: "uploading" } : item));
+    try {
+      if (!await saveDraftNow(true)) throw new Error("Your draft could not be saved.");
+      const result = await journalService.uploadDraftImage(photo.id, photo.file);
+      if (!result.success) throw new Error(result.error.message);
+      setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, status: "saved" } : item));
+      setPhotoError("");
+    } catch (failure) {
+      setPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, status: "error" } : item));
+      setPhotoError(`${failure instanceof Error ? failure.message : "The photo could not be uploaded."} Retry the photo; your writing remains in the draft.`);
+    }
+  };
   const addPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
     const valid = selected.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 5 * 1024 * 1024);
     setPhotoError(valid.length !== selected.length ? "Choose JPEG, PNG, or WebP photos up to 5 MB each." : "");
-    setPhotos((current) => {
-      const available = Math.max(0, 5 - current.length);
-      if (valid.length > available) setPhotoError("You can add up to five photos.");
-      return [...current, ...valid.slice(0, available).map((file) => ({ id: crypto.randomUUID(), file, name: file.name, src: URL.createObjectURL(file) }))];
-    });
+    const available = Math.max(0, 5 - photosRef.current.length);
+    if (valid.length > available) setPhotoError("You can add up to five photos.");
+    const added = valid.slice(0, available).map((file) => ({
+      id: crypto.randomUUID(), file, name: file.name, src: URL.createObjectURL(file), status: "uploading" as const,
+    }));
+    photosRef.current = [...photosRef.current, ...added];
+    setPhotos(photosRef.current);
+    if (added.length) void Promise.all(added.map(persistPhoto));
     event.target.value = "";
   };
-  const removePhoto = (id: string) => {
-    setPhotos((current) => {
-      const photo = current.find((item) => item.id === id);
-      if (photo) URL.revokeObjectURL(photo.src);
-      return current.filter((item) => item.id !== id);
-    });
+  const removePhoto = async (id: string) => {
+    const photo = photosRef.current.find((item) => item.id === id);
+    if (!photo) return;
+    if (photo.status === "uploading") {
+      setPhotoError("Wait for this photo to finish uploading before removing it.");
+      return;
+    }
+    const result = await journalService.removeDraftImage(id);
+    if (!result.success) {
+      setPhotoError(`${result.error.message} Retry removing the photo.`);
+      return;
+    }
+    if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src);
+    setPhotos((current) => current.filter((item) => item.id !== id));
+    setPhotoError("");
   };
   const finish = () => {
+    if (!photosLoaded || photos.some((photo) => photo.status !== "saved")) {
+      setPhotoError("Finish uploading or retry each photo before saving this reflection.");
+      return;
+    }
     const capture = faceCaptureRef.current?.getCapture();
     faceCaptureRef.current?.stop();
-    void save({ requested: facialRequested, capture }, photos);
+    void save({ requested: facialRequested, capture });
   };
   const returnToJournal = async (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     if (isSaving) return;
-    if (photos.length && !window.confirm("Selected photos are not saved in this draft. Leave without these photos?")) return;
-    if (await saveDraftNow()) router.push("/journal");
+    if (pendingPhotos && !window.confirm("Some photos have not finished saving. Leave without them?")) return;
+    if (await saveDraftNow()) {
+      if (photoBackGuardRef.current) router.replace("/journal");
+      else router.push("/journal");
+    }
   };
 
   if (!draftReady) return (
@@ -128,17 +242,18 @@ export function JournalEditorView() {
         <div className="border-t border-border/60 bg-secondary/20 px-5 py-6 sm:px-10">
           <div className="flex items-center justify-between gap-3">
             <div><h2 className="font-[family-name:var(--font-echo-display)] text-xl text-foreground">Moments in pictures</h2><p className="mt-1 text-xs text-muted-foreground">Optional · up to five photos</p></div>
-            <label className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold text-primary outline-none focus-within:ring-4 focus-within:ring-primary/20 ${photos.length >= 5 ? "pointer-events-none opacity-50" : ""}`}><ImagePlus className="h-4 w-4" aria-hidden="true" /> Add photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={photos.length >= 5} className="sr-only" aria-label="Upload journal photos" /></label>
+            <label className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold text-primary outline-none focus-within:ring-4 focus-within:ring-primary/20 ${photos.length >= 5 || !photosLoaded ? "pointer-events-none opacity-50" : ""}`}><ImagePlus className="h-4 w-4" aria-hidden="true" /> Add photos<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={addPhotos} disabled={photos.length >= 5 || !photosLoaded} className="sr-only" aria-label="Upload journal photos" /></label>
           </div>
-          {photoError && <p className="mt-2 text-sm text-danger" role="alert">{photoError}</p>}
+          {photoError && <div className="mt-2 text-sm text-danger" role="alert">{photoError}{!photosLoaded && <button type="button" onClick={() => void loadDraftPhotos()} className="ml-2 font-semibold underline">Retry loading photos</button>}</div>}
           <div className="journal-photo-gallery mt-5" aria-label="Selected journal photos">
             {photos.length ? photos.map((photo, index) => (
-              <JournalPolaroid key={photo.id} src={photo.src} alt={photo.name} caption={`Memory ${index + 1}`} index={index} onRemove={() => removePhoto(photo.id)} removeLabel={`Remove ${photo.name}`} />
+              <JournalPolaroid key={photo.id} src={photo.src} alt={photo.name} caption={photo.status === "saved" ? `Memory ${index + 1}` : photo.status === "uploading" ? "Saving photo…" : "Upload failed"} index={index} onRemove={() => void removePhoto(photo.id)} removeLabel={`Remove ${photo.name}`} />
             )) : (
               <JournalPolaroid src={journalLandscape} alt="Illustration of a doorway on a hillside" caption="Illustration · add your own photo" />
             )}
           </div>
-          {photos.length > 0 && <p className="mt-4 text-xs text-muted-foreground">Photos attach when you finish this reflection. Keep this page open until uploads complete; selected photos are not part of the text draft.</p>}
+          {photos.some((photo) => photo.status === "error") && <div className="mt-3 flex flex-wrap gap-2">{photos.filter((photo) => photo.status === "error" && photo.file).map((photo) => <button key={photo.id} type="button" onClick={() => void persistPhoto(photo)} className="min-h-11 rounded-full border border-border bg-card px-4 text-sm font-semibold text-primary">Retry {photo.name}</button>)}</div>}
+          {photos.length > 0 && <p className="mt-4 text-xs text-muted-foreground">Saved photos stay with your private draft and attach when you finish this reflection.</p>}
         </div>
         <div className="space-y-5 px-5 py-6 sm:px-10">
           <div className="journal-mood-panel"><JournalMoodSelector value={mood} onChange={setMood} /></div>
@@ -156,7 +271,7 @@ export function JournalEditorView() {
         </div>
       </article>
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 shadow-[0_-8px_30px_rgba(30,45,34,0.1)] backdrop-blur sm:static sm:mt-5 sm:rounded-2xl sm:border sm:shadow-sm">
-        <div className="mx-auto flex max-w-[980px] items-center justify-between gap-3"><span className="hidden items-center gap-2 text-xs text-muted-foreground sm:inline-flex"><LockKeyhole className="h-4 w-4" aria-hidden="true" /> Private by default</span><EchoButton variant="primary" size="medium" isLoading={isSaving} onClick={finish} className="w-full sm:w-auto"><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
+        <div className="mx-auto flex max-w-[980px] items-center justify-between gap-3"><span className="hidden items-center gap-2 text-xs text-muted-foreground sm:inline-flex"><LockKeyhole className="h-4 w-4" aria-hidden="true" /> Private by default</span><EchoButton variant="primary" size="medium" isLoading={isSaving} disabled={!photosLoaded || pendingPhotos} onClick={finish} className="w-full sm:w-auto"><Save className="h-4 w-4" aria-hidden="true" /> Save reflection</EchoButton></div>
       </div>
     </main>
   );

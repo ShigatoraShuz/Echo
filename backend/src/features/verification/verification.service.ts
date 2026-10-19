@@ -660,6 +660,8 @@ export class VerificationService {
         .insert({
           user_id: userId,
           notification_type: "verification_status",
+          resource_type: "identity_verification",
+          resource_id: verificationId,
           title: input.decision === "approved" ? "Your account is verified" : "Verification update",
           message:
             input.decision === "approved"

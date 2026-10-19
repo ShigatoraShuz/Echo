@@ -28,10 +28,16 @@ const entry = (id: string, title: string): JournalEntry => ({
 describe("JournalNotebookView", () => {
   it("opens a selected reflection while keeping the editor and draft links", async () => {
     vi.mocked(useJournalListViewModel).mockReturnValue({
-      entries: [entry("first", "First page"), {
-        ...entry("second", "Second page"),
-        images: Array.from({ length: 6 }, (_, index) => ({ id: `image-${index}`, url: `https://example.com/image-${index}.jpg` })),
-      }],
+      entries: [
+        entry("first", "First page"),
+        {
+          ...entry("second", "Second page"),
+          images: Array.from({ length: 6 }, (_, index) => ({
+            id: `image-${index}`,
+            url: `https://example.com/image-${index}.jpg`,
+          })),
+        },
+      ],
       pagination: { page: 1, pageSize: 9, totalItems: 2, totalPages: 1 },
       filters: { query: "", mood: null, dateFrom: null, dateTo: null, sort: "newest" },
       isLoading: false,
@@ -53,6 +59,8 @@ describe("JournalNotebookView", () => {
 
     expect(screen.getByRole("link", { name: /write reflection/i })).toHaveAttribute("href", "/journal/new");
     expect(screen.getByRole("link", { name: /resume a draft/i })).toHaveAttribute("href", "/journal/drafts");
+    expect(screen.getByRole("link", { name: /second page/i })).toHaveAttribute("href", "/journal/second");
+    expect(screen.getByRole("img", { name: "Preview photo from Second page" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /second page/i }));
     expect(screen.getByRole("region", { name: "Selected reflection" })).toHaveTextContent("Words from Second page");
     expect(screen.getAllByRole("img", { name: /photo \d from this reflection/i })).toHaveLength(5);

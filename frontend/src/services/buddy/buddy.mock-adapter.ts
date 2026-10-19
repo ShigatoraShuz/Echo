@@ -21,8 +21,9 @@ const seedMessages: Record<string, BuddyMessage[]> = {
   ],
 };
 
+let generatedId = 0;
 function generateId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}`;
+  return `${prefix}-${Date.now().toString(36)}-${++generatedId}`;
 }
 
 function toServiceError(code: BuddyServiceError["code"], message: string): BuddyServiceResult<never> {

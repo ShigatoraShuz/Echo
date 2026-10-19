@@ -92,7 +92,12 @@ export const settingsService: SettingsService = {
     return unwrap(client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", choices));
   },
   updateNotifications(updates) {
-    return unwrap(client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>("/settings/notifications", updates));
+    const { quietHoursAvailable: _availability, ...choices } = updates;
+    if (!_availability) {
+      delete choices.quietHoursStart;
+      delete choices.quietHoursEnd;
+    }
+    return unwrap(client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>("/settings/notifications", choices));
   },
   createContact(input) {
     return unwrap(client.post<ApiEnvelope<TrustedContact>, TrustedContactInput>("/settings/trusted-contacts", input));

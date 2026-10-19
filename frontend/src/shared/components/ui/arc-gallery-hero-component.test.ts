@@ -27,7 +27,7 @@ describe("ArcGalleryHero", () => {
     expect(getGalleryDimensions(390, galleryOptions)).toMatchObject({
       radius: 170,
       cardSize: 52,
-      imageLimit: 8,
+      imageLimit: 5,
     });
   });
 

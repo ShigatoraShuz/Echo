@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ProfileSettingsView } from "@/features/settings";
 
 export default function SettingsPage() {
-  redirect("/settings/profile");
+  return <ProfileSettingsView />;
 }

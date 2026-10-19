@@ -244,12 +244,14 @@ export function AboutPageView() {
               >
                 Start privately
               </Link>
-              <Link
+              {/* A document navigation lets the landing fragment settle after its content mounts. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a
                 href="/#how-it-works"
                 className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#bfc7b9] bg-[#fbf8f1] px-6 text-sm font-bold text-[#234735] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[#eef1e8] focus-visible:ring-4 focus-visible:ring-[#123526]/15 active:scale-[0.97]"
               >
                 See how it works
-              </Link>
+              </a>
             </div>
           </EchoReveal>
 
@@ -420,12 +422,13 @@ export function AboutPageView() {
               >
                 Start privately
               </Link>
-              <Link
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a
                 href="/#features"
                 className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#9fac97] px-6 text-sm font-bold text-[#234735] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-white/35 focus-visible:ring-4 focus-visible:ring-[#123526]/15 active:scale-[0.97]"
               >
                 Explore features
-              </Link>
+              </a>
             </div>
           </div>
           </section>

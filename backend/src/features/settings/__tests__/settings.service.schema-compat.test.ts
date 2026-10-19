@@ -54,6 +54,7 @@ describe("SettingsService with an older Buddy schema", () => {
     const snapshot = await service.get(userId);
     expect(snapshot.profile.displayName).toBe("Lloyd");
     expect(snapshot.privacy).toMatchObject({ buddyHistoryEnabled: true, buddyHistoryAvailable: false });
+    expect(snapshot.notifications).toMatchObject({ quietHoursAvailable: false, quietHoursStart: null, quietHoursEnd: null });
     expect(mocks.from).toHaveBeenCalledWith("privacy_preferences");
   });
 

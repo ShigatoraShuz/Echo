@@ -11,9 +11,12 @@ export function createGroundingMockAdapter(): GroundingService {
   return {
     async saveSession(input) {
       await delay(150);
+      const previous = input.sessionId ? sessions.find((item) => item.id === input.sessionId) : undefined;
+      if (previous) return { success: true, data: previous };
+      const { sessionId, ...values } = input;
       const session: GroundingSession = {
-        id: `gs-${Date.now().toString(36)}`,
-        ...input,
+        id: sessionId ?? `gs-${Date.now().toString(36)}`,
+        ...values,
         progress: 100,
         state: "completed",
       };

@@ -7,8 +7,10 @@ import {
   Bell,
   BadgeCheck,
   Download,
+  ChevronRight,
   KeyRound,
   Lock,
+  MoreHorizontal,
   Shield,
   SlidersHorizontal,
   UserRound,
@@ -21,10 +23,20 @@ const settingsLinks = [
   { href: "/settings/verification", label: "Verification", description: "Unlock Buddy and AI", icon: BadgeCheck },
   { href: "/settings/privacy", label: "Privacy", description: "Private-by-design controls", icon: Shield },
   { href: "/settings/notifications", label: "Notifications", description: "Gentle reminder choices", icon: Bell },
-  { href: "/settings/trusted-contacts", label: "Trusted contacts", description: "Your support circle", icon: UsersRound },
+  {
+    href: "/settings/trusted-contacts",
+    label: "Trusted contacts",
+    description: "Your support circle",
+    icon: UsersRound,
+  },
   { href: "/settings/security", label: "Security", description: "Password and sign-ins", icon: KeyRound },
   { href: "/settings/export", label: "Data & account", description: "Export or delete data", icon: Download },
 ];
+
+const primarySettingsLinks = settingsLinks.filter((item) =>
+  ["/settings/profile", "/settings/privacy", "/settings/notifications"].includes(item.href),
+);
+const moreSettingsLinks = settingsLinks.filter((item) => !primarySettingsLinks.includes(item));
 
 export function SettingsShell({ children }: { children: ReactNode }) {
   return children;
@@ -32,18 +44,70 @@ export function SettingsShell({ children }: { children: ReactNode }) {
 
 export function SettingsSidebar() {
   const pathname = usePathname();
+  const isIndex = pathname === "/settings";
+  const activePath = isIndex ? "/settings/profile" : pathname;
+  const moreActive = moreSettingsLinks.some((item) => item.href === pathname);
 
   return (
-    <div className="echo-workspace-enter min-w-0 shrink-0 border-b border-border/70 pb-1">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+    <div className="echo-workspace-enter relative z-30 min-w-0 shrink-0 border-b border-border/70 pb-1 lg:z-auto">
+      <div className="lg:hidden">
+        <div className="px-1 pb-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Your space</p>
+          <h1 className="mt-1 font-[family-name:var(--font-echo-display)] text-[2.2rem] leading-none text-foreground">Settings</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">Shape your private ECHO space.</p>
+        </div>
+        <nav className="relative mt-2 grid grid-cols-4" aria-label="Mobile settings sections">
+          {primarySettingsLinks.map((item) => {
+            const Icon = item.icon;
+            const active = activePath === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 border-b-2 px-1 text-[10px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring min-[375px]:flex-row min-[375px]:gap-1",
+                  active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-primary",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <details key={pathname} className="group relative min-w-0">
+            <summary className={cn(
+              "flex min-h-14 cursor-pointer list-none flex-col items-center justify-center gap-0.5 border-b-2 px-1 text-[10px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring min-[375px]:flex-row min-[375px]:gap-1 [&::-webkit-details-marker]:hidden",
+              moreActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-primary",
+            )}>
+              <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />More
+            </summary>
+            <div className="absolute right-0 top-full z-30 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border/70 bg-card p-2 shadow-xl">
+              {moreSettingsLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring">
+                    <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="flex-1">{item.label}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  </Link>
+                );
+              })}
+            </div>
+          </details>
+        </nav>
+      </div>
+      <div className="mb-2 hidden flex-wrap items-end justify-between gap-2 lg:flex">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Your space</p>
-          <h1 className="mt-0.5 font-[family-name:var(--font-echo-display)] text-[1.8rem] leading-tight text-foreground">Settings</h1>
+          <h1 className="mt-0.5 font-[family-name:var(--font-echo-display)] text-[1.8rem] leading-tight text-foreground">
+            Settings
+          </h1>
         </div>
         <p className="text-sm text-muted-foreground">Shape your private ECHO space.</p>
       </div>
       <nav
-        className="flex max-w-full snap-x gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="hidden max-w-full snap-x gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex"
         aria-label="Settings sections"
       >
         {settingsLinks.map((item) => {
@@ -69,19 +133,11 @@ export function SettingsSidebar() {
   );
 }
 
-export function SettingsHeader({
-  id,
-  title,
-  description,
-}: {
-  id?: string;
-  title: string;
-  description: string;
-}) {
+export function SettingsHeader({ id, title, description }: { id?: string; title: string; description: string }) {
   return (
     <header
       id={id}
-        className="echo-workspace-enter mb-3 flex min-w-0 scroll-mt-24 flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/82 p-4 shadow-subtle backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between"
+      className="echo-workspace-enter mb-3 flex min-w-0 scroll-mt-24 flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/82 p-4 shadow-subtle backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between"
     >
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">ECHO settings</p>

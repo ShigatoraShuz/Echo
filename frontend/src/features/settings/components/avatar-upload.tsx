@@ -79,7 +79,7 @@ export function AvatarUpload({
   const avatarSrc = preview ?? currentAvatar ?? null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+    <div className="flex min-w-0 items-center gap-4 sm:gap-6">
       {/* ── Avatar circle + camera button ────────────────────────────────── */}
       <div
         className={`relative h-20 w-20 shrink-0 rounded-full transition-all duration-200 sm:h-24 sm:w-24 ${isDragOver ? "ring-4 ring-primary ring-offset-2 scale-105" : ""}`}
@@ -109,7 +109,7 @@ export function AvatarUpload({
           onClick={() => inputRef.current?.click()}
           disabled={isUploading}
           aria-label="Change profile photo"
-          className="absolute -bottom-1 -right-1 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90 active:scale-95 disabled:opacity-60"
+          className="absolute -bottom-1 -right-1 grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-md transition-all hover:scale-105 hover:bg-primary/90 active:scale-95 disabled:opacity-60"
         >
           {isUploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -132,8 +132,9 @@ export function AvatarUpload({
       {/* ── Labels + status feedback ─────────────────────────────────────── */}
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="text-sm font-semibold text-foreground">{displayName || "Your name"}</p>
-        <p className="break-words text-xs text-muted-foreground">
-          Click the camera icon or drag &amp; drop a photo (max 5 MB — JPEG, PNG, WebP, GIF).
+        <p className="break-words text-xs leading-5 text-muted-foreground">
+          <span className="sm:hidden">Tap the camera to add a photo (max 5 MB — JPEG, PNG, WebP, GIF).</span>
+          <span className="hidden sm:inline">Click the camera icon or drag &amp; drop a photo (max 5 MB — JPEG, PNG, WebP, GIF).</span>
         </p>
 
         {uploadError && (

@@ -34,7 +34,7 @@ function formatTime(seconds: number) {
 function PracticeArt({ art, compact = false }: { art: GroundingPractice["art"]; compact?: boolean }) {
   const Icon = artIcons[art];
   return (
-    <div className={`relative isolate overflow-hidden ${compact ? "h-10 w-10 rounded-xl" : "h-28 w-full rounded-t-[1.15rem]"} ${artClasses[art]}`} aria-hidden="true">
+    <div className={`relative isolate overflow-hidden ${compact ? "h-11 w-11 rounded-xl" : "h-20 w-full rounded-t-[1.15rem] sm:h-28"} ${artClasses[art]}`} aria-hidden="true">
       <div className="absolute -bottom-12 -left-10 h-28 w-48 rotate-[-16deg] rounded-[50%] border-[12px] border-white/15" />
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/15 blur-xl" />
       <Icon className={`absolute text-white/75 drop-shadow-sm ${compact ? "inset-2 h-6 w-6" : "bottom-4 right-5 h-12 w-12"}`} strokeWidth={1.2} />
@@ -44,7 +44,7 @@ function PracticeArt({ art, compact = false }: { art: GroundingPractice["art"]; 
 
 function PracticeCard({ practice, onStart }: { practice: GroundingPractice; onStart: (practice: GroundingPractice) => void }) {
   return (
-    <article className="echo-workspace-tile overflow-hidden rounded-[1.2rem] border border-border/70 bg-card/95 shadow-sm">
+    <article className="echo-workspace-tile snap-start overflow-hidden rounded-[1.2rem] border border-border/70 bg-card/95 shadow-sm">
       <PracticeArt art={practice.art} />
       <div className="p-3.5">
         <h3 className="line-clamp-2 min-h-8 text-sm font-semibold leading-4 text-foreground">{practice.title}</h3>
@@ -53,7 +53,7 @@ function PracticeCard({ practice, onStart }: { practice: GroundingPractice; onSt
           <span className="inline-flex items-center gap-1"><Clock3 size={12} />{practice.minutes} min</span>
           <span>{practice.category}</span>
         </div>
-        <button type="button" onClick={() => onStart(practice)} aria-label={`Start ${practice.title}`} className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" onClick={() => onStart(practice)} aria-label={`Start ${practice.title}`} className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Play size={13} aria-hidden="true" />Start
         </button>
       </div>
@@ -120,6 +120,10 @@ function GroundingSession({
             </button>
           </div>
           {vm.status && <p role="status" className="mt-4 text-xs text-[#d5e9d7]">{vm.status}</p>}
+          {vm.saveError && <div className="mt-2 flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={vm.retrySave} disabled={vm.isSaving} className="min-h-11 rounded-full bg-[#fffaf0] px-4 text-sm font-semibold text-[#173f31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50">Retry saving</button>
+            <button type="button" onClick={() => { vm.reloadHistory(); onClose(); }} className="min-h-11 rounded-full border border-white/30 px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Check saved practices</button>
+          </div>}
         </div>
         <div className="h-1.5 rounded-full bg-white/15" role="progressbar" aria-label="Practice progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
           <div className="h-full rounded-full bg-[#a9d4af] transition-[width] duration-200" style={{ width: `${progress}%` }} />
@@ -127,7 +131,7 @@ function GroundingSession({
       </section>
       <aside className="echo-panel-scroll min-h-0 space-y-3 overflow-y-auto rounded-[1.5rem] border border-border/70 bg-card/90 p-4 lg:p-5" aria-label="Practice settings">
         <h3 className="text-base font-semibold text-foreground">Make it yours</h3>
-        <p className="text-xs leading-5 text-muted-foreground">Pause to adjust your pace or duration. Your timer restarts after a change.</p>
+        <p className="text-xs leading-5 text-muted-foreground">The timer continues while this tab is in the background. Pause before switching apps. Adjusting duration restarts the timer.</p>
         <fieldset disabled={vm.isRunning || vm.isSaving}>
           <legend className="mb-2 text-xs font-semibold text-foreground">Duration</legend>
           <div className="grid grid-cols-2 gap-2">
@@ -183,24 +187,25 @@ export function GroundingView() {
 
   return (
     <div className="grounding-workspace flex min-h-0 flex-col gap-3 pb-3 lg:h-full lg:pb-0">
-      <header className="echo-workspace-enter relative isolate min-h-32 overflow-hidden rounded-[1.5rem] border border-border/60 bg-[var(--landing-cream)] px-5 py-4 sm:px-6 lg:shrink-0" style={{ backgroundImage: "url('/grounding-landscape.svg')", backgroundPosition: "center", backgroundSize: "cover" }}>
-        <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-primary">Grounding</p>
-        <h1 className="mt-1 text-[clamp(1.7rem,2.8vw,2.5rem)] leading-tight text-foreground [font-family:var(--font-echo-display)]">Take a moment. Breathe.</h1>
-        <p className="mt-1 max-w-[36rem] text-xs leading-5 text-muted-foreground sm:text-sm">Simple practices to help you feel more present, at your own pace.</p>
+      <header className="echo-workspace-enter relative isolate min-h-40 overflow-hidden rounded-[1.5rem] border border-border/60 bg-[var(--landing-cream)] bg-center px-5 py-4 sm:min-h-32 sm:px-6 lg:shrink-0" style={{ backgroundImage: "url('/grounding-landscape.svg')", backgroundSize: "cover" }}>
+        <div className="pointer-events-none absolute inset-0 sm:hidden" style={{ background: "linear-gradient(90deg, rgba(252,250,246,.95) 0%, rgba(252,250,246,.88) 50%, rgba(252,250,246,0) 85%)" }} aria-hidden="true" />
+        <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.17em] text-primary">Grounding</p>
+        <h1 className="relative z-10 mt-1 max-w-[14rem] text-[clamp(1.9rem,2.8vw,2.5rem)] leading-[0.98] text-foreground [font-family:var(--font-echo-display)] sm:max-w-none">Take a moment. Breathe.</h1>
+        <p className="relative z-10 mt-2 max-w-[15rem] text-xs leading-5 text-muted-foreground sm:max-w-[36rem] sm:text-sm">Simple practices to help you feel more present, at your own pace.</p>
       </header>
 
       {!activePractice && (
-        <div className="echo-workspace-enter flex flex-col gap-2 rounded-[1.2rem] border border-border/70 bg-card/90 p-2 shadow-sm lg:shrink-0 xl:flex-row xl:items-center">
-          <div className="echo-panel-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto" role="group" aria-label="Filter grounding practices">
+        <div className="echo-workspace-enter flex flex-col-reverse gap-2 rounded-[1.2rem] lg:shrink-0 xl:flex-row xl:items-center xl:border xl:border-border/70 xl:bg-card/90 xl:p-2 xl:shadow-sm">
+          <div className="echo-panel-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Filter grounding practices">
             {groundingCategories.map((item) => {
               const Icon = categoryIcons[item];
-              return <button key={item} type="button" onClick={() => { setCategory(item); setShowAll(false); }} aria-pressed={category === item} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${category === item ? "bg-primary text-primary-foreground" : "border border-border/65 bg-background text-foreground hover:bg-secondary"}`}><Icon size={14} aria-hidden="true" />{item}</button>;
+              return <button key={item} type="button" onClick={() => { setCategory(item); setShowAll(false); }} aria-pressed={category === item} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${category === item ? "bg-primary text-primary-foreground" : "border border-border/65 bg-background text-foreground hover:bg-secondary"}`}><Icon size={15} aria-hidden="true" />{item}</button>;
             })}
           </div>
-          <label className="flex h-9 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 xl:w-48">
-            <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+          <label className="flex h-12 items-center gap-2 rounded-full border border-border/70 bg-background px-4 shadow-subtle xl:h-11 xl:w-48 xl:shadow-none">
+            <Search size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
             <span className="sr-only">Search exercises</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises" className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises" className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
           </label>
         </div>
       )}
@@ -209,21 +214,21 @@ export function GroundingView() {
         <GroundingSession key={activePractice.id} practice={activePractice} vm={vm} onClose={() => { vm.reset(); setActivePractice(null); }} />
       ) : (
         <div className="grid min-h-0 gap-3 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)]">
-          <div className="echo-panel-scroll min-h-0 space-y-3 lg:overflow-y-auto lg:pr-1">
+          <div className="contents lg:block lg:min-h-0 lg:space-y-3 lg:overflow-y-auto lg:pr-1">
             {showRecommended && (
-              <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4" aria-labelledby="recommended-heading">
+              <section className="echo-workspace-enter order-1 min-w-0 rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4 lg:order-none" aria-labelledby="recommended-heading">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div><h2 id="recommended-heading" className="text-base font-semibold text-foreground">A gentle place to begin</h2><p className="text-xs text-muted-foreground">Choose the practice that fits this moment.</p></div>
-                  <button type="button" onClick={() => { setShowAll(true); browseRef.current?.scrollIntoView({ block: "nearest" }); }} className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">See all <ArrowRight size={13} /></button>
+                  <button type="button" onClick={() => { setShowAll(true); browseRef.current?.scrollIntoView({ block: "nearest" }); }} className="inline-flex min-h-11 shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">See all <ArrowRight size={13} /></button>
                 </div>
-                <div className="grid gap-2.5 sm:grid-cols-2 min-[1380px]:grid-cols-4">
+                <div className="echo-panel-scroll grid grid-flow-col auto-cols-[minmax(11rem,60%)] snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible min-[1380px]:grid-cols-4">
                   {groundingPractices.slice(0, 4).map((practice) => <PracticeCard key={practice.id} practice={practice} onStart={startPractice} />)}
                 </div>
               </section>
             )}
-            <section ref={browseRef} className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4" aria-labelledby="browse-heading">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div><h2 id="browse-heading" className="text-base font-semibold text-foreground">Browse grounding exercises</h2><p className="text-xs text-muted-foreground">{filtered.length} practice{filtered.length === 1 ? "" : "s"} available</p></div>
+            <section ref={browseRef} className="echo-workspace-enter order-3 min-w-0 rounded-[1.5rem] border border-border/70 bg-card/80 p-3 shadow-sm sm:p-4 lg:order-none" aria-labelledby="browse-heading">
+              <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <div className="min-w-0"><h2 id="browse-heading" aria-label="Browse grounding exercises" className="text-[1.2rem] leading-tight text-foreground [font-family:var(--font-echo-display)] sm:text-base sm:font-semibold sm:[font-family:inherit]"><span className="max-[359px]:hidden">Browse grounding exercises</span><span className="hidden max-[359px]:inline">Browse exercises</span></h2><p className="text-xs text-muted-foreground">{filtered.length} practice{filtered.length === 1 ? "" : "s"} available</p></div>
                 <label className="relative flex items-center gap-1 rounded-xl border border-border/70 bg-background px-2.5 py-1.5 text-xs text-muted-foreground">
                   Sort by
                   <select aria-label="Sort exercises" value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="appearance-none bg-transparent pr-4 font-medium text-foreground outline-none">
@@ -238,22 +243,22 @@ export function GroundingView() {
               </div> : <p role="status" className="rounded-xl bg-secondary/50 p-5 text-sm text-muted-foreground">No practices match your search. Try a different term or category.</p>}
             </section>
           </div>
-          <aside className="echo-panel-scroll min-h-0 space-y-3 lg:overflow-y-auto lg:pr-1" aria-label="Grounding progress and support">
-            <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm" aria-labelledby="wellbeing-heading">
+          <aside className="contents lg:block lg:min-h-0 lg:space-y-3 lg:overflow-y-auto lg:pr-1" aria-label="Grounding progress and support">
+            <section className="echo-workspace-enter order-2 rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm lg:order-none" aria-labelledby="wellbeing-heading">
               <div className="flex items-start justify-between gap-2"><div><h2 id="wellbeing-heading" className="text-sm font-semibold text-foreground">Your wellbeing</h2><p className="mt-0.5 text-xs text-muted-foreground">Small steps, this week.</p></div><button type="button" onClick={() => setShowProgressInfo((value) => !value)} aria-label="About weekly progress" aria-expanded={showProgressInfo} className="rounded-full p-1 text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ShieldCheck size={17} /></button></div>
               {showProgressInfo && <p className="mt-2 rounded-lg bg-secondary/50 p-2 text-[11px] leading-4 text-muted-foreground">A day counts when you complete a practice and it is saved to your private account.</p>}
-              {vm.historyError ? <p role="alert" className="mt-4 text-xs text-muted-foreground">{vm.historyError}</p>
+              {vm.historyError ? <div className="mt-4"><p role="alert" className="text-xs text-muted-foreground">{vm.historyError}</p><button type="button" onClick={vm.reloadHistory} className="mt-2 min-h-11 text-xs font-semibold text-primary underline underline-offset-2">Retry loading history</button></div>
                 : vm.history === null ? <p role="status" className="mt-4 text-xs text-muted-foreground">Loading your practices…</p>
-                  : <><div className="mt-4 flex items-center gap-3"><div className="grid h-20 w-20 shrink-0 place-items-center rounded-full p-2" style={{ background: `conic-gradient(#255843 ${weeklyCount / 7 * 360}deg, #e2e9df 0)` }}><span className="grid h-full w-full place-items-center rounded-full bg-card text-primary"><Leaf size={24} /></span></div><div><p className="text-xl font-semibold text-foreground">{weeklyCount} / 7</p><p className="text-xs text-muted-foreground">days practiced</p></div></div><div className="mt-4 grid grid-cols-7 gap-1">{weekdays.map((day) => <div key={day.key} className="text-center" role="img" aria-label={`${day.label}: ${completedDays.has(day.key) ? "completed" : "no completed practice"}`}><p className="text-[10px] text-muted-foreground">{day.label}</p><span className={`mx-auto mt-1 block h-3.5 w-3.5 rounded-full ${completedDays.has(day.key) ? "bg-primary" : "bg-secondary"}`} /></div>)}</div></>}
+                  : <><div className="mt-4 flex items-center gap-3"><div className="grid h-14 w-14 shrink-0 place-items-center rounded-full p-1.5 sm:h-20 sm:w-20 sm:p-2" style={{ background: `conic-gradient(#255843 ${weeklyCount / 7 * 360}deg, #e2e9df 0)` }}><span className="grid h-full w-full place-items-center rounded-full bg-card text-primary"><Leaf size={22} /></span></div><div><p className="text-xl font-semibold text-foreground">{weeklyCount} / 7</p><p className="text-xs text-muted-foreground">days practiced</p></div></div><div className="mt-4 grid grid-cols-7 gap-1">{weekdays.map((day) => <div key={day.key} className="text-center" role="img" aria-label={`${day.label}: ${completedDays.has(day.key) ? "completed" : "no completed practice"}`}><p className="text-[10px] text-muted-foreground">{day.label}</p><span className={`mx-auto mt-1 block h-3.5 w-3.5 rounded-full ${completedDays.has(day.key) ? "bg-primary" : "bg-secondary"}`} /></div>)}</div></>}
             </section>
-            <section className="echo-workspace-enter rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm" aria-labelledby="suggestion-heading">
+            <section className="echo-workspace-enter order-4 rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm lg:order-none" aria-labelledby="suggestion-heading">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">A small step for today</p>
               <div className="mt-2 overflow-hidden rounded-xl"><PracticeArt art="leaves" /></div>
               <h2 id="suggestion-heading" className="mt-3 text-sm font-semibold text-foreground">Take a deep breath</h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">A short breathing practice can help you pause and reset.</p>
               <button type="button" onClick={() => startPractice(groundingPractices[0], 2)} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Play size={13} />Start 2-minute exercise</button>
             </section>
-            <section className="echo-workspace-enter flex gap-2 rounded-[1.5rem] border border-border/70 bg-secondary/60 p-4" aria-label="Remember">
+            <section className="echo-workspace-enter order-5 flex gap-2 rounded-[1.5rem] border border-border/70 bg-secondary/60 p-4 lg:order-none" aria-label="Remember">
               <Heart size={18} className="shrink-0 text-primary" aria-hidden="true" /><div><h2 className="text-xs font-semibold text-foreground">Remember</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">It is okay to pause. Your feelings are valid, and small steps count.</p><Link href="/crisis" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary underline underline-offset-2">Need immediate support? <ArrowRight size={12} /></Link></div>
             </section>
           </aside>

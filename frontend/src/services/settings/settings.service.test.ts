@@ -135,7 +135,7 @@ describe("settingsService", () => {
     await expect(settingsService.uploadAvatar(file)).resolves.toEqual(snapshot);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:4200/api/v1/settings/profile/avatar",
+      "http://127.0.0.1:4200/api/v1/settings/profile/avatar",
       {
         method: "PUT",
         headers: {
@@ -155,7 +155,7 @@ describe("private export downloads", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => blob });
     vi.stubGlobal("fetch", fetchMock);
     await expect(settingsService.downloadExport("export/id")).resolves.toBe(blob);
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:4200/api/v1/settings/data-exports/export%2Fid/download", {
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:4200/api/v1/settings/data-exports/export%2Fid/download", {
       method: "GET", cache: "no-store", headers: { Authorization: "Bearer private-token" },
     });
   });

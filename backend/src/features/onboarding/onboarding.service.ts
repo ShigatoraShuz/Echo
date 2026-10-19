@@ -139,17 +139,21 @@ export class OnboardingService {
     await this.ensureDefaults(userId);
 
     const sanitize = (value?: string | null) => value?.trim().replace(/[<>]/g, "").slice(0, 80) || null;
+    const identityUpdate: Record<string, string | null | number> = { onboarding_step: 2 };
+    if (input.genderIdentity !== undefined) {
+      identityUpdate.gender_identity = input.genderIdentity;
+      identityUpdate.gender_self_description =
+        input.genderIdentity === "self_describe" ? sanitize(input.genderSelfDescription) : null;
+    }
+    if (input.pronouns !== undefined) {
+      identityUpdate.pronouns = input.pronouns;
+      identityUpdate.pronouns_self_description =
+        input.pronouns === "self_describe" ? sanitize(input.pronounsSelfDescription) : null;
+    }
     const { error: identityError } = await this.database
       .schema("user_service")
       .from("profiles")
-      .update({
-        gender_identity: input.genderIdentity ?? null,
-        gender_self_description:
-          input.genderIdentity === "self_describe" ? sanitize(input.genderSelfDescription) : null,
-        pronouns: input.pronouns ?? null,
-        pronouns_self_description: input.pronouns === "self_describe" ? sanitize(input.pronounsSelfDescription) : null,
-        onboarding_step: 2,
-      })
+      .update(identityUpdate)
       .eq("user_id", userId);
     if (identityError)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Identity preferences could not be saved.");
@@ -158,7 +162,7 @@ export class OnboardingService {
       const { error } = await this.database
         .schema("user_service")
         .from("notification_preferences")
-        .update({ in_app_enabled: input.notifications, push_enabled: input.notifications })
+        .update({ in_app_enabled: input.notifications, insight_notifications_enabled: input.notifications })
         .eq("user_id", userId);
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Notification setup could not be saved.");
     }

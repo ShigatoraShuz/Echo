@@ -566,6 +566,16 @@ export class ProfessionalService {
   }
 
   async completeAppointment(userId: string, appointmentId: string) {
+    const { data: appointment, error: appointmentError } = await this.database.schema("professional_service")
+      .from("appointments")
+      .select("request_id,starts_at")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (appointmentError) throw databaseError("The appointment could not be loaded.");
+    if (!appointment) throw new NotFoundError();
+    await this.assignedCase(userId, value(appointment as Row, "request_id"));
+    if (new Date(value(appointment as Row, "starts_at")).getTime() > Date.now())
+      throw new ConflictError("APPOINTMENT_NOT_STARTED", "This appointment cannot be completed before its scheduled start.");
     const { data, error } = await this.database.schema("professional_service").rpc("complete_appointment", {
       p_appointment_id: appointmentId,
       p_actor: userId,

@@ -2,6 +2,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../app.js";
 import type { NotificationService } from "./notifications.service.js";
+import type { PushSubscriptionsService } from "./push-subscriptions.service.js";
 
 function createHarness() {
   const verifier = {
@@ -23,15 +24,20 @@ function createHarness() {
     }),
     markAllRead: vi.fn().mockResolvedValue({ notifications: [] }),
   };
+  const pushSubscriptions = {
+    save: vi.fn().mockResolvedValue({ registered: true }),
+    remove: vi.fn().mockResolvedValue({ registered: false }),
+  };
   const app = createApp({
     v1: {
       notifications: {
         service: notifications as unknown as NotificationService,
         verifier,
+        pushSubscriptions: pushSubscriptions as unknown as PushSubscriptionsService,
       },
     },
   });
-  return { app, notifications };
+  return { app, notifications, pushSubscriptions };
 }
 
 describe("notification routes", () => {
@@ -76,5 +82,28 @@ describe("notification routes", () => {
 
     expect(response.status).toBe(200);
     expect(notifications.markAllRead).toHaveBeenCalledWith("user-1");
+  });
+
+  it("registers and removes only the authenticated user's device", async () => {
+    const { app, pushSubscriptions } = createHarness();
+    const subscription = { endpoint: "https://fcm.googleapis.com/fcm/send/test", expirationTime: null,
+      keys: { p256dh: "public", auth: "secret" } };
+    const registered = await request(app).post("/api/v1/notifications/push/subscriptions")
+      .set("Authorization", "Bearer valid-token").send(subscription);
+    expect(registered.status).toBe(200);
+    expect(pushSubscriptions.save).toHaveBeenCalledWith("user-1", subscription);
+    const removed = await request(app).post("/api/v1/notifications/push/unsubscribe")
+      .set("Authorization", "Bearer valid-token").send({ endpoint: subscription.endpoint });
+    expect(removed.status).toBe(200);
+    expect(pushSubscriptions.remove).toHaveBeenCalledWith("user-1", subscription.endpoint);
+  });
+
+  it("rejects invalid and unauthenticated device registration", async () => {
+    const { app, pushSubscriptions } = createHarness();
+    expect((await request(app).post("/api/v1/notifications/push/subscriptions")
+      .send({ endpoint: "https://fcm.googleapis.com/fcm/send/test" })).status).toBe(401);
+    expect((await request(app).post("/api/v1/notifications/push/subscriptions")
+      .set("Authorization", "Bearer valid-token").send({ endpoint: "http://localhost" })).status).toBe(400);
+    expect(pushSubscriptions.save).not.toHaveBeenCalled();
   });
 });

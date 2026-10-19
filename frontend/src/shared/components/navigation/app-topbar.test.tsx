@@ -16,6 +16,13 @@ vi.mock("./app-profile-menu", () => ({
 }));
 
 describe("AppTopbar", () => {
+  it("can omit the desktop bell when the phone bell is mounted", () => {
+    render(<AppTopbar showNotifications={false} />);
+
+    expect(screen.queryByTestId("notification-bell")).not.toBeInTheDocument();
+    expect(screen.getByTestId("profile-menu")).toBeInTheDocument();
+  });
+
   it("uses public actions without mounting authenticated controls", () => {
     render(<AppTopbar publicAccess />);
 

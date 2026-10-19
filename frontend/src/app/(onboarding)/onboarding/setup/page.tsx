@@ -26,6 +26,7 @@ export default function SetupOnboardingPage() {
     const setupResult = await service.saveSetup({
       theme: "system",
       notifications: notificationsEnabled,
+      facialAnalysis: facialAnalysisEnabled,
     });
 
     if (!setupResult.success) {
@@ -85,6 +86,7 @@ export default function SetupOnboardingPage() {
                   }`}
                   role="switch"
                   aria-checked={facialAnalysisEnabled}
+                  aria-label="Allow optional camera check-ins"
                 >
                   <span
                     className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
@@ -101,9 +103,9 @@ export default function SetupOnboardingPage() {
                 <div className="flex gap-3">
                   <Smartphone className="mt-0.5 h-5 w-5 text-primary shrink-0" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Gentle check-in reminders</p>
+                    <p className="text-sm font-semibold text-foreground">Notification preference</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      ECHO sends discreet notifications at your chosen time. Content stays private from lock screens.
+                      Get an in-app update when an optional journal analysis is ready. Set daily reminders and device alerts separately in Settings when those channels are available.
                     </p>
                   </div>
                 </div>
@@ -116,6 +118,7 @@ export default function SetupOnboardingPage() {
                   }`}
                   role="switch"
                   aria-checked={notificationsEnabled}
+                  aria-label="Analysis-ready updates in app"
                 >
                   <span
                     className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
@@ -130,10 +133,10 @@ export default function SetupOnboardingPage() {
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
               <div className="flex items-center gap-2 text-[var(--landing-primary)] font-bold text-sm">
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                <span>All policies accepted & profile ready</span>
+                <span>Your choices are ready to save</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Your private dashboard, CBT Buddy, and journal analysis are now activated.
+                Open your dashboard after saving. Buddy access and journal analysis depend on their separate checks and availability.
               </p>
             </div>
 

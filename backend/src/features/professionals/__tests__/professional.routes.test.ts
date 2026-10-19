@@ -6,6 +6,7 @@ import type { VerificationService } from "../../verification/verification.servic
 import type { ProfessionalService } from "../professional.service.js";
 
 const USER = "fe000000-0000-4000-8000-000000000001";
+const PRACTITIONER = "fe000000-0000-4000-8000-000000000006";
 const CASE = "fe000000-0000-4000-8000-000000000002";
 const ORG = "fe000000-0000-4000-8000-000000000003";
 
@@ -15,6 +16,8 @@ function harness() {
     hub: vi.fn().mockResolvedValue({ activeCases: [], recentCases: [] }),
     directory: vi.fn().mockResolvedValue({ practitioners: [], nextCursor: null }),
     sendMessage: vi.fn().mockResolvedValue({ message: { id: CASE } }),
+    proposeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE }),
+    respondAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "confirmed" }),
     completeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "completed" }),
     listOwnAppointments: vi.fn().mockResolvedValue({ appointments: [] }),
     detail: vi.fn().mockResolvedValue({ request: { id: CASE } }),
@@ -30,9 +33,9 @@ function harness() {
   };
   const verifier = {
     getUser: vi.fn(async (token: string) =>
-      token === "basic" || token === "mfa" || token === "old-mfa"
+      token === "basic" || token === "mfa" || token === "old-mfa" || token === "practitioner-mfa"
         ? {
-            id: USER,
+            id: token === "practitioner-mfa" ? PRACTITIONER : USER,
             email: "user@example.test",
             assuranceLevel: token === "basic" ? "aal1" : "aal2",
             authenticatedAt: Date.now() / 1000 - (token === "old-mfa" ? 700 : 0),
@@ -136,6 +139,23 @@ describe("professional portal routes", () => {
     expect(service.completeAppointment).not.toHaveBeenCalled();
     expect((await request(app).post(path).set("Authorization", "Bearer mfa")).status).toBe(200);
     expect(service.completeAppointment).toHaveBeenCalledWith(USER, CASE);
+  });
+
+  it("gates a practitioner proposal and forwards the owner's appointment response", async () => {
+    const { app, service } = harness();
+    const proposal = {
+      startsAt: "2099-10-15T10:00:00.000Z", endsAt: "2099-10-15T11:00:00.000Z",
+      mode: "online", locationHint: "Private video room",
+    };
+    const proposePath = `/api/v1/professional/cases/${CASE}/appointments`;
+    expect((await request(app).post(proposePath).set("Authorization", "Bearer basic").send(proposal)).status).toBe(403);
+    expect(service.proposeAppointment).not.toHaveBeenCalled();
+    expect((await request(app).post(proposePath).set("Authorization", "Bearer practitioner-mfa").send(proposal)).status).toBe(201);
+    expect(service.proposeAppointment).toHaveBeenCalledWith(PRACTITIONER, CASE, proposal);
+
+    const respondPath = `/api/v1/professional/appointments/${CASE}/respond`;
+    expect((await request(app).post(respondPath).set("Authorization", "Bearer basic").send({ accept: true })).status).toBe(200);
+    expect(service.respondAppointment).toHaveBeenCalledWith(USER, CASE, true);
   });
 
   it("accepts a bounded calendar range and rejects incomplete or oversized ranges", async () => {

@@ -1,4 +1,5 @@
 import type { DataExportService } from "./data-export.service.js";
+import type { PushSubscriptionsService } from "../notifications/push-subscriptions.service.js";
 import { sanitizeImage } from "../../infrastructure/security/image-validation.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
@@ -33,6 +34,8 @@ export interface NotificationSettingsInput {
   insightNotificationsEnabled: boolean;
   reminderTime: string | null;
   reminderTimezone: string | null;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
 }
 
 export interface TrustedContactInput {
@@ -131,6 +134,7 @@ export class SettingsService {
     private readonly authenticationClient?: () => SupabaseClient,
     private readonly userDatabase?: () => SupabaseClient,
     private readonly exports?: DataExportService,
+    private readonly pushSubscriptions?: PushSubscriptionsService,
   ) {}
 
   private get database(): SupabaseClient {
@@ -206,9 +210,7 @@ export class SettingsService {
         this.database
           .schema("user_service")
           .from("notification_preferences")
-          .select(
-            "email_enabled, push_enabled, in_app_enabled, journal_reminders_enabled, wellbeing_reminders_enabled, insight_notifications_enabled, reminder_time, reminder_timezone",
-          )
+          .select("*")
           .eq("user_id", userId)
           .maybeSingle(),
         this.database
@@ -335,6 +337,9 @@ export class SettingsService {
         insightNotificationsEnabled: booleanValue(notifications?.insight_notifications_enabled),
         reminderTime: nullableString(notifications?.reminder_time)?.slice(0, 5) ?? null,
         reminderTimezone: nullableString(notifications?.reminder_timezone),
+        quietHoursAvailable: Object.hasOwn(notifications ?? {}, "quiet_hours_start"),
+        quietHoursStart: nullableString(notifications?.quiet_hours_start)?.slice(0, 5) ?? null,
+        quietHoursEnd: nullableString(notifications?.quiet_hours_end)?.slice(0, 5) ?? null,
       },
       trustedContacts: trustedContacts.map((contact) => ({
         id: stringValue(contact.id),
@@ -442,21 +447,35 @@ export class SettingsService {
 
   async updateNotifications(userId: string, input: NotificationSettingsInput) {
     await this.ensureDefaults(userId);
+    const quietHours = input.quietHoursStart === undefined ? {} : {
+      quiet_hours_start: input.quietHoursStart,
+      quiet_hours_end: input.quietHoursEnd,
+    };
     const { error } = await this.database
       .schema("user_service")
       .from("notification_preferences")
       .update({
         email_enabled: input.emailEnabled,
         push_enabled: input.pushEnabled,
-        in_app_enabled: input.inAppEnabled,
+        in_app_enabled: input.inAppEnabled || input.insightNotificationsEnabled ||
+          input.journalRemindersEnabled || input.wellbeingRemindersEnabled,
         journal_reminders_enabled: input.journalRemindersEnabled,
         wellbeing_reminders_enabled: input.wellbeingRemindersEnabled,
         insight_notifications_enabled: input.insightNotificationsEnabled,
         reminder_time: input.reminderTime,
         reminder_timezone: input.reminderTimezone,
+        ...quietHours,
       })
       .eq("user_id", userId);
-    if (error) throw databaseError("Your notification settings could not be saved.");
+    if (error && ["42703", "PGRST204"].includes(error.code) &&
+      /quiet_hours_(start|end)/.test(error.message)) {
+      throw new ConflictError("QUIET_HOURS_UNAVAILABLE", "Quiet hours cannot be saved until the database update is applied.");
+    }
+    if (error?.code === "23514" && error.message.includes("notification_reminder_outside_quiet_check")) {
+      throw new ConflictError("REMINDER_IN_QUIET_HOURS", "Choose a reminder time outside quiet hours.");
+    }
+    throwIfDatabaseError(error, { module: "settings", schema: "user_service", table: "notification_preferences", operation: "update notification settings" }, "Your notification settings could not be saved.");
+    if (!input.pushEnabled) await this.pushSubscriptions?.removeAll(userId);
     await this.recordAudit(userId, "settings.notifications_updated", { resourceType: "notification_preferences" });
     return this.get(userId);
   }

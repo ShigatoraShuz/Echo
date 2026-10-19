@@ -17,7 +17,9 @@ export const metadata: Metadata = {
     "Private journaling, reflective support, and wellbeing signals. Not a diagnostic tool.",
   icons: {
     icon: "/icon.svg",
+    apple: "/echo-icon-192.png",
   },
+  appleWebApp: { capable: true, title: "ECHO", statusBarStyle: "default" },
 };
 
 const echoSans = Manrope({

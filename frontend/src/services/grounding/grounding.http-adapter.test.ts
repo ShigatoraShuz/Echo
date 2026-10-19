@@ -34,6 +34,7 @@ describe("grounding HTTP adapter", () => {
 
     const { createGroundingHttpAdapter } = await import("@/services/grounding/grounding.http-adapter");
     const result = await createGroundingHttpAdapter().saveSession({
+      sessionId: "11111111-1111-4111-8111-111111111111",
       type: "box-breathing",
       duration: 120,
       pace: "medium",
@@ -52,6 +53,7 @@ describe("grounding HTTP adapter", () => {
     }
     const requestInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(requestInit.body))).toEqual({
+      sessionId: "11111111-1111-4111-8111-111111111111",
       technique: "box-breathing",
       durationSeconds: 120,
       pace: "slower",

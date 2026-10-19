@@ -25,7 +25,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
         <div className="min-w-0">
           <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">Journal analysis</h2>
           <p className="mt-1 text-lg font-semibold capitalize text-foreground">
-            {result.dominantEmotion} emotion · {result.distressBand} distress
+            {result.isSimulated ? "Sample analysis preview" : `${result.dominantEmotion} emotion · ${result.distressBand} distress`}
           </p>
           <p className="mt-1 text-xs text-[var(--landing-muted)]">Reflective estimate, not a diagnosis.</p>
           {result.isSimulated ? (
@@ -40,6 +40,11 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
         </span>
       </summary>
       <div className="mt-4 grid gap-4 lg:grid-cols-12">
+        {result.isSimulated ? (
+          <p role="note" className="rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 lg:col-span-12">
+            These figures are a development example. They do not describe your wellbeing or represent a validated model result.
+          </p>
+        ) : null}
         <article className="border-t border-border/70 pt-4 lg:col-span-5">
           <div className="flex items-center gap-3">
             <Radar className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -92,7 +97,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             <>
               <p className="mt-4 text-lg font-semibold">{insights.recommendation.title}</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{insights.recommendation.description}</p>
-              <AnalysisBuddyAction resultId={insights.latestResultId} />
+              {result.isSimulated ? <p className="mt-3 text-xs text-muted-foreground">Buddy handoff is unavailable for a simulated result.</p> : <AnalysisBuddyAction resultId={insights.latestResultId} />}
             </>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">No reviewed recommendation is available.</p>

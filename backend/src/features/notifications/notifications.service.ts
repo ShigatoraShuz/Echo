@@ -82,9 +82,23 @@ export class NotificationService {
       query = query.is("read_at", null);
     }
 
-    const { data, error } = await query;
+    const [listed, unread] = await Promise.all([
+      query,
+      this.database
+        .schema("notification_service")
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .is("read_at", null),
+    ]);
+    const { data, error } = listed;
     throwIfDatabaseError(error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "select notifications" }, "Notifications could not be loaded.");
-    return { notifications: await this.withResourceLabels(userId, ((data ?? []) as Row[]).map(mapNotification)) };
+    throwIfDatabaseError(unread.error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "count unread notifications" }, "Notifications could not be loaded.");
+    if (typeof unread.count !== "number") throw databaseError("Notifications could not be loaded.");
+    return {
+      notifications: await this.withResourceLabels(userId, ((data ?? []) as Row[]).map(mapNotification)),
+      unreadCount: unread.count,
+    };
   }
 
   async markRead(userId: string, notificationId: string) {

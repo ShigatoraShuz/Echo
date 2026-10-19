@@ -58,4 +58,22 @@ describe("journal HTTP pagination", () => {
     }, { idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
     expect(result).toMatchObject({ success: true, data: { id: "saved-id", title: "A moment" } });
   });
+
+  it("uploads draft photos as binary and keeps a failed upload retryable", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: false, error: { message: "Storage unavailable" } }),
+        { status: 503, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: { id: "photo-id" } }),
+        { status: 200, headers: { "content-type": "application/json" } })));
+    const { createJournalHttpAdapter } = await import("./journal.http-adapter");
+    const adapter = createJournalHttpAdapter();
+    const file = new File(["photo"], "moment.png", { type: "image/png" });
+    expect((await adapter.uploadDraftImage("photo-id", file)).success).toBe(false);
+    expect((await adapter.uploadDraftImage("photo-id", file)).success).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith(
+      "http://api.example.test/api/v1/journals/draft/images/photo-id",
+      expect.objectContaining({ method: "PUT", body: file, headers: expect.objectContaining({ "Content-Type": "image/png" }) }),
+    );
+  });
 });

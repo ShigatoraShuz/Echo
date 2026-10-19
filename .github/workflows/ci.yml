@@ -39,6 +39,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace @echo/contracts
+      - run: npm run test:e2e:routes --workspace echo-theme-system
+      - run: npm run test:qa-target --workspace @echo/backend
       - run: npm run test --workspaces --if-present -- --coverage
       - uses: actions/upload-artifact@v4
         with:
@@ -58,3 +60,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.ECHO_STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.ECHO_STAGING_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.ECHO_STAGING_API_BASE_URL }}

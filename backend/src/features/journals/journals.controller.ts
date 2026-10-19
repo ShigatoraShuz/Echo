@@ -85,6 +85,20 @@ export function createJournalsController(service: JournalService) {
       if (!Buffer.isBuffer(request.body)) throw new ValidationError({image:["An image file is required."]});
       sendSuccess(response, await service.uploadImage(userId(request),requireUuidParam(request,"journalId"),requireUuidParam(request,"imageId"),request.body,request.header("content-type") ?? ""));
     },
+    async uploadDraftImage(request: Request, response: Response) {
+      if (!Buffer.isBuffer(request.body)) throw new ValidationError({ image: ["An image file is required."] });
+      sendSuccess(response, await service.uploadDraftImage(userId(request), requireUuidParam(request, "imageId"), request.body, request.header("content-type") ?? ""));
+    },
+    async listDraftImages(request: Request, response: Response) {
+      sendSuccess(response, await service.listDraftImages(userId(request)));
+    },
+    async removeDraftImage(request: Request, response: Response) {
+      await service.removeDraftImage(userId(request), requireUuidParam(request, "imageId"));
+      response.status(204).end();
+    },
+    async attachDraftImages(request: Request, response: Response) {
+      sendSuccess(response, await service.attachDraftImages(userId(request), requireUuidParam(request, "journalId")));
+    },
     async list(request: Request, response: Response) {
       const result = journalListSchema.safeParse(request.query);
       if (!result.success) throw new ValidationError({ query: result.error.issues.map((issue) => issue.message) });

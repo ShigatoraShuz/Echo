@@ -8,7 +8,7 @@ import {
 const encryption = createEncryptionService(Buffer.alloc(32, 7).toString("base64"), 1);
 const user = "40000000-0000-4000-8000-000000000001";
 const id = "41000000-0000-4000-8000-000000000001";
-function harness(collections: Record<string, unknown[]> = {}, calendarRows: unknown[] = [], buddyPins: unknown[] = []) {
+function harness(collections: Record<string, unknown[]> = {}, calendarRows: unknown[] = [], buddyPins: unknown[] = [], draftImages: unknown[] = []) {
   let ciphertext: string | null = null;
   const updates = vi.fn();
   const eq = vi.fn();
@@ -32,8 +32,8 @@ function harness(collections: Record<string, unknown[]> = {}, calendarRows: unkn
   });
   const download = vi.fn().mockResolvedValue({ data: new Blob(["synthetic-image"]), error: null });
   const from = vi.fn((table: string) => {
-    if (table === "calendar_items" || table === "buddy_conversations") {
-      const rows = table === "calendar_items" ? calendarRows : buddyPins;
+    if (table === "calendar_items" || table === "buddy_conversations" || table === "journal_draft_images") {
+      const rows = table === "calendar_items" ? calendarRows : table === "buddy_conversations" ? buddyPins : draftImages;
       const query = {
         select: vi.fn(() => query),
         eq: vi.fn(() => query),
@@ -131,6 +131,14 @@ describe("private account exports", () => {
     const output = JSON.parse(await h.service.download(user, id));
     expect(output.attachments).toHaveLength(1);
     expect(output.attachments[0].base64).toBe(Buffer.from("synthetic-image").toString("base64"));
+  });
+  it("includes uploaded private draft photos in the account export", async () => {
+    const draft = { id: "draft-image", user_id: user, uploaded: true, storage_path: user + "/draft/image.png", mime_type: "image/png" };
+    const h = harness({}, [], [], [draft]);
+    await h.service.prepare(user);
+    const output = JSON.parse(await h.service.download(user, id));
+    expect(output.collections["journal_service.journal_draft_images"]).toEqual([draft]);
+    expect(output.attachments).toMatchObject([{ path: "journal-images/" + draft.storage_path }]);
   });
   it("fails before downloading a substituted path belonging to another account", async () => {
     const h = harness({ "journal_service.journal_images": [{ uploaded: true, storage_path: "other/account.png" }] });

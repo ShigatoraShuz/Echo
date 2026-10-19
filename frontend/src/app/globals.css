@@ -1609,6 +1609,12 @@
   );
 }
 
+@media (max-width: 767px) {
+  .landing-product-showcase-gradient {
+    background: linear-gradient(180deg, #f4f4eb 0%, #e5edd9 58%, #dce8ce 100%);
+  }
+}
+
 .growth-photo-tray {
   --growth-open: 42%;
   --growth-closed: calc((58% - 5.25rem) / 7);

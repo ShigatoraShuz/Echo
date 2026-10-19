@@ -13,6 +13,90 @@ export function validateJournalImage(bytes: Buffer, mime: string): void {
 export class JournalImagesService {
   constructor(private readonly database: SupabaseClient) {}
 
+  private async releaseDraftReservation(userId: string, imageId: string): Promise<void> {
+    await this.database.schema("journal_service").from("journal_draft_images")
+      .update({ reservation_expires_at: new Date().toISOString() })
+      .eq("id", imageId).eq("user_id", userId).eq("uploaded", false);
+  }
+
+  async uploadDraft(userId: string, imageId: string, bytes: Buffer, mime: string) {
+    const sanitized = await sanitizeImage(bytes, mime);
+    const { data: path, error } = await this.database.schema("journal_service").rpc("reserve_journal_draft_image", {
+      p_user_id: userId, p_image_id: imageId,
+      p_hash: createHash("sha256").update(bytes).digest("hex"), p_mime_type: mime,
+    });
+    if (error?.message.includes("DRAFT_NOT_FOUND")) throw new NotFoundError("Save the draft before adding photos.");
+    if (error?.message.includes("IMAGE_LIMIT") || error?.message.includes("IMAGE_CONFLICT"))
+      throw new ConflictError("IMAGE_CONFLICT", "This draft supports up to five photos. Retry the same photo or remove one.");
+    if (error || typeof path !== "string") throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The draft photo could not be prepared.");
+
+    const current = await this.database.schema("journal_service").from("journal_draft_images")
+      .select("uploaded").eq("id", imageId).eq("user_id", userId).maybeSingle();
+    if (current.error || !current.data) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The draft photo could not be checked.");
+    if (current.data.uploaded) return { id: imageId };
+
+    const upload = await this.database.storage.from("journal-images").upload(path, sanitized, {
+      contentType: mime, upsert: true,
+    });
+    if (upload.error) {
+      await this.releaseDraftReservation(userId, imageId);
+      throw new ExternalServiceError("STORAGE_UNAVAILABLE", "The draft photo could not be uploaded. Retry this photo.");
+    }
+    const updated = await this.database.schema("journal_service").from("journal_draft_images")
+      .update({ uploaded: true }).eq("id", imageId).eq("user_id", userId).eq("uploaded", false)
+      .select("id").maybeSingle();
+    if (updated.error || !updated.data) {
+      if (!updated.error) {
+        const replay = await this.database.schema("journal_service").from("journal_draft_images")
+          .select("uploaded").eq("id", imageId).eq("user_id", userId).maybeSingle();
+        if (!replay.error && replay.data?.uploaded) return { id: imageId };
+      }
+      await this.database.storage.from("journal-images").remove([path]);
+      await this.releaseDraftReservation(userId, imageId);
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The draft photo could not be attached. Retry this photo.");
+    }
+    return { id: imageId };
+  }
+
+  async listDraft(userId: string): Promise<Array<{ id: string; url: string }>> {
+    const { data, error } = await this.database.schema("journal_service").from("journal_draft_images")
+      .select("id,storage_path").eq("user_id", userId).eq("uploaded", true)
+      .order("created_at", { ascending: true });
+    if (["42P01", "PGRST205"].includes(error?.code ?? "")) return [];
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Draft photos could not be loaded.");
+    const signed = await Promise.all((data ?? []).map(async (image) => {
+      const result = await this.database.storage.from("journal-images").createSignedUrl(image.storage_path, 300);
+      if (result.error || !result.data) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "Draft photos could not be opened.");
+      return { id: String(image.id), url: result.data.signedUrl };
+    }));
+    return signed;
+  }
+
+  async removeDraft(userId: string, imageId: string): Promise<void> {
+    const { error } = await this.database.schema("journal_service").from("journal_draft_images")
+      .delete().eq("id", imageId).eq("user_id", userId);
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The draft photo could not be removed.");
+  }
+
+  async attachDraft(userId: string, journalId: string): Promise<{ attached: number }> {
+    const { data, error } = await this.database.schema("journal_service").rpc("attach_journal_draft_images", {
+      p_user_id: userId, p_journal_id: journalId,
+    });
+    if (error?.code === "PGRST202") {
+      const existing = await this.database.schema("journal_service").from("journal_draft_images")
+        .select("id", { count: "exact", head: true }).eq("user_id", userId);
+      if (["42P01", "PGRST205"].includes(existing.error?.code ?? "") || (!existing.error && existing.count === 0))
+        return { attached: 0 };
+    }
+    if (error?.message.includes("JOURNAL_NOT_FOUND")) throw new NotFoundError();
+    if (error?.message.includes("IMAGE_UPLOAD_PENDING"))
+      throw new ConflictError("IMAGE_UPLOAD_PENDING", "Wait for your draft photos to finish uploading, then retry.");
+    if (error?.message.includes("IMAGE_LIMIT"))
+      throw new ConflictError("IMAGE_LIMIT", "This journal supports up to five photos.");
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Draft photos could not be attached. Retry saving.");
+    return { attached: Number(data ?? 0) };
+  }
+
   private async releaseReservation(userId: string, journalId: string, imageId: string): Promise<void> {
     // Best-effort release. If this database write cannot complete, the
     // reservation's bounded expiry still prevents it from consuming a slot

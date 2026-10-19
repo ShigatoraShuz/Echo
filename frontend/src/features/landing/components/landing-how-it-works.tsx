@@ -460,6 +460,7 @@ function TrustStrip() {
 export function LandingHowItWorks() {
   const [activeIndex, setActiveIndex] = useState(0);
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const panelRef = useRef<HTMLDivElement>(null);
   const active = STEPS[activeIndex];
   const next = STEPS[(activeIndex + 1) % STEPS.length];
   const afterNext = STEPS[(activeIndex + 2) % STEPS.length];
@@ -472,7 +473,7 @@ export function LandingHowItWorks() {
     else return;
     event.preventDefault();
     setActiveIndex(target);
-    refs.current[target]?.focus();
+    refs.current[target]?.focus({ preventScroll: true });
   };
 
   return (
@@ -511,11 +512,11 @@ export function LandingHowItWorks() {
         </EchoReveal>
         <EchoReveal variant="card" delay={65}>
           <div
-            className="relative mt-10 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="relative mt-10 pb-2 lg:overflow-x-auto lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden"
             role="tablist"
             aria-label="How ECHO works steps"
           >
-            <div className="relative flex min-w-[860px] items-center justify-between gap-2 before:absolute before:left-[6%] before:right-[6%] before:top-1/2 before:h-px before:bg-[#cdd5c5]">
+            <div className="relative grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:min-w-[860px] lg:items-center lg:justify-between lg:before:absolute lg:before:left-[6%] lg:before:right-[6%] lg:before:top-1/2 lg:before:h-px lg:before:bg-[#cdd5c5]">
               {STEPS.map((step, index) => (
                 <button
                   key={step.id}
@@ -531,12 +532,12 @@ export function LandingHowItWorks() {
                   tabIndex={index === activeIndex ? 0 : -1}
                   onClick={() => setActiveIndex(index)}
                   onKeyDown={(event) => onKeyDown(event, index)}
-                  className="echo-how-step relative z-10 inline-flex min-h-12 shrink-0 items-center gap-3 overflow-hidden rounded-full border border-[#b9c7ad] bg-[#f7f3ea] px-4 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 active:scale-[0.98]"
+                  className="echo-how-step relative z-10 inline-flex min-h-14 w-full items-center gap-2 overflow-hidden rounded-2xl border border-[#b9c7ad] bg-[#f7f3ea] px-3 py-2 text-left text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b] focus-visible:ring-offset-2 active:scale-[0.98] lg:min-h-12 lg:w-auto lg:shrink-0 lg:gap-3 lg:rounded-full lg:px-4"
                 >
                   <span className="echo-how-step__number relative z-10 grid h-8 w-8 place-items-center rounded-full border border-[#cdd5c5] bg-[#fbf8f1] text-[#173b2b]">
                     {step.number}
                   </span>
-                  <span className="relative z-10">{step.tab}</span>
+                  <span className="relative z-10 min-w-0">{step.tab}</span>
                 </button>
               ))}
             </div>
@@ -544,10 +545,12 @@ export function LandingHowItWorks() {
         </EchoReveal>
         <EchoReveal variant="card" delay={130}>
           <div
+            ref={panelRef}
             id={`echo-step-panel-${active.id}`}
             role="tabpanel"
             aria-labelledby={`echo-step-tab-${active.id}`}
-            className="mt-4 grid gap-7 rounded-[22px] border border-[#d9d8cc] bg-[#fbf8f1] p-5 shadow-[0_24px_64px_rgba(23,59,43,0.11),0_4px_14px_rgba(23,59,43,0.05)] sm:p-7 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8"
+            tabIndex={-1}
+            className="mt-4 grid scroll-mt-20 gap-7 rounded-[22px] border border-[#d9d8cc] bg-[#fbf8f1] p-5 shadow-[0_24px_64px_rgba(23,59,43,0.11),0_4px_14px_rgba(23,59,43,0.05)] sm:p-7 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8"
           >
             <div className="flex flex-col justify-center py-2 lg:py-5">
               <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[#315b38]">{active.eyebrow}</p>
@@ -582,7 +585,8 @@ export function LandingHowItWorks() {
                   type="button"
                   onClick={() => {
                     setActiveIndex(activeIndex + 1);
-                    refs.current[activeIndex + 1]?.focus();
+                    panelRef.current?.focus({ preventScroll: true });
+                    panelRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
                   }}
                   className="mt-2 inline-flex min-h-11 items-center gap-1 self-start px-2 text-xs font-bold text-[#315b38] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#56743b]"
                 >

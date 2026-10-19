@@ -84,6 +84,13 @@ const policySections = [
           When you continue with Google, Supabase receives the OAuth response from Google. ECHO may use the
           Google-provided email and recommended display name to create or find your account and prefill your profile.
         </p>
+        <p>
+          If you enable email or device alerts, ECHO shares your email address with the configured mail provider or
+          sends an encrypted alert through your browser&apos;s push service. ECHO stores device subscriptions encrypted.
+          Alerts use generic wording and a link back
+          to ECHO; journal text and support messages are not sent in alert content. You can turn alerts off in Settings.
+          Delivery providers may retain operational records under their own policies.
+        </p>
       </>
     ),
   },

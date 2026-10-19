@@ -107,8 +107,12 @@ export function useCalendarViewModel() {
     const journal = getJournalService();
     void Promise.all(
       selectedEntries.filter((entry) => entry.analysisConsent).map(async (entry) => {
-        const result = await journal.getAnalysis(entry.id);
-        return [entry.id, result.success ? (result.data && !result.data.isDemoData ? result.data : null) : false] as const;
+        try {
+          const result = await journal.getAnalysis(entry.id);
+          return [entry.id, result.success ? (result.data && !result.data.isDemoData ? result.data : null) : false] as const;
+        } catch {
+          return [entry.id, false] as const;
+        }
       }),
     ).then((results) => {
       if (!controller.signal.aborted) setAnalyses(Object.fromEntries(results));

@@ -140,6 +140,46 @@ describe("settings routes", () => {
     expect(settings.updateNotifications).not.toHaveBeenCalled();
   });
 
+  it("rejects an invalid reminder timezone before saving it", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app)
+      .patch("/api/v1/settings/notifications")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        emailEnabled: false,
+        pushEnabled: false,
+        inAppEnabled: true,
+        journalRemindersEnabled: true,
+        wellbeingRemindersEnabled: false,
+        insightNotificationsEnabled: false,
+        reminderTime: "08:00",
+        reminderTimezone: "Invalid/Timezone",
+      });
+    expect(response.status).toBe(400);
+    expect(settings.updateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reminder scheduled inside quiet hours", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app)
+      .patch("/api/v1/settings/notifications")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        emailEnabled: false,
+        pushEnabled: false,
+        inAppEnabled: true,
+        journalRemindersEnabled: true,
+        wellbeingRemindersEnabled: false,
+        insightNotificationsEnabled: false,
+        reminderTime: "22:30",
+        reminderTimezone: "Asia/Manila",
+        quietHoursStart: "22:00",
+        quietHoursEnd: "07:00",
+      });
+    expect(response.status).toBe(400);
+    expect(settings.updateNotifications).not.toHaveBeenCalled();
+  });
+
   it("creates trusted contacts and returns 201", async () => {
     const { app, settings } = createHarness();
 

@@ -15,6 +15,7 @@ import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
+import { PushSubscriptionsService } from "./features/notifications/push-subscriptions.service.js";
 import { RegistrationService } from "./features/registration/registration.service.js";
 import { AccessService } from "./features/access/access.service.js";
 import { IdempotencyService } from "./infrastructure/idempotency/idempotency.service.js";
@@ -79,7 +80,9 @@ const localWorkerService = new LocalWorkerService(
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
 );
 const dataExports = new DataExportService(supabaseAdmin, encryptionService);
-const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports);
+const pushSubscriptions = environment.PUSH_VAPID_PUBLIC_KEY
+  ? new PushSubscriptionsService(supabaseAdmin, encryptionService, true) : undefined;
+const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports, pushSubscriptions);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService, {
   phq8IntervalDays: environment.PHQ8_INTERVAL_DAYS,
   supportThreshold: environment.SUPPORT_PROMPT_THRESHOLD,
@@ -143,6 +146,7 @@ const app = createApp({
     notifications: {
       service: notificationService,
       verifier,
+      pushSubscriptions,
     },
     calendar: { service: calendarService, verifier },
     professionals: { service: professionalService, verifier, verificationService },

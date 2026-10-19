@@ -9,6 +9,7 @@ const USER = "fe000000-0000-4000-8000-000000000001";
 const OTHER = "fe000000-0000-4000-8000-000000000002";
 const ORG = "fe000000-0000-4000-8000-000000000003";
 const REQUEST = "fe000000-0000-4000-8000-000000000004";
+const APPOINTMENT = "fe000000-0000-4000-8000-000000000005";
 const encryption = createEncryptionService(Buffer.alloc(32, 1).toString("base64"), 1);
 
 function harness(assignedTo: string, revoked: boolean) {
@@ -32,6 +33,8 @@ function harness(assignedTo: string, revoked: boolean) {
         ? row
         : table === "memberships"
           ? { role: "counselor", status: "active", credential_expires_at: "2099-12-31" }
+          : table === "appointments"
+            ? { request_id: REQUEST, starts_at: new Date(Date.now() + 86_400_000).toISOString() }
           : table === "organizations"
             ? { status: "active" }
             : null;
@@ -45,8 +48,9 @@ function harness(assignedTo: string, revoked: boolean) {
     };
     return query;
   });
-  const database = { schema: () => ({ from }) } as unknown as SupabaseClient;
-  return { service: new ProfessionalService(database, encryption, {} as JournalService), from };
+  const rpc = vi.fn();
+  const database = { schema: () => ({ from, rpc }) } as unknown as SupabaseClient;
+  return { service: new ProfessionalService(database, encryption, {} as JournalService), from, rpc };
 }
 
 describe("professional case access", () => {
@@ -72,6 +76,20 @@ describe("professional case access", () => {
     const detail = await service.detail(USER, REQUEST, "professional");
     expect(detail.request.summary).toBe("A private message");
     expect(detail.request.preferredTime).toBe("After my therapy session");
+  });
+});
+
+describe("appointment completion", () => {
+  it("refuses completion before the scheduled start", async () => {
+    const { service, rpc } = harness(USER, false);
+    await expect(service.completeAppointment(USER, APPOINTMENT)).rejects.toMatchObject({ code: "APPOINTMENT_NOT_STARTED" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("checks the assigned practitioner before revealing appointment timing", async () => {
+    const { service, rpc } = harness(OTHER, false);
+    await expect(service.completeAppointment(USER, APPOINTMENT)).rejects.toBeInstanceOf(AuthorizationError);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
 

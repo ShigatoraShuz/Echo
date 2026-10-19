@@ -54,6 +54,7 @@ export type AuthServiceErrorCode =
   | "INVALID_TOKEN"
   | "EXPIRED_TOKEN"
   | "NETWORK"
+  | "RATE_LIMITED"
   | "VALIDATION"
   | "UNKNOWN";
 

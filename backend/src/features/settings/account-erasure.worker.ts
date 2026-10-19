@@ -55,8 +55,9 @@ export class AccountErasureWorker {
   }
 
   private async databasePaths(job: Job): Promise<ObjectRow[]> {
-    const sources: Array<{ schema: string; table: string; bucket: Bucket }> = [
+    const sources: Array<{ schema: string; table: string; bucket: Bucket; optional?: boolean }> = [
       { schema: "journal_service", table: "journal_images", bucket: "journal-images" },
+      { schema: "journal_service", table: "journal_draft_images", bucket: "journal-images", optional: true },
       { schema: "verification_service", table: "verification_documents", bucket: "verification-documents" },
       { schema: "public", table: "verification_documents", bucket: "verification-documents" },
     ];
@@ -66,6 +67,7 @@ export class AccountErasureWorker {
         await this.renew(job, "inventory_records");
         const { data, error } = await this.database.schema(source.schema).from(source.table)
           .select("storage_path").eq("user_id", job.user_id).range(offset, offset + PAGE_SIZE - 1);
+        if (source.optional && ["42P01", "PGRST205"].includes(error?.code ?? "")) break;
         if (error || !data) throw new ErasureFailure("OBJECT_RECORDS_UNAVAILABLE");
         for (const row of data) {
           if (typeof row.storage_path !== "string" || !safePath(job.user_id, row.storage_path))

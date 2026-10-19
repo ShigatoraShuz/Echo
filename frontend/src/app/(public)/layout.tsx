@@ -4,5 +4,5 @@ import { SmoothScrollProvider } from "@/shared/components/providers/smooth-scrol
 import { EchoPageFade } from "@/shared/components/react-bits/echo-page-fade";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
-  return <SmoothScrollProvider><EchoPageFade><PublicShell>{children}</PublicShell></EchoPageFade></SmoothScrollProvider>;
+  return <SmoothScrollProvider><PublicShell><EchoPageFade>{children}</EchoPageFade></PublicShell></SmoothScrollProvider>;
 }

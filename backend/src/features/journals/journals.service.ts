@@ -392,6 +392,22 @@ export class JournalService {
     return new JournalImagesService(this.database).upload(userId,journalId,imageId,bytes,mime);
   }
 
+  async uploadDraftImage(userId:string,imageId:string,bytes:Buffer,mime:string) {
+    return new JournalImagesService(this.database).uploadDraft(userId,imageId,bytes,mime);
+  }
+
+  async listDraftImages(userId:string) {
+    return new JournalImagesService(this.database).listDraft(userId);
+  }
+
+  async removeDraftImage(userId:string,imageId:string) {
+    return new JournalImagesService(this.database).removeDraft(userId,imageId);
+  }
+
+  async attachDraftImages(userId:string,journalId:string) {
+    return new JournalImagesService(this.database).attachDraft(userId,journalId);
+  }
+
   async getJournalTitles(userId: string, journalIds: string[]): Promise<Map<string, string>> {
     if (journalIds.length === 0) return new Map();
     const { data, error } = await this.reader

@@ -28,6 +28,9 @@ export interface NotificationSettings {
   insightNotificationsEnabled: boolean;
   reminderTime: string | null;
   reminderTimezone: string | null;
+  quietHoursAvailable?: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
 }
 
 export interface TrustedContact {

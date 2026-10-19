@@ -86,6 +86,18 @@ describe("email login codes", () => {
     });
   });
 
+  it("explains an OTP rate limit without exposing account existence", async () => {
+    mocks.signInWithOtp.mockResolvedValue({
+      error: { status: 429, code: "over_email_send_rate_limit", message: "rate limit exceeded" },
+    });
+
+    const result = await createAuthSupabaseAdapter().sendLoginCode!("mira@test.com");
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: "RATE_LIMITED", message: expect.stringMatching(/wait and try again later/i) },
+    });
+  });
+
   it("requires a verified OTP session and explains expired codes", async () => {
     mocks.verifyOtp.mockResolvedValue({
       data: {
@@ -281,6 +293,21 @@ describe("createAuthSupabaseAdapter session persistence", () => {
     });
 
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("gives a retryable message when Supabase limits password attempts", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { session: null },
+      error: { status: 429, code: "over_request_rate_limit", message: "too many requests" },
+    });
+
+    const result = await createAuthSupabaseAdapter().login({
+      email: "mira@test.com", password: "wrong-password", rememberSession: false,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: "RATE_LIMITED", message: expect.stringMatching(/wait and try again later/i) },
+    });
   });
 
   it("expires an unchecked remember-me login after the browser session marker is gone", async () => {

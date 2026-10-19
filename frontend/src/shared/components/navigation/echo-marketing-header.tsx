@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLenis } from "lenis/react";
 import { Leaf, Menu, ShieldAlert, X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
@@ -15,16 +16,21 @@ const navLinks = [
 
 export function EchoMarketingHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuReady, setMenuReady] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeHash, setActiveHash] = useState("");
   const pathname = usePathname();
+  const lenis = useLenis();
   const scrollSentinelRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   const isActiveLink = (href: string) => {
     if ((href === "/about" || href === "/privacy-policy") && pathname === href) return true;
     const hash = href.startsWith("/#") ? href.slice(1) : "";
     return pathname === "/" && Boolean(hash) && activeHash === hash;
   };
+
+  useEffect(() => setMenuReady(true), []);
 
   useEffect(() => {
     const sentinel = scrollSentinelRef.current;
@@ -41,23 +47,46 @@ export function EchoMarketingHeader() {
   useEffect(() => setMobileMenuOpen(false), [pathname]);
 
   useEffect(() => {
-    let scrollTimer = 0;
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMobileMenuOpen(false);
+      mobileMenuButtonRef.current?.focus();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    let frame = 0;
+    let timer = 0;
     const onHashChange = () => {
       const hash = window.location.hash;
       setActiveHash(hash);
       if (pathname !== "/" || (hash !== "#features" && hash !== "#how-it-works")) return;
-      window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        document.querySelector(hash)?.scrollIntoView({ block: "start" });
-      }, 160);
+      let attempts = 0;
+      const alignTarget = () => {
+        const target = document.getElementById(hash.slice(1));
+        if (!target) {
+          if (attempts++ < 120) frame = window.requestAnimationFrame(alignTarget);
+          return;
+        }
+        timer = window.setTimeout(() => {
+          const top = window.scrollY + target.getBoundingClientRect().top - (window.innerWidth < 1024 ? 96 : 104);
+          if (lenis) lenis.scrollTo(top, { immediate: true });
+          else window.scrollTo({ top, behavior: "instant" });
+        }, 80);
+      };
+      frame = window.requestAnimationFrame(alignTarget);
     };
     onHashChange();
     window.addEventListener("hashchange", onHashChange);
     return () => {
       window.removeEventListener("hashchange", onHashChange);
-      window.clearTimeout(scrollTimer);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
     };
-  }, [pathname]);
+  }, [pathname, lenis]);
 
   return (
     <>
@@ -93,8 +122,9 @@ export function EchoMarketingHeader() {
 
           {/* Nav links */}
           <nav className="flex items-center gap-0.5" aria-label="Site links">
-            {navLinks.map((item) => (
-              <Link
+            {navLinks.map((item) => {
+              const NavLink = item.href.startsWith("/#") ? "a" : Link;
+              return <NavLink
                 key={item.href}
                 href={item.href}
                 aria-current={isActiveLink(item.href) ? "page" : undefined}
@@ -109,8 +139,8 @@ export function EchoMarketingHeader() {
                 )}
               >
                 {item.label}
-              </Link>
-            ))}
+              </NavLink>;
+            })}
 
             {/* Crisis support — accent red */}
             <Link
@@ -180,9 +210,12 @@ export function EchoMarketingHeader() {
 
           {/* Hamburger */}
           <button
+            ref={mobileMenuButtonRef}
             type="button"
+            disabled={!menuReady}
             onClick={() => setMobileMenuOpen((p) => !p)}
             aria-expanded={mobileMenuOpen}
+            aria-controls="echo-marketing-mobile-menu"
             aria-label="Toggle navigation"
             className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--landing-ink)] transition-[background-color,transform] duration-150 hover:bg-[var(--landing-primary-10)] active:scale-[0.97]"
           >
@@ -192,10 +225,11 @@ export function EchoMarketingHeader() {
 
         {/* Mobile drawer — expands within the island pill */}
         {mobileMenuOpen && (
-          <div className="border-t border-[var(--landing-sand)]/50 px-5 pb-5 pt-3">
-            <nav className="flex flex-col gap-0.5">
-              {navLinks.map((item) => (
-                <Link
+          <div id="echo-marketing-mobile-menu" className="border-t border-[var(--landing-sand)]/50 px-5 pb-5 pt-3">
+            <nav className="flex flex-col gap-0.5" aria-label="Mobile navigation">
+              {navLinks.map((item) => {
+                const NavLink = item.href.startsWith("/#") ? "a" : Link;
+                return <NavLink
                   key={item.href}
                   href={item.href}
                   aria-current={isActiveLink(item.href) ? "page" : undefined}
@@ -206,8 +240,8 @@ export function EchoMarketingHeader() {
                   )}
                 >
                   {item.label}
-                </Link>
-              ))}
+                </NavLink>;
+              })}
               <Link
                 href="/crisis"
                 onClick={() => setMobileMenuOpen(false)}

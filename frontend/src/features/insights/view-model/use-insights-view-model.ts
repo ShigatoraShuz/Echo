@@ -4,15 +4,12 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { DashboardInsights } from "@echo/contracts";
 import { getInsightsService } from "@/services/insights/insights-service.factory";
 import { createInsightsMockAdapter } from "@/services/insights/insights.mock-adapter";
-import type { InsightTimeRange, RiskSignal } from "../model/insights.model";
-import type { TrendPoint } from "@/shared/types";
+import type { InsightTimeRange } from "../model/insights.model";
 
 interface InsightsState {
   timeRange: InsightTimeRange;
   customRange: { from: string; to: string } | null;
   overview: DashboardInsights | null;
-  riskSignal: RiskSignal | null;
-  riskTrend: TrendPoint[];
   isLoading: boolean;
   error: string | null;
 }
@@ -27,8 +24,6 @@ const initialState: InsightsState = {
   timeRange: "30d",
   customRange: null,
   overview: null,
-  riskSignal: null,
-  riskTrend: [],
   isLoading: true,
   error: null,
 };
@@ -39,31 +34,9 @@ function reducer(state: InsightsState, action: InsightsAction): InsightsState {
     case "LOAD_START":
       return { ...state, isLoading: true, error: null };
     case "LOAD_SUCCESS": {
-      const latest = action.overview.latest;
-      const score = latest
-        ? Math.round((["low", "mild", "moderate", "high", "severe"].indexOf(latest.distressBand) / 4) * 100)
-        : 0;
       return {
         ...state,
         overview: action.overview,
-        riskSignal: latest
-          ? {
-              score,
-              band: latest.distressBand,
-              label: `${latest.distressBand} signal`,
-              history: action.overview.distressTrend.map((point) => ({
-                date: point.date,
-                score: Math.round(point.value * 100),
-                band: point.band,
-              })),
-              supportingFactors: [],
-            }
-          : null,
-        riskTrend: action.overview.distressTrend.map((point) => ({
-          label: point.date,
-          value: Math.round(point.value * 100),
-          band: point.band,
-        })),
         isLoading: false,
       };
     }

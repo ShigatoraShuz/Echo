@@ -49,4 +49,15 @@ describe("user professional support actions", () => {
     await waitFor(() => expect(mocks.requestAppointmentChange).toHaveBeenCalledWith("a1", "Friday afternoon"));
     vi.mocked(window.prompt).mockRestore();
   });
+
+  it("lets a user retry an unavailable appointment list", async () => {
+    mocks.appointments
+      .mockRejectedValueOnce(new Error("Service unavailable"))
+      .mockResolvedValueOnce({ appointments: [{ id: "a1", startsAt: "2099-10-15T10:00:00.000Z", endsAt: "2099-10-15T11:00:00.000Z", status: "proposed", mode: "online", locationHint: "" }] });
+    render(<ProfessionalAppointmentsView />);
+    const reload = await screen.findByRole("button", { name: "Reload appointments" });
+    await userEvent.setup().click(reload);
+    expect(await screen.findByRole("button", { name: "Accept" })).toBeInTheDocument();
+    expect(mocks.appointments).toHaveBeenCalledTimes(2);
+  });
 });

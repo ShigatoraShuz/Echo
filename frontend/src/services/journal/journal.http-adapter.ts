@@ -66,6 +66,34 @@ export function createJournalHttpAdapter(): JournalService {
       try { return {success:true,data:(await client.put<{success:true;data:{id:string}},File>(`/journals/${journalId}/images/${imageId}`,file,{headers:{"Content-Type":file.type}})).data}; }
       catch(error) { return {success:false,error:toServiceError(error)}; }
     },
+    async uploadDraftImage(imageId, file) {
+      try {
+        const response = await client.put<{ success: true; data: { id: string } }, File>(
+          `/journals/draft/images/${imageId}`, file, { headers: { "Content-Type": file.type } },
+        );
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async listDraftImages() {
+      try {
+        const response = await client.get<{ success: true; data: Array<{ id: string; url: string }> }>("/journals/draft/images");
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async removeDraftImage(imageId) {
+      try {
+        await client.delete<undefined>(`/journals/draft/images/${imageId}`);
+        return { success: true, data: undefined };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async attachDraftImages(journalId) {
+      try {
+        const response = await client.post<{ success: true; data: { attached: number } }>(
+          `/journals/${journalId}/draft-images/attach`,
+        );
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
     async listEntries(filters, page, pageSize, signal) {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });

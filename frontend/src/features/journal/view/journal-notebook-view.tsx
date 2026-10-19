@@ -7,6 +7,7 @@ import { useJournalListViewModel } from "../view-model/use-journal-list-view-mod
 import type { JournalEntry, JournalMood } from "../model/journal.model";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
+import { JournalPolaroid } from "../components/journal-polaroid";
 
 const moods: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
 const dateFormat = new Intl.DateTimeFormat("en-US", {
@@ -111,13 +112,34 @@ export function JournalNotebookView() {
             <option value="oldest">Oldest first</option>
           </select>
         </div>
-        <div className="echo-panel-scroll mt-3 space-y-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2" aria-busy={vm.isLoading} tabIndex={0} aria-label="Journal entries">
+        {vm.isFiltered && (
+          <button
+            type="button"
+            onClick={vm.resetFilters}
+            className="mt-2 self-start rounded-full px-3 py-2 text-xs font-semibold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:ring-4 focus-visible:ring-ring/20"
+          >
+            Clear search and filters
+          </button>
+        )}
+        <div
+          className="echo-panel-scroll mt-3 space-y-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2"
+          aria-busy={vm.isLoading}
+          tabIndex={0}
+          aria-label="Journal entries"
+        >
           {vm.error && vm.entries.length > 0 && (
             <p role="alert" className="rounded-xl border border-danger/30 bg-crisis-soft p-3 text-sm text-danger">
-              {vm.error} <button type="button" onClick={vm.retry} className="font-semibold underline">Retry</button>
+              {vm.error}{" "}
+              <button type="button" onClick={vm.retry} className="font-semibold underline">
+                Retry
+              </button>
             </p>
           )}
-          {vm.isLoading && vm.entries.length > 0 && <p role="status" className="px-4 text-xs text-[var(--landing-muted)]">Updating reflections…</p>}
+          {vm.isLoading && vm.entries.length > 0 && (
+            <p role="status" className="px-4 text-xs text-[var(--landing-muted)]">
+              Updating reflections…
+            </p>
+          )}
           {vm.isLoading && vm.entries.length === 0 ? (
             <p className="p-6 text-sm text-[var(--landing-muted)]">Loading your reflections…</p>
           ) : vm.entries.length === 0 ? (
@@ -125,34 +147,52 @@ export function JournalNotebookView() {
               {vm.isFiltered ? "No entries match these filters." : "Your journal is ready for its first page."}
             </div>
           ) : (
-            vm.entries.map((entry) => (
-              <button
-                type="button"
-                key={entry.id}
-                onClick={() => setSelectedId(entry.id)}
-                aria-current={selected?.id === entry.id ? "true" : undefined}
-                className={`echo-workspace-tile w-full rounded-2xl border-l-[3px] p-4 text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/20 ${selected?.id === entry.id ? "border-[var(--landing-primary)] bg-[var(--landing-sage-soft)]" : "border-transparent hover:bg-[var(--landing-cream)]"}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="line-clamp-1 font-semibold text-[var(--landing-ink)]">{entry.title}</span>
-                  <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[10px] capitalize text-[var(--landing-primary)]">
-                    {entry.mood}
-                  </span>
+            vm.entries.map((entry) => {
+              const summary = (
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="line-clamp-1 font-semibold text-[var(--landing-ink)]">{entry.title}</span>
+                    <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[10px] capitalize text-[var(--landing-primary)]">
+                      {entry.mood}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--landing-muted)]">
+                    {entry.excerpt || entry.body}
+                  </p>
+                  <p className="mt-2 text-[11px] text-[var(--landing-muted)]">
+                    {dateFormat.format(new Date(entry.createdAt))} ·{" "}
+                    {entry.body.trim().split(/\s+/).filter(Boolean).length} words{" "}
+                    {entry.images?.length ? `· ${entry.images.length} photos` : ""}
+                  </p>
+                </>
+              );
+              return (
+                <div key={entry.id}>
+                  <Link
+                    href={`/journal/${encodeURIComponent(entry.id)}`}
+                    className="echo-workspace-tile block rounded-2xl p-4 outline-none focus-visible:ring-4 focus-visible:ring-ring/20 lg:hidden"
+                  >
+                    {summary}
+                    {entry.images?.[0] && <div className="mt-3"><JournalPolaroid src={entry.images[0].url} alt={`Preview photo from ${entry.title}`} caption="Memory 1" /></div>}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(entry.id)}
+                    aria-current={selected?.id === entry.id ? "true" : undefined}
+                    className={`echo-workspace-tile hidden w-full rounded-2xl border-l-[3px] p-4 text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/20 lg:block ${selected?.id === entry.id ? "border-[var(--landing-primary)] bg-[var(--landing-sage-soft)]" : "border-transparent hover:bg-[var(--landing-cream)]"}`}
+                  >
+                    {summary}
+                  </button>
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--landing-muted)]">
-                  {entry.excerpt || entry.body}
-                </p>
-                <p className="mt-2 text-[11px] text-[var(--landing-muted)]">
-                  {dateFormat.format(new Date(entry.createdAt))} ·{" "}
-                  {entry.body.trim().split(/\s+/).filter(Boolean).length} words{" "}
-                  {entry.images?.length ? `· ${entry.images.length} photos` : ""}
-                </p>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
         {vm.pagination.totalPages > 1 && (
-          <nav aria-label="Journal pages" className="mt-3 flex shrink-0 items-center justify-between border-t border-border/60 pt-2">
+          <nav
+            aria-label="Journal pages"
+            className="mt-3 flex shrink-0 items-center justify-between border-t border-border/60 pt-2"
+          >
             <button
               type="button"
               disabled={vm.pagination.page <= 1}
@@ -179,7 +219,7 @@ export function JournalNotebookView() {
       </section>
       <section
         aria-label="Selected reflection"
-        className="echo-workspace-enter echo-panel-scroll min-w-0 rounded-[1.5rem] border border-border/70 bg-[var(--landing-cream)] p-5 shadow-sm lg:min-h-0 lg:overflow-y-auto lg:p-7"
+        className="echo-workspace-enter echo-panel-scroll hidden min-w-0 rounded-[1.5rem] border border-border/70 bg-[var(--landing-cream)] p-5 shadow-sm lg:block lg:min-h-0 lg:overflow-y-auto lg:p-7"
         tabIndex={0}
       >
         {selected ? (
@@ -203,7 +243,11 @@ export function JournalNotebookView() {
                 Open full page
               </Link>
             </div>
-            {selected.images?.length ? <div className="mt-5 max-w-2xl"><JournalPhotoStack images={selected.images} /></div> : null}
+            {selected.images?.length ? (
+              <div className="mt-5 max-w-2xl">
+                <JournalPhotoStack images={selected.images} />
+              </div>
+            ) : null}
             <div className="mt-6 space-y-5 whitespace-pre-wrap break-words text-lg leading-8 text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
               {selected.body}
             </div>

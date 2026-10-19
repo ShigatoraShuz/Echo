@@ -32,4 +32,17 @@ describe("EchoIntroGate", () => {
     expect(screen.getByText("Immediate crisis support")).toBeVisible();
     expect(screen.queryByText("Opening ECHO")).not.toBeInTheDocument();
   });
+
+  it("renders a direct public link without the landing intro", () => {
+    route.pathname = "/about";
+
+    render(
+      <EchoIntroGate>
+        <main>About ECHO</main>
+      </EchoIntroGate>,
+    );
+
+    expect(screen.getByText("About ECHO")).toBeVisible();
+    expect(screen.queryByText("Opening ECHO")).not.toBeInTheDocument();
+  });
 });

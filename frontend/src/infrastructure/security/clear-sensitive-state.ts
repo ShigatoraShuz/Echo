@@ -2,6 +2,12 @@
 // are encrypted on the server. Do not clear theme or accessibility preferences.
 export function clearSensitiveBrowserState(): void {
   if (typeof window === "undefined") return;
+  if ("serviceWorker" in navigator) {
+    void navigator.serviceWorker.getRegistration("/")
+      .then((registration) => registration?.pushManager?.getSubscription())
+      .then((subscription) => subscription?.unsubscribe())
+      .catch(() => undefined);
+  }
   for (const storageName of ["localStorage", "sessionStorage"] as const) {
     try {
       const storage = window[storageName];

@@ -32,7 +32,7 @@ export function ThemeVariantSelect({ compact = false }: { compact?: boolean }) {
   return (
     <fieldset className="grid gap-2">
       <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Theme</legend>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 min-[375px]:grid-cols-3 xl:grid-cols-2">
         {echoThemeVariants.map((themeVariant) => {
           const Icon = variantIcons[themeVariant];
           return (

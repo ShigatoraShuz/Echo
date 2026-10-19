@@ -98,8 +98,8 @@ export function SignupView({ title, description }: SignupViewProps) {
     });
 
   return (
-    <EchoReveal direction="down" duration={260}>
-      <div className="w-full max-w-[42rem] py-4 text-[#263226] [font-family:var(--font-echo-sans)] sm:py-6">
+    <EchoReveal direction="down" duration={260} className="min-w-0 w-full max-w-[42rem]">
+      <div className="min-w-0 w-full py-4 text-[#263226] [font-family:var(--font-echo-sans)] sm:py-6">
         <header className="mb-7">
           <div className="flex items-center gap-3">
             <span className="grid size-12 place-items-center rounded-2xl bg-[#526f35] text-white shadow-[0_12px_30px_rgba(48,75,35,.24)]">
@@ -107,7 +107,7 @@ export function SignupView({ title, description }: SignupViewProps) {
             </span>
             <span className="text-sm font-black tracking-[0.16em]">ECHO</span>
           </div>
-          <h1 className="mt-6 max-w-[40rem] text-[clamp(2.25rem,4vw,3.25rem)] leading-[.95] tracking-[-.045em] [font-family:var(--font-echo-display)] [text-wrap:balance]">
+          <h1 className="mt-6 max-w-[40rem] break-words text-[clamp(1.75rem,9vw,2.25rem)] leading-[.95] tracking-[-.045em] [font-family:var(--font-echo-display)] sm:text-[clamp(2.25rem,4vw,3.25rem)] [text-wrap:balance]">
             {title}
           </h1>
           <p className="mt-3 max-w-xl text-base leading-7 text-[#697168]">{description}</p>
@@ -336,8 +336,8 @@ export function SignupView({ title, description }: SignupViewProps) {
               <p className="eyebrow mt-5">Step 4 · Verify & finish</p>
               <h2 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Check your inbox</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#697168]">
-                We sent a verification link to <strong>{email}</strong>. Verify your email, then log in to continue to
-                your preferred name and private onboarding.
+                If this address can register, a verification link will arrive at <strong>{email}</strong>. Open it,
+                then log in to continue. If you already have an account, sign in or reset your password.
               </p>
               <Link
                 href="/login"

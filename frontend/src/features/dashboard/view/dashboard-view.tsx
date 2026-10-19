@@ -114,7 +114,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   } = data;
 
   const latestAnalysis = data.analysisInsights?.latest;
-  const needsSupport = latestAnalysis && ["moderate", "high", "severe"].includes(latestAnalysis.distressBand);
+  const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && ["moderate", "high", "severe"].includes(latestAnalysis.distressBand);
 
   const recentEntries = journalEntries.slice(0, 3);
 
@@ -171,11 +171,11 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
             <div className="mt-3 flex items-end gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.06em]">
-                {latestAnalysis?.distressBand ?? "Not available"}
+                {latestAnalysis?.isSimulated ? "Sample only" : latestAnalysis?.distressBand ?? "Not available"}
               </span>
 
               <span className="pb-1 text-sm text-muted-foreground">
-                {latestAnalysis?.isSimulated ? "simulated" : ""}
+                {latestAnalysis?.isSimulated ? "simulated result" : ""}
               </span>
             </div>
 
@@ -184,9 +184,9 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               <StatusPill
                 tone={needsSupport ? "warm" : "calm"}
               >
-                {!latestAnalysis ? "No completed analysis" : needsSupport
-                  ? "Needs gentleness"
-                  : "Steady"}
+                {!latestAnalysis ? "No completed analysis" : latestAnalysis.isSimulated
+                  ? "Development example"
+                  : needsSupport ? "Consider support" : "Latest analysis"}
               </StatusPill>
 
               <HeartPulse
@@ -196,8 +196,15 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
             </div>
 
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              A reflective signal to help you decide what might support you next.
+              {latestAnalysis?.isSimulated
+                ? "This development example does not describe your wellbeing."
+                : latestAnalysis
+                  ? "From your latest optional journal analysis. This band is not a diagnosis or current safety assessment."
+                  : "No analysis result is available. Your saved reflections do not imply a low distress score."}
             </p>
+            <Link href="/insights/risk" className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-primary underline underline-offset-4">
+              Understand this signal
+            </Link>
           </DashboardCard>
 
           {/* REFLECTION SPACE */}

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
 
-const service = vi.hoisted(() => ({ createEntry: vi.fn(), saveDraft: vi.fn(), deleteDraft: vi.fn(), uploadImage:vi.fn() }));
+const service = vi.hoisted(() => ({ createEntry: vi.fn(), saveDraft: vi.fn(), deleteDraft: vi.fn(), attachDraftImages:vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 vi.mock("@/config/environment", () => ({ env: { enableAnalysisFixtures: false } }));
 beforeEach(() => {
@@ -15,6 +15,7 @@ beforeEach(() => {
   });
   service.saveDraft.mockResolvedValue({ success: true, data: null });
   service.deleteDraft.mockResolvedValue({ success: true });
+  service.attachDraftImages.mockResolvedValue({ success: true, data: { attached: 0 } });
 });
 afterEach(() => vi.useRealTimers());
 
@@ -28,16 +29,15 @@ function editor() {
   return hook;
 }
 describe("journal submission retry contract", () => {
-  it("retries failed photos and finalization without submitting another journal", async()=>{
+  it("retries failed draft-photo attachment without submitting another journal", async()=>{
     service.createEntry.mockResolvedValue({success:true,data:{id:"saved-journal"}});
-    service.uploadImage.mockResolvedValueOnce({success:false,error:{message:"Photo upload failed"}}).mockResolvedValue({success:true,data:{id:"photo"}});
+    service.attachDraftImages.mockResolvedValueOnce({success:false,error:{message:"Photo attachment failed"}}).mockResolvedValue({success:true,data:{attached:1}});
     const {result}=editor();
-    const photos=[{id:"photo",file:new File(["png"],"photo.png",{type:"image/png"})}];
-    await act(async()=>result.current.save(undefined,photos));
+    await act(async()=>result.current.save());
     expect(service.deleteDraft).not.toHaveBeenCalled();
-    await act(async()=>result.current.save(undefined,photos));
+    await act(async()=>result.current.save());
     expect(service.createEntry).toHaveBeenCalledTimes(1);
-    expect(service.uploadImage).toHaveBeenCalledTimes(2);
+    expect(service.attachDraftImages).toHaveBeenCalledTimes(2);
     expect(service.deleteDraft).toHaveBeenCalledWith(service.createEntry.mock.calls[0][1].idempotencyKey);
   });
   it("stops autosave after successful analysis submission",async()=>{

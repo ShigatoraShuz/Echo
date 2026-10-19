@@ -173,6 +173,53 @@ describe("ExperienceService.groundingHistory", () => {
   });
 });
 
+describe("ExperienceService.completeGrounding", () => {
+  const sessionId = "11111111-1111-4111-8111-111111111111";
+  const input = { sessionId, technique: "box-breathing", durationSeconds: 120, pace: "gentle" };
+
+  function duplicateHarness(existing: Record<string, unknown> | null) {
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: null, error: { code: "23505", message: "duplicate key" } }) }) }));
+    const lookup = {
+      select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: existing, error: null })),
+    };
+    lookup.select.mockReturnValue(lookup);
+    lookup.eq.mockReturnValue(lookup);
+    const count = {
+      select: vi.fn(), eq: vi.fn(),
+      then: (resolve: (value: { count: number; error: null }) => unknown) => Promise.resolve({ count: 1, error: null }).then(resolve),
+    };
+    count.select.mockReturnValue(count);
+    count.eq.mockReturnValue(count);
+    const from = vi.fn()
+      .mockReturnValueOnce({ insert })
+      .mockReturnValueOnce(lookup)
+      .mockReturnValueOnce(count);
+    const database = { schema: vi.fn(() => ({ from })) };
+    return { service: new ExperienceService(database as never, {} as JournalService, {} as EncryptionService), insert, lookup, from };
+  }
+
+  it("returns the same owned completion on a duplicate retry", async () => {
+    const completedAt = "2026-10-18T00:00:00Z";
+    const { service, insert, lookup } = duplicateHarness({
+      id: sessionId, user_id: "owner-1", exercise_type: input.technique,
+      duration_seconds: input.durationSeconds, reflection: input.pace, completed: true, completed_at: completedAt,
+    });
+
+    await expect(service.completeGrounding("owner-1", input)).resolves.toEqual({
+      id: sessionId, completedAt, completedSessions: 1,
+    });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ id: sessionId, user_id: "owner-1" }));
+    expect(lookup.eq).toHaveBeenCalledWith("id", sessionId);
+    expect(lookup.eq).toHaveBeenCalledWith("user_id", "owner-1");
+  });
+
+  it("does not treat another user's duplicate ID as a successful retry", async () => {
+    const { service, from } = duplicateHarness(null);
+    await expect(service.completeGrounding("owner-1", input)).rejects.toMatchObject({ code: "GROUNDING_SESSION_CONFLICT" });
+    expect(from).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("ExperienceService.supportResources", () => {
   it("excludes entries without a usable HTTPS source and review date", async () => {
     const rows = [

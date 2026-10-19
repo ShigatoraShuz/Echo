@@ -24,11 +24,14 @@ function toSession(session: Session): AuthSession {
   };
 }
 
-function failure(error: { message: string; code?: string } | null): AuthServiceResult<never> {
+function failure(error: { message: string; code?: string; status?: number } | null): AuthServiceResult<never> {
   const message = error?.message ?? "Authentication could not be completed.";
   const lower = message.toLowerCase();
+  const limited = error?.status === 429 || error?.code?.includes("rate_limit") === true;
 
-  const code = lower.includes("invalid login")
+  const code = limited
+    ? "RATE_LIMITED"
+    : lower.includes("invalid login")
     ? "INVALID_CREDENTIALS"
       : lower.includes("password")
         ? "WEAK_PASSWORD"
@@ -38,7 +41,7 @@ function failure(error: { message: string; code?: string } | null): AuthServiceR
     success: false,
     error: {
       code,
-      message: error?.code === "otp_expired" || lower.includes("invalid or has expired") ? "The code is invalid or has expired. Request a new code." : code === "INVALID_CREDENTIALS" ? "Invalid email or password." : code === "WEAK_PASSWORD" ? "The password does not meet the required policy." : "Authentication could not be completed. Please try again.",
+      message: limited ? "Too many sign-in attempts. Please wait and try again later." : error?.code === "otp_expired" || lower.includes("invalid or has expired") ? "The code is invalid or has expired. Request a new code." : code === "INVALID_CREDENTIALS" ? "Invalid email or password." : code === "WEAK_PASSWORD" ? "The password does not meet the required policy." : "Authentication could not be completed. Please try again.",
     },
   };
 }
@@ -105,6 +108,8 @@ export function createAuthSupabaseAdapter(): AuthService {
       if (error) {
         return failure({
           message: "We could not send a code. Check your email address and try again shortly.",
+          code: error.code,
+          status: error.status,
         });
       }
 

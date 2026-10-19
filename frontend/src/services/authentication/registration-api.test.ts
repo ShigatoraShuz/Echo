@@ -1,69 +1,38 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { registrationApi } from "./registration-api";
-import { localRegistrationTarget, registrationBaseUrl } from "@/shared/lib/local-registration";
 
-vi.mock("@/config/environment", () => ({ env: { apiBaseUrl: "http://127.0.0.1:4200/api/v1" } }));
+afterEach(() => vi.unstubAllGlobals());
 
-describe("registration cookie transport", () => {
-  const fetchMock = vi.fn();
-  const nonce = "synthetic-test-challenge";
-  beforeEach(() => {
-    vi.stubEnv("NODE_ENV", "development");
-    vi.stubGlobal("fetch", fetchMock);
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
+describe("registration request recovery", () => {
+  it("explains a provider or API rate limit even when the response is plain text", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Too many requests", { status: 429 })));
+
+    await expect(registrationApi.eligibility("1990-01-01"))
+      .rejects.toThrow("Too many signup requests. Please wait before trying again.");
   });
 
-  it("confirms cookie receipt from the local API before making Google sign-in available", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { nonce, hashedNonce: "hash" } }) });
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { ready: true } }) });
-    await expect(registrationApi.googleLoginNonce()).resolves.toEqual({ nonce, hashedNonce: "hash" });
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      "http://localhost:4200/api/v1/registration/google/login-nonce",
-      expect.objectContaining({ credentials: "include", method: "POST" }),
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "http://localhost:4200/api/v1/registration/google/login-challenge",
-      expect.objectContaining({ credentials: "include", body: JSON.stringify({ nonce }) }),
-    );
+  it("gives a safe retry message for a temporary service failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Service unavailable", { status: 503 })));
+
+    await expect(registrationApi.resend())
+      .rejects.toThrow("Registration is temporarily unavailable. Please try again later.");
   });
 
-  it("does not return a usable challenge when the browser cannot return its cookie", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: { nonce, hashedNonce: "hash" } }) });
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: { message: "The Google sign-in cookie was not received." } }),
-    });
-    await expect(registrationApi.googleLoginNonce()).rejects.toThrow("cookie was not received");
+  it("explains a lost connection without exposing a browser fetch error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+
+    await expect(registrationApi.eligibility("1990-01-01"))
+      .rejects.toThrow("Could not connect to ECHO. Check your connection and try again.");
   });
 
-  it("keeps the configured API endpoint for production", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ data: [] }) });
-    await registrationApi.policies();
-    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:4200/api/v1/registration/policies", expect.any(Object));
-  });
+  it("preserves a meaningful validation response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: { message: "Review all three documents before continuing." },
+    }), { status: 400, headers: { "content-type": "application/json" } })));
 
-  it.each(["http://localhost:4200/api/v1", "http://127.0.0.1:4200/api/v1"])(
-    "uses the browser's loopback host for registration requests to %s",
-    (url) => {
-      expect(registrationBaseUrl(url, true, "127.0.0.1")).toBe("http://127.0.0.1:4200/api/v1/registration");
-      expect(registrationBaseUrl(url, true, "localhost")).toBe("http://localhost:4200/api/v1/registration");
-      expect(localRegistrationTarget(url, true)).toBe(`${url}/registration`);
-      expect(localRegistrationTarget(url, false)).toBeNull();
-    },
-  );
-
-  it.each([
-    "https://api.example.com/api/v1",
-    "http://localhost.attacker.test/api/v1",
-    "file:///api/v1",
-    "http://user:pass@localhost/api/v1",
-  ])("never creates a development proxy for %s", (url) => {
-    expect(localRegistrationTarget(url, true)).toBeNull();
+    await expect(registrationApi.agreements({
+      reviewedDocumentIds: [], termsAccepted: true, privacyAccepted: true,
+      aiNoticeAccepted: true, optionalAiAnalysis: false,
+    })).rejects.toThrow("Review all three documents before continuing.");
   });
 });

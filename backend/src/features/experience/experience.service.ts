@@ -429,11 +429,13 @@ export class ExperienceService {
     };
   }
 
-  async completeGrounding(userId: string, input: { technique: string; durationSeconds: number; pace: string }) {
-    const { data, error } = await this.database
+  async completeGrounding(userId: string, input: { sessionId?: string; technique: string; durationSeconds: number; pace: string }) {
+    const sessionId = input.sessionId ?? randomUUID();
+    const inserted = await this.database
       .schema("grounding_service")
       .from("grounding_sessions")
       .insert({
+        id: sessionId,
         user_id: userId,
         exercise_type: input.technique,
         duration_seconds: input.durationSeconds,
@@ -443,8 +445,26 @@ export class ExperienceService {
       })
       .select("id, completed_at")
       .single();
-    throwIfDatabaseError(
-      error,
+    let data = inserted.data;
+    if (inserted.error?.code === "23505") {
+      const existing = await this.reader
+        .schema("grounding_service")
+        .from("grounding_sessions")
+        .select("id, user_id, exercise_type, duration_seconds, reflection, completed, completed_at")
+        .eq("id", sessionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      throwIfDatabaseError(existing.error, {
+        module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "load existing completed session",
+      }, "The grounding session could not be confirmed.");
+      if (!existing.data || existing.data.exercise_type !== input.technique ||
+        existing.data.duration_seconds !== input.durationSeconds || existing.data.reflection !== input.pace ||
+        existing.data.completed !== true) {
+        throw new ConflictError("GROUNDING_SESSION_CONFLICT", "This practice key is already used for a different session.");
+      }
+      data = existing.data;
+    } else throwIfDatabaseError(
+      inserted.error,
       {
         module: "experience.grounding",
         schema: "grounding_service",

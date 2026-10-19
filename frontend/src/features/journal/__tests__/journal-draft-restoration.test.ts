@@ -6,11 +6,15 @@ const service = vi.hoisted(() => ({
   getDraft: vi.fn(),
   saveDraft: vi.fn(),
   createEntry: vi.fn(),
+  attachDraftImages: vi.fn(),
   deleteDraft: vi.fn(),
 }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 vi.mock("@/config/environment", () => ({ env: { enableAnalysisFixtures: false } }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  service.attachDraftImages.mockResolvedValue({ success: true, data: { attached: 0 } });
+});
 describe("draft restoration", () => {
   it("keeps editing and submission blocked if the saved draft cannot be loaded", async () => {
     service.getDraft.mockResolvedValue({ success: false, error: { message: "Draft unavailable" } });
@@ -61,5 +65,46 @@ describe("draft restoration", () => {
     act(() => { result.current.setTitle(""); result.current.setBody(""); });
     await act(async () => expect(await result.current.saveDraftNow()).toBe(true));
     expect(service.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ title: "", body: "" }));
+  });
+
+  it("waits for an in-flight blur autosave before allowing navigation", async () => {
+    service.getDraft.mockResolvedValue({ success: true, data: null });
+    let finishSave!: (result: { success: true }) => void;
+    service.saveDraft.mockReturnValue(new Promise((resolve) => { finishSave = resolve; }));
+    const { result } = renderHook(() => useJournalEditorViewModel());
+    await waitFor(() => expect(result.current.draftReady).toBe(true));
+    act(() => result.current.setBody("A draft in progress"));
+
+    await act(async () => {
+      const blurSave = result.current.saveDraftNow();
+      const linkSave = result.current.saveDraftNow();
+      finishSave({ success: true });
+      expect(await blurSave).toBe(true);
+      expect(await linkSave).toBe(true);
+    });
+    expect(service.saveDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the saved draft available when attaching its photos fails", async () => {
+    service.getDraft.mockResolvedValue({ success: true, data: {
+      id: "current", title: "Photo page", body: "A saved thought", mood: "calm", emotions: [], tags: [],
+      privacyStatus: "private", analysisConsent: false, updatedAt: "2026-10-16T00:00:00Z",
+    } });
+    service.saveDraft.mockResolvedValue({ success: true });
+    service.createEntry.mockResolvedValue({ success: true, data: { id: "saved-journal" } });
+    service.attachDraftImages
+      .mockResolvedValueOnce({ success: false, error: { message: "Attachment failed" } })
+      .mockResolvedValueOnce({ success: true, data: { attached: 2 } });
+    service.deleteDraft.mockResolvedValue({ success: true });
+    const { result } = renderHook(() => useJournalEditorViewModel());
+    await waitFor(() => expect(result.current.draftReady).toBe(true));
+
+    await act(async () => result.current.save());
+    expect(result.current.error).toContain("Attachment failed");
+    await act(async () => result.current.save());
+
+    expect(service.createEntry).toHaveBeenCalledTimes(1);
+    expect(service.attachDraftImages).toHaveBeenCalledTimes(2);
+    expect(service.deleteDraft).toHaveBeenCalledTimes(1);
   });
 });

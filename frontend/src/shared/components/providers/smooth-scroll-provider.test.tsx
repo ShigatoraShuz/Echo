@@ -43,7 +43,7 @@ describe("SmoothScrollProvider", () => {
     expect(renderLenis).toHaveBeenCalledWith({
       root: true,
       options: expect.objectContaining({
-        anchors: true,
+      anchors: { immediate: true, offset: -96 },
         autoRaf: true,
         smoothWheel: true,
         stopInertiaOnNavigate: true,

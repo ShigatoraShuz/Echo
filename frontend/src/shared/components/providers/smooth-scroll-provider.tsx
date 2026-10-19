@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { usePrefersReducedMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 
 const smoothScrollOptions = {
-  anchors: true,
+  anchors: { immediate: true, offset: -96 },
   autoRaf: true,
   lerp: 0.1,
   smoothWheel: true,

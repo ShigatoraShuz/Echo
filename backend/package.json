@@ -8,8 +8,13 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=2",
+    "test:qa-target": "node --test tests/e2e/qa-target.test.mjs",
     "test:live": "node tests/e2e/live-integration.mjs",
+    "test:live:support": "node tests/e2e/live-buddy-professional.mjs",
+    "test:staging:integration": "node tests/e2e/staging-runner.mjs integration",
+    "test:staging:support": "node tests/e2e/staging-runner.mjs support",
+    "test:live:reminders": "node --env-file=.env tests/e2e/live-reminder-delivery.mjs",
     "admin:verification": "node --env-file=.env scripts/verification-admin.mjs",
     "admin:super": "node --env-file=.env scripts/verification-admin.mjs",
     "backfill:journal-ciphertext": "tsx --env-file=.env scripts/journal-ciphertext-backfill.mts",
@@ -21,7 +26,8 @@
     "retention:categories": "tsx --env-file=.env scripts/category-retention.mts",
     "retention:active-policy": "tsx --env-file=.env scripts/audit-retention.mts",
     "erasure:restore": "tsx --env-file=.env scripts/account-erasure-restore.mts",
-    "worker:account-erasure": "node --env-file=.env dist/workers/account-erasure.js"
+    "worker:account-erasure": "node --env-file=.env dist/workers/account-erasure.js",
+    "worker:in-app-reminders": "node --env-file=.env dist/workers/in-app-reminders.js"
   },
   "dependencies": {
     "@echo/contracts": "0.1.0",
@@ -31,7 +37,9 @@
     "express-rate-limit": "^8.1.0",
     "google-auth-library": "^10.3.0",
     "helmet": "^8.1.0",
+    "nodemailer": "^10.1.2",
     "sharp": "^0.35.4",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -40,7 +48,9 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^22.18.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.3",
+    "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^4.1.11",
     "globals": "^14.0.0",
     "supertest": "^7.1.4",

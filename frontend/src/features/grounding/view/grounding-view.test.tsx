@@ -19,6 +19,7 @@ function viewModel() {
     totalSeconds: 120,
     isRunning: false,
     isSaving: false,
+    saveError: false,
     completedSessions: 3,
     history: [] as GroundingSession[],
     historyError: null,
@@ -29,6 +30,8 @@ function viewModel() {
     selectDuration: vi.fn(),
     selectPace: vi.fn(),
     startPractice: vi.fn(),
+    retrySave: vi.fn(),
+    reloadHistory: vi.fn(),
   };
 }
 
@@ -96,5 +99,25 @@ describe("GroundingView", () => {
     expect(await axe(container)).toHaveNoViolations();
     await user.click(screen.getByRole("button", { name: /Browse/i }));
     expect(screen.getByRole("heading", { name: "Browse grounding exercises" })).toBeInTheDocument();
+  });
+
+  it("offers recovery for a failed history request", async () => {
+    const user = userEvent.setup();
+    const vm = { ...viewModel(), historyError: "History unavailable" };
+    vi.mocked(useGroundingViewModel).mockReturnValue(vm);
+    render(<GroundingView />);
+    expect(screen.getByRole("alert")).toHaveTextContent("History unavailable");
+    await user.click(screen.getByRole("button", { name: "Retry loading history" }));
+    expect(vm.reloadHistory).toHaveBeenCalledOnce();
+  });
+
+  it("offers a safe retry after an uncertain session save", async () => {
+    const user = userEvent.setup();
+    const vm = { ...viewModel(), saveError: true };
+    vi.mocked(useGroundingViewModel).mockReturnValue(vm);
+    render(<GroundingView />);
+    await user.click(screen.getByRole("button", { name: "Start 5-4-3-2-1 grounding" }));
+    await user.click(screen.getByRole("button", { name: "Retry saving" }));
+    expect(vm.retrySave).toHaveBeenCalledOnce();
   });
 });

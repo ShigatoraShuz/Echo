@@ -159,6 +159,20 @@ describe("experience routes", () => {
     });
   });
 
+  it("accepts a reusable session ID for safe grounding retries", async () => {
+    const { app, service } = createHarness();
+    const sessionId = "11111111-1111-4111-8111-111111111111";
+    const response = await request(app)
+      .post("/api/v1/grounding/sessions")
+      .set("Authorization", "Bearer valid-token")
+      .send({ sessionId, technique: "box-breathing", durationSeconds: 120, pace: "gentle" });
+
+    expect(response.status).toBe(201);
+    expect(service.completeGrounding).toHaveBeenCalledWith("user-1", {
+      sessionId, technique: "box-breathing", durationSeconds: 120, pace: "gentle",
+    });
+  });
+
   it("loads grounding history only for the authenticated owner", async () => {
     const { app, service } = createHarness();
     expect((await request(app).get("/api/v1/grounding/sessions")).status).toBe(401);

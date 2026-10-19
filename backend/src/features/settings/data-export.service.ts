@@ -91,23 +91,27 @@ export class DataExportService {
         });
       if (started.error || typeof started.data !== "string") throw unavailable();
       requestId = started.data;
-      const [snapshot, account, calendar, buddyMetadata] = await Promise.all([
+      const [snapshot, account, calendar, buddyMetadata, draftImages] = await Promise.all([
         this.database.schema("user_service").rpc("collect_user_export", { p_user_id: userId }),
         this.database.auth.admin.getUserById(userId),
         this.database.schema("user_service").from("calendar_items").select("*").eq("user_id", userId).limit(2501),
         this.database.schema("buddy_service").from("buddy_conversations").select("id,pinned_at,title_ciphertext,preview_ciphertext").eq("user_id", userId).limit(2501),
+        this.database.schema("journal_service").from("journal_draft_images")
+          .select("id,user_id,storage_path,mime_type,uploaded,created_at").eq("user_id", userId).limit(2501),
       ]);
       if (snapshot.error?.message.includes("EXPORT_TOO_LARGE"))
         throw new PayloadTooLargeError(
           "This export exceeds automatic delivery limits. Contact support for a larger export.",
         );
-      if (snapshot.error || !snapshot.data || account.error || account.data.user?.id !== userId || calendar.error || buddyMetadata.error) throw unavailable();
-      if ((calendar.data?.length ?? 0) > 2500 || (buddyMetadata.data?.length ?? 0) > 2500) throw new PayloadTooLargeError("Your export exceeds automatic delivery limits. Contact support for a larger export.");
+      const draftSchemaMissing = ["42P01", "PGRST205"].includes(draftImages.error?.code ?? "");
+      if (snapshot.error || !snapshot.data || account.error || account.data.user?.id !== userId || calendar.error || buddyMetadata.error || (draftImages.error && !draftSchemaMissing)) throw unavailable();
+      if ((calendar.data?.length ?? 0) > 2500 || (buddyMetadata.data?.length ?? 0) > 2500 || (draftImages.data?.length ?? 0) > 2500) throw new PayloadTooLargeError("Your export exceeds automatic delivery limits. Contact support for a larger export.");
       const rawCollections = snapshot.data as Collections;
       const buddyById = new Map((buddyMetadata.data ?? []).map((row) => [row.id, row]));
       const collections = decryptExportCollections({
         ...rawCollections,
         "user_service.calendar_items": calendar.data ?? [],
+        "journal_service.journal_draft_images": draftSchemaMissing ? [] : draftImages.data ?? [],
         "buddy_service.buddy_conversations": (rawCollections["buddy_service.buddy_conversations"] ?? []).map((row) => ({ ...row, ...(buddyById.get(row.id as string) ?? {}) })),
       }, this.encryption);
       const attachments = await this.collectFiles(userId, collections);
@@ -163,7 +167,7 @@ export class DataExportService {
             : null;
         const bucket = avatar?.startsWith(userId + "/")
           ? "avatars"
-          : table.endsWith(".journal_images")
+          : table.endsWith(".journal_images") || table.endsWith(".journal_draft_images")
             ? "journal-images"
             : table.endsWith(".verification_documents") && row.scan_status === "clean"
               ? "verification-documents"

@@ -15,9 +15,11 @@ const links = [
 export function AppTopbar({
   preview = false,
   publicAccess = false,
+  showNotifications = true,
 }: {
   preview?: boolean;
   publicAccess?: boolean;
+  showNotifications?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -68,7 +70,7 @@ export function AppTopbar({
                 <PenLine className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Write reflection</span>
               </Link>
-              <NotificationBell />
+              {showNotifications && <NotificationBell />}
               <AppProfileMenu />
             </>
           )}

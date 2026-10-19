@@ -61,6 +61,8 @@ import type {
 import { settingsService } from "@/services/settings/settings.service";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 import { normalizeError } from "@/shared/errors/normalize-error";
+import { env } from "@/config/environment";
+import { canUseDevicePush, disableDevicePush, enableDevicePush } from "@/services/notifications/device-push";
 
 // -----------------------------------------------------------------------------
 // CONSTANTS
@@ -563,6 +565,9 @@ export function ProfileSettingsView() {
                       })
                     }
                   >
+                    {!timezoneOptions.includes(form.timezone) && (
+                      <option value={form.timezone}>{form.timezone.replaceAll("_", " ")}</option>
+                    )}
                     {timezoneOptions.map((tz) => (
                       <option
                         key={tz}
@@ -648,6 +653,11 @@ export function PrivacySettingsView() {
     }
   }, [settings]);
 
+  const savePrivacy = () => {
+    if (!form) return;
+    void run(() => settingsService.updatePrivacy(form), "Privacy choices saved.");
+  };
+
   // ---------------------------------------------------------------------------
   // LOADING
   // ---------------------------------------------------------------------------
@@ -686,7 +696,7 @@ export function PrivacySettingsView() {
         <StateMessage
           error={error}
           notice={notice}
-          onRetry={() => void refresh()}
+          onRetry={form ? savePrivacy : () => void refresh()}
         />
 
         {form && (
@@ -760,7 +770,7 @@ export function PrivacySettingsView() {
                   })
                 }
                 label="Local Support Links"
-                description="Show help resources during periods of higher distress."
+                description="Save your preference for support links alongside results. Crisis help stays available from the app menu and public pages."
               />
 
               <Toggle
@@ -774,8 +784,10 @@ export function PrivacySettingsView() {
                       value,
                   })
                 }
-                label="Masked Alerts"
-                description="Prevent journal titles from showing on your lock screen."
+                label={env.pushVapidPublicKey ? "Hide titles in device alerts" : "Hide titles in future device alerts"}
+                description={env.pushVapidPublicKey
+                  ? "Use a generic ECHO title on the lock screen. Alert bodies never include journal or support message text."
+                  : "Save a privacy preference for future device alerts. ECHO does not currently send lock-screen alerts."}
               />
             </div>
 
@@ -785,15 +797,7 @@ export function PrivacySettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updatePrivacy(
-                        form,
-                      ),
-                    "Privacy choices saved.",
-                  )
-                }
+                onClick={savePrivacy}
                 variant="primary"
                 isLoading={saving}
                 className="
@@ -834,12 +838,58 @@ export function NotificationSettingsView() {
     useState<NotificationSettings | null>(
       null,
     );
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [devicePushActive, setDevicePushActive] = useState<boolean | null>(null);
+
+  const chooseInAppUpdate = (changes: Partial<NotificationSettings>) => {
+    if (!form) return;
+    const next = { ...form, ...changes };
+    setForm({
+      ...next,
+      inAppEnabled: next.insightNotificationsEnabled || next.journalRemindersEnabled || next.wellbeingRemindersEnabled,
+    });
+  };
 
   useEffect(() => {
     if (settings) {
       setForm(settings.notifications);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!canUseDevicePush()) return;
+    let mounted = true;
+    void navigator.serviceWorker.getRegistration("/").then((registration) => registration?.pushManager.getSubscription())
+      .then((subscription) => { if (mounted) setDevicePushActive(Boolean(subscription)); })
+      .catch(() => { if (mounted) setDevicePushActive(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  const saveNotifications = () => {
+    if (!form) return;
+    void (async () => {
+      const saved = await run(() => settingsService.updateNotifications(form), "Notifications saved.");
+      if (saved && !form.pushEnabled) {
+        try { await disableDevicePush(); setDevicePushActive(false); }
+        catch { setPushError("Your preference was saved, but this browser could not remove its old subscription. Try again from this device."); }
+      }
+    })();
+  };
+
+  const choosePush = async (enabled: boolean) => {
+    if (!form) return;
+    setPushError(null);
+    if (!enabled) { setForm({ ...form, pushEnabled: false }); return; }
+    setPushBusy(true);
+    try {
+      await enableDevicePush();
+      setDevicePushActive(true);
+      setForm((current) => current ? { ...current, pushEnabled: true } : current);
+    } catch (failure) {
+      setPushError(failure instanceof Error ? failure.message : "This device could not enable alerts.");
+    } finally { setPushBusy(false); }
+  };
 
   // ---------------------------------------------------------------------------
   // LOADING
@@ -868,6 +918,14 @@ export function NotificationSettingsView() {
     form?.journalRemindersEnabled ||
       form?.wellbeingRemindersEnabled,
   );
+  const quietStart = form?.quietHoursStart || null;
+  const quietEnd = form?.quietHoursEnd || null;
+  const quietHoursValid = !form?.quietHoursAvailable ||
+    (!quietStart && !quietEnd) ||
+    Boolean(quietStart && quietEnd && quietStart !== quietEnd &&
+      (!form.reminderTime || (quietStart < quietEnd
+        ? form.reminderTime < quietStart || form.reminderTime >= quietEnd
+        : form.reminderTime < quietStart && form.reminderTime >= quietEnd)));
 
   // ---------------------------------------------------------------------------
   // VIEW
@@ -878,19 +936,30 @@ export function NotificationSettingsView() {
       <div className="w-full min-w-0">
         <SettingsHeader
           title="Notifications"
-          description="Find your rhythm with quiet, neutral reminders."
+          description="Choose what kinds of updates you would like to receive."
         />
+
+        <p role="note" className="mb-4 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-foreground">
+          {env.enableInAppReminders
+            ? "Analysis-ready, account, support, and daily reminder updates can appear in the app. Reminders are added at or after your chosen local time."
+            : "Analysis-ready, account, and support updates can appear in the app. Scheduled check-ins and grounding reminders are not being delivered yet."}
+          {env.pushVapidPublicKey ? " Device alerts need permission on each device." : " Push notifications are not being delivered yet."}
+          {env.enableEmailAlerts ? " Email alerts contain only a generic link back to ECHO." : " Email alerts are not being delivered yet."}
+        </p>
 
         <StateMessage
           error={error}
           notice={notice}
-          onRetry={() => void refresh()}
+          onRetry={form ? saveNotifications : () => void refresh()}
         />
+        {pushError && <p role="alert" className="mb-4 text-sm text-destructive">{pushError}</p>}
 
         {form && (
           <SettingsSection
-            title="Reminder Rhythm"
-            description="You can pause or change these at any time."
+            title="Notification preferences"
+            description={env.enableInAppReminders
+              ? "Choose in-app updates and a local time for daily reminders. External alerts become active only when their channels are configured."
+              : "Choose analysis-ready updates in the app now. Other choices save preferences for future services."}
           >
             {/* -------------------------------------------------------------- */}
             {/* NOTIFICATION TOGGLES                                           */}
@@ -908,31 +977,43 @@ export function NotificationSettingsView() {
               "
             >
               <Toggle
+                checked={form.inAppEnabled && form.insightNotificationsEnabled}
+                onChange={(value) => chooseInAppUpdate({ insightNotificationsEnabled: value })}
+                label="Analysis-ready updates in app"
+                description="Show an in-app notice when an optional journal analysis completes. Account and support updates may still appear."
+              />
+              <Toggle
                 checked={
                   form.journalRemindersEnabled
                 }
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    journalRemindersEnabled:
-                      value,
-                  })
-                }
+                onChange={(value) => chooseInAppUpdate({ journalRemindersEnabled: value })}
                 label="Daily Check-in"
-                description="A quiet nudge to write."
+                description={env.enableInAppReminders
+                  ? "Add one private writing invitation to your in-app inbox each local day."
+                  : "Preference for a future daily writing reminder."}
               />
 
               <Toggle
                 checked={form.pushEnabled}
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    pushEnabled: value,
-                  })
-                }
+                onChange={(value) => { void choosePush(value); }}
+                disabled={pushBusy || (!form.pushEnabled && !canUseDevicePush())}
                 label="Push Notifications"
-                description="Device-level reminders."
+                description={env.pushVapidPublicKey
+                  ? "Enable on this device, then save. Device alerts use generic text when lock-screen privacy is on. Some mobile browsers require installing ECHO first."
+                  : "Preference for future device notifications. Push delivery is not available yet."}
               />
+              {env.pushVapidPublicKey && form.pushEnabled && (
+                <div className="rounded-[1.25rem] border border-border/70 bg-card p-4 text-sm text-foreground">
+                  <p>{devicePushActive ? "This device is registered for alerts." : "Your preference is on. Register this device to receive alerts here."}</p>
+                  {!devicePushActive && (
+                    <button type="button" disabled={pushBusy || !canUseDevicePush()}
+                      onClick={() => { void choosePush(true); }}
+                      className="mt-3 rounded-full border border-border px-4 py-2 font-medium disabled:opacity-50">
+                      {pushBusy ? "Registering…" : "Register this device"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <Toggle
                 checked={form.emailEnabled}
@@ -943,24 +1024,48 @@ export function NotificationSettingsView() {
                   })
                 }
                 label="Email Alerts"
-                description="Account-related news."
+                description={env.enableEmailAlerts
+                  ? "Send generic email alerts with a link to your private ECHO inbox. No journal or support message text is emailed."
+                  : "Preference for future email alerts. Email delivery from this setting is not available yet."}
               />
 
               <Toggle
                 checked={
                   form.wellbeingRemindersEnabled
                 }
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    wellbeingRemindersEnabled:
-                      value,
-                  })
-                }
+                onChange={(value) => chooseInAppUpdate({ wellbeingRemindersEnabled: value })}
                 label="Grounding Invitations"
-                description="Short breathing prompts."
+                description={env.enableInAppReminders
+                  ? "Add one grounding invitation to your in-app inbox each local day."
+                  : "Preference for future grounding reminders."}
               />
             </div>
+
+            {form.quietHoursAvailable && (
+              <div className="mt-4 rounded-[1.5rem] border border-border/70 bg-card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-foreground">Quiet hours</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {env.enableInAppReminders
+                    ? "Daily in-app reminders stay out of this time window in your selected timezone. Account and support updates can still appear."
+                    : "Save a quiet window for future daily in-app reminders. Account and support updates can still appear."}
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field label="Quiet hours start">
+                    <input type="time" className="echo-input h-11 w-full rounded-xl"
+                      value={form.quietHoursStart ?? ""}
+                      onChange={(event) => setForm({ ...form, quietHoursStart: event.target.value || null })} />
+                  </Field>
+                  <Field label="Quiet hours end">
+                    <input type="time" className="echo-input h-11 w-full rounded-xl"
+                      value={form.quietHoursEnd ?? ""}
+                      onChange={(event) => setForm({ ...form, quietHoursEnd: event.target.value || null })} />
+                  </Field>
+                </div>
+                {!quietHoursValid && <p role="alert" className="mt-3 text-sm text-destructive">
+                  Set both times, choose different times, and keep your reminder time outside quiet hours.
+                </p>}
+              </div>
+            )}
 
             {/* -------------------------------------------------------------- */}
             {/* REMINDER DETAILS                                                */}
@@ -991,6 +1096,7 @@ export function NotificationSettingsView() {
               <Field label="Target Time">
                 <input
                   type="time"
+                  disabled={!isReminderOn}
                   className="
                     echo-input
                     h-11
@@ -1015,6 +1121,7 @@ export function NotificationSettingsView() {
               {/* Target Timezone */}
               <Field label="Target Timezone">
                 <select
+                  disabled={!isReminderOn}
                   className="
                     echo-input
                     h-11
@@ -1029,10 +1136,14 @@ export function NotificationSettingsView() {
                     setForm({
                       ...form,
                       reminderTimezone:
-                        e.target.value,
+                        e.target.value || null,
                     })
                   }
                 >
+                  <option value="" disabled>Choose a timezone</option>
+                  {form.reminderTimezone && !timezoneOptions.includes(form.reminderTimezone) && (
+                    <option value={form.reminderTimezone}>{form.reminderTimezone.replaceAll("_", " ")}</option>
+                  )}
                   {timezoneOptions.map(
                     (tz) => (
                       <option
@@ -1056,20 +1167,12 @@ export function NotificationSettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updateNotifications(
-                        form,
-                      ),
-                    "Notifications saved.",
-                  )
-                }
+                onClick={saveNotifications}
                 variant="primary"
                 isLoading={saving}
                 disabled={
-                  isReminderOn &&
-                  (!form.reminderTime || !form.reminderTimezone)
+                  !quietHoursValid ||
+                  (isReminderOn && (!form.reminderTime || !form.reminderTimezone))
                 }
                 className="
                   h-11
@@ -1080,7 +1183,7 @@ export function NotificationSettingsView() {
                 "
               >
                 <Bell className="mr-2 h-4 w-4" />
-                Save Reminders
+                Save preferences
               </EchoButton>
             </SettingsAction>
           </SettingsSection>

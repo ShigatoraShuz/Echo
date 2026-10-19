@@ -46,8 +46,9 @@ export function createGroundingHttpAdapter(): GroundingService {
       try {
         const response = await client.post<
           ApiEnvelope<GroundingCompletionResponse>,
-          { technique: string; durationSeconds: number; pace: "gentle" | "slower" | "steady" }
+          { sessionId?: string; technique: string; durationSeconds: number; pace: "gentle" | "slower" | "steady" }
         >("/grounding/sessions", {
+          ...(session.sessionId ? { sessionId: session.sessionId } : {}),
           technique: session.type,
           durationSeconds: session.duration,
           pace: BACKEND_PACES[session.pace],

@@ -10,6 +10,7 @@ function harness(admin: boolean, row: Record<string, unknown> | null = null) {
     eq: vi.fn().mockReturnThis(),
     neq: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    insert: vi.fn(async () => ({ error: null })),
     maybeSingle: vi.fn(async () => ({
       data: table === "verification_admins" ? (admin ? { user_id: "reviewer" } : null) : row,
       error: null,
@@ -74,5 +75,26 @@ describe("Verification administrator authorization", () => {
       service.decide("reviewer", "application", { decision: "approved", reasonCode: null, note: null }),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(chain.update).not.toHaveBeenCalled();
+  });
+  it("links a verification decision notification to the user's verification settings", async () => {
+    const { service, chain } = harness(true, {
+      id: "application",
+      user_id: "applicant",
+      verification_status: "under_review",
+    });
+    vi.spyOn(service, "getForAdmin").mockResolvedValue({} as never);
+
+    await service.decide("reviewer", "application", {
+      decision: "rejected",
+      reasonCode: "unclear_document",
+      note: "Please resubmit a clearer document.",
+    });
+
+    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: "applicant",
+      notification_type: "verification_status",
+      resource_type: "identity_verification",
+      resource_id: "application",
+    }));
   });
 });

@@ -5,6 +5,6 @@ export type GroundingServiceResult<T> =
   | { success: false; error: { code: string; message: string } };
 
 export interface GroundingService {
-  saveSession(session: { type: ExerciseType; duration: number; pace: PaceType; completedAt: string }): Promise<GroundingServiceResult<GroundingSession>>;
+  saveSession(session: { sessionId?: string; type: ExerciseType; duration: number; pace: PaceType; completedAt: string }): Promise<GroundingServiceResult<GroundingSession>>;
   getHistory(limit?: number): Promise<GroundingServiceResult<GroundingSession[]>>;
 }
