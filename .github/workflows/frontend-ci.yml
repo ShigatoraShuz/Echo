@@ -22,9 +22,11 @@ jobs:
       - run: npm run test --workspace echo-theme-system
       - run: npm run build --workspace echo-theme-system
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.ECHO_STAGING_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.ECHO_STAGING_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.ECHO_STAGING_API_BASE_URL }}
+          # Compile-only public values. Staging acceptance uses its own deployment.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-build.invalid
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-build-only
+          NEXT_PUBLIC_API_BASE_URL: https://api.ci-build.invalid/api/v1
+          NEXT_PUBLIC_DATA_ADAPTER: http
 
   public-browser:
     runs-on: ubuntu-latest
