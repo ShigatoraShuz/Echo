@@ -148,6 +148,28 @@ describe("secure Google button flow", () => {
     expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
+  it("does not rotate a challenge or reinitialize GIS on ordinary parent renders", async () => {
+    const button = <SecureGoogleButton intent="login" successPath="/professional/access?next=%2Fprofessional" />;
+    const view = render(<StrictMode>{button}</StrictMode>);
+    const config = await ready();
+    view.rerender(<StrictMode><SecureGoogleButton intent="login" successPath="/professional/access?next=%2Fprofessional" /></StrictMode>);
+    await act(async () => {});
+    expect(mocks.loginNonce).toHaveBeenCalledTimes(1);
+    expect(mocks.initialize).toHaveBeenCalledTimes(1);
+    expect(mocks.renderButton).toHaveBeenCalledTimes(1);
+    await act(async () => { await config.callback({ credential: "google-token" }); });
+    expect(mocks.router.replace).toHaveBeenCalledWith("/professional/access?next=%2Fprofessional");
+  });
+
+  it("does not retry a rate-limited preparation or open a popup", async () => {
+    mocks.loginNonce.mockRejectedValueOnce(new Error("Too many requests, please try again later."));
+    render(<SecureGoogleButton intent="login" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many requests");
+    expect(mocks.loginNonce).toHaveBeenCalledTimes(1);
+    expect(mocks.initialize).not.toHaveBeenCalled();
+    expect(mocks.renderButton).not.toHaveBeenCalled();
+  });
+
   it("recovers from an unavailable backend without opening Google or leaving a stuck loading state", async () => {
     mocks.loginNonce.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     render(<SecureGoogleButton intent="login" />);

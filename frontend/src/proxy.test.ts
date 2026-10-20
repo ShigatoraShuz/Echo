@@ -28,6 +28,27 @@ describe("authentication proxy", () => {
     mocks.createClient.mockReturnValue({ auth: { getUser: mocks.getUser } });
   });
 
+  it.each(["production", "test"])("rejects the preview with HTTP 404 in %s without checking authentication", async (mode) => {
+    vi.stubEnv("NODE_ENV", mode);
+    try {
+      const response = await proxy(request("/dev/professional-preview"));
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(mocks.createClient).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it("allows the local development preview and rejects nonlocal development hosts", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const local = new NextRequest("http://localhost:3000/dev/professional-preview", { headers: { host: "localhost:3000" } });
+      expect((await proxy(local)).status).toBe(200);
+      const nonlocal = new NextRequest("http://localhost:3000/dev/professional-preview", { headers: { host: "echo.example" } });
+      expect((await proxy(nonlocal)).status).toBe(404);
+      expect(mocks.createClient).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); }
+  });
+
   it.each([
     "/dashboard",
     "/journal/entry/new",

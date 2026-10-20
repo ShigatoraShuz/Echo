@@ -204,6 +204,15 @@ function redirectToLogin(
 export async function proxy(
   request: NextRequest,
 ) {
+  // Reject the temporary preview before rendering can stream a 200 response.
+  // This guard only denies preview requests; it grants no authenticated access.
+  if (request.nextUrl.pathname === "/dev/professional-preview" && (
+    process.env.NODE_ENV !== "development" ||
+    !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(request.headers.get("host") ?? "")
+  )) {
+    return new NextResponse(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+
   const nonce = generateNonce();
 
   request.headers.set(

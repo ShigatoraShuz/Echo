@@ -45,8 +45,9 @@ function harness(assignedTo: string, revoked: boolean) {
     };
     return query;
   });
-  const database = { schema: () => ({ from }) } as unknown as SupabaseClient;
-  return { service: new ProfessionalService(database, encryption, {} as JournalService), from };
+  const rpc = vi.fn(async () => ({ data: { request: row, sharedJournals: [], appointments: [], referrals: [], notes: [] }, error: null }));
+  const database = { schema: () => ({ from, rpc }) } as unknown as SupabaseClient;
+  return { service: new ProfessionalService(database, encryption, {} as JournalService), from, rpc };
 }
 
 describe("professional case access", () => {
@@ -58,13 +59,13 @@ describe("professional case access", () => {
   });
 
   it("removes submitted content after sharing is revoked", async () => {
-    const { service, from } = harness(USER, true);
+    const { service, from, rpc } = harness(USER, true);
     const detail = await service.detail(USER, REQUEST, "professional");
     expect(detail.request.summary).toBeNull();
     expect(detail.request.preferredTime).toBe("");
     expect(detail.sharedJournals).toEqual([]);
     expect(from).not.toHaveBeenCalledWith("shared_journals");
-    expect(from).toHaveBeenCalledWith("audit_events");
+    expect(rpc).toHaveBeenCalledWith("case_snapshot", { p_request_id: REQUEST, p_actor: USER });
   });
 
   it("decrypts the submitted message only for the assigned practitioner with active sharing", async () => {

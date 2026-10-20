@@ -65,7 +65,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/(login|signup)",
+        source: "/(login|signup|professional/login)",
         headers: [
           // GIS must see the requesting origin. Private pages retain no-referrer.
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

@@ -100,7 +100,7 @@ const registrationService = new RegistrationService(
 );
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
-const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService);
+const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService, experienceService);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,

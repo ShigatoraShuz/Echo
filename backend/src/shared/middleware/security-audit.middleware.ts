@@ -16,6 +16,7 @@ export function securityAuditMiddleware(sink: SecurityAuditSink): RequestHandler
       const event = response.statusCode === 401 ? "authentication.denied" :
         response.statusCode === 403 ? "authorization.denied" : response.statusCode === 429 ? "rate_limit.denied" :
         path.includes("/admin/") ? "administrator.access" :
+        path.startsWith("/professional/") ? "professional.request" :
         path.includes("/data-exports") ? "privacy.export" : path.includes("account-deletion") ? "privacy.deletion" :
         path.includes("/consent") || path.includes("/privacy") || path.includes("/policies") ? "consent.access" :
         path.includes("/verification") ? "verification.access" : path.includes("/security/") ? "account.security" : null;

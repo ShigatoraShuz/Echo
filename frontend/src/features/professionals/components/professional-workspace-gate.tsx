@@ -1,40 +1,59 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { professionalApi } from "@/services/professionals/professional-api";
 import { ProfessionalShell, ProfessionalSkeleton } from "./professional-shell";
 import { professionalReturnPath } from "../professional-return-path";
+import { approvedOrganizations } from "../professional-organizations";
+import { membershipAccessFailure, professionalAccessDestination, professionalAccessFailure, professionalAccessState, professionalLoginDestination, type ProfessionalAccessFailure } from "../professional-access-feedback";
+import { ProfessionalAccessError } from "./professional-access-error";
 
 export function ProfessionalWorkspaceGate({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const destination = professionalReturnPath(`${pathname}${query ? `?${query}` : ""}`);
+  // A new path/organization never reuses the previous route's ready state.
+  return <WorkspaceCheck key={destination} destination={destination}>{children}</WorkspaceCheck>;
+}
+
+function WorkspaceCheck({ children, destination }: { children: ReactNode; destination: string }) {
+  const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ProfessionalAccessFailure | null>(null);
+  const [busy, setBusy] = useState(false);
+  const request = useRef(0);
   const check = useCallback(async () => {
+    const current = ++request.current;
     setReady(false);
-    setError("");
+    setError(null);
+    setBusy(true);
     try {
       const result = await professionalApi.memberships();
-      if (result.mfaRequired || !result.memberships.some((item) => item.accessState === "active")) {
-        router.replace(`/professional/access?next=${encodeURIComponent(professionalReturnPath(pathname))}`);
+      if (current !== request.current) return;
+      if (result.mfaRequired || approvedOrganizations(result.memberships).length === 0) {
+        setError(result.mfaRequired && approvedOrganizations(result.memberships).length ? professionalAccessState("mfa") : membershipAccessFailure(result.memberships));
+        router.replace(professionalAccessDestination(destination));
         return;
       }
       setReady(true);
-    } catch {
-      setError("Professional access could not be checked. Please retry.");
+    } catch (reason) {
+      if (current !== request.current) return;
+      const failure = professionalAccessFailure(reason);
+      setError(failure);
+      if (failure.kind === "session" || failure.kind === "reauth") router.replace(professionalLoginDestination(destination));
+      else if (failure.kind === "mfa") router.replace(professionalAccessDestination(destination));
+    } finally {
+      if (current === request.current) setBusy(false);
     }
-  }, [pathname, router]);
+  }, [destination, router]);
 
-  useEffect(() => { void check(); }, [check]);
+  useEffect(() => { void check(); return () => { request.current += 1; }; }, [check]);
   if (ready) return children;
   return (
     <ProfessionalShell>
-      {error ? (
-        <p role="alert" className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm">
-          {error} <button type="button" className="font-semibold underline" onClick={() => void check()}>Retry</button>
-        </p>
-      ) : <ProfessionalSkeleton title="Checking professional access" />}
+      {error ? <ProfessionalAccessError failure={error} destination={destination} onRetry={() => void check()} busy={busy} /> : <ProfessionalSkeleton title="Checking professional access" />}
     </ProfessionalShell>
   );
 }
