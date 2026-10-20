@@ -22,7 +22,7 @@ export async function professionalDatabase(extraMigrations: string[] = [], befor
     insert into auth.users values ('${ids.actor}'),('${ids.second}'),('${ids.owner}'),('${ids.admin}'),('${ids.outsider}');
     insert into user_service.profiles select id,'active',true,true from auth.users;
     insert into verification_service.verification_admins values ('${ids.admin}',true);`);
-  for (const name of ["20261010090000_professional_support_portal.sql", "20261012160000_professional_credential_reviews.sql", "20261014100000_professional_owner_request_actions.sql"]) {
+  for (const name of ["20261010090000_professional_support_portal.sql", ...(extraMigrations.includes("20261020103920_professional_shared_case_snapshot.sql") ? ["20261011100000_user_professional_support_workspace.sql"] : []), "20261012160000_professional_credential_reviews.sql", "20261014100000_professional_owner_request_actions.sql"]) {
     await db.exec(await readFile(new URL(`../../../supabase/migrations/${name}`, import.meta.url), "utf8"));
   }
   if (beforeExtras) await beforeExtras(db);

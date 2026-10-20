@@ -48,11 +48,26 @@ describe("AppProfileMenu", () => {
     mocks.logout.mockResolvedValue({ success: true, data: undefined });
   });
 
+  it("shows a neutral icon while the current profile is loading", async () => {
+    let finishProfile: ((value: { profile: { displayName: string } }) => void) | undefined;
+    mocks.getSettings.mockReturnValue(new Promise((resolve) => {
+      finishProfile = resolve;
+    }));
+    render(<AppProfileMenu />);
+
+    const trigger = screen.getByRole("button", { name: "Profile menu" });
+    expect(trigger).not.toHaveTextContent("M");
+    expect(trigger.querySelector("svg")).toBeInTheDocument();
+
+    finishProfile?.({ profile: { displayName: "Lloyd" } });
+    expect(await screen.findByRole("button", { name: "Profile menu for Lloyd" })).toHaveTextContent("L");
+  });
+
   it("exposes working destinations for every account action", async () => {
     const user = userEvent.setup();
     render(<AppProfileMenu />);
 
-    await user.click(screen.getByRole("button", { name: "Profile menu for Mira" }));
+    await user.click(await screen.findByRole("button", { name: "Profile menu for Mira" }));
 
     expect(screen.getByRole("menu", { name: "Account" })).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
@@ -82,7 +97,7 @@ describe("AppProfileMenu", () => {
   it("supports menu keyboard navigation and restores trigger focus on Escape", async () => {
     const user = userEvent.setup();
     render(<AppProfileMenu />);
-    const trigger = screen.getByRole("button", { name: "Profile menu for Mira" });
+    const trigger = await screen.findByRole("button", { name: "Profile menu for Mira" });
 
     trigger.focus();
     await user.keyboard("{ArrowDown}");
@@ -103,7 +118,7 @@ describe("AppProfileMenu", () => {
     const user = userEvent.setup();
     render(<AppProfileMenu />);
 
-    await user.click(screen.getByRole("button", { name: "Profile menu for Mira" }));
+    await user.click(await screen.findByRole("button", { name: "Profile menu for Mira" }));
     const privacyLink = screen.getByRole("menuitem", { name: "Privacy" });
     privacyLink.addEventListener("click", (event) => event.preventDefault(), { once: true });
     await user.click(privacyLink);
@@ -121,7 +136,7 @@ describe("AppProfileMenu", () => {
     );
     render(<AppProfileMenu />);
 
-    await user.click(screen.getByRole("button", { name: "Profile menu for Mira" }));
+    await user.click(await screen.findByRole("button", { name: "Profile menu for Mira" }));
     await user.click(screen.getByRole("menuitem", { name: "Log out" }));
     expect(screen.getByRole("menuitem", { name: "Logging out…" })).toBeDisabled();
 
@@ -142,7 +157,7 @@ describe("AppProfileMenu", () => {
     });
     render(<AppProfileMenu />);
 
-    await user.click(screen.getByRole("button", { name: "Profile menu for Mira" }));
+    await user.click(await screen.findByRole("button", { name: "Profile menu for Mira" }));
     await user.click(screen.getByRole("menuitem", { name: "Log out" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Sign out is temporarily unavailable.");

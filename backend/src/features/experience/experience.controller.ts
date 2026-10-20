@@ -7,9 +7,18 @@ import type { ExperienceService } from "./experience.service.js";
 
 const buddyMessageSchema = z.strictObject({
   content: z.string().trim().min(1).max(4_000),
+  conversationId: z.uuid().optional(),
+});
+const pinSchema = z.strictObject({ pinned: z.boolean() });
+const renameSchema = z.strictObject({ title: z.string().trim().min(1).max(100) });
+const buddyHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  query: z.string().trim().max(100).default(""),
 });
 
 const groundingSchema = z.strictObject({
+  sessionId: z.uuid().optional(),
   technique: z.string().trim().min(1).max(80),
   durationSeconds: z.number().int().min(10).max(3_600),
   pace: z.enum(["gentle", "slower", "steady"]),
@@ -49,12 +58,33 @@ export function createExperienceController(service: ExperienceService) {
     async buddySession(request: Request, response: Response) {
       sendSuccess(response, await service.buddySession(authenticatedUserId(request)));
     },
+    async buddyPrivacy(request: Request, response: Response) {
+      sendSuccess(response, await service.buddyPrivacy(authenticatedUserId(request)));
+    },
     async sendBuddyMessage(request: Request, response: Response) {
       const input = parse(buddyMessageSchema, request.body);
-      sendSuccess(response, await service.sendBuddyMessage(authenticatedUserId(request), input.content), 201);
+      sendSuccess(response, await service.sendBuddyMessage(authenticatedUserId(request), input.content, input.conversationId), 201);
+    },
+    async buddyConversation(request: Request, response: Response) {
+      sendSuccess(response, await service.buddySession(authenticatedUserId(request), parse(z.uuid(), request.params.id)));
+    },
+    async createBuddyConversation(request: Request, response: Response) {
+      parse(z.strictObject({}), request.body ?? {});
+      sendSuccess(response, await service.createBuddyConversation(authenticatedUserId(request)), 201);
+    },
+    async renameBuddyConversation(request: Request, response: Response) {
+      const { title } = parse(renameSchema, request.body);
+      sendSuccess(response, await service.renameBuddyConversation(authenticatedUserId(request), parse(z.uuid(), request.params.id), title));
+    },
+    async deleteBuddyConversation(request: Request, response: Response) {
+      sendSuccess(response, await service.deleteBuddyConversation(authenticatedUserId(request), parse(z.uuid(), request.params.id)));
+    },
+    async pinBuddyConversation(request: Request, response: Response) {
+      const { pinned } = parse(pinSchema, request.body);
+      sendSuccess(response, await service.pinBuddyConversation(authenticatedUserId(request), parse(z.uuid(), request.params.id), pinned));
     },
     async buddyHistory(request: Request, response: Response) {
-      sendSuccess(response, await service.buddyHistory(authenticatedUserId(request)));
+      sendSuccess(response, await service.buddyHistory(authenticatedUserId(request), parse(buddyHistoryQuerySchema, request.query)));
     },
     async emotionInsights(request: Request, response: Response) {
       sendSuccess(response, await service.emotionInsights(authenticatedUserId(request)));
@@ -65,6 +95,9 @@ export function createExperienceController(service: ExperienceService) {
         await service.completeGrounding(authenticatedUserId(request), parse(groundingSchema, request.body)),
         201,
       );
+    },
+    async groundingHistory(request: Request, response: Response) {
+      sendSuccess(response, await service.groundingHistory(authenticatedUserId(request)));
     },
     async supportResources(request: Request, response: Response) {
       const query = typeof request.query.q === "string" ? request.query.q.slice(0, 100) : undefined;

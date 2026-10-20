@@ -11,8 +11,8 @@ export interface JournalEntryResponseDTO {
   tags: string[];
   privacy_status: string;
   analysis_consent: boolean;
-  risk_score: number;
-  risk_band: string;
+  risk_score: number | null;
+  risk_band: string | null;
   summary: string;
   perspective: string | null;
   created_at: string;

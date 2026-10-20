@@ -39,8 +39,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const failedLogin = new URL(request.url);
-  failedLogin.pathname = "/login";
+  const failedLogin = new URL("/login", requestUrl.origin);
   failedLogin.searchParams.set("error", "sign_in_session_expired");
   return NextResponse.redirect(failedLogin);
 }

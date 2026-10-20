@@ -30,8 +30,7 @@ export function getAuthService(): AuthService {
   if (instance) return instance;
 
   if (env.dataAdapter !== "http") {
-    // "mock" mode (the default when NEXT_PUBLIC_DATA_ADAPTER is unset) provides
-    // deterministic in-memory accounts without any network dependency.
+    // Explicit mock mode provides deterministic in-memory accounts for development.
     instance = createAuthMockAdapter();
   } else if (getSupabasePublicConfig()) {
     // Supabase is the identity provider when its public configuration is set.

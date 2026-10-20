@@ -6,13 +6,13 @@ import { ProfessionalCaseSharing } from "./professional-case-sharing";
 import { ProfessionalCaseTimeline } from "./professional-case-timeline";
 import { consentLimitedCase } from "../professional-case.model";
 
-const detail: CaseDetail = { viewer: "professional", request: { id: "synthetic", organizationId: "org", assignedTo: "actor", status: "assigned", createdAt: "2026-10-01T08:00:00Z", updatedAt: "2026-10-01T08:00:00Z", summary: "Private shared message", preferredTime: "Private time preference", sharingActive: true, sharedJournalCount: 1 }, sharedJournals: [{ journalId: "snapshot", title: "Private title", body: "Private snapshot" }], notes: [{ id: "note", body: "Restricted professional note", createdAt: "2026-10-02T08:00:00Z" }], appointments: [], referrals: [] };
+const detail: CaseDetail = { viewer: "professional", sharedPhq8: [], appointmentChangeRequests: [], request: { id: "synthetic", organizationId: "org", assignedTo: "actor", status: "assigned", createdAt: "2026-10-01T08:00:00Z", updatedAt: "2026-10-01T08:00:00Z", summary: "Private shared message", preferredTime: "Private time preference", sharingActive: true, preferredProfileId: null, sharedPhq8Count: 0, sharedJournalCount: 1 }, sharedJournals: [{ journalId: "snapshot", title: "Private title", body: "Private snapshot" }], notes: [{ id: "note", body: "Restricted professional note", createdAt: "2026-10-02T08:00:00Z" }], appointments: [], referrals: [] };
 describe("FE-015 consent-limited information", () => {
-  it("shows only authorized message and selected snapshots, with an honest assessment gap", () => {
+  it("shows only authorized message and selected snapshots, without fetching original assessment records", () => {
     render(<ProfessionalCaseSharing detail={detail} />);
     expect(screen.getByText("Private shared message")).toBeInTheDocument();
     expect(screen.getByText("Private snapshot")).toBeInTheDocument();
-    expect(screen.getByText(/Assessment results are not available/)).toBeInTheDocument();
+    expect(screen.getByText(/original assessment records are not fetched/)).toBeInTheDocument();
   });
   it("handles no returned snapshots and missing message", () => {
     render(<ProfessionalCaseSharing detail={{ ...detail, request: { ...detail.request, summary: null }, sharedJournals: [] }} />);

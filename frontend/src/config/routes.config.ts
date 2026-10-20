@@ -24,11 +24,13 @@ export const ROUTES = {
     new: "/journal/new",
     detail: (id: string): string => `/journal/${encodeURIComponent(id)}`,
   },
+  calendar: "/calendar",
   buddy: {
     chat: "/buddy",
     history: "/buddy/history",
   },
   insights: {
+    index: "/insights",
     emotion: "/insights/emotion",
     facial: "/insights/facial",
     risk: "/insights/risk",
@@ -50,6 +52,16 @@ export const ROUTES = {
   },
   support: {
     findHelp: "/support/find-help",
+  },
+  professionalSupport: {
+    index: "/professional-support",
+    discover: "/professional-support/discover",
+    requests: "/professional-support/requests",
+    request: (id: string): string => `/professional-support/requests/${encodeURIComponent(id)}`,
+    newRequest: "/professional-support/requests/new",
+    appointments: "/professional-support/appointments",
+    messages: "/professional-support/messages",
+    history: "/professional-support/history",
   },
   crisis: {
     index: "/crisis",

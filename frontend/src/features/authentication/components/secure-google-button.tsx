@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { registrationApi } from "@/services/authentication/registration-api";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { safeRedirectPath } from "@/shared/lib/safe-redirect";
 import { loadGoogleIdentity, type GoogleCredential } from "./google-identity";
 
@@ -13,11 +14,12 @@ export function SecureGoogleButton({ intent, successPath }: { intent: "login" | 
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<"loading" | "ready" | "verifying" | "error">("loading");
   const [error, setError] = useState("");
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
+  const authConfigured = Boolean(getSupabasePublicConfig());
 
   useEffect(() => {
     const element = host.current;
-    if (!element || !clientId) return;
+    if (!element || !clientId || !authConfigured) return;
     let active = true;
     let processing = false;
     let expiry: ReturnType<typeof setTimeout> | undefined;
@@ -115,18 +117,18 @@ export function SecureGoogleButton({ intent, successPath }: { intent: "login" | 
       clearTimeout(expiry);
       element.replaceChildren();
     };
-  }, [attempt, clientId, intent, router, successPath]);
+  }, [attempt, authConfigured, clientId, intent, router, successPath]);
 
   return (
     <div className={intent === "signup" ? "mt-6" : undefined}>
       <div
         className="grid min-h-12 w-full place-items-center"
-        aria-busy={!!clientId && (status === "loading" || status === "verifying")}
+        aria-busy={!!clientId && authConfigured && (status === "loading" || status === "verifying")}
       >
         <div ref={host} hidden={status === "error" || status === "verifying"} />
-        {!clientId ? (
+        {!clientId || !authConfigured ? (
           <p role="status" className="text-center text-sm">
-            Google sign-in is not configured.
+            {!clientId ? "Google sign-in is not configured." : "Sign-in is temporarily unavailable because authentication is not configured."}
           </p>
         ) : status === "loading" || status === "verifying" ? (
           <p role="status" className="text-center text-sm">

@@ -38,6 +38,8 @@ async function ready() {
 describe("secure Google button flow", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "test-google-client");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://test.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
     mocks.load.mockResolvedValue({
       initialize: mocks.initialize,
       renderButton: mocks.renderButton,
@@ -178,5 +180,13 @@ describe("secure Google button flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry Google sign-in" }));
     await ready();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not open Google when Supabase authentication is unconfigured", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
+    render(<SecureGoogleButton intent="login" />);
+    expect(screen.getByRole("status")).toHaveTextContent("authentication is not configured");
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.loginNonce).not.toHaveBeenCalled();
   });
 });

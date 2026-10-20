@@ -3,7 +3,7 @@
 export type JournalMood = "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
 export type JournalPrivacyStatus = "private" | "shared";
 export type JournalRiskBand = "low" | "mild" | "moderate" | "high" | "severe";
-export type JournalSortOption = "newest" | "oldest" | "highest-risk" | "lowest-risk";
+export type JournalSortOption = "newest" | "oldest";
 
 // ─── Domain Interfaces ───────────────────────────────
 
@@ -18,8 +18,8 @@ export interface JournalEntry {
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
   analysisConsent: boolean;
-  riskScore: number;
-  riskBand: JournalRiskBand;
+  riskScore: number | null;
+  riskBand: JournalRiskBand | null;
   summary: string;
   perspective: string | null;
   createdAt: string;

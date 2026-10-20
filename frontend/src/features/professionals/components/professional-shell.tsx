@@ -278,13 +278,15 @@ export function ProfessionalSkeleton({ title = "Loading professional workspace",
 export function RequestStatus({ status }: { status: string }) {
   const label =
     status === "submitted"
-      ? "New request"
+      ? "Pending"
       : status === "assigned"
-        ? "Accepted"
+        ? "Assigned"
         : status === "scheduled"
           ? "Scheduled"
           : status === "closed"
             ? "Closed"
+            : status === "withdrawn"
+              ? "Withdrawn"
             : "Declined";
   return (
     <span className="inline-flex rounded-full border border-primary/15 bg-secondary px-3 py-1 text-xs font-bold text-primary">

@@ -14,6 +14,7 @@ import { ProfessionalAccessError } from "../components/professional-access-error
 import { professionalOrganizationDestination } from "../professional-return-path";
 import { ProfessionalCaseOverview } from "../components/professional-case-overview";
 import { requestDate } from "../professional-request.model";
+import { ProfessionalCaseMessages } from "../components/professional-case-messages";
 import { ProfessionalCaseSharing } from "../components/professional-case-sharing";
 import { consentLimitedCase, noteValidation } from "../professional-case.model";
 import { ProfessionalCaseNoteEditor } from "../components/professional-case-note-editor";
@@ -125,7 +126,7 @@ function CaseWorkspace({ id }: { id: string }) {
   }, [note]);
 
   async function act(
-    kind: "note" | "referral" | "appointment" | "cancel" | "close",
+    kind: "note" | "referral" | "appointment" | "cancel" | "complete" | "close",
     event?: FormEvent<HTMLFormElement>,
     appointmentId?: string,
     input?: AppointmentProposal | ReferralInput,
@@ -166,12 +167,13 @@ function CaseWorkspace({ id }: { id: string }) {
       if (kind === "referral" && referral) await professionalApi.addReferral(id, referral.resourceName, referral.resourceUrl);
       if (kind === "appointment" && proposal) await professionalApi.proposeAppointment(id, proposal);
       if (kind === "cancel" && appointmentId) await professionalApi.cancelAppointment(appointmentId);
+      if (kind === "complete" && appointmentId) await professionalApi.completeAppointment(appointmentId);
       if (kind === "close") {
         if (detail.closureReasonAvailable && closureReason) await professionalApi.close(id, closureReason);
         else await professionalApi.close(id);
       }
       if (!isCurrent()) return;
-      await refresh(kind === "note" ? "Note saved. The server confirmed receipt." : kind === "close" ? "Closure confirmed by the server. Checking the latest case status." : kind === "appointment" ? "Appointment proposal recorded. Waiting for the request owner to respond." : kind === "cancel" ? "Appointment cancellation confirmed. Reloading current case status." : "Referral recorded. No external service was contacted.");
+      await refresh(kind === "note" ? "Note saved. The server confirmed receipt." : kind === "close" ? "Closure confirmed by the server. Checking the latest case status." : kind === "appointment" ? "Appointment proposal recorded. Waiting for the request owner to respond." : kind === "cancel" ? "Appointment cancellation confirmed. Reloading current case status." : kind === "complete" ? "Appointment completion confirmed. Reloading current case status." : "Referral recorded. No external service was contacted.");
     } catch (reason) {
       if (!isCurrent()) return;
       const failure = professionalAccessFailure(reason);
@@ -265,6 +267,9 @@ function CaseWorkspace({ id }: { id: string }) {
           <div className="min-w-0 space-y-6">
             <ProfessionalCaseOverview detail={detail} />
             <ProfessionalCaseSharing detail={detail} />
+            {detail.messagingAvailable ? <ProfessionalCaseMessages key={id} caseId={id} readOnly={closed} onFailure={(reason) => { request.current += 1; setDetail(null); clearDrafts(); reportFailure(reason); }} /> : null}
+            {(detail.appointmentChangeRequests ?? []).filter((item) => item.status === "pending").map((item) => <ProfessionalNotice key={item.id} title="Appointment change requested">{item.preferredTime}</ProfessionalNotice>)}
+            {detail.appointments.filter((item) => item.status === "confirmed" && Date.parse(item.startsAt) <= Date.now()).map((item) => <EchoButton key={item.id} variant="outline" className="min-h-11" disabled={!!busy || closed} onClick={() => void act("complete", undefined, item.id)}>Complete appointment</EchoButton>)}
             <ProfessionalAppointmentAgenda appointments={detail.appointments} caseId={id} organizationId={organizationId} viewer={detail.viewer} canCancel={!closed} onCancel={(item) => setCancelId(item.id)} busy={Boolean(busy)} period={agendaPeriod} onPeriodChange={setAgendaPeriod}>
               {uncertainCoordination.appointment ? <ProfessionalNotice title="Review appointments before proposing again">
                 A previous proposal has an uncertain outcome. Check the refreshed agenda before creating another offer.

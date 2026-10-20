@@ -1,6 +1,10 @@
 # Security test evidence
 
-Latest review: 2026-09-21. Local worktree only; no remote migrations, deploy, legacy access or independent review. These are checkpoints, not final completion evidence.
+## 2026-10-20 dependency audit follow-up
+
+The lockfile was refreshed with compatible security updates. `npm audit --omit=dev --audit-level=high` reports no runtime vulnerabilities. The full audit still reports 10 development-tool advisories (8 high, 2 moderate) through Tailwind CSS 3 and Next's ESLint plugin dependency chains. CI keeps the full report visible but gates high and critical runtime findings. Migrating the styling toolchain requires a separate Tailwind 4 visual regression pass; this checkpoint does not waive that work or establish release acceptance.
+
+Historical review: 2026-09-21. Local worktree only; no remote migrations, deploy, legacy access or independent review. These are checkpoints, not final completion evidence.
 
 | Historical command / checkpoint | Observed result | Scope / limitation |
 | --- | --- | --- |

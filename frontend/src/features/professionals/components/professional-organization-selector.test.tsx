@@ -6,7 +6,7 @@ import type { Membership } from "@/services/professionals/professional-api";
 import { ProfessionalOrganizationChooser, ProfessionalOrganizationSelect } from "./professional-organization-selector";
 
 const first: Membership = {
-  id: "first", organizationId: "org-first", organization: { id: "org-first", slug: "synthetic", name: "Synthetic Care Organization", status: "active", description: "", serviceHours: "Weekdays" },
+  id: "first", organizationId: "org-first", organization: { id: "org-first", slug: "synthetic", name: "Synthetic Care Organization", status: "active", description: "", location: "", serviceTypes: [], consultationMethods: [], serviceHours: "Weekdays" },
   role: "counselor", status: "active", accessState: "active", displayName: "Synthetic Professional", credentialLabel: "Synthetic credential", credentialExpiresAt: "2099-12-31",
 };
 const second: Membership = { ...first, id: "second", organizationId: "org-second", role: "coordinator", organization: { ...first.organization!, id: "org-second", name: "Synthetic Organization With a Long Name for Responsive Layout Review" } };

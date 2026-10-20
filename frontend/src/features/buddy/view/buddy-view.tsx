@@ -1,53 +1,110 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, BadgeCheck, Bot, HeartHandshake, History, Leaf, LockKeyhole, Mic, MicOff, Send, ShieldAlert, Sparkles, Volume2, VolumeX, Wind } from "lucide-react";
+import { BadgeCheck, BookOpen, HeartHandshake, History, LockKeyhole, Mic, MicOff, MoreHorizontal, Pencil, Pin, Plus, Send, ShieldAlert, Sparkles, Volume2, VolumeX, Wind } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
 import { BuddyAnalysisHandoff } from "../components/buddy-analysis-handoff";
-import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
-import { moodStyles } from "@/shared/theme";
+import { DefaultJournalFilters, type JournalEntry } from "@/features/journal/model/journal.model";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 import { usePrefersReducedMotion } from "@/shared/hooks/usePrefersReducedMotion";
 import { BuddyEmptyState } from "../components/buddy-empty-state";
-
-const promptChips = [
-  "Help me untangle a thought",
-  "Guide a two-minute grounding",
-  "Reflect on today",
-  "Plan a gentle next step",
-];
+import { EchoDialog } from "@/shared/components/ui/echo-dialog";
+import { EchoSheet } from "@/shared/components/ui/echo-sheet";
+import type { BuddyConversation } from "../model/buddy.model";
+import { PROMPT_CHIPS } from "../model/buddy.constants";
 
 export function BuddyView() {
   const vm = useBuddyViewModel();
   const reducedMotion = usePrefersReducedMotion();
   const voice = useBuddyVoiceControls();
   const [draft, setDraft] = useState("");
-  const conversationEndRef = useRef<HTMLDivElement>(null);
+  const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
+  const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [actionsId, setActionsId] = useState<string | null>(null);
+  const [showPrompts, setShowPrompts] = useState(false);
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const initialMessageIds = useRef(new Set<string>());
+  const historyReady = useRef(false);
   const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
+  const { accessStatus, selectConversation, clearConversation } = vm;
+  const activeConversation = vm.conversations.find((conversation) => conversation.id === vm.activeConversationId);
+  const savedChatReadOnly = Boolean(vm.activeConversationId && !vm.historyEnabled);
+  const pinsAvailable = vm.pagination.pinsAvailable !== false;
 
   useEffect(() => {
-    conversationEndRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "nearest" });
+    if (accessStatus !== "allowed") return;
+    const syncFromUrl = () => {
+      const id = new URLSearchParams(window.location.search).get("conversation");
+      if (id) void selectConversation(id);
+      else clearConversation();
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, [accessStatus, selectConversation, clearConversation]);
+
+  useEffect(() => {
+    if (!vm.activeConversationId || !vm.historyEnabled) return;
+    const id = new URLSearchParams(window.location.search).get("conversation");
+    if (id !== vm.activeConversationId) {
+      window.history.replaceState(null, "", `/buddy?conversation=${encodeURIComponent(vm.activeConversationId)}`);
+    }
+  }, [vm.activeConversationId, vm.historyEnabled]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getJournalService().listEntries(DefaultJournalFilters, 1, 1, controller.signal).then((result) => {
+      if (!controller.signal.aborted && result.success) setRecentJournal(result.data.entries[0] ?? null);
+    });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (vm.accessStatus !== "allowed" || vm.isLoadingMessages || historyReady.current) return;
+    vm.messages.forEach((message) => initialMessageIds.current.add(message.id));
+    historyReady.current = true;
+  }, [vm.accessStatus, vm.isLoadingMessages, vm.messages]);
+
+  useEffect(() => {
+    const panel = conversationScrollRef.current;
+    if (!panel) return;
+    if (typeof panel.scrollTo === "function") panel.scrollTo({ top: panel.scrollHeight, behavior: reducedMotion ? "instant" : "smooth" });
+    else panel.scrollTop = panel.scrollHeight;
   }, [vm.messages, reducedMotion]);
+
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    composer.style.height = "auto";
+    composer.style.height = Math.min(composer.scrollHeight, 144) + "px";
+  }, [draft]);
 
   if (vm.accessStatus === "loading") {
     return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70" />;
   }
 
-  if (vm.accessStatus === "blocked") {
+  if (vm.accessStatus !== "allowed") {
+    const needsContact = vm.accessStatus === "trusted_contact";
+    const failed = vm.accessStatus === "error";
     return (
       <div className="mx-auto max-w-3xl overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(130deg,rgba(251,247,238,0.97),rgba(220,232,214,0.78))] p-7 text-center shadow-card sm:p-10">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[var(--landing-primary)] text-white shadow-subtle">
           <LockKeyhole className="h-7 w-7" aria-hidden="true" />
         </span>
-        <p className="mt-6 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">Identity and age assurance</p>
-        <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] text-[var(--landing-ink)] sm:text-5xl">Verify before opening Buddy.</h1>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--landing-muted)]">Buddy needs approved account verification and a valid Trusted Support Contact with their permission recorded in Settings. Review any missing requirements below.</p>
+        <p className="mt-6 text-[11px] font-extrabold uppercase tracking-[0.16em] text-[var(--landing-primary)]">Buddy access</p>
+        <h1 className="mt-2 font-serif text-4xl tracking-[-0.04em] text-[var(--landing-ink)] sm:text-5xl">{failed ? "Buddy access could not be checked." : needsContact ? "Add a trusted support contact." : "Verify before opening Buddy."}</h1>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[var(--landing-muted)]">{failed ? vm.error ?? "Please try again shortly." : needsContact ? "Your account is verified. Buddy also requires a valid Trusted Support Contact with their permission recorded in Settings." : "Buddy needs approved account verification and a valid Trusted Support Contact with their permission recorded in Settings."}</p>
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/settings" className="echo-button-secondary rounded-full">Review trusted support</Link>
-          <Link href="/settings/verification" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--landing-primary)] px-6 text-sm font-bold text-white transition-[background-color,transform] hover:bg-[var(--landing-primary-hover)] active:scale-[0.97]">
-            <BadgeCheck className="h-4 w-4" /> Start verification
-          </Link>
+          {!failed ? <Link href="/settings/trusted-contacts" className="echo-button-secondary rounded-full">Review trusted support</Link> : null}
+          {!failed && !needsContact ? <Link href="/settings/verification" className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--landing-primary)] px-6 text-sm font-bold text-white transition-[background-color,transform] hover:bg-[var(--landing-primary-hover)] active:scale-[0.97]">
+            <BadgeCheck className="h-4 w-4" /> Open verification
+          </Link> : null}
           <Link href="/tools/grounding" className="inline-flex h-12 items-center justify-center rounded-full border border-[var(--landing-primary-20)] bg-white/60 px-6 text-sm font-bold text-[var(--landing-primary)] transition-transform active:scale-[0.97]">Use grounding tools</Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">Crisis and public support resources remain available without verification.</p>
@@ -57,193 +114,268 @@ export function BuddyView() {
 
   async function handleSend() {
     const content = draft.trim();
-    if (!content || vm.isSending || !vm.activeConversationId) return;
-    setDraft("");
-    await vm.sendMessage(vm.activeConversationId, content);
+    if (!content || vm.isSending || savedChatReadOnly) return;
+    if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");
+  }
+
+  function openConversation(id: string) {
+    if (id === vm.activeConversationId) return;
+    setHistoryOpen(false);
+    setActionsId(null);
+    window.history.pushState(null, "", `/buddy?conversation=${encodeURIComponent(id)}`);
+    void vm.selectConversation(id);
+  }
+
+  function startConversation() {
+    setHistoryOpen(false);
+    setActionsId(null);
+    window.history.replaceState(null, "", "/buddy");
+    void vm.createConversation();
+  }
+
+  function openRename(conversation: BuddyConversation) {
+    if (historyOpen) {
+      setHistoryOpen(false);
+      window.setTimeout(() => {
+        setRenameTarget(conversation);
+        setRenameTitle(conversation.title);
+      }, reducedMotion ? 0 : 190);
+      return;
+    }
+    setRenameTarget(conversation);
+    setRenameTitle(conversation.title);
+  }
+
+  async function saveRename() {
+    if (!renameTarget || !renameTitle.trim() || renaming) return;
+    setRenaming(true);
+    const saved = await vm.renameConversation(renameTarget.id, renameTitle.trim());
+    setRenaming(false);
+    if (saved) setRenameTarget(null);
+  }
+
+  const pinnedConversations = pinsAvailable ? vm.conversations.filter((conversation) => conversation.pinnedAt) : [];
+  const recentConversations = vm.conversations.filter((conversation) => !conversation.pinnedAt || !pinsAvailable);
+
+  function renderHistoryPanel(mobile: boolean) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <button
+          type="button"
+          onClick={startConversation}
+          className="mx-3 mt-3 flex min-h-11 items-center gap-3 rounded-xl bg-[var(--landing-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-primary)]"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          New conversation
+        </button>
+        <nav aria-label={mobile ? "Mobile conversation history" : "Conversation history"} className="echo-panel-scroll min-h-0 flex-1 overflow-y-auto px-3 py-5">
+          {vm.isLoadingList && <p role="status" className="px-2 text-sm text-[var(--landing-muted)]">Loading conversations…</p>}
+          {!vm.isLoadingList && vm.conversations.length === 0 && (
+            <p className="px-2 text-sm leading-6 text-[var(--landing-muted)]">Your saved conversations will appear here.</p>
+          )}
+          {[
+            { title: "Pinned chats", items: pinnedConversations },
+            { title: "Recent chats", items: recentConversations },
+          ].filter((group) => group.items.length > 0).map((group) => (
+            <section key={group.title} aria-label={group.title} className="mb-5">
+              <h2 className="px-2 pb-2 text-xs font-semibold text-[var(--landing-primary)]">{group.title}</h2>
+              <div className="space-y-1">
+                {group.items.map((conversation) => (
+                  <div key={conversation.id} className="rounded-xl">
+                    <div className={"flex items-center rounded-xl transition-colors " + (vm.activeConversationId === conversation.id ? "bg-[var(--landing-sage-soft)]" : "hover:bg-white/75")}>
+                      <button
+                        type="button"
+                        onClick={() => openConversation(conversation.id)}
+                        aria-current={vm.activeConversationId === conversation.id ? "page" : undefined}
+                        className="min-h-12 min-w-0 flex-1 px-3 py-2 text-left outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]"
+                      >
+                        <span className="block truncate text-sm font-semibold text-[var(--landing-ink)]">{conversation.title}</span>
+                        <span className="block truncate text-xs text-[var(--landing-muted)]">{conversation.lastMessage || "No messages yet"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActionsId((current) => current === conversation.id ? null : conversation.id)}
+                        aria-label={"Actions for " + conversation.title}
+                        aria-expanded={actionsId === conversation.id}
+                        className="mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[var(--landing-primary)] outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]"
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                    {actionsId === conversation.id && (
+                      <div className="flex gap-1 px-1 pb-1 pt-1">
+                        <button type="button" onClick={() => openRename(conversation)} className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-[var(--landing-primary)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Rename
+                        </button>
+                        {pinsAvailable && (
+                          <button type="button" onClick={() => void vm.pinConversation(conversation.id, !conversation.pinnedAt)} aria-label={(conversation.pinnedAt ? "Unpin " : "Pin ") + conversation.title} className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-[var(--landing-primary)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                            <Pin className="h-3.5 w-3.5" fill={conversation.pinnedAt ? "currentColor" : "none"} aria-hidden="true" />
+                            {conversation.pinnedAt ? "Unpin" : "Pin"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+          {vm.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 px-1 text-xs text-[var(--landing-muted)]">
+              <button type="button" disabled={vm.pagination.page <= 1 || vm.isLoadingList} onClick={() => void vm.loadConversations(vm.pagination.page - 1)} className="min-h-11 rounded-lg px-2 font-semibold text-[var(--landing-primary)] disabled:opacity-40">Previous</button>
+              <span>{vm.pagination.page} of {vm.pagination.totalPages}</span>
+              <button type="button" disabled={vm.pagination.page >= vm.pagination.totalPages || vm.isLoadingList} onClick={() => void vm.loadConversations(vm.pagination.page + 1)} className="min-h-11 rounded-lg px-2 font-semibold text-[var(--landing-primary)] disabled:opacity-40">Next</button>
+            </div>
+          )}
+          {!pinsAvailable && <p className="px-2 pt-3 text-xs text-[var(--landing-muted)]">Pinning is temporarily unavailable.</p>}
+        </nav>
+        <div className="shrink-0 border-t border-[var(--landing-primary-10)] px-3 py-3">
+          <Link href="/buddy/history" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-[var(--landing-primary)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+            <History className="h-4 w-4" aria-hidden="true" /> Search all history
+          </Link>
+          {recentJournal && (
+            <Link href={"/journal/" + encodeURIComponent(recentJournal.id)} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-[var(--landing-ink)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+              <BookOpen className="h-4 w-4 shrink-0 text-[var(--landing-primary)]" aria-hidden="true" />
+              <span className="truncate">Journal: {recentJournal.title}</span>
+            </Link>
+          )}
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-[var(--landing-primary-10)] px-3 pt-3 text-xs font-medium">
+            <Link href="/tools/grounding" className="inline-flex min-h-10 items-center gap-1 text-[var(--landing-primary)] hover:underline"><Wind className="h-3.5 w-3.5" aria-hidden="true" /> Grounding</Link>
+            <Link href="/support/find-help" className="inline-flex min-h-10 items-center gap-1 text-[var(--landing-primary)] hover:underline"><HeartHandshake className="h-3.5 w-3.5" aria-hidden="true" /> Find help</Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <BuddyAnalysisHandoff onChoose={setDraft} />
-      <EchoMotionSurface as="div" tilt={false} className="relative mb-6 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.74))] p-6 shadow-[0_18px_50px_rgba(30,53,34,0.08)] sm:p-8">
-        <div className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-white/60 blur-3xl" aria-hidden="true" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.17em] text-[var(--landing-primary)]">Reflective Buddy</p>
-            <h1 className="mt-3 text-[clamp(2.8rem,5vw,5rem)] font-medium leading-[0.9] tracking-[-0.06em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">Talk it through gently.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--landing-muted)] sm:text-[15px]">A private place to name what feels present, find steadier ground, and choose one small next step.</p>
+    <div className="flex h-[calc(100dvh-5.25rem)] min-h-[360px] min-w-0 overflow-hidden rounded-[1.2rem] border border-[var(--landing-primary-10)] bg-[#fffdf8] shadow-[0_18px_48px_rgba(30,53,34,0.07)] lg:h-full lg:min-h-0">
+      <aside aria-label="Buddy conversations" className="hidden min-h-0 w-60 shrink-0 flex-col border-r border-[var(--landing-primary-10)] bg-[#f3f5ee] lg:flex xl:w-72">
+        <div className="border-b border-[var(--landing-primary-10)] px-5 py-5">
+          <p className="font-[family-name:var(--font-echo-display)] text-2xl text-[var(--landing-ink)]">Buddy</p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">A quiet place to reflect.</p>
+        </div>
+        {renderHistoryPanel(false)}
+      </aside>
+
+      <section aria-label="Buddy chat" className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex min-h-16 shrink-0 items-center gap-1 border-b border-[var(--landing-primary-10)] px-2 sm:px-4">
+          <button type="button" onClick={() => setHistoryOpen(true)} aria-label="Open conversation history" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] lg:hidden">
+            <History className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <div className="min-w-0 flex-1 px-1 sm:px-2">
+            <h1 className="truncate text-sm font-semibold text-[var(--landing-ink)] sm:text-base">{activeConversation?.title ?? (vm.activeConversationId ? "Conversation" : "New conversation")}</h1>
+            <p className="truncate text-[11px] text-[var(--landing-muted)]">Buddy · reflective support</p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link href="/buddy/history" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--landing-primary-20)] bg-[var(--landing-cream-70)] px-5 text-sm font-bold text-[var(--landing-primary)] outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-white focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97]">
-              <History className="h-4 w-4" aria-hidden="true" />
-              Reflection history
-            </Link>
+          <button type="button" onClick={startConversation} aria-label="New conversation" title="New conversation" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+            <Plus className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <Link href="/crisis" aria-label="Crisis support" title="Crisis support" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-danger outline-none hover:bg-crisis-soft focus-visible:ring-2 focus-visible:ring-danger">
+            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        </header>
+
+        <BuddyAnalysisHandoff onChoose={setDraft} />
+
+        <div
+          ref={conversationScrollRef}
+          role="log"
+          aria-label="Conversation messages"
+          aria-busy={vm.isLoadingMessages || vm.isSending}
+          className="echo-panel-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5 sm:px-6 lg:px-8"
+        >
+          <div className="mx-auto max-w-3xl space-y-5">
+            {vm.isLoadingMessages && vm.messages.length === 0 && <p role="status" className="py-16 text-center text-sm text-[var(--landing-muted)]">Opening your private conversation…</p>}
+            {!vm.isLoadingMessages && vm.messages.length === 0 && <BuddyEmptyState onPromptSelect={setDraft} />}
+            {vm.messages.map((message) => (
+              <div key={message.id} className={historyReady.current && !initialMessageIds.current.has(message.id) ? "echo-buddy-message-enter" : undefined}>
+                <BuddyChatBubble message={message} />
+              </div>
+            ))}
+            {vm.isSending && <p className="pl-2 text-xs font-medium text-[var(--landing-muted)]">Buddy is reflecting…</p>}
           </div>
         </div>
-      </EchoMotionSurface>
 
-      <div className="echo-card-motion-grid grid gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
-        <EchoMotionSurface
-          tilt={false}
-          className="overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[rgba(255,253,247,0.88)] shadow-[0_20px_54px_rgba(30,53,34,0.08)] backdrop-blur-sm"
-        >
-          <div className="flex items-center justify-between gap-4 bg-[radial-gradient(circle_at_0%_0%,rgba(169,208,162,0.24),transparent_16rem),var(--landing-footer)] px-5 py-4 text-[var(--landing-inverse)] sm:px-7">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-white/10">
-                <Bot className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <h2 className="font-semibold tracking-[-0.025em]">Quiet conversation room</h2>
-                <p className="mt-0.5 text-xs text-[var(--landing-inverse-80)]">Listen, type, or speak. No diagnosis.</p>
-              </div>
-            </div>
-            <span className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/80 sm:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#9dcc9f]" />
-              Private session
-            </span>
-          </div>
-
-            <div className="relative p-4 sm:p-7">
-              <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-2/3 -translate-x-1/2 rounded-full bg-[var(--landing-sage-soft)]/35 blur-3xl" aria-hidden="true" />
-            <div className="relative min-h-[390px] space-y-5 rounded-[1.5rem] border border-[var(--landing-primary-10)] bg-white/35 p-3 sm:p-5" aria-live="polite" aria-busy={vm.isLoadingMessages || vm.isSending}>
-              {vm.isLoadingMessages && vm.messages.length === 0 ? (
-                <p className="py-16 text-center text-sm text-[var(--landing-muted)]">Opening your private conversation…</p>
-              ) : null}
-              {!vm.isLoadingMessages && vm.messages.length === 0 ? (
-                <BuddyEmptyState onPromptSelect={setDraft} />
-              ) : null}
-              {vm.messages.map((message) => (
-                <BuddyChatBubble key={message.id} message={message} />
-              ))}
-              {vm.isSending ? (
-                <p className="pl-14 text-xs font-medium text-[var(--landing-muted)]">Buddy is reflecting…</p>
-              ) : null}
-              <div ref={conversationEndRef} />
-            </div>
-
-            <div className="relative mt-5 rounded-[1.35rem] border border-[var(--landing-primary-10)] bg-[var(--landing-cream-70)] p-3">
-              <p className="mb-3 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[var(--landing-primary)]">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                Gentle ways to begin
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {promptChips.map((prompt) => (
-                  <button key={prompt} type="button" onClick={() => setDraft(prompt)} className="rounded-full border border-[var(--landing-primary-15)] bg-[var(--landing-cream-70)] px-4 py-2 text-xs font-semibold text-[var(--landing-muted)] outline-none transition-[background-color,color,transform] duration-150 ease-out hover:bg-[var(--landing-sage-soft)] hover:text-[var(--landing-primary)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97]">
+        <div className="shrink-0 border-t border-[var(--landing-primary-10)] bg-[#fffdf8] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            {showPrompts && (
+              <div aria-label="Prompt ideas" className="echo-panel-scroll mb-2 flex gap-2 overflow-x-auto pb-1">
+                {PROMPT_CHIPS.map((prompt) => (
+                  <button key={prompt} type="button" onClick={() => { setDraft(prompt); setShowPrompts(false); composerRef.current?.focus(); }} className="min-h-11 shrink-0 rounded-full border border-[var(--landing-primary-20)] bg-white px-3 text-xs font-medium text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
                     {prompt}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="sticky bottom-3 mt-4 rounded-[1.5rem] border border-[var(--landing-primary-15)] bg-white/82 p-3 shadow-[0_12px_30px_rgba(30,53,34,0.1),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur focus-within:border-[var(--landing-primary-40)] focus-within:ring-4 focus-within:ring-[var(--landing-primary-10)]">
-              {voice.interimTranscript ? (
-                <p className="mb-2 rounded-full bg-[var(--landing-sage-soft)]/70 px-3 py-1.5 text-xs font-medium text-[var(--landing-primary)]">
-                  Listening: {voice.interimTranscript}
-                </p>
-              ) : null}
-              <div className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (voice.isListening) {
-                    voice.stopListening();
-                  } else {
-                    voice.startListening((transcript) => {
-                      setDraft((current) => `${current}${current.trim() ? " " : ""}${transcript}`);
-                    });
-                  }
-                }}
-                disabled={!voice.voiceSupported || vm.isSending}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] outline-none transition-[background-color,transform] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
-                aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
-              >
-                {voice.isListening ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
-              </button>
+            )}
+            {!vm.historyEnabled && <p className="mb-2 text-xs text-[var(--landing-muted)]">{savedChatReadOnly ? "Saved chats are read-only while history saving is off. Turn it on in Privacy settings to continue this chat." : "Temporary chat: messages disappear when you leave or refresh this page."}</p>}
+            {voice.interimTranscript && <p role="status" className="mb-2 text-xs text-[var(--landing-primary)]">Listening: {voice.interimTranscript}</p>}
+            <div className="rounded-[1.35rem] border border-[var(--landing-primary-20)] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(30,53,34,0.06)] focus-within:border-[var(--landing-primary)] focus-within:ring-2 focus-within:ring-[var(--landing-primary-10)]">
               <textarea
+                ref={composerRef}
+                rows={1}
                 value={draft}
+                disabled={savedChatReadOnly}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                     event.preventDefault();
                     void handleSend();
                   }
                 }}
-                className="min-h-12 flex-1 resize-none bg-transparent px-1 py-1 text-sm leading-6 text-[var(--landing-ink)] outline-none placeholder:text-[var(--landing-muted)]"
-                placeholder="Tell Buddy what feels present..."
+                className="block min-h-10 max-h-36 w-full resize-none overflow-y-auto bg-transparent px-1 py-2 text-base leading-6 text-[var(--landing-ink)] outline-none placeholder:text-[var(--landing-muted)]"
+                placeholder="Message Buddy..."
                 aria-label="Message Buddy"
               />
-              <button
-                type="button"
-                onClick={() => {
-                  if (voice.isSpeaking) voice.stopSpeaking();
-                  else voice.speak(latestBuddyReply);
-                }}
-                disabled={!voice.speechSupported || !latestBuddyReply}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--landing-primary-15)] bg-[var(--landing-cream)] text-[var(--landing-primary)] outline-none transition-[background-color,transform] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45"
-                aria-label={voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
-              >
-                {voice.isSpeaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
-              </button>
-              <button type="button" onClick={() => void handleSend()} disabled={!draft.trim() || vm.isSending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] outline-none transition-[background-color,transform,box-shadow] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] hover:shadow-[0_8px_18px_rgba(30,53,34,0.18)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45" aria-label="Send message">
-                <Send className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (voice.isListening) voice.stopListening();
+                    else voice.startListening((transcript) => setDraft((current) => current + (current.trim() ? " " : "") + transcript));
+                  }}
+                  disabled={!voice.voiceSupported || vm.isSending || savedChatReadOnly}
+                  aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
+                  className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
+                >
+                  {voice.isListening ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => voice.isSpeaking ? voice.stopSpeaking() : voice.speak(latestBuddyReply)}
+                  disabled={!voice.speechSupported || !latestBuddyReply}
+                  aria-label={voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
+                  className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
+                >
+                  {voice.isSpeaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+                </button>
+                <button type="button" onClick={() => setShowPrompts((current) => !current)} aria-label={showPrompts ? "Hide prompt ideas" : "Show prompt ideas"} aria-expanded={showPrompts} className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <span className="ml-1 hidden text-[11px] text-[var(--landing-muted)] sm:inline">Reflective support, not emergency care</span>
+                <button type="button" onClick={() => void handleSend()} disabled={!draft.trim() || vm.isSending || savedChatReadOnly} aria-label="Send message" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--landing-primary)] text-white outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40">
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
             </div>
-            {voice.voiceError ? <p role="status" className="mt-2 text-xs font-medium text-[var(--landing-muted)]">{voice.voiceError}</p> : null}
-            {vm.error ? <p role="alert" className="mt-3 text-sm font-medium text-danger">{vm.error}</p> : null}
+            {voice.voiceError && <p role="status" className="mt-2 text-xs text-[var(--landing-muted)]">{voice.voiceError}</p>}
+            {vm.error && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium text-danger">
+                <span>{vm.error}</span>
+                {!vm.activeConversationId && !vm.isLoadingList && <button type="button" onClick={() => void vm.loadConversations()} className="min-h-10 rounded-lg px-2 font-semibold underline">Retry history</button>}
+              </div>
+            )}
           </div>
-        </EchoMotionSurface>
+        </div>
+      </section>
 
-        <aside className="space-y-5">
-          <EchoMotionSurface className="overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(145deg,rgba(255,253,247,0.94),rgba(226,237,220,0.86))] p-6 shadow-[0_18px_44px_rgba(30,53,34,0.08)]">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[var(--landing-primary)]">How you are arriving</p>
-              <Leaf className="h-4 w-4 text-[var(--landing-primary)]" aria-hidden="true" />
-            </div>
-            <h2 className="mt-3 text-3xl font-medium tracking-[-0.045em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">Current mood</h2>
-            <div className="mt-5 flex items-center justify-between rounded-2xl bg-white/60 p-4">
-              <span className={moodStyles.anxious}>anxious</span>
-              <span className="text-xs text-[var(--landing-muted)]">You can change this</span>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-[var(--landing-muted)]">Buddy will respond with steadiness and keep the next step practical.</p>
-          </EchoMotionSurface>
-
-          <EchoMotionSurface className="rounded-[2rem] border border-[var(--landing-primary-10)] bg-[rgba(255,253,247,0.88)] p-6 shadow-[0_18px_44px_rgba(30,53,34,0.07)]">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[var(--landing-primary)]">Support that stays close</p>
-            <h2 className="mt-2 text-2xl font-medium tracking-[-0.04em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">Helpful tools</h2>
-            <div className="mt-5 grid gap-3">
-              <Link href="/tools/grounding" className="group flex items-center gap-3 rounded-2xl border border-[var(--landing-primary-10)] bg-[var(--landing-sage-soft)]/55 p-4 outline-none transition-[background-color,transform] duration-150 ease-out hover:translate-x-0.5 hover:bg-[var(--landing-sage-soft)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98]">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-white/70 text-[var(--landing-primary)]">
-                  <Wind className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1 text-sm font-bold text-[var(--landing-ink)]">Start grounding</span>
-                <ArrowUpRight className="h-4 w-4 text-[var(--landing-primary)] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
-              </Link>
-              <Link href="/support/find-help" className="group flex items-center gap-3 rounded-2xl border border-[var(--landing-primary-10)] bg-[var(--landing-cream)] p-4 outline-none transition-[background-color,transform] duration-150 ease-out hover:translate-x-0.5 hover:bg-white focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] active:scale-[0.98]">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-[var(--landing-primary)]">
-                  <HeartHandshake className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1 text-sm font-bold text-[var(--landing-ink)]">Find support</span>
-                <ArrowUpRight className="h-4 w-4 text-[var(--landing-primary)] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
-              </Link>
-              <Link href="/crisis" className="group flex items-center gap-3 rounded-2xl border border-danger/25 bg-crisis-soft/80 p-4 outline-none transition-[background-color,transform] duration-150 ease-out hover:translate-x-0.5 hover:bg-crisis-soft focus-visible:ring-4 focus-visible:ring-danger/15 active:scale-[0.98]">
-                <span className="grid h-10 w-10 place-items-center rounded-full bg-white/60 text-danger">
-                  <ShieldAlert className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1 text-sm font-bold text-[var(--landing-ink)]">Crisis support</span>
-                <ArrowUpRight className="h-4 w-4 text-danger transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
-              </Link>
-            </div>
-          </EchoMotionSurface>
-
-          <EchoMotionSurface tilt={false} className="rounded-[2rem] border border-white/10 bg-[var(--landing-footer)] p-6 text-[var(--landing-inverse)] shadow-[0_18px_44px_rgba(16,39,24,0.16)]">
-            <LockKeyhole className="h-5 w-5 text-[#a9d0a2]" aria-hidden="true" />
-            <p className="mt-4 text-[10px] font-extrabold uppercase tracking-[0.15em] text-white/55">Private by design</p>
-            <h2 className="mt-2 text-2xl font-medium tracking-[-0.04em] [font-family:var(--font-echo-display)]">Your conversation stays yours.</h2>
-            <p className="mt-3 text-sm leading-6 text-[var(--landing-inverse-80)]">ECHO is a reflective support tool, not a diagnostic service.</p>
-          </EchoMotionSurface>
-        </aside>
-      </div>
+      <EchoSheet open={historyOpen} onClose={() => setHistoryOpen(false)} title="Your conversations" description="Open a saved chat or start a new one." side="left" className="max-w-sm bg-[#f3f5ee]">
+        {renderHistoryPanel(true)}
+      </EchoSheet>
+      <EchoDialog open={Boolean(renameTarget)} onClose={() => { if (!renaming) setRenameTarget(null); }} title="Rename conversation" description="Choose a title that will help you find this conversation again.">
+        {vm.error && <p role="alert" className="mb-3 text-sm text-danger">{vm.error}</p>}
+        <label className="block text-sm font-medium">Conversation title<input value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} maxLength={100} className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3" /></label>
+        <div className="mt-5 flex justify-end gap-3"><button type="button" disabled={renaming} onClick={() => setRenameTarget(null)} className="rounded-full border border-border px-4 py-2">Cancel</button><button type="button" disabled={renaming || !renameTitle.trim()} onClick={() => void saveRename()} className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50">{renaming ? "Saving…" : "Save"}</button></div>
+      </EchoDialog>
     </div>
   );
 }

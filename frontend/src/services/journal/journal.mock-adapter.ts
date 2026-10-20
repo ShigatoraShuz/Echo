@@ -76,6 +76,7 @@ function createStore() {
 const store = createStore();
 const entries = store.entries;
 const drafts = store.drafts;
+const draftImages = new Map<string, string>();
 const getNextId = store.nextId;
 
 const moodEmotionMap: Record<JournalMood, string[]> = {
@@ -132,6 +133,30 @@ async function delay(ms: number): Promise<void> {
 
 export function createJournalMockAdapter(): JournalService {
   const service: JournalService = {
+    async uploadDraftImage(imageId, file) {
+      if (!drafts.length) return { success: false, error: { code: "NOT_FOUND", message: "Save the draft first." } };
+      if (!draftImages.has(imageId) && draftImages.size >= 5)
+        return { success: false, error: { code: "CONFLICT", message: "This draft supports up to five photos." } };
+      draftImages.set(imageId, typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : "");
+      return { success: true, data: { id: imageId } };
+    },
+    async listDraftImages() {
+      return { success: true, data: [...draftImages].map(([id, url]) => ({ id, url })) };
+    },
+    async removeDraftImage(imageId) {
+      const url = draftImages.get(imageId);
+      if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+      draftImages.delete(imageId);
+      return { success: true, data: undefined };
+    },
+    async attachDraftImages(journalId) {
+      const entry = entries.find((item) => item.id === journalId);
+      if (!entry) return { success: false, error: { code: "NOT_FOUND", message: "Entry not found" } };
+      entry.images = [...(entry.images ?? []), ...[...draftImages].map(([id, url]) => ({ id, url }))];
+      const attached = draftImages.size;
+      draftImages.clear();
+      return { success: true, data: { attached } };
+    },
     async listEntries(filters, page, pageSize, signal) {
       await delay(200 + Math.random() * 200);
       if (signal?.aborted) return { success: false, error: { code: "NETWORK", message: "Request was cancelled" } };
@@ -165,12 +190,6 @@ export function createJournalMockAdapter(): JournalService {
           break;
         case "oldest":
           filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-          break;
-        case "highest-risk":
-          filtered.sort((a, b) => b.riskScore - a.riskScore);
-          break;
-        case "lowest-risk":
-          filtered.sort((a, b) => a.riskScore - b.riskScore);
           break;
       }
 
@@ -272,6 +291,10 @@ export function createJournalMockAdapter(): JournalService {
       await delay(30);
       const idx = drafts.findIndex((d) => d.id === id);
       if (idx >= 0) drafts.splice(idx, 1);
+      if (idx >= 0) {
+        for (const url of draftImages.values()) if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+        draftImages.clear();
+      }
       return { success: true, data: undefined };
     },
 

@@ -15,6 +15,7 @@ import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
+import { PushSubscriptionsService } from "./features/notifications/push-subscriptions.service.js";
 import { RegistrationService } from "./features/registration/registration.service.js";
 import { AccessService } from "./features/access/access.service.js";
 import { IdempotencyService } from "./infrastructure/idempotency/idempotency.service.js";
@@ -23,6 +24,7 @@ import { LocalWorkerService } from "./features/analysis/local-worker.service.js"
 import { AnalysisMaintenanceService } from "./features/analysis/analysis-maintenance.service.js";
 import { createRequestUserClient } from "./infrastructure/supabase/supabase-user.client.js";
 import { ProfessionalService } from "./features/professionals/professional.service.js";
+import { CalendarService } from "./features/calendar/calendar.service.js";
 
 const environment = loadEnvironment();
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -78,7 +80,9 @@ const localWorkerService = new LocalWorkerService(
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
 );
 const dataExports = new DataExportService(supabaseAdmin, encryptionService);
-const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports);
+const pushSubscriptions = environment.PUSH_VAPID_PUBLIC_KEY
+  ? new PushSubscriptionsService(supabaseAdmin, encryptionService, true) : undefined;
+const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports, pushSubscriptions);
 const experienceService = new ExperienceService(supabaseAdmin, journalService, encryptionService, {
   phq8IntervalDays: environment.PHQ8_INTERVAL_DAYS,
   supportThreshold: environment.SUPPORT_PROMPT_THRESHOLD,
@@ -101,6 +105,7 @@ const registrationService = new RegistrationService(
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
 const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService, experienceService);
+const calendarService = new CalendarService(supabaseAdmin, encryptionService);
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
@@ -141,12 +146,14 @@ const app = createApp({
     notifications: {
       service: notificationService,
       verifier,
+      pushSubscriptions,
     },
+    calendar: { service: calendarService, verifier },
     professionals: { service: professionalService, verifier, verificationService },
   },
 });
 
-const server = app.listen(environment.PORT, () => {
+const server = app.listen(environment.PORT, "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
 });
 const maintenance = new AnalysisMaintenanceService(supabaseAdmin);

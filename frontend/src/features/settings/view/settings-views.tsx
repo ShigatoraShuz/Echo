@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +12,6 @@ import {
   LoaderCircle,
   LogOut,
   Mail,
-  MapPin,
   Pencil,
   Phone,
   Plus,
@@ -35,17 +33,16 @@ import {
   useState,
 } from "react";
 
-import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
+import { ThemeControls } from "@/shared/theme";
 
 import {
   AvatarUpload,
   ChangePasswordForm,
   ExportDataSection,
   SettingsHeader,
-  SettingsRow,
   SettingsSection,
   SettingsShell,
 } from "../components";
@@ -63,6 +60,9 @@ import type {
 
 import { settingsService } from "@/services/settings/settings.service";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import { normalizeError } from "@/shared/errors/normalize-error";
+import { env } from "@/config/environment";
+import { canUseDevicePush, disableDevicePush, enableDevicePush } from "@/services/notifications/device-push";
 
 // -----------------------------------------------------------------------------
 // CONSTANTS
@@ -78,15 +78,6 @@ const timezoneOptions = [
   "America/New_York",
   "America/Los_Angeles",
 ];
-
-const emptyContact: TrustedContactInput = {
-  contactName: "",
-  contactEmail: null,
-  contactPhone: null,
-  relationship: "",
-  isPrimary: false,
-  permissionAcknowledged: false,
-};
 
 // -----------------------------------------------------------------------------
 // UI UTILITIES
@@ -304,7 +295,7 @@ function Toggle({
               "bg-white",
               "shadow-md",
               "transition-transform duration-300",
-              "ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+              "ease-[cubic-bezier(0.22,1,0.36,1)]",
               checked
                 ? "translate-x-6"
                 : "translate-x-1",
@@ -331,23 +322,12 @@ function Field({
 }) {
   return (
     <div className="w-full min-w-0 space-y-1.5">
-      <label
-        className="
-          ml-1
-          block
-          text-[11px]
-          font-black
-          uppercase
-          tracking-[0.12em]
-          text-muted-foreground
-        "
-      >
-        {label}
+      <label className="block w-full min-w-0">
+        <span className="ml-1 block text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="mt-1.5 block w-full min-w-0">{children}</span>
       </label>
-
-      <div className="w-full min-w-0">
-        {children}
-      </div>
 
       {hint && (
         <p
@@ -472,7 +452,7 @@ export function ProfileSettingsView() {
       <div className="w-full min-w-0">
         <SettingsHeader
           title="Profile"
-          description="Manage your dashboard identity and local time preferences."
+          description="Manage your dashboard identity, appearance, and local time preferences."
         />
 
         <StateMessage
@@ -481,14 +461,14 @@ export function ProfileSettingsView() {
           onRetry={() => void refresh()}
         />
 
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         {form && (
           <form
             onSubmit={submit}
             className="
               w-full
               min-w-0
-              space-y-5
-              sm:space-y-6
+              space-y-3
             "
           >
             <SettingsSection
@@ -585,6 +565,9 @@ export function ProfileSettingsView() {
                       })
                     }
                   >
+                    {!timezoneOptions.includes(form.timezone) && (
+                      <option value={form.timezone}>{form.timezone.replaceAll("_", " ")}</option>
+                    )}
                     {timezoneOptions.map((tz) => (
                       <option
                         key={tz}
@@ -621,6 +604,10 @@ export function ProfileSettingsView() {
             </SettingsSection>
           </form>
         )}
+          <SettingsSection title="Appearance" description="Choose the look and motion of your space." className="self-start">
+            <ThemeControls compact />
+          </SettingsSection>
+        </div>
       </div>
     </SettingsShell>
   );
@@ -650,6 +637,7 @@ export function PrivacySettingsView() {
     if (settings) {
       setForm({
         journalAiAnalysisEnabled: settings.privacy.journalAiAnalysisEnabled ?? false,
+        buddyHistoryEnabled: settings.privacy.buddyHistoryEnabled ?? true,
         facialAnalysisEnabled:
           settings.privacy
             .facialAnalysisEnabled,
@@ -664,6 +652,11 @@ export function PrivacySettingsView() {
       });
     }
   }, [settings]);
+
+  const savePrivacy = () => {
+    if (!form) return;
+    void run(() => settingsService.updatePrivacy(form), "Privacy choices saved.");
+  };
 
   // ---------------------------------------------------------------------------
   // LOADING
@@ -703,7 +696,7 @@ export function PrivacySettingsView() {
         <StateMessage
           error={error}
           notice={notice}
-          onRetry={() => void refresh()}
+          onRetry={form ? savePrivacy : () => void refresh()}
         />
 
         {form && (
@@ -731,6 +724,16 @@ export function PrivacySettingsView() {
                 onChange={() => {}}
                 label="Encrypted Records"
                 description="Your entries are encrypted at rest and read through authenticated ECHO services."
+              />
+
+              <Toggle
+                checked={form.buddyHistoryEnabled}
+                disabled={settings?.privacy.buddyHistoryAvailable === false}
+                onChange={(value) => setForm({ ...form, buddyHistoryEnabled: value })}
+                label="Save Buddy history"
+                description={settings?.privacy.buddyHistoryAvailable === false
+                  ? "Buddy history controls need the database update before they can be changed."
+                  : "When off, new Buddy chats are temporary. Previously saved chats stay available until you delete them."}
               />
 
               <Toggle
@@ -767,7 +770,7 @@ export function PrivacySettingsView() {
                   })
                 }
                 label="Local Support Links"
-                description="Show help resources during periods of higher distress."
+                description="Save your preference for support links alongside results. Crisis help stays available from the app menu and public pages."
               />
 
               <Toggle
@@ -781,8 +784,10 @@ export function PrivacySettingsView() {
                       value,
                   })
                 }
-                label="Masked Alerts"
-                description="Prevent journal titles from showing on your lock screen."
+                label={env.pushVapidPublicKey ? "Hide titles in device alerts" : "Hide titles in future device alerts"}
+                description={env.pushVapidPublicKey
+                  ? "Use a generic ECHO title on the lock screen. Alert bodies never include journal or support message text."
+                  : "Save a privacy preference for future device alerts. ECHO does not currently send lock-screen alerts."}
               />
             </div>
 
@@ -792,15 +797,7 @@ export function PrivacySettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updatePrivacy(
-                        form,
-                      ),
-                    "Privacy choices saved.",
-                  )
-                }
+                onClick={savePrivacy}
                 variant="primary"
                 isLoading={saving}
                 className="
@@ -841,12 +838,58 @@ export function NotificationSettingsView() {
     useState<NotificationSettings | null>(
       null,
     );
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [devicePushActive, setDevicePushActive] = useState<boolean | null>(null);
+
+  const chooseInAppUpdate = (changes: Partial<NotificationSettings>) => {
+    if (!form) return;
+    const next = { ...form, ...changes };
+    setForm({
+      ...next,
+      inAppEnabled: next.insightNotificationsEnabled || next.journalRemindersEnabled || next.wellbeingRemindersEnabled,
+    });
+  };
 
   useEffect(() => {
     if (settings) {
       setForm(settings.notifications);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!canUseDevicePush()) return;
+    let mounted = true;
+    void navigator.serviceWorker.getRegistration("/").then((registration) => registration?.pushManager.getSubscription())
+      .then((subscription) => { if (mounted) setDevicePushActive(Boolean(subscription)); })
+      .catch(() => { if (mounted) setDevicePushActive(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  const saveNotifications = () => {
+    if (!form) return;
+    void (async () => {
+      const saved = await run(() => settingsService.updateNotifications(form), "Notifications saved.");
+      if (saved && !form.pushEnabled) {
+        try { await disableDevicePush(); setDevicePushActive(false); }
+        catch { setPushError("Your preference was saved, but this browser could not remove its old subscription. Try again from this device."); }
+      }
+    })();
+  };
+
+  const choosePush = async (enabled: boolean) => {
+    if (!form) return;
+    setPushError(null);
+    if (!enabled) { setForm({ ...form, pushEnabled: false }); return; }
+    setPushBusy(true);
+    try {
+      await enableDevicePush();
+      setDevicePushActive(true);
+      setForm((current) => current ? { ...current, pushEnabled: true } : current);
+    } catch (failure) {
+      setPushError(failure instanceof Error ? failure.message : "This device could not enable alerts.");
+    } finally { setPushBusy(false); }
+  };
 
   // ---------------------------------------------------------------------------
   // LOADING
@@ -875,6 +918,14 @@ export function NotificationSettingsView() {
     form?.journalRemindersEnabled ||
       form?.wellbeingRemindersEnabled,
   );
+  const quietStart = form?.quietHoursStart || null;
+  const quietEnd = form?.quietHoursEnd || null;
+  const quietHoursValid = !form?.quietHoursAvailable ||
+    (!quietStart && !quietEnd) ||
+    Boolean(quietStart && quietEnd && quietStart !== quietEnd &&
+      (!form.reminderTime || (quietStart < quietEnd
+        ? form.reminderTime < quietStart || form.reminderTime >= quietEnd
+        : form.reminderTime < quietStart && form.reminderTime >= quietEnd)));
 
   // ---------------------------------------------------------------------------
   // VIEW
@@ -885,19 +936,30 @@ export function NotificationSettingsView() {
       <div className="w-full min-w-0">
         <SettingsHeader
           title="Notifications"
-          description="Find your rhythm with quiet, neutral reminders."
+          description="Choose what kinds of updates you would like to receive."
         />
+
+        <p role="note" className="mb-4 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm leading-6 text-foreground">
+          {env.enableInAppReminders
+            ? "Analysis-ready, account, support, and daily reminder updates can appear in the app. Reminders are added at or after your chosen local time."
+            : "Analysis-ready, account, and support updates can appear in the app. Scheduled check-ins and grounding reminders are not being delivered yet."}
+          {env.pushVapidPublicKey ? " Device alerts need permission on each device." : " Push notifications are not being delivered yet."}
+          {env.enableEmailAlerts ? " Email alerts contain only a generic link back to ECHO." : " Email alerts are not being delivered yet."}
+        </p>
 
         <StateMessage
           error={error}
           notice={notice}
-          onRetry={() => void refresh()}
+          onRetry={form ? saveNotifications : () => void refresh()}
         />
+        {pushError && <p role="alert" className="mb-4 text-sm text-destructive">{pushError}</p>}
 
         {form && (
           <SettingsSection
-            title="Reminder Rhythm"
-            description="You can pause or change these at any time."
+            title="Notification preferences"
+            description={env.enableInAppReminders
+              ? "Choose in-app updates and a local time for daily reminders. External alerts become active only when their channels are configured."
+              : "Choose analysis-ready updates in the app now. Other choices save preferences for future services."}
           >
             {/* -------------------------------------------------------------- */}
             {/* NOTIFICATION TOGGLES                                           */}
@@ -915,31 +977,43 @@ export function NotificationSettingsView() {
               "
             >
               <Toggle
+                checked={form.inAppEnabled && form.insightNotificationsEnabled}
+                onChange={(value) => chooseInAppUpdate({ insightNotificationsEnabled: value })}
+                label="Analysis-ready updates in app"
+                description="Show an in-app notice when an optional journal analysis completes. Account and support updates may still appear."
+              />
+              <Toggle
                 checked={
                   form.journalRemindersEnabled
                 }
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    journalRemindersEnabled:
-                      value,
-                  })
-                }
+                onChange={(value) => chooseInAppUpdate({ journalRemindersEnabled: value })}
                 label="Daily Check-in"
-                description="A quiet nudge to write."
+                description={env.enableInAppReminders
+                  ? "Add one private writing invitation to your in-app inbox each local day."
+                  : "Preference for a future daily writing reminder."}
               />
 
               <Toggle
                 checked={form.pushEnabled}
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    pushEnabled: value,
-                  })
-                }
+                onChange={(value) => { void choosePush(value); }}
+                disabled={pushBusy || (!form.pushEnabled && !canUseDevicePush())}
                 label="Push Notifications"
-                description="Device-level reminders."
+                description={env.pushVapidPublicKey
+                  ? "Enable on this device, then save. Device alerts use generic text when lock-screen privacy is on. Some mobile browsers require installing ECHO first."
+                  : "Preference for future device notifications. Push delivery is not available yet."}
               />
+              {env.pushVapidPublicKey && form.pushEnabled && (
+                <div className="rounded-[1.25rem] border border-border/70 bg-card p-4 text-sm text-foreground">
+                  <p>{devicePushActive ? "This device is registered for alerts." : "Your preference is on. Register this device to receive alerts here."}</p>
+                  {!devicePushActive && (
+                    <button type="button" disabled={pushBusy || !canUseDevicePush()}
+                      onClick={() => { void choosePush(true); }}
+                      className="mt-3 rounded-full border border-border px-4 py-2 font-medium disabled:opacity-50">
+                      {pushBusy ? "Registering…" : "Register this device"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <Toggle
                 checked={form.emailEnabled}
@@ -950,24 +1024,48 @@ export function NotificationSettingsView() {
                   })
                 }
                 label="Email Alerts"
-                description="Account-related news."
+                description={env.enableEmailAlerts
+                  ? "Send generic email alerts with a link to your private ECHO inbox. No journal or support message text is emailed."
+                  : "Preference for future email alerts. Email delivery from this setting is not available yet."}
               />
 
               <Toggle
                 checked={
                   form.wellbeingRemindersEnabled
                 }
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    wellbeingRemindersEnabled:
-                      value,
-                  })
-                }
+                onChange={(value) => chooseInAppUpdate({ wellbeingRemindersEnabled: value })}
                 label="Grounding Invitations"
-                description="Short breathing prompts."
+                description={env.enableInAppReminders
+                  ? "Add one grounding invitation to your in-app inbox each local day."
+                  : "Preference for future grounding reminders."}
               />
             </div>
+
+            {form.quietHoursAvailable && (
+              <div className="mt-4 rounded-[1.5rem] border border-border/70 bg-card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-foreground">Quiet hours</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {env.enableInAppReminders
+                    ? "Daily in-app reminders stay out of this time window in your selected timezone. Account and support updates can still appear."
+                    : "Save a quiet window for future daily in-app reminders. Account and support updates can still appear."}
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <Field label="Quiet hours start">
+                    <input type="time" className="echo-input h-11 w-full rounded-xl"
+                      value={form.quietHoursStart ?? ""}
+                      onChange={(event) => setForm({ ...form, quietHoursStart: event.target.value || null })} />
+                  </Field>
+                  <Field label="Quiet hours end">
+                    <input type="time" className="echo-input h-11 w-full rounded-xl"
+                      value={form.quietHoursEnd ?? ""}
+                      onChange={(event) => setForm({ ...form, quietHoursEnd: event.target.value || null })} />
+                  </Field>
+                </div>
+                {!quietHoursValid && <p role="alert" className="mt-3 text-sm text-destructive">
+                  Set both times, choose different times, and keep your reminder time outside quiet hours.
+                </p>}
+              </div>
+            )}
 
             {/* -------------------------------------------------------------- */}
             {/* REMINDER DETAILS                                                */}
@@ -998,6 +1096,7 @@ export function NotificationSettingsView() {
               <Field label="Target Time">
                 <input
                   type="time"
+                  disabled={!isReminderOn}
                   className="
                     echo-input
                     h-11
@@ -1022,6 +1121,7 @@ export function NotificationSettingsView() {
               {/* Target Timezone */}
               <Field label="Target Timezone">
                 <select
+                  disabled={!isReminderOn}
                   className="
                     echo-input
                     h-11
@@ -1036,10 +1136,14 @@ export function NotificationSettingsView() {
                     setForm({
                       ...form,
                       reminderTimezone:
-                        e.target.value,
+                        e.target.value || null,
                     })
                   }
                 >
+                  <option value="" disabled>Choose a timezone</option>
+                  {form.reminderTimezone && !timezoneOptions.includes(form.reminderTimezone) && (
+                    <option value={form.reminderTimezone}>{form.reminderTimezone.replaceAll("_", " ")}</option>
+                  )}
                   {timezoneOptions.map(
                     (tz) => (
                       <option
@@ -1063,20 +1167,12 @@ export function NotificationSettingsView() {
 
             <SettingsAction>
               <EchoButton
-                onClick={() =>
-                  void run(
-                    () =>
-                      settingsService.updateNotifications(
-                        form,
-                      ),
-                    "Notifications saved.",
-                  )
-                }
+                onClick={saveNotifications}
                 variant="primary"
                 isLoading={saving}
                 disabled={
-                  isReminderOn &&
-                  !form.reminderTime
+                  !quietHoursValid ||
+                  (isReminderOn && (!form.reminderTime || !form.reminderTimezone))
                 }
                 className="
                   h-11
@@ -1087,7 +1183,7 @@ export function NotificationSettingsView() {
                 "
               >
                 <Bell className="mr-2 h-4 w-4" />
-                Save Reminders
+                Save preferences
               </EchoButton>
             </SettingsAction>
           </SettingsSection>
@@ -1265,6 +1361,11 @@ export function SecuritySettingsView() {
             </p>
           </div>
 
+          <div className="mt-4 rounded-2xl border border-border/60 bg-card p-5">
+            <p className="text-sm font-semibold text-foreground">Automatic sign-out</p>
+            <p className="mt-1 text-xs text-muted-foreground">Your current browser session ends after 30 minutes without activity. Activity in another open ECHO tab keeps that session active.</p>
+          </div>
+
           <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-destructive/10">
@@ -1395,19 +1496,16 @@ export function TrustedContactsSettingsView() {
 
   async function handleSave() {
     if (!isFormValid) return;
-    if (editId) {
-      await run(
+    const saved = editId
+      ? await run(
         () => settingsService.updateContact(editId, form),
         "Contact updated.",
-      );
-    } else {
-      await run(
+      )
+      : await run(
         () => settingsService.createContact(form),
         "Contact added to your support circle.",
       );
-    }
-    resetForm();
-    void refresh();
+    if (saved) resetForm();
   }
 
   async function handleSetPrimary(contact: TrustedContact) {
@@ -1423,13 +1521,12 @@ export function TrustedContactsSettingsView() {
         }),
       `${contact.contactName} is now your primary contact.`,
     );
-    void refresh();
   }
 
   async function handleRemove(id: string) {
-    await run(() => settingsService.removeContact(id), "Contact removed.");
-    setDeleteConfirmId(null);
-    void refresh();
+    if (await run(() => settingsService.removeContact(id), "Contact removed.")) {
+      setDeleteConfirmId(null);
+    }
   }
 
   if (loading) {
@@ -1725,6 +1822,9 @@ export function TrustedContactsSettingsView() {
 // -----------------------------------------------------------------------------
 
 export function ExportSettingsView() {
+  const [deletionBusy, setDeletionBusy] = useState(false);
+  const [deletionError, setDeletionError] = useState<string | null>(null);
+  const [deletionConfirmed, setDeletionConfirmed] = useState(false);
   const {
     settings,
     loading,
@@ -1815,7 +1915,8 @@ export function ExportSettingsView() {
           title="Account Deletion"
           description="Once deleted, your data cannot be recovered."
         >
-          {settings?.deletionRequest ? (
+          {deletionError && <p role="alert" className="mb-4 text-sm text-destructive">{deletionError}</p>}
+          {settings?.deletionRequest?.status === "pending" ? (
             <div className="flex flex-col gap-4 rounded-2xl border border-destructive/20 bg-destructive/5 p-5">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
@@ -1824,7 +1925,7 @@ export function ExportSettingsView() {
                     Deletion Scheduled
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Your account is scheduled for deletion.
+                    Your account is scheduled for deletion. Until then, you can sign in only to export data or cancel.
                     {settings.deletionRequest.scheduledFor && (
                       <> Scheduled for {formatDate(settings.deletionRequest.scheduledFor)}.</>
                     )}
@@ -1854,20 +1955,32 @@ export function ExportSettingsView() {
                     Delete your account
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    This will permanently remove your profile, all journal entries, AI analyses, and
-                    chat history. This action cannot be undone.
+                    Your account will have a 30-day cancellation window. During it, only data export and cancellation remain available. After that, live data is removed; provider backups and restricted content-free audit records follow their documented retention periods.
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    Requesting deletion also withdraws open professional cases and cancels appointments. Cancelling account deletion will not reopen them.
                   </p>
                 </div>
               </div>
+              <label className="flex items-start gap-2 text-sm text-foreground">
+                <input type="checkbox" checked={deletionConfirmed} onChange={(event) => setDeletionConfirmed(event.target.checked)} className="mt-1" />
+                I understand these changes and want to request account deletion.
+              </label>
               <EchoButton
                 type="button"
                 variant="danger"
-                onClick={() =>
-                  void run(
-                    () => settingsService.requestDeletion(),
-                    "Deletion requested. You can cancel within 30 days.",
-                  )
-                }
+                disabled={deletionBusy || !deletionConfirmed}
+                onClick={() => void (async () => {
+                  setDeletionBusy(true);
+                  setDeletionError(null);
+                  try {
+                    await settingsService.requestDeletion();
+                    window.location.assign("/deletion");
+                  } catch (cause) {
+                    setDeletionError(normalizeError(cause).userMessage);
+                    setDeletionBusy(false);
+                  }
+                })()}
                 className="h-11 w-full rounded-full border-destructive bg-destructive/10 px-8 text-destructive hover:bg-destructive hover:text-white sm:w-auto"
               >
                 <Trash2 className="mr-2 h-4 w-4" />

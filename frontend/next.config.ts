@@ -22,6 +22,22 @@ function readBackendDevelopmentEnvironment(): Record<string, string> {
 const backendDevelopmentEnvironment = readBackendDevelopmentEnvironment();
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+function isProductionUrl(value: string | undefined): boolean {
+  try {
+    const url = new URL(value ?? "");
+    return url.protocol === "https:" && !["localhost", "127.0.0.1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+if (!isDevelopment && (
+  !isProductionUrl(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+  !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  !isProductionUrl(process.env.NEXT_PUBLIC_API_BASE_URL) ||
+  process.env.NEXT_PUBLIC_DATA_ADAPTER === "mock"
+)) {
+  throw new Error("Production requires Supabase and API public configuration and cannot use the mock adapter.");
+}
 const securityHeaders = [
   { key: "Referrer-Policy", value: "no-referrer" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -42,9 +58,9 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? backendDevelopmentEnvironment.SUPABASE_URL ?? "",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? backendDevelopmentEnvironment.SUPABASE_PUBLISHABLE_KEY ?? "",
-    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4200/api/v1",
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL ?? (isDevelopment ? "http://127.0.0.1:4200/api/v1" : ""),
     NEXT_PUBLIC_DATA_ADAPTER:
-      process.env.NEXT_PUBLIC_DATA_ADAPTER ?? (backendDevelopmentEnvironment.SUPABASE_URL ? "http" : "mock"),
+      process.env.NEXT_PUBLIC_DATA_ADAPTER ?? (isDevelopment && !backendDevelopmentEnvironment.SUPABASE_URL ? "mock" : "http"),
   },
   images: {
     remotePatterns: [
@@ -73,7 +89,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/(dashboard|journal|buddy|insights|tools|settings|admin)/:path*",
+        source: "/(dashboard|journal|buddy|insights|tools|settings|professional-support|admin)/:path*",
         headers: [
           {
             key: "Cache-Control",

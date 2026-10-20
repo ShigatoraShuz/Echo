@@ -50,6 +50,7 @@ type EditorAction =
   | { type: "SET_FIELD_ERRORS"; fieldErrors: Record<string, string[]> }
   | { type: "SET_AUTOSAVE_STATUS"; status: AutosaveStatus }
   | { type: "CLEAR_ERROR" }
+  | { type: "CLEAR_SAVE_ERROR" }
   | { type: "RESET" };
 
 function countWords(text: string): number {
@@ -97,6 +98,8 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, autosaveStatus: action.status };
     case "CLEAR_ERROR":
       return { ...state, error: null, fieldErrors: {} };
+    case "CLEAR_SAVE_ERROR":
+      return { ...state, error: null };
     case "RESET":
       return { ...initialEditorState };
     default:
@@ -127,17 +130,18 @@ export function useJournalEditorViewModel() {
   const [state, dispatch] = useReducer(reducer, initialEditorState);
   const service = getJournalService();
   const [draftReady, setDraftReady] = useState(false);
+  const [autosaveEpoch, setAutosaveEpoch] = useState(0);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isAutosavingRef = useRef(false);
   const idempotencyKeyRef = useRef<string | null>(null);
   const restored = useRef(false);
   const edited = useRef(false);
   const submitting = useRef(false);
   const finalized = useRef(false);
   const accepted = useRef<Awaited<ReturnType<typeof service.createEntry>> | null>(null);
-  const autosaveInFlight = useRef<Promise<unknown> | null>(null);
+  const draftExists = useRef(false);
+  const autosaveInFlight = useRef<Promise<boolean> | null>(null);
   const revision = useRef(0);
+  const savedRevision = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -147,6 +151,7 @@ export function useJournalEditorViewModel() {
         idempotencyKeyRef.current = result.data.submissionKey ?? crypto.randomUUID();
         dispatch({ type: "RESTORE_DRAFT", draft: result.data });
       } else if (!result.success) dispatch({ type: "SAVE_ERROR", error: result.error.message });
+      if (result.success) draftExists.current = Boolean(result.data);
       restored.current = result.success;
       setDraftReady(result.success);
     }).catch(() => { if (active) dispatch({ type: "SAVE_ERROR", error: "Your saved draft could not be loaded. Please reload before editing." }); });
@@ -206,45 +211,45 @@ export function useJournalEditorViewModel() {
     [requestChanged],
   );
 
-  const performAutosave = useCallback(async () => {
-    if (isAutosavingRef.current || finalized.current || accepted.current?.success || !restored.current) return;
+  const performAutosave = useCallback((): Promise<boolean> => {
+    if (autosaveInFlight.current) return autosaveInFlight.current;
+    if (finalized.current || accepted.current?.success || !restored.current) return Promise.resolve(false);
     const savingRevision = revision.current;
-    isAutosavingRef.current = true;
     dispatch({ type: "SET_AUTOSAVE_STATUS", status: "saving" });
 
-    try {
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
+    const operation = Promise.resolve().then(async () => {
+      try {
+        const draft: JournalDraft = {
+          submissionKey: idempotencyKeyRef.current ??= crypto.randomUUID(),
+          id: state.savedEntry?.id ?? `draft-${Date.now()}`,
+          title: state.title.trim(),
+          body: state.body.trim(),
+          mood: state.mood,
+          emotions: state.emotions,
+          tags: state.tags,
+          privacyStatus: state.privacyStatus,
+          analysisConsent: state.analysisConsent,
+          updatedAt: new Date().toISOString().split("T")[0],
+        };
 
-      const draft: JournalDraft = {
-        submissionKey: idempotencyKeyRef.current ??= crypto.randomUUID(),
-        id: state.savedEntry?.id ?? `draft-${Date.now()}`,
-        title: state.title.trim(),
-        body: state.body.trim(),
-        mood: state.mood,
-        emotions: state.emotions,
-        tags: state.tags,
-        privacyStatus: state.privacyStatus,
-        analysisConsent: state.analysisConsent,
-        updatedAt: new Date().toISOString().split("T")[0],
-      };
-
-      const operation = service.saveDraft(draft);
-      autosaveInFlight.current = operation;
-      const result = await operation;
-      if (result.success) {
-        dispatch({ type: "SET_AUTOSAVE_STATUS", status: savingRevision === revision.current ? "saved" : "unsaved" });
-      } else {
-        dispatch({ type: "SET_AUTOSAVE_STATUS", status: "error" });
-        dispatch({ type: "SAVE_ERROR", error: result.error.message });
+        const result = await service.saveDraft(draft);
+        if (result.success) {
+          draftExists.current = true;
+          savedRevision.current = savingRevision;
+          dispatch({ type: "CLEAR_SAVE_ERROR" });
+          dispatch({ type: "SET_AUTOSAVE_STATUS", status: savingRevision === revision.current ? "saved" : "unsaved" });
+          return savingRevision === revision.current;
+        } else dispatch({ type: "SAVE_ERROR", error: result.error.message });
+      } catch {
+        dispatch({ type: "SAVE_ERROR", error: "The draft could not be saved. Retry when your connection is available." });
+      } finally {
+        autosaveInFlight.current = null;
+        if (savingRevision !== revision.current) setAutosaveEpoch((value) => value + 1);
       }
-    } catch {
-      dispatch({ type: "SET_AUTOSAVE_STATUS", status: "error" });
-    } finally {
-      isAutosavingRef.current = false;
-      autosaveInFlight.current = null;
-      abortControllerRef.current = null;
-    }
+      return false;
+    });
+    autosaveInFlight.current = operation;
+    return operation;
   }, [
     state.title,
     state.body,
@@ -257,10 +262,18 @@ export function useJournalEditorViewModel() {
     service,
   ]);
 
+  const saveDraftNow = useCallback(async (force = false) => {
+    if (!force && !hasContent(state) && !edited.current) return true;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    if (autosaveInFlight.current) await autosaveInFlight.current;
+    if (draftExists.current && savedRevision.current === revision.current) return true;
+    return performAutosave();
+  }, [state, performAutosave]);
+
   // Debounced autosave
   useEffect(() => {
-    if (state.isSaving || state.savedEntry || state.analysisSubmission || finalized.current) return;
-    if (!state.title.trim() && !state.body.trim()) return;
+    if (state.isSaving || state.savedEntry || state.analysisSubmission || finalized.current || state.autosaveStatus !== "unsaved") return;
+    if (!state.title.trim() && !state.body.trim() && !edited.current) return;
 
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -275,26 +288,17 @@ export function useJournalEditorViewModel() {
         clearTimeout(autosaveTimerRef.current);
       }
     };
-  }, [state.title, state.body, state.mood, state.tags, state.privacyStatus, state.analysisConsent, state.isSaving, state.savedEntry, state.analysisSubmission, performAutosave]);
+  }, [state.title, state.body, state.mood, state.tags, state.privacyStatus, state.analysisConsent, state.autosaveStatus, state.isSaving, state.savedEntry, state.analysisSubmission, autosaveEpoch, performAutosave]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (hasContent(state) && !finalized.current && (state.autosaveStatus !== "saved" || state.isSaving)) { event.preventDefault(); event.returnValue = ""; }
+      if ((hasContent(state) || edited.current) && !finalized.current && (state.autosaveStatus !== "saved" || state.isSaving)) { event.preventDefault(); event.returnValue = ""; }
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [state]);
 
-  // Cancel on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
-  const save = useCallback(async (facial?: { requested: boolean; capture?: FaceMeshCapture }, photos: Array<{id:string;file:File}> = []) => {
+  const save = useCallback(async (facial?: { requested: boolean; capture?: FaceMeshCapture }) => {
     if (submitting.current || finalized.current) return;
     if (!restored.current) { dispatch({type:"SAVE_ERROR",error:"Please wait for your saved draft to load before submitting."}); return; }
     const input: Record<string, unknown> = {
@@ -337,12 +341,10 @@ export function useJournalEditorViewModel() {
       accepted.current = result;
       const data = result.data;
       const journalId = "kind" in data && data.kind === "analysis" ? data.submission.journalId : (data as JournalEntry).id;
-      for (const photo of photos) {
-        const uploaded = await service.uploadImage?.(journalId,photo.id,photo.file);
-        if (!uploaded?.success) {
-          dispatch({type:"SAVE_ERROR",error:uploaded && !uploaded.success ? uploaded.error.message : "Your journal was saved, but photo upload is unavailable. Keep this page open to retry."});
-          return;
-        }
+      const attached = await service.attachDraftImages(journalId);
+      if (!attached.success) {
+        dispatch({ type: "SAVE_ERROR", error: `${attached.error.message} Your reflection is saved; retry to attach its photos.` });
+        return;
       }
       const cleared = await service.deleteDraft(idempotencyKeyRef.current);
       if (!cleared.success) { dispatch({type:"SAVE_ERROR",error:"Your journal was saved. Draft cleanup could not finish; retry to finalize without creating another journal."}); return; }
@@ -382,7 +384,7 @@ export function useJournalEditorViewModel() {
   }, []);
 
   const retryAutosave = useCallback(() => {
-    if (hasContent(state)) {
+    if (hasContent(state) || edited.current) {
       performAutosave();
     }
   }, [state, performAutosave]);
@@ -417,5 +419,6 @@ export function useJournalEditorViewModel() {
     clearError,
     reset,
     retryAutosave,
+    saveDraftNow,
   };
 }

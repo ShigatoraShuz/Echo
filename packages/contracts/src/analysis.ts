@@ -27,6 +27,39 @@ export const analysisFixtureSchema = z.enum([
 ]);
 export const distressBandSchema = z.enum(["low", "mild", "moderate", "high", "severe"]);
 export const emotionNameSchema = z.enum(["joy", "calm", "sadness", "anxiety", "anger", "hope"]);
+export const analysisInsightRangeSchema = z.enum(["7d", "30d", "90d", "custom"]);
+
+const modelEmotionOutputSchema = z
+  .object({
+    emotionDistribution: z
+      .array(z.object({ emotion: emotionNameSchema, value: z.number().min(0).max(1) }).strict())
+      .length(6),
+    dominantEmotion: emotionNameSchema,
+    confidence: z.number().min(0).max(1),
+    providerName: z.string().trim().min(1).max(80),
+    modelVersion: z.string().trim().min(1).max(120),
+  })
+  .strict()
+  .superRefine((result, context) => {
+    const total = result.emotionDistribution.reduce((sum, item) => sum + item.value, 0);
+    if (Math.abs(total - 1) > 0.001)
+      context.addIssue({ code: "custom", path: ["emotionDistribution"], message: "Emotion values must total 1." });
+    if (new Set(result.emotionDistribution.map((item) => item.emotion)).size !== 6)
+      context.addIssue({ code: "custom", path: ["emotionDistribution"], message: "Each emotion must occur exactly once." });
+    const maximum = Math.max(...result.emotionDistribution.map((item) => item.value));
+    if (!result.emotionDistribution.some((item) => item.emotion === result.dominantEmotion && item.value === maximum))
+      context.addIssue({ code: "custom", path: ["dominantEmotion"], message: "Dominant emotion must have the highest distribution value." });
+  });
+
+export const sanctuaryPerspectiveSchema = z
+  .object({
+    headline: z.string().trim().min(1).max(160),
+    narrative: z.string().trim().min(1).max(2_000),
+    providerName: z.string().trim().min(1).max(80),
+    modelVersion: z.string().trim().min(1).max(120),
+    isSimulated: z.boolean(),
+  })
+  .strict();
 
 export const facialAnalysisStatuses = [
   "not_requested",
@@ -127,6 +160,10 @@ export const journalAnalysisResultSchema = z
       .strict()
       .nullable()
       .default(null),
+    /** Reserved for a validated text + facial fusion provider. Text-only output remains above. */
+    combinedEmotionAnalysis: modelEmotionOutputSchema.nullable().optional(),
+    /** Optional LLM reflection persisted with the result after provider validation. */
+    sanctuaryPerspective: sanctuaryPerspectiveSchema.nullable().optional(),
   })
   .strict()
   .superRefine((result, context) => {
@@ -182,6 +219,16 @@ export const dashboardInsightsSchema = z.object({
       isSimulated: z.boolean(),
     }),
   ),
+  period: z
+    .object({
+      range: analysisInsightRangeSchema,
+      from: z.string().date(),
+      to: z.string().date(),
+      analyzedReflectionCount: z.number().int().min(0),
+    })
+    .strict()
+    .optional(),
+  facialStatus: facialAnalysisStatusSchema.optional(),
 });
 
 export type AnalysisStatus = z.infer<typeof analysisStatusSchema>;
@@ -196,6 +243,8 @@ export type FaceMeshCapture = z.infer<typeof faceMeshCaptureSchema>;
 export type JournalAnalysisResult = z.infer<typeof journalAnalysisResultSchema>;
 export type JournalSubmissionResponse = z.infer<typeof journalSubmissionResponseSchema>;
 export type DashboardInsights = z.infer<typeof dashboardInsightsSchema>;
+export type AnalysisInsightRange = z.infer<typeof analysisInsightRangeSchema>;
+export type SanctuaryPerspective = z.infer<typeof sanctuaryPerspectiveSchema>;
 
 const textCheckDetails: Record<Exclude<AnalysisCheckId, "facial">, string> = {
   safety_crisis: "Safety check complete",

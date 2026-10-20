@@ -1,93 +1,77 @@
 "use client";
+
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import type { DashboardInsights } from "@echo/contracts";
 import { getInsightsService } from "@/services/insights/insights-service.factory";
-import type { InsightTimeRange, EmotionInsightSummary, JournalSourceBreakdown, RiskSignal, FacialTrendPoint } from "../model/insights.model";
-import type { TrendPoint } from "@/shared/types";
+import { createInsightsMockAdapter } from "@/services/insights/insights.mock-adapter";
+import type { InsightTimeRange } from "../model/insights.model";
 
 interface InsightsState {
   timeRange: InsightTimeRange;
-  emotionSummary: EmotionInsightSummary | null;
-  journalBreakdown: JournalSourceBreakdown[];
-  riskSignal: RiskSignal | null;
-  facialTrend: FacialTrendPoint[];
-  riskTrend: TrendPoint[];
+  customRange: { from: string; to: string } | null;
+  overview: DashboardInsights | null;
   isLoading: boolean;
   error: string | null;
 }
 
 type InsightsAction =
   | { type: "LOAD_START" }
-  | { type: "LOAD_SUCCESS"; summary: EmotionInsightSummary; breakdown: JournalSourceBreakdown[]; risk: RiskSignal; facialTrend: FacialTrendPoint[]; riskTrend: TrendPoint[] }
+  | { type: "LOAD_SUCCESS"; overview: DashboardInsights }
   | { type: "LOAD_ERROR"; error: string }
-  | { type: "SET_TIME_RANGE"; range: InsightTimeRange };
+  | { type: "SET_RANGE"; range: InsightTimeRange; customRange?: { from: string; to: string } };
 
 const initialState: InsightsState = {
   timeRange: "30d",
-  emotionSummary: null,
-  journalBreakdown: [],
-  riskSignal: null,
-  facialTrend: [],
-  riskTrend: [],
+  customRange: null,
+  overview: null,
   isLoading: true,
   error: null,
 };
+const previewService = createInsightsMockAdapter();
 
 function reducer(state: InsightsState, action: InsightsAction): InsightsState {
   switch (action.type) {
-    case "LOAD_START": return { ...state, isLoading: true, error: null };
-    case "LOAD_SUCCESS": return { ...state, emotionSummary: action.summary, journalBreakdown: action.breakdown, riskSignal: action.risk, facialTrend: action.facialTrend, riskTrend: action.riskTrend, isLoading: false };
-    case "LOAD_ERROR": return { ...state, error: action.error, isLoading: false };
-    case "SET_TIME_RANGE": return { ...state, timeRange: action.range };
-    default: return state;
+    case "LOAD_START":
+      return { ...state, isLoading: true, error: null };
+    case "LOAD_SUCCESS": {
+      return {
+        ...state,
+        overview: action.overview,
+        isLoading: false,
+      };
+    }
+    case "LOAD_ERROR":
+      return { ...state, error: action.error, isLoading: false };
+    case "SET_RANGE":
+      return { ...state, timeRange: action.range, customRange: action.customRange ?? null };
   }
 }
 
-export function useInsightsViewModel() {
+export function useInsightsViewModel(preview = false) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const service = getInsightsService();
+  const service = preview ? previewService : getInsightsService();
   const abortRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async (timeRange: InsightTimeRange) => {
+  const load = useCallback(async (timeRange: InsightTimeRange, customRange?: { from: string; to: string }) => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
     dispatch({ type: "LOAD_START" });
-    const [summaryResult, breakdownResult, riskResult, facialResult] = await Promise.all([
-      service.getEmotionSummary(timeRange, abortRef.current.signal),
-      service.getJournalBreakdown(timeRange, abortRef.current.signal),
-      service.getRiskSignal(abortRef.current.signal),
-      service.getFacialTrend(abortRef.current.signal),
-    ]);
-    if (!summaryResult.success) {
-      dispatch({ type: "LOAD_ERROR", error: summaryResult.error.message });
-      return;
-    }
-    // The remaining insights are optional: the backend may not implement them
-    // yet, in which case the emotion summary still renders.
-    const riskTrend: TrendPoint[] = riskResult.success
-      ? riskResult.data.history.map((point) => ({
-          label: point.date,
-          value: point.score,
-          band: point.band,
-        }))
-      : [];
-    dispatch({
-      type: "LOAD_SUCCESS",
-      summary: summaryResult.data,
-      breakdown: breakdownResult.success ? breakdownResult.data : [],
-      risk: riskResult.success
-        ? riskResult.data
-        : { score: 0, band: "low", label: "Unavailable", history: [], supportingFactors: [] },
-      facialTrend: facialResult.success ? facialResult.data.points : [],
-      riskTrend,
-    });
+    const result = await service.getAnalysisOverview(timeRange, customRange, controller.signal);
+    if (result.success) dispatch({ type: "LOAD_SUCCESS", overview: result.data });
+    else if (!controller.signal.aborted) dispatch({ type: "LOAD_ERROR", error: result.error.message });
   }, [service]);
 
-  const setTimeRange = useCallback((range: InsightTimeRange) => {
-    dispatch({ type: "SET_TIME_RANGE", range });
-    load(range);
-  }, [load]);
+  useEffect(() => {
+    void load(state.timeRange, state.customRange ?? undefined);
+    return () => abortRef.current?.abort();
+  }, [load, state.customRange, state.timeRange]);
 
-  useEffect(() => { load(state.timeRange); }, [load, state.timeRange]);
-
-  return { ...state, setTimeRange, retry: () => load(state.timeRange) };
+  return {
+    ...state,
+    setTimeRange: (range: Exclude<InsightTimeRange, "custom">) => dispatch({ type: "SET_RANGE", range }),
+    applyCustomRange: (from: string, to: string) =>
+      dispatch({ type: "SET_RANGE", range: "custom", customRange: { from, to } }),
+    retry: () => load(state.timeRange, state.customRange ?? undefined),
+  };
 }

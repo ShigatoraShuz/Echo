@@ -121,7 +121,9 @@ function StatusView({
         : "Your application is in the review queue"
       : "Your application needs attention";
   const description = approved
-    ? "Buddy and AI-supported journal analysis are now available. Your ordinary journal, grounding tools, and support resources remain available regardless of verification."
+    ? snapshot.canAccessAi
+      ? "Buddy and AI-supported features are available. Your ordinary journal, grounding tools, and support resources remain available regardless of verification."
+      : "Your identity and age verification are approved. Add a valid Trusted Support Contact and confirm their permission to use Buddy and AI-supported features."
     : pending
       ? "We will notify you when an administrator completes the review. Your submitted identity details and documents are locked while review is in progress."
       : snapshot.reviewNote ??
@@ -159,6 +161,11 @@ function StatusView({
           <EchoButton type="button" onClick={onEdit}>Update application</EchoButton>
         ) : null}
       </div>
+      {approved && !snapshot.canAccessAi && snapshot.accessRequirement === "trusted_contact" ? (
+        <Link href="/settings/trusted-contacts" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+          Manage trusted contacts <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      ) : null}
       {snapshot.canReview ? (
         <Link
           href="/admin/verifications"

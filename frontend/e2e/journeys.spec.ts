@@ -7,6 +7,40 @@ function pending() {
   return { promise, release };
 }
 
+test("combined clinical workspace shows only consented snapshots and clears messages on access loss", async ({ page }) => {
+  const state = await fixtures(page);
+  state.detail.messagingAvailable = true;
+  state.detail.sharedPhq8 = [{ id: "fictional-check-in", label: "Fictional selected PHQ-8", score: 8, severity: "mild", context: "Fictional selected context", completedAt: "2026-10-14T08:00:00Z" }];
+  await page.goto(`/professional/cases/${caseId}`);
+  await expect(page.getByText("Fictional selected PHQ-8", { exact: true })).toBeVisible();
+  await expect(page.getByText("Fictional private conversation", { exact: true })).toBeVisible();
+  const hold = pending(); state.holds.sendCaseMessage = hold.promise;
+  await page.getByLabel("Case message", { exact: true }).fill("Fictional professional reply");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sending message", exact: true })).toBeDisabled();
+  hold.release();
+  await expect(page.getByText(/Message received by the server/)).toBeVisible();
+  expect(state.calls.filter((call) => call.method === "sendCaseMessage")).toHaveLength(1);
+  state.faults.caseMessages = { status: 403, code: "RESOURCE_FORBIDDEN" };
+  await page.getByRole("button", { name: "Refresh case", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("Fictional private conversation", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Fictional selected PHQ-8", { exact: true })).toHaveCount(0);
+});
+
+test("coordinator assigns through scoped metadata without fetching clinical case details", async ({ page }) => {
+  const state = await fixtures(page);
+  state.memberships = state.memberships.map((membership) => ({ ...membership, role: "org_admin" }));
+  await page.goto("/professional?organization=org-one");
+  await page.getByLabel("Unassigned request").selectOption("fe000000-0000-4000-8000-000000000002");
+  await page.getByLabel("Practitioner", { exact: true }).selectOption("fictional-profile");
+  await page.getByRole("button", { name: "Confirm assignment", exact: true }).click();
+  await expect(page.getByText(/Practitioner assignment confirmed/)).toBeVisible();
+  expect(state.calls.filter((call) => call.method === "assign")).toHaveLength(1);
+  expect(state.calls.filter((call) => ["caseDetail", "caseMessages"].includes(call.method))).toHaveLength(0);
+  await expect(page.getByRole("link", { name: "Open case", exact: true })).toHaveCount(0);
+});
+
 test("login validates locally and never grants professional access", async ({ page }) => {
   const state = await fixtures(page);
   await page.goto("/professional/login");

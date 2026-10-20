@@ -34,6 +34,7 @@ describe("grounding HTTP adapter", () => {
 
     const { createGroundingHttpAdapter } = await import("@/services/grounding/grounding.http-adapter");
     const result = await createGroundingHttpAdapter().saveSession({
+      sessionId: "11111111-1111-4111-8111-111111111111",
       type: "box-breathing",
       duration: 120,
       pace: "medium",
@@ -52,6 +53,7 @@ describe("grounding HTTP adapter", () => {
     }
     const requestInit = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(requestInit.body))).toEqual({
+      sessionId: "11111111-1111-4111-8111-111111111111",
       technique: "box-breathing",
       durationSeconds: 120,
       pace: "slower",
@@ -59,11 +61,15 @@ describe("grounding HTTP adapter", () => {
     expect(requestInit.headers).toEqual(expect.objectContaining({ Authorization: "Bearer access-token" }));
   });
 
-  it("reports history as unsupported instead of fabricating sessions", async () => {
+  it("loads real grounding history through the authenticated endpoint", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ success: true, data: [
+      { id: "session-1", type: "box-breathing", duration: 120, pace: "gentle", completedAt: "2026-08-17T10:00:00.000Z" },
+    ] }), { status: 200, headers: { "content-type": "application/json" } })));
     const { createGroundingHttpAdapter } = await import("@/services/grounding/grounding.http-adapter");
     const result = await createGroundingHttpAdapter().getHistory();
 
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.code).toBe("UNKNOWN");
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data[0]).toMatchObject({ id: "session-1", pace: "slow", state: "completed" });
+    expect(vi.mocked(fetch).mock.calls[0][0]).toContain("/grounding/sessions");
   });
 });

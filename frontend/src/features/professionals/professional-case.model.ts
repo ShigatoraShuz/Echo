@@ -5,7 +5,7 @@ export interface CaseActivity { id: string; at: string; label: string; context: 
 /** Discard shared plaintext if the server no longer reports active consent. */
 export function consentLimitedCase(detail: CaseDetail): CaseDetail {
   return detail.request.sharingActive === true ? detail : {
-    ...detail, request: { ...detail.request, summary: null, preferredTime: "", sharingActive: false }, sharedJournals: [],
+    ...detail, request: { ...detail.request, summary: null, preferredTime: "", sharingActive: false }, sharedJournals: [], sharedPhq8: [],
   };
 }
 

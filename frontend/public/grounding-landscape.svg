@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#edf3e7"/><stop offset=".65" stop-color="#f5ead5"/><stop offset="1" stop-color="#d3dfd3"/></linearGradient>
+    <linearGradient id="front" x2="0" y2="1"><stop stop-color="#77988b"/><stop offset="1" stop-color="#315b4b"/></linearGradient>
+    <linearGradient id="fade" x2="1" y2="0"><stop stop-color="#fcfaf6"/><stop offset=".48" stop-color="#fcfaf6" stop-opacity=".72"/><stop offset="1" stop-color="#fcfaf6" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="900" height="260" fill="url(#sky)"/>
+  <circle cx="710" cy="94" r="57" fill="#f6dca9" opacity=".9"/>
+  <path d="M0 174 90 141 160 159 250 98 339 166 434 106 502 142 590 84 655 155 742 104 828 161 900 115v145H0Z" fill="#bccdc5"/>
+  <path d="M0 207 95 157 170 183 258 136 347 190 431 149 511 194 601 133 694 191 778 145 900 189v71H0Z" fill="#8eaaa0"/>
+  <path d="M0 222c130-16 181 20 312-6 125-28 222-8 344-19 105-9 168-37 244-15v78H0Z" fill="url(#front)"/>
+  <path d="M0 238c147-26 248 25 414-7 142-28 305 7 486-18v47H0Z" fill="#244b3d" opacity=".75"/>
+  <g fill="#173f31" opacity=".8">
+    <path d="m765 204 13-53 12 53h-7l-5-25-5 25zm29 7 16-68 17 68h-10l-7-35-7 35zm34-4 11-44 12 44h-7l-5-21-4 21zm32 8 16-70 17 70h-9l-8-37-7 37z"/>
+  </g>
+  <rect width="900" height="260" fill="url(#fade)"/>
+</svg>

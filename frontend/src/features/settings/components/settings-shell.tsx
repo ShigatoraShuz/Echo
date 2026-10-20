@@ -6,51 +6,108 @@ import type { ReactNode } from "react";
 import {
   Bell,
   BadgeCheck,
-  ChevronRight,
   Download,
+  ChevronRight,
   KeyRound,
   Lock,
+  MoreHorizontal,
   Shield,
   SlidersHorizontal,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { AppShell } from "@/shared/components/layout/echo-shells";
-import { ThemeControls } from "@/shared/theme";
 
 const settingsLinks = [
   { href: "/settings/profile", label: "Profile", description: "Identity and appearance", icon: UserRound },
   { href: "/settings/verification", label: "Verification", description: "Unlock Buddy and AI", icon: BadgeCheck },
   { href: "/settings/privacy", label: "Privacy", description: "Private-by-design controls", icon: Shield },
   { href: "/settings/notifications", label: "Notifications", description: "Gentle reminder choices", icon: Bell },
-  { href: "/settings/trusted-contacts", label: "Trusted contacts", description: "Your support circle", icon: UsersRound },
+  {
+    href: "/settings/trusted-contacts",
+    label: "Trusted contacts",
+    description: "Your support circle",
+    icon: UsersRound,
+  },
   { href: "/settings/security", label: "Security", description: "Password and sign-ins", icon: KeyRound },
   { href: "/settings/export", label: "Data & account", description: "Export or delete data", icon: Download },
 ];
 
+const primarySettingsLinks = settingsLinks.filter((item) =>
+  ["/settings/profile", "/settings/privacy", "/settings/notifications"].includes(item.href),
+);
+const moreSettingsLinks = settingsLinks.filter((item) => !primarySettingsLinks.includes(item));
+
 export function SettingsShell({ children }: { children: ReactNode }) {
-  return (
-    <AppShell>
-      <div className="grid min-w-0 max-w-full gap-4 overflow-hidden sm:gap-5 2xl:grid-cols-[248px_minmax(0,1fr)]">
-        <SettingsSidebar />
-        <div className="min-w-0 max-w-full overflow-hidden">{children}</div>
-      </div>
-    </AppShell>
-  );
+  return children;
 }
 
 export function SettingsSidebar() {
   const pathname = usePathname();
+  const isIndex = pathname === "/settings";
+  const activePath = isIndex ? "/settings/profile" : pathname;
+  const moreActive = moreSettingsLinks.some((item) => item.href === pathname);
 
   return (
-    <aside className="min-w-0 self-start rounded-[1.6rem] border border-border/65 bg-card/88 p-3 shadow-card backdrop-blur-xl 2xl:sticky 2xl:top-[108px]">
-      <div className="px-3 pb-3 pt-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Settings</p>
-        <p className="mt-1 text-sm text-muted-foreground">Shape your private ECHO space.</p>
+    <div className="echo-workspace-enter relative z-30 min-w-0 shrink-0 border-b border-border/70 pb-1 lg:z-auto">
+      <div className="lg:hidden">
+        <div className="px-1 pb-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Your space</p>
+          <h1 className="mt-1 font-[family-name:var(--font-echo-display)] text-[2.2rem] leading-none text-foreground">Settings</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">Shape your private ECHO space.</p>
+        </div>
+        <nav className="relative mt-2 grid grid-cols-4" aria-label="Mobile settings sections">
+          {primarySettingsLinks.map((item) => {
+            const Icon = item.icon;
+            const active = activePath === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 border-b-2 px-1 text-[10px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring min-[375px]:flex-row min-[375px]:gap-1",
+                  active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-primary",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+          <details key={pathname} className="group relative min-w-0">
+            <summary className={cn(
+              "flex min-h-14 cursor-pointer list-none flex-col items-center justify-center gap-0.5 border-b-2 px-1 text-[10px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring min-[375px]:flex-row min-[375px]:gap-1 [&::-webkit-details-marker]:hidden",
+              moreActive ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-primary",
+            )}>
+              <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />More
+            </summary>
+            <div className="absolute right-0 top-full z-30 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border/70 bg-card p-2 shadow-xl">
+              {moreSettingsLinks.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-foreground outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring">
+                    <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span className="flex-1">{item.label}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  </Link>
+                );
+              })}
+            </div>
+          </details>
+        </nav>
+      </div>
+      <div className="mb-2 hidden flex-wrap items-end justify-between gap-2 lg:flex">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Your space</p>
+          <h1 className="mt-0.5 font-[family-name:var(--font-echo-display)] text-[1.8rem] leading-tight text-foreground">
+            Settings
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground">Shape your private ECHO space.</p>
       </div>
       <nav
-        className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-1 [-ms-overflow-style:none] [scrollbar-width:none] 2xl:grid 2xl:overflow-visible [&::-webkit-scrollbar]:hidden"
+        className="hidden max-w-full snap-x gap-1 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex"
         aria-label="Settings sections"
       >
         {settingsLinks.map((item) => {
@@ -62,80 +119,33 @@ export function SettingsSidebar() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group flex min-w-[10.75rem] snap-start items-center gap-3 rounded-2xl px-3 py-3 text-left outline-none transition-[background-color,color,transform] duration-200 hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.98] sm:min-w-[12rem] 2xl:min-w-0",
-                active ? "bg-primary text-primary-foreground shadow-subtle" : "text-foreground",
+                "group inline-flex min-h-10 shrink-0 snap-start items-center gap-2 border-b-2 px-3 text-sm font-semibold outline-none transition-colors hover:text-primary focus-visible:ring-4 focus-visible:ring-ring/20",
+                active ? "border-primary text-primary" : "border-transparent text-muted-foreground",
               )}
             >
-              <span
-                className={cn(
-                  "grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors",
-                  active ? "bg-white/14 text-primary-foreground" : "bg-secondary text-primary",
-                )}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold">{item.label}</span>
-                <span
-                  className={cn(
-                    "mt-0.5 block truncate text-[11px]",
-                    active ? "text-primary-foreground/72" : "text-muted-foreground",
-                  )}
-                >
-                  {item.description}
-                </span>
-              </span>
-              <ChevronRight
-                className={cn(
-                  "ml-auto hidden h-4 w-4 shrink-0 2xl:block",
-                  active ? "text-primary-foreground/70" : "text-muted-foreground",
-                )}
-                aria-hidden="true"
-              />
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{item.label}</span>
             </Link>
           );
         })}
       </nav>
-      <div className="mt-3 hidden rounded-2xl border border-primary/10 bg-secondary/55 p-4 2xl:block">
-        <div className="flex gap-3">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-          <p className="text-xs leading-5 text-muted-foreground">
-            Changes are stored with your authenticated account and protected by owner-only database rules.
-          </p>
-        </div>
-      </div>
-    </aside>
+    </div>
   );
 }
 
-export function SettingsHeader({
-  id,
-  title,
-  description,
-  showThemeControls = false,
-}: {
-  id?: string;
-  title: string;
-  description: string;
-  showThemeControls?: boolean;
-}) {
+export function SettingsHeader({ id, title, description }: { id?: string; title: string; description: string }) {
   return (
     <header
       id={id}
-        className="mb-5 flex min-w-0 scroll-mt-24 flex-col gap-4 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/82 p-4 shadow-subtle backdrop-blur-xl sm:rounded-[1.6rem] sm:p-6 lg:flex-row lg:items-center lg:justify-between"
+      className="echo-workspace-enter mb-3 flex min-w-0 scroll-mt-24 flex-col gap-3 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/82 p-4 shadow-subtle backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between"
     >
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">ECHO settings</p>
-        <h1 className="mt-1 break-words font-serif text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">
+        <h1 className="mt-1 break-words font-serif text-[1.75rem] font-semibold leading-tight tracking-[-0.035em] text-foreground">
           {title}
         </h1>
-        <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-muted-foreground">{description}</p>
+        <p className="mt-1 max-w-2xl break-words text-sm leading-5 text-muted-foreground">{description}</p>
       </div>
-      {showThemeControls ? (
-        <div className="w-full shrink-0 rounded-2xl border border-border/70 bg-background/75 p-4 lg:w-[370px]">
-          <ThemeControls compact />
-        </div>
-      ) : null}
     </header>
   );
 }
@@ -157,11 +167,11 @@ export function SettingsSection({
     <section
       id={id}
       className={cn(
-        "min-w-0 scroll-mt-24 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/88 p-4 shadow-card backdrop-blur-xl sm:rounded-[1.6rem] sm:p-6",
+        "echo-workspace-enter min-w-0 scroll-mt-24 overflow-hidden rounded-[1.35rem] border border-border/65 bg-card/88 p-4 shadow-card backdrop-blur-xl sm:rounded-[1.6rem] sm:p-5",
         className,
       )}
     >
-      <div className="mb-5">
+      <div className="mb-3">
         <h2 className="text-lg font-semibold tracking-[-0.025em] text-foreground">{title}</h2>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>

@@ -1,10 +1,11 @@
-import type { InsightsService, InsightsServiceResult } from "@/services/insights/insights.service";
+import type { InsightsService } from "@/services/insights/insights.service";
 import type {
   EmotionInsightSummary,
   EmotionDistribution,
   MoodLevel,
   InsightTimeRange,
 } from "@/features/insights/model/insights.model";
+import { dashboardInsightsSchema } from "@echo/contracts";
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -77,11 +78,25 @@ export function createInsightsHttpAdapter(): InsightsService {
   });
 
   return {
+    async getAnalysisOverview(timeRange, customRange, signal) {
+      try {
+        const params = new URLSearchParams({ range: timeRange });
+        if (timeRange === "custom" && customRange) {
+          params.set("from", customRange.from);
+          params.set("to", customRange.to);
+        }
+        const response = await client.get<ApiEnvelope<unknown>>(`/dashboard/insights?${params.toString()}`, { signal });
+        return { success: true, data: dashboardInsightsSchema.parse(response.data) };
+      } catch {
+        return { success: false, error: { code: "UNKNOWN", message: "Failed to load AI insights." } };
+      }
+    },
+
     async getEmotionSummary(_timeRange: InsightTimeRange, signal) {
       try {
         const response = await client.get<ApiEnvelope<EmotionInsightsResponse>>("/insights/emotions", { signal });
         return { success: true, data: mapSummary(response.data) };
-      } catch (error) {
+      } catch {
         return { success: false, error: { code: "UNKNOWN", message: "Failed to load emotion insights." } };
       }
     },
@@ -93,7 +108,7 @@ export function createInsightsHttpAdapter(): InsightsService {
           success: true,
           data: { points: response.data.moodTrend.map((point) => ({ label: point.label, value: point.value, date: point.label })) },
         };
-      } catch (error) {
+      } catch {
         return { success: false, error: { code: "UNKNOWN", message: "Failed to load the mood trend." } };
       }
     },

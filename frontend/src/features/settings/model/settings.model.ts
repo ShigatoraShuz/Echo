@@ -11,6 +11,8 @@ export interface ProfileSettings {
 
 export interface PrivacySettings {
   journalAiAnalysisEnabled?: boolean;
+  buddyHistoryEnabled: boolean;
+  buddyHistoryAvailable?: boolean;
   journalPrivate: true;
   facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;
@@ -26,6 +28,9 @@ export interface NotificationSettings {
   insightNotificationsEnabled: boolean;
   reminderTime: string | null;
   reminderTimezone: string | null;
+  quietHoursAvailable?: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
 }
 
 export interface TrustedContact {
@@ -56,6 +61,11 @@ export interface DeletionRequest {
   scheduledFor: string | null;
   cancelledAt: string | null;
   completedAt: string | null;
+}
+
+export interface DeletionCenter {
+  deletionRequest: DeletionRequest | null;
+  exportHistory: ExportRequest[];
 }
 
 export interface SecurityAuditEvent {

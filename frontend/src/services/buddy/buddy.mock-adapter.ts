@@ -1,5 +1,5 @@
 import type { BuddyService, BuddyServiceResult } from "@/services/buddy/buddy.service";
-import type { BuddyConversation, BuddyMessage, BuddySession, CreateConversationInput, SendMessageInput, BuddyPagination } from "@/features/buddy/model/buddy.model";
+import type { BuddyConversation, BuddyMessage } from "@/features/buddy/model/buddy.model";
 import type { BuddyServiceError } from "@/features/buddy/model/buddy.model";
 
 function delay(ms: number): Promise<void> {
@@ -21,8 +21,9 @@ const seedMessages: Record<string, BuddyMessage[]> = {
   ],
 };
 
+let generatedId = 0;
 function generateId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}`;
+  return `${prefix}-${Date.now().toString(36)}-${++generatedId}`;
 }
 
 function toServiceError(code: BuddyServiceError["code"], message: string): BuddyServiceResult<never> {
@@ -39,25 +40,19 @@ const service: BuddyService = {
     async getAccessStatus(signal) {
       await delay(80 + Math.random() * 80);
       if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
-      return { success: true, data: { canAccessAi: true } };
+      return { success: true, data: { canAccessAi: true, buddyHistoryEnabled: true } };
     },
 
-    async listConversations(page, pageSize, signal) {
+    async listConversations(page, pageSize, signal, query = "") {
       await delay(150 + Math.random() * 150);
       if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
-      const totalItems = conversations.length;
+      const q = query.trim().toLowerCase();
+      const matching = q ? conversations.filter((conversation) => conversation.title.toLowerCase().includes(q)) : conversations;
+      const totalItems = matching.length;
       const totalPages = Math.ceil(totalItems / pageSize);
       const start = (page - 1) * pageSize;
-      const paged = conversations.slice(start, start + pageSize);
+      const paged = matching.slice(start, start + pageSize);
       return { success: true, data: { conversations: paged, pagination: { page, pageSize, totalItems, totalPages } } };
-    },
-
-    async searchConversations(query, signal) {
-      await delay(100);
-      if (signal?.aborted) return toServiceError("NETWORK", "Request was cancelled");
-      const q = query.toLowerCase();
-      const filtered = conversations.filter((c) => c.title.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
-      return { success: true, data: filtered };
     },
 
     async getConversation(id, signal) {
@@ -68,15 +63,22 @@ const service: BuddyService = {
       return { success: true, data: { conversation, messages: messages[id] ?? [] } };
     },
 
+    async pinConversation(id, pinned) {
+      const conversation = conversations.find((candidate) => candidate.id === id);
+      if (!conversation) return toServiceError("NOT_FOUND", "Conversation not found");
+      conversation.pinnedAt = pinned ? new Date().toISOString() : null;
+      return { success: true, data: conversation.pinnedAt };
+    },
+
     async createConversation(input) {
       await delay(200 + Math.random() * 200);
       const conversation: BuddyConversation = {
         id: `conv-${nextConvId++}`,
-        title: input.title,
+        title: input?.title ?? "Buddy conversation",
         lastMessage: "",
         lastMessageAt: "Just now",
         messageCount: 0,
-        mood: input.initialMood ?? "neutral",
+        mood: input?.initialMood ?? "neutral",
         createdAt: new Date().toISOString(),
       };
       conversations.unshift(conversation);
@@ -104,28 +106,32 @@ const service: BuddyService = {
     async sendMessage(input) {
       await delay(300 + Math.random() * 500);
       const conv = conversations.find((c) => c.id === input.conversationId);
-      if (!conv) return toServiceError("NOT_FOUND", "Conversation not found");
+      if (!conv && input.conversationId) return toServiceError("NOT_FOUND", "Conversation not found");
       const userMsg: BuddyMessage = {
         id: generateId("msg"),
-        conversationId: input.conversationId,
+        conversationId: input.conversationId ?? "temporary",
         role: "user",
         content: input.content,
         timestamp: "Just now",
       };
-      if (!messages[input.conversationId]) messages[input.conversationId] = [];
-      messages[input.conversationId].push(userMsg);
+      if (input.conversationId) {
+        if (!messages[input.conversationId]) messages[input.conversationId] = [];
+        messages[input.conversationId].push(userMsg);
+      }
       const buddyMsg: BuddyMessage = {
         id: generateId("msg"),
-        conversationId: input.conversationId,
+        conversationId: input.conversationId ?? "temporary",
         role: "buddy",
         content: "Thank you for sharing that with me. It takes courage to name what is present. Let's sit with that for a moment and explore what might help next.",
         timestamp: "Just now",
       };
-      messages[input.conversationId].push(buddyMsg);
-      conv.lastMessage = input.content.slice(0, 60);
-      conv.lastMessageAt = "Just now";
-      conv.messageCount = messages[input.conversationId].length;
-      return { success: true, data: buddyMsg };
+      if (input.conversationId && conv) {
+        messages[input.conversationId].push(buddyMsg);
+        conv.lastMessage = input.content.slice(0, 60);
+        conv.lastMessageAt = "Just now";
+        conv.messageCount = messages[input.conversationId].length;
+      }
+      return { success: true, data: { conversationId: input.conversationId ?? null, persisted: Boolean(input.conversationId), messages: [userMsg, buddyMsg] } };
     },
 
     async retryMessage(conversationId, messageId) {

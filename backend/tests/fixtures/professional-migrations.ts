@@ -15,4 +15,5 @@ export const professionalWorkflowMigrations = [
   "20261016160000_professional_query_indexes.sql",
   "20261017100000_professional_event_health.sql",
   "20261019090000_professional_withdrawal_compatibility.sql",
+  "20261020103920_professional_shared_case_snapshot.sql",
 ];

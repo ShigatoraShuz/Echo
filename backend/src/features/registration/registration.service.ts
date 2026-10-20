@@ -166,16 +166,38 @@ export class RegistrationService {
     });
     if (reserveError || reserved !== true)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Email registration could not be prepared.");
-    const { error } = await this.publicAuth.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        data: { signup_reservation: reservation },
-        emailRedirectTo: `${this.frontendUrl.replace(/\/$/, "")}/callback?next=/onboarding`,
-      },
-    });
-    if (error && !["user_already_exists", "email_exists"].includes(error.code ?? ""))
-      throw new ConflictError("EMAIL_SIGNUP_FAILED", "Registration could not be completed. Please try again later.");
+    let failure: { code?: string; status?: number } | null = null;
+    try {
+      const { error } = await this.publicAuth.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: { signup_reservation: reservation },
+          emailRedirectTo: `${this.frontendUrl.replace(/\/$/, "")}/callback?next=/onboarding`,
+        },
+      });
+      failure = error;
+    } catch {
+      failure = {};
+    }
+    if (failure && !["user_already_exists", "email_exists"].includes(failure.code ?? "")) {
+      const { data: restored, error: restoreError } = await this.database.rpc("echo_registration_update_draft", {
+        draft_id: draft.id,
+        expected_token_hash: draft.token_hash,
+        expected_state: "verification_pending",
+        changes: { state: "account", email: null, reservation_id: null, verification_sent_at: null },
+      });
+      if (restoreError || restored !== true) {
+        throw new ExternalServiceError(
+          "EMAIL_SIGNUP_UNCERTAIN",
+          "We could not confirm registration. Check your inbox; if no email arrives, start signup again.",
+        );
+      }
+      if (failure.status === 429 || ["over_email_send_rate_limit", "over_request_rate_limit"].includes(failure.code ?? "")) {
+        throw new AppError({ statusCode: 429, code: "EMAIL_SIGNUP_RATE_LIMITED", message: "Too many signup requests. Please wait before trying again." });
+      }
+      throw new ExternalServiceError("EMAIL_SIGNUP_FAILED", "Registration is temporarily unavailable. Please try again later.");
+    }
     return this.rotate({ ...draft, state: "verification_pending" }, { state: "verification_pending" });
   }
 

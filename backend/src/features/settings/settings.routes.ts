@@ -27,8 +27,9 @@ export function createSettingsRouter(service: SettingsService, verifier: AccessT
   router.post("/settings/data-exports/pdf-authorization", authenticate, requireRecentAuthentication, controller.authorizePdfExport);
   router.post("/settings/data-exports", authenticate, requireRecentAuthentication, controller.requestExport);
   router.get("/settings/data-exports/:requestId/download", authenticate, requireRecentAuthentication, controller.downloadExport);
+  router.get("/settings/account-deletion", authenticate, controller.getDeletionCenter);
   router.post("/settings/account-deletion", authenticate, requireRecentAuthentication, controller.requestDeletion);
-  router.patch("/settings/account-deletion/:requestId/cancel", authenticate, controller.cancelDeletion);
+  router.patch("/settings/account-deletion/:requestId/cancel", authenticate, requireRecentAuthentication, controller.cancelDeletion);
   router.patch("/settings/security/password", authenticate, controller.changePassword);
   router.get("/settings/security/audit-events", authenticate, controller.listSecurityAuditEvents);
   router.post("/settings/security/sign-out-all-devices", authenticate, controller.signOutAllDevices);

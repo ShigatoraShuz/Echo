@@ -35,15 +35,22 @@ describe("analysis dashboard", () => {
     expect(screen.getByText(/will not invent a trend/i)).toBeInTheDocument();
   });
   it("labels simulated results and opens the non-diagnostic details", async () => {
-    const insights: DashboardInsights = { latest: result, recommendation: null, emotionTrend: [], distressTrend: [] };
+    const insights: DashboardInsights = {
+      latest: result,
+      recommendation: { id: "00000000-0000-4000-8000-000000000001", title: "Breathe", description: "Pause gently.", activity: "paced" },
+      emotionTrend: [], distressTrend: [],
+    };
     render(<AnalysisInsightsDashboard insights={insights} />);
     const disclosure = screen.getByText("Journal analysis").closest("details");
     expect(disclosure).not.toHaveAttribute("open");
-    expect(screen.getByText(/calm emotion · low distress/i)).toBeInTheDocument();
+    expect(screen.getByText("Sample analysis preview")).toBeInTheDocument();
     expect(screen.getByText("Simulated analysis")).toBeInTheDocument();
     await userEvent.setup().click(screen.getByText("Journal analysis"));
     expect(disclosure).toHaveAttribute("open");
     expect(screen.getByText(/not a diagnosis or completed PHQ-8 assessment/i)).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("development example");
+    expect(screen.getByText("Buddy handoff is unavailable for a simulated result.")).toBeInTheDocument();
+    expect(screen.queryByText("Start with ECHO Buddy")).not.toBeInTheDocument();
     expect(screen.getByText(/not enough dated analysis/i)).toBeInTheDocument();
   });
   it("renders real dated mappings without a simulated-only notice", async () => {

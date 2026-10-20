@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useReducer } from "react";
+import { useCallback, useReducer, useRef } from "react";
 import type { AuthServiceError } from "../model/auth.model";
 import { validateLoginInput } from "../model/auth.schema";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
@@ -55,6 +55,7 @@ const initialLoginState: LoginState = {
 
 export function useLoginViewModel() {
   const [state, dispatch] = useReducer(loginReducer, initialLoginState);
+  const submitting = useRef(false);
   const authService = getAuthService();
 
   const setEmail = useCallback((email: string) => dispatch({ type: "SET_EMAIL", email }), []);
@@ -63,6 +64,7 @@ export function useLoginViewModel() {
   const togglePasswordVisibility = useCallback(() => dispatch({ type: "TOGGLE_PASSWORD_VISIBILITY" }), []);
 
   const submit = useCallback(async () => {
+    if (submitting.current) return null;
     const validation = validateLoginInput({
       email: state.email,
       password: state.password,
@@ -73,18 +75,26 @@ export function useLoginViewModel() {
       return;
     }
 
+    submitting.current = true;
     dispatch({ type: "SUBMIT_START" });
-    const result = await authService.login({
-      email: state.email.trim(),
-      password: state.password,
-      rememberSession: state.rememberSession,
-    });
-    if (result.success) {
-      dispatch({ type: "SUBMIT_SUCCESS" });
-      return result.data;
+    try {
+      const result = await authService.login({
+        email: state.email.trim(),
+        password: state.password,
+        rememberSession: state.rememberSession,
+      });
+      if (result.success) {
+        dispatch({ type: "SUBMIT_SUCCESS" });
+        return result.data;
+      }
+      dispatch({ type: "SUBMIT_ERROR", error: result.error });
+      return null;
+    } catch {
+      dispatch({ type: "SUBMIT_ERROR", error: { code: "NETWORK", message: "Sign-in could not be reached. Check your connection and try again." } });
+      return null;
+    } finally {
+      submitting.current = false;
     }
-    dispatch({ type: "SUBMIT_ERROR", error: result.error });
-    return null;
   }, [state.email, state.password, state.rememberSession, authService]);
 
   const reset = useCallback(() => dispatch({ type: "RESET" }), []);

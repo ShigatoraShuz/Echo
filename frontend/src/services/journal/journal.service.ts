@@ -15,6 +15,10 @@ export type JournalServiceResult<T> = { success: true; data: T } | { success: fa
 
 export interface JournalService {
   uploadImage?(journalId:string,imageId:string,file:File): Promise<JournalServiceResult<{id:string}>>;
+  uploadDraftImage(imageId: string, file: File): Promise<JournalServiceResult<{ id: string }>>;
+  listDraftImages(): Promise<JournalServiceResult<Array<{ id: string; url: string }>>>;
+  removeDraftImage(imageId: string): Promise<JournalServiceResult<void>>;
+  attachDraftImages(journalId: string): Promise<JournalServiceResult<{ attached: number }>>;
   listEntries(
     filters: JournalSearchFilters,
     page: number,

@@ -6,8 +6,6 @@ import {
 } from "next/font/google";
 
 import { ThemeProvider } from "@/shared/theme";
-import { SmoothScrollProvider } from "@/shared/components/providers/smooth-scroll-provider";
-import { EchoPageFade } from "@/shared/components/react-bits/echo-page-fade";
 import { EchoIntroGate } from "@/shared/components/branding/echo-intro-gate";
 
 import "lenis/dist/lenis.css";
@@ -19,7 +17,9 @@ export const metadata: Metadata = {
     "Private journaling, reflective support, and wellbeing signals. Not a diagnostic tool.",
   icons: {
     icon: "/icon.svg",
+    apple: "/echo-icon-192.png",
   },
+  appleWebApp: { capable: true, title: "ECHO", statusBarStyle: "default" },
 };
 
 const echoSans = Manrope({
@@ -59,6 +59,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-echo-theme="echo-calm"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <head>
@@ -74,13 +75,7 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <EchoIntroGate>
-          <SmoothScrollProvider>
-            <ThemeProvider>
-              <EchoPageFade>
-                {children}
-              </EchoPageFade>
-            </ThemeProvider>
-          </SmoothScrollProvider>
+          <ThemeProvider>{children}</ThemeProvider>
         </EchoIntroGate>
       </body>
     </html>

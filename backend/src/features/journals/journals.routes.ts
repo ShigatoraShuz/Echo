@@ -23,6 +23,10 @@ export function createJournalsRouter(
   });
   router.get("/journals", authenticate, controller.list);
   router.post("/journals", authenticate, controller.create);
+  router.get("/journals/draft/images", authenticate, controller.listDraftImages);
+  router.put("/journals/draft/images/:imageId", authenticate, raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "5mb" }), controller.uploadDraftImage);
+  router.delete("/journals/draft/images/:imageId", authenticate, controller.removeDraftImage);
+  router.post("/journals/:journalId/draft-images/attach", authenticate, controller.attachDraftImages);
   router.put("/journals/:journalId/images/:imageId", authenticate, raw({type:["image/jpeg","image/png","image/webp"],limit:"5mb"}), controller.uploadImage);
   router.get("/analysis-jobs/:jobId/status", authenticate, controller.status);
   router.get("/dashboard/insights", authenticate, controller.dashboardInsights);

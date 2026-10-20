@@ -1,11 +1,7 @@
-import type { JournalService, JournalServiceResult } from "@/services/journal/journal.service";
+import type { JournalService } from "@/services/journal/journal.service";
 import type {
-  JournalEntry,
   JournalDraft,
-  JournalAnalysis,
-  CreateJournalInput,
   UpdateJournalInput,
-  JournalSearchFilters,
   JournalServiceError,
 } from "@/features/journal/model/journal.model";
 import type {
@@ -70,6 +66,34 @@ export function createJournalHttpAdapter(): JournalService {
       try { return {success:true,data:(await client.put<{success:true;data:{id:string}},File>(`/journals/${journalId}/images/${imageId}`,file,{headers:{"Content-Type":file.type}})).data}; }
       catch(error) { return {success:false,error:toServiceError(error)}; }
     },
+    async uploadDraftImage(imageId, file) {
+      try {
+        const response = await client.put<{ success: true; data: { id: string } }, File>(
+          `/journals/draft/images/${imageId}`, file, { headers: { "Content-Type": file.type } },
+        );
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async listDraftImages() {
+      try {
+        const response = await client.get<{ success: true; data: Array<{ id: string; url: string }> }>("/journals/draft/images");
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async removeDraftImage(imageId) {
+      try {
+        await client.delete<undefined>(`/journals/draft/images/${imageId}`);
+        return { success: true, data: undefined };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
+    async attachDraftImages(journalId) {
+      try {
+        const response = await client.post<{ success: true; data: { attached: number } }>(
+          `/journals/${journalId}/draft-images/attach`,
+        );
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
     async listEntries(filters, page, pageSize, signal) {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -88,10 +112,10 @@ export function createJournalHttpAdapter(): JournalService {
           data: {
             entries,
             pagination: {
-              page,
-              pageSize,
-              totalItems: entries.length,
-              totalPages: Math.max(1, Math.ceil(entries.length / pageSize)),
+              page: response.data.page,
+              pageSize: response.data.page_size,
+              totalItems: response.data.total,
+              totalPages: Math.max(1, Math.ceil(response.data.total / response.data.page_size)),
             },
           },
         };
@@ -122,10 +146,23 @@ export function createJournalHttpAdapter(): JournalService {
         });
         if ("analysisJobId" in response.data)
           return { success: true, data: { kind: "analysis" as const, submission: response.data } };
-        const entry = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
-          `/journals/${response.data.journalId}`,
-        );
-        return { success: true, data: mapEntryResponseToDomain(entry.data) };
+        try {
+          const entry = await client.get<{ success: true; data: JournalEntryResponseDTO }>(
+            `/journals/${response.data.journalId}`,
+          );
+          return { success: true, data: mapEntryResponseToDomain(entry.data) };
+        } catch {
+          // The POST confirmed persistence. The detail page will retry the authoritative read.
+          const now = new Date().toISOString();
+          return { success: true, data: {
+            id: response.data.journalId, title: input.title, body: input.body,
+            excerpt: input.body.slice(0, 180), mood: input.mood, emotions: input.emotions,
+            tags: input.tags, privacyStatus: input.privacyStatus,
+            analysisConsent: input.analysisConsent, riskScore: null, riskBand: null,
+            summary: "No analysis result is available.", perspective: null,
+            createdAt: now, updatedAt: now, images: [],
+          } };
+        }
       } catch (error) {
         return { success: false, error: toServiceError(error) };
       }
@@ -151,9 +188,10 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async saveDraft(draft) {
       try {
-        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, JournalDraft>(
+        const { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent } = draft;
+        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, Pick<JournalDraft, "submissionKey" | "title" | "body" | "mood" | "emotions" | "tags" | "privacyStatus" | "analysisConsent">>(
           "/journals/draft",
-          draft,
+          { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent },
         );
         return { success: true, data: mapDraftResponseToDomain(response.data) };
       } catch (error) {

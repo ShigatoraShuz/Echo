@@ -26,7 +26,13 @@ export function ProfessionalCaseSharing({ detail, previewState }: { detail: Case
         <summary className="echo-focus-ring flex min-h-11 cursor-pointer items-center break-words rounded-lg text-sm font-semibold text-primary">{item.title || "Untitled reflection"}</summary>
         <p className="mt-4 break-words whitespace-pre-wrap text-sm leading-7">{item.body}</p>
       </details>)}</div> : <p className="text-sm text-muted-foreground">No journal snapshots were included in this response.</p> : <p className="text-sm text-muted-foreground">Shared journal contents are inaccessible.</p>}
-      <p className="mt-4 text-xs leading-6 text-muted-foreground">Assessment results are not available through this case service.</p>
+      <p className="mt-4 text-xs leading-6 text-muted-foreground">Only explicitly selected snapshots are included; original assessment records are not fetched here.</p>
     </ProfessionalPanel>
+    {active && (detail.sharedPhq8 ?? []).length > 0 ? <ProfessionalPanel title="Selected PHQ-8 snapshots" icon={ShieldCheck} description="Check-ins explicitly shared by the user for this case; not a diagnosis.">
+      <div className="space-y-3">{detail.sharedPhq8.map((item) => <article key={item.id} className="rounded-2xl border border-border bg-background p-4">
+        <h3 className="text-sm font-semibold">{item.label}</h3><p className="mt-2 text-sm">Score: {item.score} / 24 - {item.severity}</p>
+        <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{item.context}</p>
+      </article>)}</div>
+    </ProfessionalPanel> : null}
   </div>;
 }

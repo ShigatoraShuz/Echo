@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JournalEntry, JournalAnalysis } from "../model/journal.model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
@@ -74,12 +74,14 @@ const initialState: DetailState = {
 export function useJournalDetailViewModel(id: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getJournalService();
+  const lastLoadedAt = useRef(0);
 
   const loadEntry = useCallback(
     async (entryId: string) => {
       dispatch({ type: "ENTRY_LOAD_START" });
       const result = await service.getEntry(entryId);
       if (result.success) {
+        lastLoadedAt.current = Date.now();
         dispatch({ type: "ENTRY_LOAD_SUCCESS", entry: result.data });
 
         if (result.data.analysisConsent) {
@@ -105,7 +107,17 @@ export function useJournalDetailViewModel(id: string) {
       if (id) void loadEntry(id);
     };
     window.addEventListener("echo:analysis-completed", refresh);
-    return () => window.removeEventListener("echo:analysis-completed", refresh);
+    const refreshPhotos = () => {
+      if (id && document.visibilityState === "visible" && Date.now() - lastLoadedAt.current > 4 * 60_000)
+        void loadEntry(id);
+    };
+    document.addEventListener("visibilitychange", refreshPhotos);
+    const interval = window.setInterval(refreshPhotos, 60_000);
+    return () => {
+      window.removeEventListener("echo:analysis-completed", refresh);
+      document.removeEventListener("visibilitychange", refreshPhotos);
+      window.clearInterval(interval);
+    };
   }, [id, loadEntry]);
 
   const deleteEntry = useCallback(async () => {
@@ -116,6 +128,7 @@ export function useJournalDetailViewModel(id: string) {
     } else {
       dispatch({ type: "DELETE_ERROR", error: result.error.message });
     }
+    return result.success;
   }, [id, service]);
 
   const exportEntry = useCallback(async () => {

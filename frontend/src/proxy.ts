@@ -6,13 +6,16 @@ import { professionalReturnPath } from "@/features/professionals/professional-re
 const authenticatedPrefixes = [
   "/dashboard",
   "/journal",
+  "/calendar",
   "/buddy",
   "/insights",
   "/tools",
   "/settings",
   "/admin",
   "/professional",
+  "/professional-support",
   "/onboarding",
+  "/deletion",
 ];
 
 function requiresAuthentication(pathname: string): boolean {
@@ -25,6 +28,8 @@ function requiresAuthentication(pathname: string): boolean {
 }
 
 const accessDestinations: Record<string, string> = {
+  DELETION_PENDING:
+    "/deletion",
   ACCOUNT_UNAVAILABLE:
     "/login?error=account_unavailable",
   EMAIL_VERIFICATION_REQUIRED:
@@ -98,7 +103,7 @@ function contentSecurityPolicy(
 
     "style-src 'self' 'unsafe-inline' https://accounts.google.com",
 
-    "img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com",
+    `img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com${supabaseOrigin ? ` ${supabaseOrigin}` : ""}`,
 
     "font-src 'self' data:",
 
@@ -282,11 +287,10 @@ export async function proxy(
       response,
     );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (!user) {
+  if (!claims?.sub) {
     return redirectToLogin(
       request,
       response,

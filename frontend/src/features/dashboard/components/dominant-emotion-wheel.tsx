@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { LockKeyhole } from "lucide-react";
-import type { JournalEntry } from "@/features/journal/model/journal.model";
+import type { DashboardEntry } from "../model/dashboard.model";
 
 type EmotionRange = "day" | "week" | "1m" | "3m" | "6m";
 
 interface DominantEmotionWheelProps {
-  entries: JournalEntry[];
+  entries: DashboardEntry[];
 }
 
 const RANGE_OPTIONS: Array<{
@@ -57,18 +57,21 @@ function startOfLocalPeriod(reference: Date, days: number) {
   return start.getTime();
 }
 
+function isEntryInPeriod(entry: DashboardEntry, reference: Date, days: number) {
+  const timestamp = new Date(entry.createdAt).getTime();
+  return Number.isFinite(timestamp) && timestamp >= startOfLocalPeriod(reference, days) && timestamp <= reference.getTime();
+}
+
 export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
-  const [range, setRange] = useState<EmotionRange>("week");
+  const [range, setRange] = useState<EmotionRange>(() => {
+    const now = new Date();
+    return RANGE_OPTIONS.slice(1).find((option) => entries.some((entry) => isEntryInPeriod(entry, now, option.days)))?.value ?? "week";
+  });
   const selectedRange = RANGE_OPTIONS.find((option) => option.value === range) ?? RANGE_OPTIONS[1];
 
   const insight = useMemo(() => {
     const now = new Date();
-    const periodStart = startOfLocalPeriod(now, selectedRange.days);
-    const periodEnd = now.getTime();
-    const filteredEntries = entries.filter((entry) => {
-      const timestamp = new Date(entry.createdAt).getTime();
-      return Number.isFinite(timestamp) && timestamp >= periodStart && timestamp <= periodEnd;
-    });
+    const filteredEntries = entries.filter((entry) => isEntryInPeriod(entry, now, selectedRange.days));
 
     const counts = new Map<string, number>();
     for (const entry of filteredEntries) {
@@ -143,13 +146,14 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
       </div>
 
       {insight.dominant ? (
-        <div className="mt-5 grid items-center gap-5 sm:grid-cols-[minmax(0,190px)_1fr]">
-          <div className="relative mx-auto h-[184px] w-[184px]">
+        <div className="mt-5 grid items-center gap-5 sm:grid-cols-[minmax(0,190px)_1fr] xl:mt-3 xl:gap-3 xl:grid-cols-[minmax(0,150px)_1fr]">
+          <div className="relative mx-auto h-[184px] w-[184px] xl:h-[148px] xl:w-[148px]">
             <svg
+              key={range}
               viewBox="0 0 200 200"
               role="img"
               aria-label={`${formatEmotion(insight.dominant.emotion)} is the most present emotion for ${selectedRange.description}, appearing in ${insight.dominant.count} of ${insight.entries.length} reflections.`}
-              className="h-full w-full -rotate-90 drop-shadow-[0_12px_24px_rgba(35,62,39,0.13)]"
+              className="echo-chart-wheel-reveal h-full w-full -rotate-90 drop-shadow-[0_12px_24px_rgba(35,62,39,0.13)]"
             >
               <circle cx="100" cy="100" r="76" fill="none" stroke="rgba(71,113,91,0.10)" strokeWidth="27" />
               {insight.segments.map((segment) => {
@@ -172,7 +176,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
                 );
               })}
             </svg>
-            <div className="absolute inset-[36px] flex flex-col items-center justify-center rounded-full border border-white/80 bg-[rgba(255,253,247,0.94)] text-center shadow-inner">
+            <div className="absolute inset-[36px] flex flex-col items-center justify-center rounded-full border border-white/80 bg-[rgba(255,253,247,0.94)] text-center shadow-inner xl:inset-[28px]">
               <span className="text-[9px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
                 Most present
               </span>
@@ -186,7 +190,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
           </div>
 
           <div className="min-w-0">
-            <div className="rounded-2xl border border-[var(--landing-primary-10)] bg-white/62 p-4">
+            <div className="rounded-2xl border border-[var(--landing-primary-10)] bg-white/62 p-4 xl:p-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
                 Dominant emotion
               </p>
@@ -199,7 +203,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
               </p>
             </div>
 
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2" aria-label="Emotion distribution">
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 xl:mt-2" aria-label="Emotion distribution">
               {insight.segments.map((segment) => (
                 <li key={segment.emotion} className="flex min-w-0 items-center gap-2 text-[11px]">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} aria-hidden="true" />
@@ -213,8 +217,8 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
           </div>
         </div>
       ) : (
-        <div className="mt-5 flex min-h-[184px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--landing-primary-15)] bg-white/45 px-6 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-[10px] border-secondary/80">
+        <div className="mt-5 flex min-h-[184px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[var(--landing-primary-15)] bg-white/45 px-6 text-center xl:mt-3 xl:min-h-[128px]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border-[10px] border-secondary/80 xl:h-12 xl:w-12 xl:border-[8px]">
             <span className="h-2.5 w-2.5 rounded-full bg-primary/45" aria-hidden="true" />
           </div>
           <p className="mt-3 text-sm font-semibold text-foreground">No emotions recorded {selectedRange.description}.</p>
@@ -224,7 +228,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
         </div>
       )}
 
-      <p className="mt-4 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
+      <p className="mt-4 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground xl:mt-2">
         <LockKeyhole className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
         Calculated privately from your saved emotion tags. This pattern is not a diagnosis.
       </p>

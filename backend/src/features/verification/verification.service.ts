@@ -1,7 +1,7 @@
 import { assertDocumentsClean, inspectDocument, quarantineScanner, validateDocument, type DocumentScanner } from "../../infrastructure/security/document-scanner.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertTrustedContact } from "../settings/trusted-contact-access.js";
+import { assertTrustedContact, hasValidTrustedContact } from "../settings/trusted-contact-access.js";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import {
   AuthorizationError,
@@ -235,6 +235,7 @@ export class VerificationService {
       return {
         status: "not_started" as const,
         canAccessAi: false,
+        accessRequirement: "verification" as const,
         canReview: admin,
         isMinor: null,
         application: null,
@@ -255,9 +256,11 @@ export class VerificationService {
     const documents = await this.documentsForVerification(stringValue(row.id));
     const isMinor = typeof row.is_minor === "boolean" ? row.is_minor : null;
     const status = stringValue(row.verification_status) as Exclude<VerificationStatus, "not_started">;
+    const hasContact = status === "approved" ? await hasValidTrustedContact(this.database, userId) : false;
     return {
       status,
-      canAccessAi: status === "approved",
+      canAccessAi: status === "approved" && hasContact,
+      accessRequirement: status !== "approved" ? "verification" as const : hasContact ? null : "trusted_contact" as const,
       canReview: admin,
       isMinor,
       application: this.applicationDetails(row),
@@ -657,6 +660,8 @@ export class VerificationService {
         .insert({
           user_id: userId,
           notification_type: "verification_status",
+          resource_type: "identity_verification",
+          resource_id: verificationId,
           title: input.decision === "approved" ? "Your account is verified" : "Verification update",
           message:
             input.decision === "approved"

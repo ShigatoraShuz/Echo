@@ -9,6 +9,9 @@ export interface EnvironmentConfig {
   enableFacialAnalysis: boolean;
   enableRiskInsights: boolean;
   enableNotifications: boolean;
+  enableInAppReminders: boolean;
+  enableEmailAlerts: boolean;
+  pushVapidPublicKey: string;
   enableDataExport: boolean;
   enableAnalysisFixtures: boolean;
 }
@@ -36,14 +39,17 @@ function validateAdapter(value: string | undefined): DataAdapter {
 }
 
 export const env: EnvironmentConfig = {
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4200/api/v1",
-  dataAdapter: validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
+  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || (process.env.NODE_ENV !== "production" ? "http://127.0.0.1:4200/api/v1" : ""),
+  dataAdapter: process.env.NODE_ENV === "production" ? "http" : validateAdapter(process.env.NEXT_PUBLIC_DATA_ADAPTER),
   enableAnalysisPreview: process.env.NODE_ENV === "development",
   enableBuddy: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_BUDDY),
   enableFacialAnalysis:
     process.env.NODE_ENV === "development" || parseBoolean(process.env.NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS),
   enableRiskInsights: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_RISK_INSIGHTS),
   enableNotifications: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS),
+  enableInAppReminders: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_IN_APP_REMINDERS),
+  enableEmailAlerts: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_EMAIL_ALERTS),
+  pushVapidPublicKey: process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY || "",
   enableDataExport: parseBoolean(process.env.NEXT_PUBLIC_ENABLE_DATA_EXPORT),
   enableAnalysisFixtures:
     process.env.NODE_ENV === "development" && parseBoolean(process.env.NEXT_PUBLIC_ENABLE_ANALYSIS_FIXTURES),

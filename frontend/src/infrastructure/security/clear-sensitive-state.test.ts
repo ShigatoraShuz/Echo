@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { clearSensitiveBrowserState } from "./clear-sensitive-state";
 
 describe("sensitive session cache cleanup", () => {
@@ -14,5 +14,15 @@ describe("sensitive session cache cleanup", () => {
       expect(storage.getItem("echo:active-analysis")).toBeNull();
       expect(storage.getItem("echo-theme")).toBe("dark");
     }
+  });
+
+  it("stops device alerts when a private session is cleared", async () => {
+    const unsubscribe = vi.fn().mockResolvedValue(true);
+    Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: {
+      getRegistration: async () => ({ pushManager: { getSubscription: async () => ({ unsubscribe }) } }),
+    } });
+    clearSensitiveBrowserState();
+    await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+    Reflect.deleteProperty(navigator, "serviceWorker");
   });
 });

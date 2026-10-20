@@ -16,6 +16,11 @@ export interface NotificationItem {
 
 export type NotificationStatusFilter = "all" | "unread";
 
+interface NotificationList {
+  notifications: NotificationItem[];
+  unreadCount?: number;
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   data: T;
@@ -37,7 +42,7 @@ async function unwrap<T>(promise: Promise<ApiEnvelope<T>>): Promise<T> {
 export const notificationsService = {
   list(status: NotificationStatusFilter = "all", limit = 20) {
     const params = new URLSearchParams({ status, limit: String(limit) });
-    return unwrap(client.get<ApiEnvelope<{ notifications: NotificationItem[] }>>(`/notifications?${params}`));
+    return unwrap(client.get<ApiEnvelope<NotificationList>>(`/notifications?${params}`));
   },
   markRead(notificationId: string) {
     return unwrap(client.patch<ApiEnvelope<{ notification: NotificationItem }>>(
@@ -45,6 +50,16 @@ export const notificationsService = {
     ));
   },
   markAllRead() {
-    return unwrap(client.patch<ApiEnvelope<{ notifications: NotificationItem[] }>>("/notifications/read-all"));
+    return unwrap(client.patch<ApiEnvelope<NotificationList>>("/notifications/read-all"));
+  },
+  registerPush(subscription: PushSubscriptionJSON) {
+    return unwrap(client.post<ApiEnvelope<{ registered: boolean }>, PushSubscriptionJSON>(
+      "/notifications/push/subscriptions", subscription,
+    ));
+  },
+  unregisterPush(endpoint: string) {
+    return unwrap(client.post<ApiEnvelope<{ registered: boolean }>, { endpoint: string }>(
+      "/notifications/push/unsubscribe", { endpoint },
+    ));
   },
 };

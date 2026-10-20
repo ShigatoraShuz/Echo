@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type PointerEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import Image from "next/image";
 
 import { cn } from "@/shared/lib/utils";
@@ -57,7 +50,7 @@ export function getGalleryDimensions(
 ): GalleryDimensions {
   switch (getBreakpoint(width)) {
     case "sm":
-      return { radius: radiusSm, cardSize: cardSizeSm, imageLimit: 8 };
+      return { radius: radiusSm, cardSize: cardSizeSm, imageLimit: 5 };
     case "md":
       return { radius: radiusMd, cardSize: cardSizeMd, imageLimit: 10 };
     default:
@@ -103,10 +96,10 @@ export function ArcGalleryHero({
   endAngle = 160,
   radiusLg = 510,
   radiusMd = 350,
-  radiusSm = 170,
+  radiusSm = 110,
   cardSizeLg = 88,
   cardSizeMd = 74,
-  cardSizeSm = 52,
+  cardSizeSm = 48,
   className,
   background,
   children,
@@ -141,10 +134,7 @@ export function ArcGalleryHero({
     return () => window.removeEventListener("resize", updateDimensions);
   }, [radiusLg, radiusMd, radiusSm, cardSizeLg, cardSizeMd, cardSizeSm]);
 
-  const visibleImages = useMemo(
-    () => images.slice(0, dimensions.imageLimit),
-    [dimensions.imageLimit, images],
-  );
+  const visibleImages = useMemo(() => images.slice(0, dimensions.imageLimit), [dimensions.imageLimit, images]);
   const count = Math.max(visibleImages.length, 2);
   const step = (endAngle - startAngle) / (count - 1);
 
@@ -162,11 +152,11 @@ export function ArcGalleryHero({
       ) : null}
 
       <div
-        className="pointer-events-none relative z-[1] mx-auto w-full pt-20 sm:pt-0"
+        className="pointer-events-none relative z-[1] mx-auto w-full"
         aria-hidden="true"
         style={{ height: dimensions.radius * 1.25 }}
       >
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-20 sm:translate-y-0">
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
           {visibleImages.map((src, index) => {
             const angle = startAngle + step * index;
             const angleInRadians = (angle * Math.PI) / 180;
@@ -209,7 +199,9 @@ export function ArcGalleryHero({
         </div>
       </div>
 
-      {children ? <div className="relative z-10 -mt-30 flex w-full items-start justify-center sm:-mt-44 lg:-mt-80">{children}</div> : null}
+      {children ? (
+        <div className="relative z-10 flex w-full items-start justify-center sm:-mt-44 lg:-mt-80">{children}</div>
+      ) : null}
     </section>
   );
 }

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Bell, CheckCheck, ExternalLink, LoaderCircle, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { notificationsService, type NotificationItem, type NotificationStatusFilter } from "@/services/notifications";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 
 function formatDate(value: string): string {
   if (!value) return "Unknown time";
@@ -17,12 +18,16 @@ function notificationHref(item: NotificationItem): string | null {
       return "/settings/verification";
     case "journal":
       return item.resourceId ? `/journal/${encodeURIComponent(item.resourceId)}` : "/journal";
+    case "grounding":
+      return "/tools/grounding";
     case "data_export_request":
       return "/settings/export";
     case "account_deletion_request":
       return "/settings/export";
     case "trusted_contact":
       return "/settings/trusted-contacts";
+    case "professional_case":
+      return item.resourceId ? `/professional-support/requests/${encodeURIComponent(item.resourceId)}` : "/professional-support";
     default:
       return null;
   }
@@ -33,22 +38,29 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<NotificationStatusFilter>("all");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const unreadCount = useMemo(() => notifications.filter((item) => !item.readAt).length, [notifications]);
+  const dialogRef = useFocusTrap<HTMLElement>(open);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const loadRequest = useRef(0);
+  const readInFlight = useRef(new Set<string>());
 
   const load = useCallback(async (status: NotificationStatusFilter) => {
+    const request = ++loadRequest.current;
     setLoading(true);
     setError(null);
     try {
       const data = await notificationsService.list(status, 20);
-      setNotifications(data.notifications);
+      if (request === loadRequest.current) {
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount ?? data.notifications.filter((item) => !item.readAt).length);
+      }
     } catch {
-      setError("Notifications could not be loaded.");
+      if (request === loadRequest.current) setError("Notifications could not be loaded.");
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current) setLoading(false);
     }
   }, []);
 
@@ -64,21 +76,45 @@ export function NotificationBell() {
   }, [filter, load]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") void load(filter); };
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [filter, load]);
+
+  useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    dialogRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const trigger = triggerRef.current;
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
     };
-  }, [open]);
+  }, [open, dialogRef]);
 
   async function markRead(item: NotificationItem) {
-    if (item.readAt) return;
+    if (item.readAt || readInFlight.current.has(item.id)) return;
+    readInFlight.current.add(item.id);
     try {
       const data = await notificationsService.markRead(item.id);
-      setNotifications((current) => current.map((existing) => existing.id === item.id ? data.notification : existing));
+      setUnreadCount((count) => Math.max(0, count - 1));
+      setNotifications((current) => filter === "unread"
+        ? current.filter((existing) => existing.id !== item.id)
+        : current.map((existing) => existing.id === item.id ? data.notification : existing));
     } catch {
       setError("Notification could not be marked as read.");
+    } finally {
+      readInFlight.current.delete(item.id);
     }
   }
 
@@ -88,6 +124,7 @@ export function NotificationBell() {
     try {
       const data = await notificationsService.markAllRead();
       setNotifications(filter === "unread" ? [] : data.notifications);
+      setUnreadCount(0);
     } catch {
       setError("Notifications could not be marked as read.");
     } finally {
@@ -96,12 +133,14 @@ export function NotificationBell() {
   }
 
   const modal = open ? (
-    <div className="fixed inset-0 z-[500] flex items-start justify-center overflow-y-auto bg-[#10231b]/45 px-4 py-6 backdrop-blur-sm sm:items-center">
+    <div className="fixed inset-0 z-[500] flex items-start justify-center overflow-y-auto bg-[#10231b]/45 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="notification-modal-title"
-        className="w-full max-w-xl overflow-hidden rounded-[2rem] border border-border/70 bg-card text-foreground shadow-[0_28px_80px_rgba(16,35,27,0.28)]"
+        tabIndex={-1}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-[1.5rem] border border-border/70 bg-card text-foreground shadow-[0_28px_80px_rgba(16,35,27,0.28)] sm:rounded-[2rem]"
       >
         <header className="flex items-start justify-between gap-4 border-b border-border/65 px-5 py-4">
           <div>
@@ -146,17 +185,24 @@ export function NotificationBell() {
           </button>
         </form>
 
-        <div className="max-h-[55vh] overflow-y-auto px-5 py-4">
-          {error ? <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {error ? (
+            <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <span>{error}</span>
+              <button type="button" onClick={() => void load(filter)} className="min-h-10 rounded-full px-3 font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive">
+                Retry
+              </button>
+            </div>
+          ) : null}
           {loading ? (
             <div className="grid min-h-40 place-items-center">
               <LoaderCircle className="h-7 w-7 animate-spin text-primary" />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : error && notifications.length === 0 ? null : notifications.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/70 bg-background/70 px-5 py-10 text-center">
               <Bell className="mx-auto h-7 w-7 text-muted-foreground/60" />
               <p className="mt-2 text-sm font-bold">No notifications here</p>
-              <p className="mt-1 text-xs text-muted-foreground">New account, reminder, and verification updates will appear here.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Account, support, and verification updates will appear here when available.</p>
             </div>
           ) : (
             <ul className="space-y-3">
@@ -179,7 +225,7 @@ export function NotificationBell() {
                 return (
                   <li key={item.id} className={`rounded-2xl border p-4 ${item.readAt ? "border-border/60 bg-background/65" : "border-primary/25 bg-primary/5"}`}>
                     {href ? (
-                      <Link href={href} onClick={() => void markRead(item)} className="flex items-start gap-3 outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
+                      <Link href={href} onClick={() => { setOpen(false); void markRead(item); }} className="flex items-start gap-3 outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
                         {content}
                         <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-primary" />
                       </Link>
@@ -201,12 +247,13 @@ export function NotificationBell() {
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
           setOpen(true);
           void load(filter);
         }}
-        className="relative grid h-10 w-10 place-items-center rounded-full border border-border/70 bg-card text-muted-foreground outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
+        className="relative grid size-[44px] place-items-center rounded-full border border-border/70 bg-card text-muted-foreground outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
       >
         <Bell className="h-4 w-4" aria-hidden="true" />

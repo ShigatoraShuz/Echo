@@ -32,7 +32,7 @@ interface ShowcaseImage {
 
 const showcaseImages: ShowcaseImage[] = [
   {
-    src: "/landing/showcase/echo-dashboard-preview.png",
+    src: "/landing/showcase/echo-dashboard-preview-v2.png",
     alt: "ECHO dashboard screen with reflection cards and wellbeing signals.",
     label: "Dashboard",
     icon: LayoutDashboard,
@@ -57,27 +57,46 @@ const showcaseImages: ShowcaseImage[] = [
   },
 ];
 
+function ShowcaseIntro() {
+  return (
+    <EchoReveal variant="text" direction="none">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--landing-primary)]">
+        Explore ECHO
+      </p>
+      <h2 className="mx-auto mt-3 max-w-3xl font-[family-name:var(--font-echo-display)] text-3xl font-medium leading-tight text-[var(--landing-primary)] sm:text-4xl lg:text-5xl">
+        Everything you need to understand your reflections.
+      </h2>
+      <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:text-base">
+        Write, speak, reflect, and discover patterns in one private space designed to support your mental well-being.
+      </p>
+    </EchoReveal>
+  );
+}
+
 export function EchoProductShowcase() {
   return (
     <section className="landing-product-showcase-gradient relative text-[var(--landing-ink)]">
-      <ContainerScroll
-        className="bg-transparent"
-        titleComponent={
-          <EchoReveal variant="text" direction="none">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--landing-primary)]">
-              Explore ECHO
-            </p>
-            <h2 className="mx-auto mt-3 max-w-3xl font-[family-name:var(--font-echo-display)] text-3xl font-medium leading-tight text-[var(--landing-primary)] sm:text-4xl lg:text-5xl">
-              Everything you need to understand your reflections.
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-6 text-[var(--landing-ink-75)] sm:text-base">
-              Write, speak, reflect, and discover patterns in one private space designed to support your mental well-being.
-            </p>
-          </EchoReveal>
-        }
-      >
-        {(scrollYProgress) => <ShowcaseImageDeck scrollYProgress={scrollYProgress} />}
-      </ContainerScroll>
+      <div className="mx-auto max-w-lg px-5 pb-16 pt-20 text-center md:hidden">
+        <ShowcaseIntro />
+        <EchoReveal variant="media" delay={65}>
+          <div className="mt-8 overflow-hidden rounded-[1.4rem] border-[5px] border-[#1f2d28] bg-[#fcfaf6] shadow-[0_22px_50px_rgba(23,45,37,0.2)]">
+            <div className="relative aspect-[2/1]">
+              <Image
+                src={showcaseImages[1].src}
+                alt={showcaseImages[1].alt}
+                fill
+                sizes="(max-width: 767px) 100vw, 1px"
+                className="object-contain object-left-top"
+              />
+            </div>
+          </div>
+        </EchoReveal>
+      </div>
+      <div className="hidden md:block">
+        <ContainerScroll className="bg-transparent" titleComponent={<ShowcaseIntro />}>
+          {(scrollYProgress) => <ShowcaseImageDeck scrollYProgress={scrollYProgress} />}
+        </ContainerScroll>
+      </div>
 
       <div className="relative isolate overflow-hidden bg-[#f6f5e9] px-4 pb-24 pt-16 sm:px-6 sm:pt-20 lg:px-8 lg:pb-32">
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(ellipse_at_top,rgba(218,238,182,0.72),transparent_70%)]" />

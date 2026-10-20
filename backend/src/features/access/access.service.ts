@@ -6,6 +6,7 @@ import { ELIGIBILITY_RULE_VERSION } from "../registration/registration.service.j
 
 export type AccessDecision =
   | "ACCOUNT_UNAVAILABLE"
+  | "DELETION_PENDING"
   | "EMAIL_VERIFICATION_REQUIRED"
   | "AGE_VERIFICATION_REQUIRED"
   | "POLICY_REVIEW_REQUIRED"
@@ -15,7 +16,14 @@ export type AccessDecision =
 export class AccessService {
   constructor(private readonly database: SupabaseClient, private readonly userDatabase?: () => SupabaseClient) {}
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
+  async hasPendingDeletion(userId: string): Promise<boolean> {
+    const { data, error } = await this.database.schema("user_service").from("account_deletion_requests")
+      .select("id").eq("user_id", userId).in("request_status", ["pending", "processing"]).limit(1);
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Account access could not be checked.");
+    return Boolean(data?.length);
+  }
   async decide(user: AuthenticatedUser): Promise<{ decision: AccessDecision; onboardingStep: number }> {
+    if (await this.hasPendingDeletion(user.id)) return { decision: "DELETION_PENDING", onboardingStep: 0 };
     if (!user.emailVerified) return { decision: "EMAIL_VERIFICATION_REQUIRED", onboardingStep: 0 };
     const { data: profile, error } = await this.reader
       .schema("user_service")
@@ -27,17 +35,19 @@ export class AccessService {
     if (!profile || profile.account_status !== "active") return { decision: "ACCOUNT_UNAVAILABLE", onboardingStep: 0 };
     if (profile.eligible_18_plus !== true || !profile.eligibility_verified_at)
       return { decision: "AGE_VERIFICATION_REQUIRED", onboardingStep: Number(profile.onboarding_step ?? 0) };
-    const { data: active } = await this.database
-      .schema("auth_provisioning")
-      .from("policy_documents")
-      .select("document_type,version")
-      .eq("is_active", true);
-    const { data: consents } = await this.reader
-      .schema("user_service")
-      .from("user_consents")
-      .select("consent_type,consent_version,accepted")
-      .eq("user_id", user.id)
-      .eq("accepted", true);
+    const [{ data: active }, { data: consents }] = await Promise.all([
+      this.database
+        .schema("auth_provisioning")
+        .from("policy_documents")
+        .select("document_type,version")
+        .eq("is_active", true),
+      this.reader
+        .schema("user_service")
+        .from("user_consents")
+        .select("consent_type,consent_version,accepted")
+        .eq("user_id", user.id)
+        .eq("accepted", true),
+    ]);
     const accepted = new Set((consents ?? []).map((item) => `${item.consent_type}:${item.consent_version}`));
     if (
       !active ||

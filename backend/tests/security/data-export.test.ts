@@ -8,7 +8,7 @@ import {
 const encryption = createEncryptionService(Buffer.alloc(32, 7).toString("base64"), 1);
 const user = "40000000-0000-4000-8000-000000000001";
 const id = "41000000-0000-4000-8000-000000000001";
-function harness(collections: Record<string, unknown[]> = {}) {
+function harness(collections: Record<string, unknown[]> = {}, calendarRows: unknown[] = [], buddyPins: unknown[] = [], draftImages: unknown[] = []) {
   let ciphertext: string | null = null;
   const updates = vi.fn();
   const eq = vi.fn();
@@ -31,8 +31,20 @@ function harness(collections: Record<string, unknown[]> = {}) {
     return { error: null };
   });
   const download = vi.fn().mockResolvedValue({ data: new Blob(["synthetic-image"]), error: null });
+  const from = vi.fn((table: string) => {
+    if (table === "calendar_items" || table === "buddy_conversations" || table === "journal_draft_images") {
+      const rows = table === "calendar_items" ? calendarRows : table === "buddy_conversations" ? buddyPins : draftImages;
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        limit: vi.fn(async () => ({ data: rows, error: null })),
+      };
+      return query;
+    }
+    return { update: updates.mockReturnValue({ eq }) };
+  });
   const database = {
-    schema: vi.fn(() => ({ rpc, from: vi.fn(() => ({ update: updates.mockReturnValue({ eq }) })) })),
+    schema: vi.fn(() => ({ rpc, from })),
     auth: {
       admin: {
         getUserById: vi
@@ -66,6 +78,18 @@ describe("private account exports", () => {
     await expect(h.service.download("other-user", id)).rejects.toMatchObject({ statusCode: 404 });
     expect(JSON.parse(await h.service.download(user, id)).account.email).toBe("owner@example.test");
     await expect(h.service.download(user, id)).rejects.toMatchObject({ statusCode: 404 });
+  });
+  it("includes decrypted calendar notes and Buddy pin state in the private export", async () => {
+    const h = harness(
+      { "buddy_service.buddy_conversations": [{ id: "conversation-1", title: "Private chat" }] },
+      [{ id: "calendar-1", user_id: user, content_ciphertext: encryptText("Private reminder", encryption) }],
+      [{ id: "conversation-1", pinned_at: "2026-10-12T09:00:00Z" }],
+    );
+    await h.service.prepare(user);
+    const exportData = JSON.parse(await h.service.download(user, id));
+    expect(exportData.collections["user_service.calendar_items"][0].content).toBe("Private reminder");
+    expect(exportData.collections["buddy_service.buddy_conversations"][0].pinned_at).toBe("2026-10-12T09:00:00Z");
+    expect(JSON.stringify(exportData)).not.toContain("content_ciphertext");
   });
   it("rejects ciphertext for a different owner or request even if database metadata is substituted", async () => {
     const h = harness();
@@ -107,6 +131,14 @@ describe("private account exports", () => {
     const output = JSON.parse(await h.service.download(user, id));
     expect(output.attachments).toHaveLength(1);
     expect(output.attachments[0].base64).toBe(Buffer.from("synthetic-image").toString("base64"));
+  });
+  it("includes uploaded private draft photos in the account export", async () => {
+    const draft = { id: "draft-image", user_id: user, uploaded: true, storage_path: user + "/draft/image.png", mime_type: "image/png" };
+    const h = harness({}, [], [], [draft]);
+    await h.service.prepare(user);
+    const output = JSON.parse(await h.service.download(user, id));
+    expect(output.collections["journal_service.journal_draft_images"]).toEqual([draft]);
+    expect(output.attachments).toMatchObject([{ path: "journal-images/" + draft.storage_path }]);
   });
   it("fails before downloading a substituted path belonging to another account", async () => {
     const h = harness({ "journal_service.journal_images": [{ uploaded: true, storage_path: "other/account.png" }] });

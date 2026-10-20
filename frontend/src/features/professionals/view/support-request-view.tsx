@@ -1,15 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { BookOpen, HeartHandshake, ShieldCheck } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Activity, BookOpen, HeartHandshake, ShieldCheck } from "lucide-react";
+import { ROUTES } from "@/config/routes.config";
 import { AppShell } from "@/shared/components/layout/echo-shells";
-import { PageHeader } from "@/shared/components/layout/page-header";
+import { ProfessionalSupportHeader } from "../components/professional-support-header";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { professionalApi, type Organization } from "@/services/professionals/professional-api";
+import { experienceApi } from "@/services/experience/experience-api";
+import type { Phq8Assessment } from "@echo/contracts";
+import { ProfessionalSupportNav } from "../components/professional-support-nav";
 
 interface JournalChoice {
   id: string;
@@ -19,6 +23,8 @@ interface JournalChoice {
 
 export function SupportRequestView() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const submissionId = useRef<string | null>(null);
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [journals, setJournals] = useState<JournalChoice[] | null>(null);
   const [journalError, setJournalError] = useState(false);
@@ -26,6 +32,8 @@ export function SupportRequestView() {
   const [summary, setSummary] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [journalIds, setJournalIds] = useState<string[]>([]);
+  const [phq8, setPhq8] = useState<Phq8Assessment[]>([]);
+  const [phq8Ids, setPhq8Ids] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +45,8 @@ export function SupportRequestView() {
       .then(({ organizations: items }) => {
         if (!active) return;
         setOrganizations(items);
-        setOrganizationId(items[0]?.id ?? "");
+        const requested = searchParams.get("organization");
+        setOrganizationId(items.some((item) => item.id === requested) ? requested! : items[0]?.id ?? "");
       })
       .catch((reason) => {
         if (active) {
@@ -56,10 +65,11 @@ export function SupportRequestView() {
           setJournalError(true);
         }
       });
+    void experienceApi.getWellnessStatus().then((status) => { if (active) setPhq8(status.assessment.history); }).catch(() => { if (active) setPhq8([]); });
     return () => {
       active = false;
     };
-  }, []);
+  }, [searchParams]);
 
   function toggleJournal(id: string) {
     setJournalIds((current) =>
@@ -74,13 +84,16 @@ export function SupportRequestView() {
     setError("");
     try {
       const result = await professionalApi.createRequest({
+        submissionId: submissionId.current ??= crypto.randomUUID(),
         organizationId,
+        preferredProfileId: searchParams.get("organization") === organizationId ? searchParams.get("practitioner") : null,
         summary: summary.trim(),
         preferredTime: preferredTime.trim(),
         journalIds,
+        phq8Ids,
         consent: true,
       });
-      router.push(`/professional/my-requests/${result.request.id}`);
+      router.push(ROUTES.professionalSupport.request(result.request.id));
     } catch (reason) {
       setError(normalizeError(reason).userMessage);
       setBusy(false);
@@ -90,11 +103,12 @@ export function SupportRequestView() {
   const selected = organizations?.find((item) => item.id === organizationId);
   return (
     <AppShell>
-      <PageHeader
+      <ProfessionalSupportNav />
+      <ProfessionalSupportHeader
         title="Reach a professional"
         description="Choose an approved organization, write your own request, and decide what to share. This is for scheduled support, not emergency response."
         action={
-          <Link href="/professional/my-requests" className="text-sm font-semibold text-primary underline">
+          <Link href={ROUTES.professionalSupport.requests} className="text-sm font-semibold text-primary underline">
             My requests
           </Link>
         }
@@ -223,6 +237,11 @@ export function SupportRequestView() {
                 </div>
               )}
             </fieldset>
+            <fieldset className="rounded-2xl border border-border/70 bg-background/70 p-4">
+              <legend className="px-1 text-sm font-semibold">5. Share PHQ-8 check-ins? Optional</legend>
+              <p className="mb-3 text-xs leading-5 text-muted-foreground">Only the score, severity band, and completion date are copied. Raw answers are never included. Choose up to three.</p>
+              {phq8.length === 0 ? <p className="text-xs text-muted-foreground">No completed check-ins are available.</p> : <div className="space-y-2">{phq8.slice(0, 8).map((item) => <label key={item.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-sm"><input type="checkbox" className="accent-primary" checked={phq8Ids.includes(item.id)} disabled={!phq8Ids.includes(item.id) && phq8Ids.length >= 3} onChange={() => setPhq8Ids((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : current.length < 3 ? [...current, item.id] : current)} /><Activity size={15} className="text-primary" /><span>{new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(item.completedAt))} · {item.severity.replaceAll("_", " ")}</span></label>)}</div>}
+            </fieldset>
             <label className="flex items-start gap-3 rounded-2xl bg-secondary/50 p-4 text-sm leading-6">
               <input
                 type="checkbox"
@@ -232,8 +251,7 @@ export function SupportRequestView() {
                 className="mt-1.5 accent-primary"
               />
               <span>
-                I agree to share this request and the {journalIds.length} selected journal{" "}
-                {journalIds.length === 1 ? "entry" : "entries"} with <strong>{selected?.name}</strong> for support.
+                I agree to share this request, {journalIds.length} journal {journalIds.length === 1 ? "snapshot" : "snapshots"}, and {phq8Ids.length} minimized PHQ-8 {phq8Ids.length === 1 ? "result" : "results"} with <strong>{selected?.name}</strong> for support.
                 Sharing ends after 30 days or when I stop it. Buddy conversations, facial data, and AI analysis are not
                 included.
               </span>

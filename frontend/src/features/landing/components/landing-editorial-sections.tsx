@@ -46,15 +46,15 @@ function ReflectionPath({
   delay,
 }: (typeof reflectionPaths)[number] & { delay: number }) {
   return (
-    <EchoReveal variant="card" delay={delay} className="h-full">
+    <EchoReveal variant="card" delay={delay} className="lg:h-full">
       <Link
         href={href}
-        className="group grid h-full gap-4 border-t border-[var(--landing-primary-20)] py-5 outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] sm:grid-cols-[3rem_1fr_auto] sm:items-start"
+        className="group flex items-start gap-4 border-t border-[var(--landing-primary-20)] py-5 outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)] lg:grid lg:h-full lg:grid-cols-[3rem_1fr_auto] lg:items-start"
       >
         <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--landing-sage-soft)] text-[var(--landing-primary)] transition-transform duration-200 group-hover:-translate-y-0.5">
           <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         </span>
-        <span>
+        <span className="min-w-0 flex-1 lg:flex-auto">
           <span className="block text-xl font-medium tracking-[-0.025em] [font-family:var(--font-echo-display)]">
             {title}
           </span>

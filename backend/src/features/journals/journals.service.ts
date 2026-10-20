@@ -6,8 +6,10 @@ import { JournalImagesService } from "./journal-images.service.js";
 import {
   analysisChecksFor,
   analysisFixtureSchema,
+  facialAnalysisStatusSchema,
   journalAnalysisResultSchema,
   type AnalysisFixture,
+  type AnalysisInsightRange,
   type FaceMeshCapture,
   type FacialAnalysisStatus,
   type AnalysisMode,
@@ -58,8 +60,8 @@ export interface JournalResponse {
   tags: string[];
   privacy_status: string;
   analysis_consent: boolean;
-  risk_score: number;
-  risk_band: "low" | "mild" | "moderate" | "high" | "severe";
+  risk_score: number | null;
+  risk_band: "low" | "mild" | "moderate" | "high" | "severe" | null;
   summary: string;
   perspective: string | null;
   created_at: string;
@@ -122,6 +124,12 @@ export interface JournalDraftResponse {
 type JournalRow = Record<string, unknown>;
 type AnalysisRow = Record<string, unknown>;
 
+interface AnalysisInsightsRangeInput {
+  range: AnalysisInsightRange;
+  from?: string;
+  to?: string;
+}
+
 function bytea(value: string): string {
   return `\\x${Buffer.from(value, "base64").toString("hex")}`;
 }
@@ -140,11 +148,12 @@ function asStringArray(value: unknown): string[] {
 }
 
 function riskBand(severity: unknown): JournalResponse["risk_band"] {
+  if (severity === "minimal" || severity === "low" || severity === "none") return "low";
   if (severity === "mild") return "mild";
   if (severity === "moderate") return "moderate";
   if (severity === "moderately_severe") return "high";
   if (severity === "severe") return "severe";
-  return "low";
+  return null;
 }
 
 function databaseError(error: unknown, operation: SupabaseOperation, message: string): ExternalServiceError {
@@ -269,8 +278,8 @@ export class JournalService {
       tags: asStringArray(row.tags),
       privacy_status: asString(row.privacy_status, "private"),
       analysis_consent: row.analysis_consent === true,
-      risk_score: Math.round((score / 24) * 100),
-      risk_band: riskBand(severity),
+      risk_score: structured ? Math.round((score / 24) * 100) : null,
+      risk_band: analysis ? riskBand(severity) : null,
       summary: analysis
         ? `${analysis.is_simulated ? "Simulated analysis" : "Analysis"} is available. It is not a clinical assessment.`
         : "No analysis result is available.",
@@ -280,25 +289,87 @@ export class JournalService {
     };
   }
 
-  async list(userId: string): Promise<JournalResponse[]> {
-    const { data, error } = await this.reader
-      .schema("journal_service")
-      .from("journals")
-      .select("*")
-      .eq("user_id", userId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-    if (error)
-      throw databaseError(
-        error,
-        { module: "journals", schema: "journal_service", table: "journals", operation: "list journals" },
-        "The journal service is temporarily unavailable.",
-      );
-    return Promise.all(
-      ((data ?? []) as JournalRow[]).map(async (row) =>
-        ({ ...this.toJournalResponse(row, await this.latestAnalysis(asString(row.id), userId)), images: await new JournalImagesService(this.database).list(userId, asString(row.id)) }),
-      ),
-    );
+  async listPage(userId: string, options: {
+    page: number; pageSize: number; query: string; mood?: JournalInput["mood"];
+    dateFrom?: string; dateTo?: string; sort: "newest" | "oldest";
+  }): Promise<{ entries: JournalResponse[]; total: number; page: number; page_size: number }> {
+    const start = (options.page - 1) * options.pageSize;
+    const base = () => {
+      let query = this.reader.schema("journal_service").from("journals")
+        .select("*", { count: "exact" }).eq("user_id", userId).is("deleted_at", null);
+      if (options.mood) query = query.eq("mood", options.mood);
+      if (options.dateFrom) query = query.gte("created_at", `${options.dateFrom}T00:00:00.000Z`);
+      if (options.dateTo) query = query.lt("created_at", new Date(Date.parse(`${options.dateTo}T00:00:00.000Z`) + 86_400_000).toISOString());
+      return query.order("created_at", { ascending: options.sort === "oldest" }).order("id", { ascending: options.sort === "oldest" });
+    };
+    let rows: JournalRow[] = [];
+    let total = 0;
+    if (options.query) {
+      const needle = options.query.toLocaleLowerCase();
+      const matches: JournalRow[] = [];
+      // shortcut: encrypted search scans owner-scoped rows; add a privacy-reviewed index if per-user volume makes this slow.
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await base().range(offset, offset + 499);
+        if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "search journals" }, "The journal service is temporarily unavailable.");
+        const batch = (data ?? []) as JournalRow[];
+        for (const row of batch) {
+          const { title, body } = this.decryptJournal(row);
+          if (`${title}\n${body}\n${asStringArray(row.tags).join("\n")}`.toLocaleLowerCase().includes(needle)) matches.push(row);
+        }
+        if (batch.length < 500) break;
+      }
+      total = matches.length;
+      rows = matches.slice(start, start + options.pageSize);
+    } else {
+      const { data, count, error } = await base().range(start, start + options.pageSize - 1);
+      if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "list journals" }, "The journal service is temporarily unavailable.");
+      rows = (data ?? []) as JournalRow[];
+      total = count ?? 0;
+    }
+    const ids = rows.map((row) => asString(row.id));
+    if (ids.length === 0) return { entries: [], total, page: options.page, page_size: options.pageSize };
+    const [analysisResult, images] = await Promise.all([
+      this.database.schema("ai_analysis").from("analysis_results")
+        .select("*,analysis_requests!inner(journal_id,deleted_at)")
+        .eq("user_id", userId).is("analysis_requests.deleted_at", null)
+        .in("analysis_requests.journal_id", ids).order("created_at", { ascending: false }),
+      new JournalImagesService(this.database).listForJournals(userId, ids),
+    ]);
+    if (analysisResult.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal analysis could not be loaded.");
+    const analyses = new Map<string, AnalysisRow>();
+    for (const analysis of (analysisResult.data ?? []) as AnalysisRow[]) {
+      const request = analysis.analysis_requests as Record<string, unknown> | undefined;
+      const id = asString(request?.journal_id);
+      if (id && !analyses.has(id)) analyses.set(id, analysis);
+    }
+    return {
+      entries: rows.map((row) => {
+        const id = asString(row.id);
+        return { ...this.toJournalResponse(row, analyses.get(id) ?? null), images: images.get(id) ?? [] };
+      }),
+      total, page: options.page, page_size: options.pageSize,
+    };
+  }
+
+  async listSummaries(userId: string): Promise<Array<{
+    id: string; mood: string; emotions: string[]; tags: string[]; created_at: string;
+  }>> {
+    const summaries = [] as Array<{ id: string; mood: string; emotions: string[]; tags: string[]; created_at: string }>;
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await this.reader.schema("journal_service").from("journals")
+        .select("id,mood,emotions,tags,created_at")
+        .eq("user_id", userId).is("deleted_at", null)
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 499);
+      if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "list journal summaries" }, "The journal service is temporarily unavailable.");
+      const batch = (data ?? []) as JournalRow[];
+      summaries.push(...batch.map((row) => ({
+        id: asString(row.id),
+        mood: asString(row.mood, "neutral"), emotions: asStringArray(row.emotions),
+        tags: asStringArray(row.tags), created_at: asString(row.created_at),
+      })));
+      if (batch.length < 500) break;
+    }
+    return summaries;
   }
 
   async get(userId: string, journalId: string): Promise<JournalResponse> {
@@ -319,6 +390,22 @@ export class JournalService {
 
   async uploadImage(userId:string,journalId:string,imageId:string,bytes:Buffer,mime:string) {
     return new JournalImagesService(this.database).upload(userId,journalId,imageId,bytes,mime);
+  }
+
+  async uploadDraftImage(userId:string,imageId:string,bytes:Buffer,mime:string) {
+    return new JournalImagesService(this.database).uploadDraft(userId,imageId,bytes,mime);
+  }
+
+  async listDraftImages(userId:string) {
+    return new JournalImagesService(this.database).listDraft(userId);
+  }
+
+  async removeDraftImage(userId:string,imageId:string) {
+    return new JournalImagesService(this.database).removeDraft(userId,imageId);
+  }
+
+  async attachDraftImages(userId:string,journalId:string) {
+    return new JournalImagesService(this.database).attachDraft(userId,journalId);
   }
 
   async getJournalTitles(userId: string, journalIds: string[]): Promise<Map<string, string>> {
@@ -815,12 +902,13 @@ export class JournalService {
           tags: input.tags,
           privacy_status: input.privacyStatus,
           analysis_consent: input.analysisConsent,
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },
       )
       .select("*")
       .single();
-    if (error || !data) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be saved.");
+    if (error || !data) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "save draft" }, "Your draft could not be saved.");
     return this.toDraftResponse(data as JournalRow);
   }
 
@@ -831,7 +919,7 @@ export class JournalService {
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be loaded.");
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "load draft" }, "Your draft could not be loaded.");
     return data ? this.toDraftResponse(data as JournalRow) : null;
   }
 
@@ -843,7 +931,7 @@ export class JournalService {
       .eq("user_id", userId);
     if (submissionKey) query = query.eq("submission_key", submissionKey);
     const {error} = await query;
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Your draft could not be removed.");
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "remove draft" }, "Your draft could not be removed.");
   }
 
   async analyze(userId: string, journalId: string): Promise<AnalysisResponse> {
@@ -906,16 +994,23 @@ export class JournalService {
       : null;
   }
 
-  async dashboardInsights(userId: string) {
-    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  async dashboardInsights(userId: string, input: AnalysisInsightsRangeInput = { range: "30d" }) {
+    const now = new Date();
+    const days = input.range === "7d" ? 7 : input.range === "90d" ? 90 : 30;
+    const from = input.range === "custom" && input.from
+      ? new Date(`${input.from}T00:00:00.000Z`)
+      : new Date(now.getTime() - (days - 1) * 86_400_000);
+    if (input.range !== "custom") from.setUTCHours(0, 0, 0, 0);
+    const to = input.range === "custom" && input.to ? new Date(`${input.to}T23:59:59.999Z`) : now;
     let query = this.database
       .schema("ai_analysis")
       .from("analysis_results")
-      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(deleted_at)")
+      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(deleted_at,facial_status)")
       .eq("user_id", userId)
       .is("analysis_requests.deleted_at", null)
       .not("result_payload", "is", null)
-      .gte("created_at", since)
+      .gte("created_at", from.toISOString())
+      .lte("created_at", to.toISOString())
       .order("created_at", { ascending: true });
     if (this.runtime.isProduction) query = query.eq("is_simulated", false);
     const { data: results, error } = await query;
@@ -924,6 +1019,10 @@ export class JournalService {
     const rows = (results ?? []) as Array<Record<string, unknown>>;
     const latestRow = rows.at(-1);
     const latest = latestRow?.result_payload ? this.readAnalysisResult(latestRow.result_payload) : null;
+    const latestRequestValue = latestRow?.analysis_requests;
+    const latestRequest = (Array.isArray(latestRequestValue) ? latestRequestValue[0] : latestRequestValue) as
+      | Record<string, unknown>
+      | undefined;
     const dailyRows = [...new Map(rows.map((row) => [asString(row.created_at).slice(0, 10), row])).values()];
     let recommendation = null;
     if (latestRow) {
@@ -964,6 +1063,13 @@ export class JournalService {
           isSimulated: parsed.isSimulated,
         };
       }),
+      period: {
+        range: input.range,
+        from: from.toISOString().slice(0, 10),
+        to: to.toISOString().slice(0, 10),
+        analyzedReflectionCount: rows.length,
+      },
+      facialStatus: facialAnalysisStatusSchema.catch("not_requested").parse(latestRequest?.facial_status),
     };
   }
 

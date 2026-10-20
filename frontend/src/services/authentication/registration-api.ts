@@ -21,12 +21,23 @@ function csrfCookie(): string {
 }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = registrationBaseUrl(env.apiBaseUrl, process.env.NODE_ENV === "development");
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: { "content-type": "application/json", "x-echo-csrf": csrfCookie(), ...(init?.headers ?? {}) },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      credentials: "include",
+      headers: { "content-type": "application/json", "x-echo-csrf": csrfCookie(), ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new Error("Could not connect to ECHO. Check your connection and try again.");
+  }
   const body = (await response.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
+  if (response.status === 429) {
+    throw new Error("Too many signup requests. Please wait before trying again.");
+  }
+  if (response.status >= 500) {
+    throw new Error("Registration is temporarily unavailable. Please try again later.");
+  }
   if (!response.ok) throw new Error(body?.error?.message ?? "Registration could not continue.");
   return body?.data as T;
 }

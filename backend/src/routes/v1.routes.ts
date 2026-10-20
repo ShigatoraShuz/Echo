@@ -13,6 +13,7 @@ import { createVerificationRouter } from "../features/verification/verification.
 import type { OnboardingService } from "../features/onboarding/onboarding.service.js";
 import { createOnboardingRouter } from "../features/onboarding/onboarding.routes.js";
 import type { NotificationService } from "../features/notifications/notifications.service.js";
+import type { PushSubscriptionsService } from "../features/notifications/push-subscriptions.service.js";
 import { createNotificationsRouter } from "../features/notifications/notifications.routes.js";
 import type { RegistrationService } from "../features/registration/registration.service.js";
 import { createRegistrationRouter } from "../features/registration/registration.routes.js";
@@ -23,6 +24,8 @@ import type { LocalWorkerService } from "../features/analysis/local-worker.servi
 import { createLocalWorkerRouter } from "../features/analysis/local-worker.routes.js";
 import type { ProfessionalService } from "../features/professionals/professional.service.js";
 import { createProfessionalRouter } from "../features/professionals/professional.routes.js";
+import type { CalendarService } from "../features/calendar/calendar.service.js";
+import { createCalendarRouter } from "../features/calendar/calendar.routes.js";
 
 export interface V1RouterOptions {
   registration?: { service: RegistrationService; allowedOrigin: string };
@@ -52,9 +55,11 @@ export interface V1RouterOptions {
   notifications?: {
     service: NotificationService;
     verifier: AccessTokenVerifier;
+    pushSubscriptions?: PushSubscriptionsService;
   };
   localWorker?: { service: LocalWorkerService };
   professionals?: { service: ProfessionalService; verifier: AccessTokenVerifier; verificationService: VerificationService };
+  calendar?: { service: CalendarService; verifier: AccessTokenVerifier };
 }
 
 export function createV1Router(options: V1RouterOptions = {}): Router {
@@ -86,7 +91,8 @@ export function createV1Router(options: V1RouterOptions = {}): Router {
     router.use(createVerificationRouter(options.verification.service, options.verification.verifier));
   if (options.onboarding) router.use(createOnboardingRouter(options.onboarding.service, options.onboarding.verifier));
   if (options.notifications)
-    router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier));
+    router.use(createNotificationsRouter(options.notifications.service, options.notifications.verifier, options.notifications.pushSubscriptions));
+  if (options.calendar) router.use(createCalendarRouter(options.calendar.service, options.calendar.verifier));
   if (options.professionals)
     router.use(createProfessionalRouter(options.professionals.service, options.professionals.verifier, options.professionals.verificationService));
   return router;

@@ -17,8 +17,8 @@ function CaseScenario({ organizationId }: { organizationId: string }) {
   const [note, setNote] = useState("");
   const [showClose, setShowClose] = useState(false);
   const detail: CaseDetail = {
-    viewer: "professional",
-    request: { id: "fictional-case-sprint-3", organizationId, assignedTo: "fictional-practitioner", status: "assigned", createdAt: "2026-10-01T09:00:00+08:00", updatedAt: "2026-10-05T10:00:00+08:00", preferredTime: "Fictional afternoon preference", summary: "Fictional client message for inspecting the professional case workspace.", sharingActive: consent === "active", sharedJournalCount: 1 },
+    viewer: "professional", sharedPhq8: [], appointmentChangeRequests: [],
+    request: { id: "fictional-case-sprint-3", organizationId, assignedTo: "fictional-practitioner", status: "assigned", createdAt: "2026-10-01T09:00:00+08:00", updatedAt: "2026-10-05T10:00:00+08:00", preferredTime: "Fictional afternoon preference", summary: "Fictional client message for inspecting the professional case workspace.", sharingActive: consent === "active", preferredProfileId: null, sharedPhq8Count: 0, sharedJournalCount: 1 },
     sharedJournals: [{ journalId: "fictional-snapshot", title: "Fictional journal snapshot", body: "Synthetic reflection created for layout and consent-state inspection. No real client information." }],
     appointments: [{ id: "fictional-appointment", startsAt: "2026-10-04T10:00:00+08:00", endsAt: "2026-10-04T11:00:00+08:00", mode: "online", status: "canceled", locationHint: "Fictional meeting" }],
     notes: [{ id: "fictional-note", body: "Fictional professional note", createdAt: "2026-10-03T09:00:00+08:00" }],

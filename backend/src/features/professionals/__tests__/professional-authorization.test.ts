@@ -81,7 +81,7 @@ function harness(options: { member?: Row | null; organization?: Row | null; assi
   })) };
   const assertAdmin = vi.fn().mockRejectedValue(new AuthorizationError());
   const app = createApp({ v1: {
-    access: { service: { decide } as unknown as AccessService, verifier },
+    access: { service: { decide, hasPendingDeletion: async () => false } as unknown as AccessService, verifier },
     professionals: { service, verifier, verificationService: { assertAdmin } as unknown as VerificationService },
   } });
   return { app, service, from, rpc, writes, decide, assertAdmin };

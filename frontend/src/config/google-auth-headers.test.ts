@@ -7,6 +7,10 @@ let nextConfig: NextConfig;
 beforeAll(async () => {
   // Test production header rules without loading backend development secrets.
   vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-header-test-placeholder");
+  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.test");
+  vi.stubEnv("NEXT_PUBLIC_DATA_ADAPTER", "supabase");
   nextConfig = (await import("../../next.config")).default;
 });
 afterAll(() => vi.unstubAllEnvs());

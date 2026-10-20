@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
   createClient: vi.fn(),
-  getUser: vi.fn(),
+  getClaims: vi.fn(),
 }));
 
 vi.mock("@/infrastructure/supabase/config", () => ({
@@ -24,8 +24,8 @@ function request(path: string) {
 describe("authentication proxy", () => {
   beforeEach(() => {
     mocks.getConfig.mockReturnValue({ url: "https://example.supabase.co", publishableKey: "test-key" });
-    mocks.getUser.mockResolvedValue({ data: { user: null } });
-    mocks.createClient.mockReturnValue({ auth: { getUser: mocks.getUser } });
+    mocks.getClaims.mockResolvedValue({ data: null });
+    mocks.createClient.mockReturnValue({ auth: { getClaims: mocks.getClaims } });
   });
 
   it.each(["production", "test"])("rejects the preview with HTTP 404 in %s without checking authentication", async (mode) => {
@@ -52,6 +52,7 @@ describe("authentication proxy", () => {
   it.each([
     "/dashboard",
     "/journal/entry/new",
+    "/calendar",
     "/buddy",
     "/insights/emotion",
     "/tools/grounding",
@@ -130,6 +131,18 @@ describe("authentication proxy", () => {
     expect(first.headers.get("Content-Security-Policy")).toContain("https://accounts.google.com");
     const second = request("/login"); await proxy(second);
     expect(first.headers.get("x-nonce")).not.toBe(second.headers.get("x-nonce"));
+  });
+
+  it("allows private journal photos from the configured Supabase origin", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://journal.example.supabase.co");
+    try {
+      vi.resetModules();
+      const { proxy: configuredProxy } = await import("./proxy");
+      const policy = (await configuredProxy(request("/login"))).headers.get("content-security-policy");
+      expect(policy).toMatch(/img-src[^;]*https:\/\/journal\.example\.supabase\.co/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("allows both local API hosts when registration cookies follow the page host", async () => {

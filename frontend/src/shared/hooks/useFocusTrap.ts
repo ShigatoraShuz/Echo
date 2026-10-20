@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 
-export function useFocusTrap(isActive: boolean) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(isActive: boolean) {
+  const containerRef = useRef<T>(null);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key !== "Tab" || !containerRef.current) return;

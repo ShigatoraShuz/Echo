@@ -22,4 +22,15 @@ describe("backend environment", () => {
     expect(() => loadEnvironment({ ...validEnvironment, JOURNAL_ENCRYPTION_KEY_BASE64: "invalid" })).toThrow();
     expect(() => loadEnvironment({ ...validEnvironment, NODE_ENV: "production" })).toThrow("Development stub");
   });
+
+  it("requires a verified sender and SMTP credentials before enabling email alerts", () => {
+    expect(() => loadEnvironment({ ...validEnvironment, EMAIL_PROVIDER: "smtp" })).toThrow("EMAIL_FROM");
+    expect(() => loadEnvironment({
+      ...validEnvironment, EMAIL_PROVIDER: "smtp", EMAIL_FROM: "alerts@example.test",
+    })).toThrow("SMTP_HOST, SMTP_USER and SMTP_PASSWORD");
+    expect(loadEnvironment({
+      ...validEnvironment, EMAIL_PROVIDER: "smtp", EMAIL_FROM: "alerts@example.test",
+      SMTP_HOST: "smtp.example.test", SMTP_USER: "sender", SMTP_PASSWORD: "test-password",
+    }).EMAIL_PROVIDER).toBe("smtp");
+  });
 });

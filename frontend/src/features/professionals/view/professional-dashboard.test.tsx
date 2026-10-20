@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => mocks,
 }));
 vi.mock("@/services/professionals/professional-api", () => ({
-  professionalApi: { memberships: mocks.memberships, queue: mocks.queue, claim: mocks.claim, dashboard: mocks.dashboard },
+  professionalApi: { memberships: mocks.memberships, queue: mocks.queue, claim: mocks.claim, dashboard: mocks.dashboard, directory: async () => ({ practitioners: [], nextCursor: null }) },
 }));
 
 const membership = { id: "demo-membership", organizationId: "demo-org", role: "counselor", status: "active", accessState: "active", organization: { name: "Demo organization", status: "active" } };

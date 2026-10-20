@@ -15,11 +15,7 @@ import sunlitPortrait from "../../../../assets/landing-page/image 12.jpg";
 import plantPortrait from "../../../../assets/landing-page/image 13.jpg";
 import yellowCoatPortrait from "../../../../assets/landing-page/iamge 4.jpg";
 import { cn } from "@/shared/lib/utils";
-import {
-  ArcGalleryHero,
-  handleHeroTiltMove,
-  resetHeroTilt,
-} from "@/shared/components/ui/arc-gallery-hero-component";
+import { ArcGalleryHero, handleHeroTiltMove, resetHeroTilt } from "@/shared/components/ui/arc-gallery-hero-component";
 import { usePrefersReducedMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 import type { LandingHeroContent } from "../model";
 
@@ -70,19 +66,13 @@ const titleVariants: Variants = {
   },
 };
 
-export function LandingHero({
-  content: { eyebrow, title, subtitle, actions },
-  className,
-}: LandingHeroProps) {
+export function LandingHero({ content: { eyebrow, title, subtitle, actions }, className }: LandingHeroProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   return (
     <MotionConfig reducedMotion={prefersReducedMotion ? "always" : "never"}>
       <ArcGalleryHero
-        className={cn(
-          "relative z-50 bg-[var(--landing-mist)] text-[var(--landing-ink)]",
-          className,
-        )}
+        className={cn("relative z-50 bg-[var(--landing-mist)] text-[var(--landing-ink)]", className)}
         images={HERO_GALLERY_IMAGES}
         background={
           <>
@@ -99,7 +89,7 @@ export function LandingHero({
         }
       >
         <motion.div
-          className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-12 pt-8 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pb-14 sm:pt-10 lg:px-12"
+          className="mx-auto flex w-full max-w-[1440px] flex-col items-center px-5 pb-12 pt-4 text-center [font-family:var(--font-echo-sans)] sm:px-8 sm:pb-14 sm:pt-10 lg:px-12"
           variants={containerVariants}
           initial="hidden"
           animate="visible"
@@ -115,7 +105,7 @@ export function LandingHero({
 
           <motion.div className="mt-2 w-full overflow-hidden pb-2" variants={itemVariants}>
             <motion.h1
-              className="mx-auto max-w-[1120px] text-[clamp(3.35rem,7.2vw,7.2rem)] font-medium leading-[0.88] tracking-[-0.055em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance]"
+              className="mx-auto max-w-[1120px] text-[clamp(2.9rem,13vw,3.35rem)] font-medium leading-[0.92] tracking-[-0.04em] text-[var(--landing-primary)] [font-family:var(--font-echo-display)] [text-wrap:balance] sm:text-[clamp(3.35rem,7.2vw,7.2rem)] sm:leading-[0.88] sm:tracking-[-0.055em]"
               variants={titleVariants}
             >
               {title}
@@ -129,21 +119,24 @@ export function LandingHero({
             {subtitle}
           </motion.p>
 
-          <motion.div className="mt-7 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row" variants={itemVariants}>
+          <motion.div
+            className="mt-7 flex w-full max-w-[24rem] flex-col justify-center gap-3 sm:w-auto sm:max-w-none sm:flex-row"
+            variants={itemVariants}
+          >
             {actions.map((action) => {
               const primary = action.variant === "primary";
 
               return (
                 <span
                   key={action.href}
-                  className="echo-hero-tilt inline-flex rounded-full"
+                  className="echo-hero-tilt flex w-full rounded-full sm:w-auto"
                   onPointerMove={handleHeroTiltMove}
                   onPointerLeave={resetHeroTilt}
                 >
                   <Link
                     href={action.href}
                     className={cn(
-                      "relative z-10 inline-flex min-h-12 min-w-48 items-center justify-center rounded-full px-6 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97]",
+                      "relative z-10 inline-flex min-h-12 w-full min-w-48 items-center justify-center rounded-full px-6 text-sm font-bold outline-none transition-[transform,background-color,border-color] duration-150 ease-out focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-25)] active:scale-[0.97] sm:w-auto",
                       primary
                         ? "bg-[var(--landing-primary)] text-[var(--landing-inverse)] hover:bg-[var(--landing-primary-hover)]"
                         : "border border-[var(--landing-primary-45)] bg-[var(--landing-cream-35)] text-[var(--landing-primary)] backdrop-blur-sm hover:bg-[var(--landing-cream-65)]",
@@ -155,7 +148,6 @@ export function LandingHero({
               );
             })}
           </motion.div>
-
         </motion.div>
       </ArcGalleryHero>
     </MotionConfig>

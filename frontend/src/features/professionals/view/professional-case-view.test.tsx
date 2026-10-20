@@ -11,7 +11,7 @@ vi.mock("@/services/professionals/professional-api", () => ({ professionalApi: m
 vi.mock("../components/professional-shell", () => ({ ProfessionalShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>, ProfessionalSkeleton: () => <p>Loading case details</p> }));
 
 export const fixture: CaseDetail = {
-  viewer: "professional", request: { id: "case-one", organizationId: "org-one", assignedTo: "practitioner-one", status: "assigned", createdAt: "2026-10-01T08:00:00Z", updatedAt: "2026-10-02T08:00:00Z", summary: "Synthetic shared message", preferredTime: "Afternoons", sharingActive: true, sharedJournalCount: 1 },
+  viewer: "professional", sharedPhq8: [], appointmentChangeRequests: [], request: { id: "case-one", organizationId: "org-one", assignedTo: "practitioner-one", status: "assigned", createdAt: "2026-10-01T08:00:00Z", updatedAt: "2026-10-02T08:00:00Z", summary: "Synthetic shared message", preferredTime: "Afternoons", sharingActive: true, preferredProfileId: null, sharedPhq8Count: 0, sharedJournalCount: 1 },
   sharedJournals: [{ journalId: "journal-one", title: "Synthetic reflection", body: "Synthetic private snapshot" }], appointments: [], referrals: [], notes: [],
 };
 const failure = (statusCode: number) => new AppError({ code: "AUTHORIZATION_ERROR", statusCode, userMessage: "Private diagnostic" });

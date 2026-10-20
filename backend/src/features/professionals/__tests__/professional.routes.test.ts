@@ -6,12 +6,20 @@ import type { VerificationService } from "../../verification/verification.servic
 import type { ProfessionalService } from "../professional.service.js";
 
 const USER = "fe000000-0000-4000-8000-000000000001";
+const PRACTITIONER = "fe000000-0000-4000-8000-000000000006";
 const CASE = "fe000000-0000-4000-8000-000000000002";
 const ORG = "fe000000-0000-4000-8000-000000000003";
 
 function harness() {
   const service = {
     createRequest: vi.fn().mockResolvedValue({ request: { id: CASE } }),
+    hub: vi.fn().mockResolvedValue({ activeCases: [], recentCases: [] }),
+    directory: vi.fn().mockResolvedValue({ practitioners: [], nextCursor: null }),
+    sendMessage: vi.fn().mockResolvedValue({ message: { id: CASE } }),
+    proposeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE }),
+    respondAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "confirmed" }),
+    completeAppointment: vi.fn().mockResolvedValue({ appointmentId: CASE, status: "completed" }),
+    listOwnAppointments: vi.fn().mockResolvedValue({ appointments: [] }),
     detail: vi.fn().mockResolvedValue({ request: { id: CASE } }),
     memberships: vi.fn().mockResolvedValue({ userId: USER, memberships: [] }),
     listOrganizationsForAdmin: vi.fn().mockResolvedValue({ organizations: [] }),
@@ -26,9 +34,9 @@ function harness() {
   };
   const verifier = {
     getUser: vi.fn(async (token: string) =>
-      token === "basic" || token === "mfa" || token === "old-mfa"
+      token === "basic" || token === "mfa" || token === "old-mfa" || token === "practitioner-mfa"
         ? {
-            id: USER,
+            id: token === "practitioner-mfa" ? PRACTITIONER : USER,
             email: "user@example.test",
             assuranceLevel: token === "basic" ? "aal1" : "aal2",
             authenticatedAt: Date.now() / 1000 - (token === "old-mfa" ? 700 : 0),
@@ -87,10 +95,13 @@ describe("professional portal routes", () => {
     const { app, service } = harness();
     const path = "/api/v1/professional/my-requests";
     const input = {
+      submissionId: "fe000000-0000-4000-8000-000000000004",
       organizationId: ORG,
+      preferredProfileId: null,
       summary: "I would like scheduled professional support.",
       preferredTime: "Weekday afternoons",
       journalIds: [],
+      phq8Ids: [],
       consent: false,
     };
     expect(
@@ -113,6 +124,27 @@ describe("professional portal routes", () => {
     );
   });
 
+  it("loads the owner-scoped hub and validates idempotent case messages", async () => {
+    const { app, service } = harness();
+    const hub = await request(app).get("/api/v1/professional/hub").set("Authorization", "Bearer basic");
+    expect(hub.status).toBe(200);
+    expect(service.hub).toHaveBeenCalledWith(USER);
+
+    const path = `/api/v1/professional/my-requests/${CASE}/messages`;
+    expect((await request(app).post(path).set("Authorization", "Bearer basic").send({ body: "hello" })).status).toBe(400);
+    const sent = await request(app).post(path).set("Authorization", "Bearer basic").send({
+      clientMessageId: "fe000000-0000-4000-8000-000000000005",
+      body: "Could we discuss the next appointment?",
+    });
+    expect(sent.status).toBe(201);
+    expect(service.sendMessage).toHaveBeenCalledWith(
+      USER,
+      CASE,
+      "fe000000-0000-4000-8000-000000000005",
+      "Could we discuss the next appointment?",
+    );
+  });
+
   it("requires MFA before opening a professional case", async () => {
     const { app, service } = harness();
     const path = `/api/v1/professional/cases/${CASE}`;
@@ -120,6 +152,45 @@ describe("professional portal routes", () => {
     expect(service.detail).not.toHaveBeenCalled();
     expect((await request(app).get(path).set("Authorization", "Bearer mfa")).status).toBe(200);
     expect(service.detail).toHaveBeenCalledWith(USER, CASE, "professional");
+  });
+
+  it("requires MFA before a professional completes an appointment", async () => {
+    const { app, service } = harness();
+    const path = `/api/v1/professional/appointments/${CASE}/complete`;
+    expect((await request(app).post(path).set("Authorization", "Bearer basic")).status).toBe(403);
+    expect(service.completeAppointment).not.toHaveBeenCalled();
+    expect((await request(app).post(path).set("Authorization", "Bearer mfa")).status).toBe(200);
+    expect(service.completeAppointment).toHaveBeenCalledWith(USER, CASE);
+  });
+
+  it("gates a practitioner proposal and forwards the owner's appointment response", async () => {
+    const { app, service } = harness();
+    const proposal = {
+      startsAt: "2099-10-15T10:00:00.000Z", endsAt: "2099-10-15T11:00:00.000Z",
+      mode: "online", locationHint: "Private video room",
+    };
+    const proposePath = `/api/v1/professional/cases/${CASE}/appointments`;
+    expect((await request(app).post(proposePath).set("Authorization", "Bearer basic").send(proposal)).status).toBe(403);
+    expect(service.proposeAppointment).not.toHaveBeenCalled();
+    expect((await request(app).post(proposePath).set("Authorization", "Bearer practitioner-mfa").send(proposal)).status).toBe(201);
+    expect(service.proposeAppointment).toHaveBeenCalledWith(PRACTITIONER, CASE, proposal);
+
+    const respondPath = `/api/v1/professional/appointments/${CASE}/respond`;
+    expect((await request(app).post(respondPath).set("Authorization", "Bearer basic").send({ accept: true })).status).toBe(200);
+    expect(service.respondAppointment).toHaveBeenCalledWith(USER, CASE, true);
+  });
+
+  it("accepts a bounded calendar range and rejects incomplete or oversized ranges", async () => {
+    const { app, service } = harness();
+    const path = "/api/v1/professional/appointments";
+    const authorization = "Bearer basic";
+    const from = "2026-10-01T00:00:00.000Z";
+    const to = "2026-11-01T00:00:00.000Z";
+    expect((await request(app).get(path).set("Authorization", authorization).query({ from })).status).toBe(400);
+    expect((await request(app).get(path).set("Authorization", authorization).query({ from, to: "2027-01-01T00:00:00.000Z" })).status).toBe(400);
+    const result = await request(app).get(path).set("Authorization", authorization).query({ from, to });
+    expect(result.status).toBe(200);
+    expect(service.listOwnAppointments).toHaveBeenCalledWith(USER, { from, to });
   });
 
   it("requires recent MFA and administrator authorization for provisioning", async () => {

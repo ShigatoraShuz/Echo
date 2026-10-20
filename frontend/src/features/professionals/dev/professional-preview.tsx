@@ -32,14 +32,14 @@ const memberships: Membership[] = [
 ].map((name, index) => ({
   id: `preview-membership-${index}`,
   organizationId: `preview-org-${index}`,
-  organization: { id: `preview-org-${index}`, slug: `preview-${index}`, name, description: "Synthetic organization", serviceHours: "Demo hours", status: "active" },
+  organization: { id: `preview-org-${index}`, slug: `preview-${index}`, name, description: "Synthetic organization", location: "", serviceTypes: [], consultationMethods: [], serviceHours: "Demo hours", status: "active" },
   role: "counselor", status: "active", displayName: "Preview Professional",
   credentialLabel: "Synthetic credential", credentialExpiresAt: null, accessState: "active",
 }));
 const requests = [
-  { id: "DEMO0001", status: "submitted", assignedTo: null, createdAt: "2026-10-12T09:00:00Z" },
-  { id: "DEMO0002", status: "assigned", assignedTo: "preview-professional", createdAt: "2026-10-11T14:30:00Z" },
-  { id: "DEMO0003", status: "scheduled", assignedTo: "preview-professional", createdAt: "2026-10-10T10:00:00Z" },
+  { id: "DEMO0001", status: "submitted" as const, assignedTo: null, createdAt: "2026-10-12T09:00:00Z" },
+  { id: "DEMO0002", status: "assigned" as const, assignedTo: "preview-professional", createdAt: "2026-10-11T14:30:00Z" },
+  { id: "DEMO0003", status: "scheduled" as const, assignedTo: "preview-professional", createdAt: "2026-10-10T10:00:00Z" },
 ];
 const sampleCase = {
   id: "DEMO0003", summary: "This fictional request is for visual layout review only. It contains no personal or patient information.",

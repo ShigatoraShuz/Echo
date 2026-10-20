@@ -8,7 +8,7 @@ async function rpc(method: string, args: unknown[]) {
   if (!response.ok) throw new AppError({ code: result.code, statusCode: response.status, userMessage: "Synthetic private diagnostic" });
   return result;
 }
-export const professionalApi = Object.fromEntries(["memberships", "dashboard", "queue", "caseDetail", "claim", "addNote", "close", "proposeAppointment", "cancelAppointment", "addReferral"].map((method) => [method, (...args: unknown[]) => rpc(method, args)]));
+export const professionalApi = Object.fromEntries(["memberships", "dashboard", "queue", "caseDetail", "claim", "addNote", "close", "proposeAppointment", "cancelAppointment", "addReferral", "directory", "assign", "caseMessages", "markCaseMessagesRead", "sendCaseMessage", "completeAppointment"].map((method) => [method, (...args: unknown[]) => rpc(method, args)]));
 export const experienceApi = { getSupportResources: (...args: unknown[]) => rpc("resources", args) };
 export const getAuthService = () => ({ getCurrentSession: async () => ({ success: true, data: null }), logout: async () => ({ success: true }), login: (...args: unknown[]) => rpc("login", args), sendLoginCode: (...args: unknown[]) => rpc("sendLoginCode", args), verifyLoginCode: (...args: unknown[]) => rpc("verifyLoginCode", args) });
 export type ReviewerFactor = { id: string };

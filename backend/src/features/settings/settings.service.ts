@@ -1,8 +1,9 @@
 import type { DataExportService } from "./data-export.service.js";
+import type { PushSubscriptionsService } from "../notifications/push-subscriptions.service.js";
 import { sanitizeImage } from "../../infrastructure/security/image-validation.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
-import { AuthenticationError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
+import { AuthenticationError, ConflictError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
 
 export type ThemeVariant = "echo-calm" | "echo-night" | "echo-soft" | "echo-focus";
 export type ThemeMode = "light" | "dark" | "system";
@@ -18,6 +19,7 @@ export interface ProfileSettingsInput {
 
 export interface PrivacySettingsInput {
   journalAiAnalysisEnabled?: boolean;
+  buddyHistoryEnabled?: boolean;
   facialAnalysisEnabled: boolean;
   crisisSupportVisible: boolean;
   lockScreenPrivate: boolean;
@@ -32,6 +34,8 @@ export interface NotificationSettingsInput {
   insightNotificationsEnabled: boolean;
   reminderTime: string | null;
   reminderTimezone: string | null;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
 }
 
 export interface TrustedContactInput {
@@ -103,12 +107,34 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function deletionValue(value: Row) {
+  return {
+    id: stringValue(value.id),
+    status: stringValue(value.request_status),
+    requestedAt: stringValue(value.requested_at),
+    scheduledFor: nullableString(value.scheduled_for),
+    cancelledAt: nullableString(value.cancelled_at),
+    completedAt: nullableString(value.completed_at),
+  };
+}
+
+function exportValue(value: Row) {
+  return {
+    id: stringValue(value.id),
+    status: stringValue(value.request_status),
+    requestedAt: stringValue(value.requested_at),
+    completedAt: nullableString(value.completed_at),
+    expiresAt: nullableString(value.expires_at),
+  };
+}
+
 export class SettingsService {
   constructor(
     private readonly administrativeDatabase: SupabaseClient,
     private readonly authenticationClient?: () => SupabaseClient,
     private readonly userDatabase?: () => SupabaseClient,
     private readonly exports?: DataExportService,
+    private readonly pushSubscriptions?: PushSubscriptionsService,
   ) {}
 
   private get database(): SupabaseClient {
@@ -184,15 +210,13 @@ export class SettingsService {
         this.database
           .schema("user_service")
           .from("notification_preferences")
-          .select(
-            "email_enabled, push_enabled, in_app_enabled, journal_reminders_enabled, wellbeing_reminders_enabled, insight_notifications_enabled, reminder_time, reminder_timezone",
-          )
+          .select("*")
           .eq("user_id", userId)
           .maybeSingle(),
         this.database
           .schema("user_service")
           .from("privacy_preferences")
-          .select("facial_analysis_enabled, journal_ai_analysis_enabled, crisis_support_visible, lock_screen_private")
+          .select("*")
           .eq("user_id", userId)
           .maybeSingle(),
         this.database
@@ -216,6 +240,7 @@ export class SettingsService {
           .from("account_deletion_requests")
           .select("id, request_status, requested_at, scheduled_for, cancelled_at, completed_at")
           .eq("user_id", userId)
+          .in("request_status", ["pending", "processing"])
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -298,6 +323,8 @@ export class SettingsService {
         journalPrivate: true,
         facialAnalysisEnabled: booleanValue(privacy?.facial_analysis_enabled),
         journalAiAnalysisEnabled: booleanValue(privacy?.journal_ai_analysis_enabled),
+        buddyHistoryEnabled: booleanValue(privacy?.buddy_history_enabled, true),
+        buddyHistoryAvailable: Object.hasOwn(privacy ?? {}, "buddy_history_enabled"),
         crisisSupportVisible: booleanValue(privacy?.crisis_support_visible, true),
         lockScreenPrivate: booleanValue(privacy?.lock_screen_private, true),
       },
@@ -310,6 +337,9 @@ export class SettingsService {
         insightNotificationsEnabled: booleanValue(notifications?.insight_notifications_enabled),
         reminderTime: nullableString(notifications?.reminder_time)?.slice(0, 5) ?? null,
         reminderTimezone: nullableString(notifications?.reminder_timezone),
+        quietHoursAvailable: Object.hasOwn(notifications ?? {}, "quiet_hours_start"),
+        quietHoursStart: nullableString(notifications?.quiet_hours_start)?.slice(0, 5) ?? null,
+        quietHoursEnd: nullableString(notifications?.quiet_hours_end)?.slice(0, 5) ?? null,
       },
       trustedContacts: trustedContacts.map((contact) => ({
         id: stringValue(contact.id),
@@ -323,16 +353,7 @@ export class SettingsService {
       })),
       latestExport: exportHistory[0] ?? null,
       exportHistory,
-      deletionRequest: latestDeletion
-        ? {
-            id: stringValue((latestDeletion as Row).id),
-            status: stringValue((latestDeletion as Row).request_status),
-            requestedAt: stringValue((latestDeletion as Row).requested_at),
-            scheduledFor: nullableString((latestDeletion as Row).scheduled_for),
-            cancelledAt: nullableString((latestDeletion as Row).cancelled_at),
-            completedAt: nullableString((latestDeletion as Row).completed_at),
-          }
-        : null,
+      deletionRequest: latestDeletion ? deletionValue(latestDeletion as Row) : null,
     };
   }
 
@@ -396,40 +417,65 @@ export class SettingsService {
 
   async updatePrivacy(userId: string, input: PrivacySettingsInput) {
     await this.ensureDefaults(userId);
+    const values = {
+      facial_analysis_enabled: input.facialAnalysisEnabled,
+      ...(input.buddyHistoryEnabled !== undefined ? { buddy_history_enabled: input.buddyHistoryEnabled } : {}),
+      ...(input.journalAiAnalysisEnabled !== undefined
+        ? { journal_ai_analysis_enabled: input.journalAiAnalysisEnabled }
+        : {}),
+      crisis_support_visible: input.crisisSupportVisible,
+      lock_screen_private: input.lockScreenPrivate,
+    };
     const { error } = await this.database
       .schema("user_service")
       .from("privacy_preferences")
-      .update({
-        facial_analysis_enabled: input.facialAnalysisEnabled,
-        ...(input.journalAiAnalysisEnabled !== undefined
-          ? { journal_ai_analysis_enabled: input.journalAiAnalysisEnabled }
-          : {}),
-        crisis_support_visible: input.crisisSupportVisible,
-        lock_screen_private: input.lockScreenPrivate,
-      })
+      .update(values)
       .eq("user_id", userId);
-    if (error) throw databaseError("Your privacy settings could not be saved.");
+    if (error && ["42703", "PGRST204"].includes(error.code) && error.message.includes("buddy_history_enabled")) {
+      if (input.buddyHistoryEnabled === false) {
+        throw new ConflictError("BUDDY_HISTORY_UNAVAILABLE", "Save Buddy history cannot be changed until the database update is applied.");
+      }
+      const legacyValues: Record<string, unknown> = { ...values };
+      delete legacyValues.buddy_history_enabled;
+      const legacy = await this.database.schema("user_service").from("privacy_preferences")
+        .update(legacyValues).eq("user_id", userId);
+      if (legacy.error) throw databaseError("Your privacy settings could not be saved.");
+    } else if (error) throw databaseError("Your privacy settings could not be saved.");
     await this.recordAudit(userId, "settings.privacy_updated", { resourceType: "privacy_preferences" });
     return this.get(userId);
   }
 
   async updateNotifications(userId: string, input: NotificationSettingsInput) {
     await this.ensureDefaults(userId);
+    const quietHours = input.quietHoursStart === undefined ? {} : {
+      quiet_hours_start: input.quietHoursStart,
+      quiet_hours_end: input.quietHoursEnd,
+    };
     const { error } = await this.database
       .schema("user_service")
       .from("notification_preferences")
       .update({
         email_enabled: input.emailEnabled,
         push_enabled: input.pushEnabled,
-        in_app_enabled: input.inAppEnabled,
+        in_app_enabled: input.inAppEnabled || input.insightNotificationsEnabled ||
+          input.journalRemindersEnabled || input.wellbeingRemindersEnabled,
         journal_reminders_enabled: input.journalRemindersEnabled,
         wellbeing_reminders_enabled: input.wellbeingRemindersEnabled,
         insight_notifications_enabled: input.insightNotificationsEnabled,
         reminder_time: input.reminderTime,
         reminder_timezone: input.reminderTimezone,
+        ...quietHours,
       })
       .eq("user_id", userId);
-    if (error) throw databaseError("Your notification settings could not be saved.");
+    if (error && ["42703", "PGRST204"].includes(error.code) &&
+      /quiet_hours_(start|end)/.test(error.message)) {
+      throw new ConflictError("QUIET_HOURS_UNAVAILABLE", "Quiet hours cannot be saved until the database update is applied.");
+    }
+    if (error?.code === "23514" && error.message.includes("notification_reminder_outside_quiet_check")) {
+      throw new ConflictError("REMINDER_IN_QUIET_HOURS", "Choose a reminder time outside quiet hours.");
+    }
+    throwIfDatabaseError(error, { module: "settings", schema: "user_service", table: "notification_preferences", operation: "update notification settings" }, "Your notification settings could not be saved.");
+    if (!input.pushEnabled) await this.pushSubscriptions?.removeAll(userId);
     await this.recordAudit(userId, "settings.notifications_updated", { resourceType: "notification_preferences" });
     return this.get(userId);
   }
@@ -496,8 +542,12 @@ export class SettingsService {
 
   async requestExport(userId: string) {
     if (!this.exports) throw new ExternalServiceError("EXPORT_UNAVAILABLE", "Data export is not configured.");
-    await this.exports.prepare(userId);
-    return this.get(userId);
+    const requestId = await this.exports.prepare(userId);
+    const { data, error } = await this.administrativeDatabase.schema("user_service").from("data_export_requests")
+      .select("id,request_status,requested_at,completed_at,expires_at")
+      .eq("id", requestId).eq("user_id", userId).single();
+    if (error || !data) throw databaseError("Your export status could not be loaded.");
+    return exportValue(data as Row);
   }
 
   async downloadExport(userId: string, requestId: string) {
@@ -510,7 +560,26 @@ export class SettingsService {
       .schema("user_service")
       .rpc("request_account_deletion", { p_user_id: userId });
     if (error || !data) throw databaseError("Your deletion request could not be created.");
-    return this.get(userId);
+    const center = await this.getDeletionCenter(userId);
+    if (!center.deletionRequest) throw databaseError("Your deletion status could not be loaded.");
+    return center.deletionRequest;
+  }
+
+  async getDeletionCenter(userId: string) {
+    const [deletion, exports] = await Promise.all([
+      this.administrativeDatabase.schema("user_service").from("account_deletion_requests")
+        .select("id,request_status,requested_at,scheduled_for,cancelled_at,completed_at")
+        .eq("user_id", userId).in("request_status", ["pending", "processing"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      this.administrativeDatabase.schema("user_service").from("data_export_requests")
+        .select("id,request_status,requested_at,completed_at,expires_at")
+        .eq("user_id", userId).order("created_at", { ascending: false }).limit(10),
+    ]);
+    if (deletion.error || exports.error) throw databaseError("Your deletion status could not be loaded.");
+    return {
+      deletionRequest: deletion.data ? deletionValue(deletion.data as Row) : null,
+      exportHistory: (exports.data ?? []).map((row) => exportValue(row as Row)),
+    };
   }
 
   async cancelDeletion(userId: string, requestId: string) {
@@ -519,7 +588,12 @@ export class SettingsService {
       .rpc("cancel_account_deletion", { p_user_id: userId, p_request_id: requestId });
     if (error) throw databaseError("Your deletion request could not be cancelled.");
     if (data !== true) throw new NotFoundError("No pending deletion request was found.");
-    return this.get(userId);
+    const { data: cancelled, error: readError } = await this.administrativeDatabase.schema("user_service")
+      .from("account_deletion_requests")
+      .select("id,request_status,requested_at,scheduled_for,cancelled_at,completed_at")
+      .eq("id", requestId).eq("user_id", userId).single();
+    if (readError || !cancelled) throw databaseError("Your cancellation status could not be loaded.");
+    return deletionValue(cancelled as Row);
   }
 
   async changePassword(

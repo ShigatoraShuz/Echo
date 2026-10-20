@@ -12,7 +12,7 @@ const states = { empty: "No application", pending: "Pending approval", approved:
 type PreviewState = keyof typeof states;
 const membership: Membership = {
   id: "synthetic-membership", organizationId: "fc000000-0000-4000-8000-000000000001",
-  organization: { id: "fc000000-0000-4000-8000-000000000001", slug: "synthetic-care", name: "Synthetic Care Organization", description: "Fictional organization", serviceHours: "Sample hours", status: "active" },
+  organization: { id: "fc000000-0000-4000-8000-000000000001", slug: "synthetic-care", name: "Synthetic Care Organization", description: "Fictional organization", location: "", serviceTypes: [], consultationMethods: [], serviceHours: "Sample hours", status: "active" },
   role: "counselor", status: "pending", displayName: "Synthetic Professional", credentialLabel: "Synthetic counseling qualification", credentialExpiresAt: "2099-12-31", accessState: "pending_membership",
 };
 

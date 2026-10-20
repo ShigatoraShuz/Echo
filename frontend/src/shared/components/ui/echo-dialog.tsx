@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useId } from "react";
+import { useEffect, useRef, useCallback, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 import { X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { shouldReduceMotion } from "@/shared/hooks/use-prefers-reduced-motion";
 
 interface EchoDialogProps {
   open: boolean;
@@ -22,9 +23,15 @@ const sizeStyles = {
   large: "max-w-2xl",
 };
 
+let dialogScrollLocks = 0;
+let previousBodyOverflow = "";
+
 export function EchoDialog({ open, onClose, title, description, children, className, size = "medium" }: EchoDialogProps) {
+  const [present, setPresent] = useState(open);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useFocusTrap(open);
+  // Presence may mount one render after open; attach the trap only once its
+  // DOM exists, including dialogs opened from an initially closed state.
+  const dialogRef = useFocusTrap(open && present);
   const titleId = useId();
   const descriptionId = useId();
   const closeRef = useRef(onClose);
@@ -38,26 +45,47 @@ export function EchoDialog({ open, onClose, title, description, children, classN
   );
 
   useEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
     if (open) {
-      document.addEventListener("keydown", handleKeyDown);
+      setPresent(true);
+      return;
+    }
+    if (!present) return;
+    const timeout = window.setTimeout(() => setPresent(false), shouldReduceMotion() ? 0 : 180);
+    return () => window.clearTimeout(timeout);
+  }, [open, present]);
+
+  useEffect(() => {
+    if (!present) return;
+    if (dialogScrollLocks++ === 0) {
+      previousBodyOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
-      dialogRef.current?.focus();
     }
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      if (open) { document.body.style.overflow = previousOverflow; previousFocus?.focus(); }
+      if (--dialogScrollLocks === 0) document.body.style.overflow = previousBodyOverflow;
     };
-  }, [open, handleKeyDown, dialogRef]);
+  }, [present]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open || !present) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    document.addEventListener("keydown", handleKeyDown);
+    dialogRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      if (!document.querySelector('.echo-dialog-overlay[data-state="open"]')) previousFocus?.focus();
+    };
+  }, [open, present, handleKeyDown, dialogRef]);
+
+  if (!present) return null;
 
   return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      data-state={open ? "open" : "closing"}
+      aria-hidden={!open}
+      inert={!open}
+      className="echo-dialog-overlay fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => { if (open && e.target === overlayRef.current) onClose(); }}
     >
       <div
         ref={dialogRef}
@@ -67,7 +95,7 @@ export function EchoDialog({ open, onClose, title, description, children, classN
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-card p-6 shadow-dialog outline-none motion-fade-in motion-scale-in motion-reduce:animate-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "echo-dialog-panel max-h-[90dvh] w-full overflow-y-auto rounded-2xl bg-card p-6 shadow-dialog outline-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           sizeStyles[size],
           className
         )}

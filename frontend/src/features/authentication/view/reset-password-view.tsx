@@ -39,7 +39,7 @@ export function ResetPasswordView({ title, description }: ResetPasswordViewProps
       <EchoReveal direction="up" className="space-y-6">
         <section className="space-y-6">
           <div className="space-y-3">
-            <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            <h1 className="break-words font-serif text-[clamp(1.75rem,8vw,2.25rem)] font-semibold tracking-tight text-foreground sm:text-5xl">
               {title}
             </h1>
             <p className="max-w-xl text-base leading-7 text-muted-foreground">{description}</p>

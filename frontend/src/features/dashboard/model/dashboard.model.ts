@@ -21,11 +21,13 @@ export interface QuickAction {
 
 export interface DashboardData {
   userProfile: UserProfile;
-  latestEntry: JournalEntry | null;
-  journalEntries: JournalEntry[];
+  latestEntry: DashboardEntry | null;
+  journalEntries: DashboardEntry[];
   moodTrend: TrendPoint[];
   riskTrend: TrendPoint[];
   weeklyDigest: string[];
   quickActions: QuickAction[];
   analysisInsights?: DashboardInsights;
 }
+
+export type DashboardEntry = Pick<JournalEntry, "id" | "title" | "mood" | "emotions" | "tags" | "createdAt"> & Partial<JournalEntry>;

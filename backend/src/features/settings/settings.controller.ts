@@ -14,6 +14,7 @@ const profileSchema = z.strictObject({
 
 const privacySchema = z.strictObject({
   journalAiAnalysisEnabled: z.boolean().optional(),
+  buddyHistoryEnabled: z.boolean().optional(),
   facialAnalysisEnabled: z.boolean(),
   crisisSupportVisible: z.boolean(),
   lockScreenPrivate: z.boolean(),
@@ -31,14 +32,33 @@ const notificationSchema = z
       .string()
       .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
       .nullable(),
-    reminderTimezone: z.string().trim().min(1).max(100).nullable(),
+    reminderTimezone: z.string().trim().min(1).max(100).nullable().refine((zone) => {
+      if (zone === null) return true;
+      try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; }
+      catch { return false; }
+    }, "Choose a valid timezone."),
+    quietHoursStart: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+    quietHoursEnd: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
   })
   .refine(
     (value) =>
       (!value.journalRemindersEnabled && !value.wellbeingRemindersEnabled) ||
       Boolean(value.reminderTime && value.reminderTimezone),
     { message: "A reminder time and timezone are required when reminders are enabled." },
-  );
+  )
+  .refine((value) =>
+    (value.quietHoursStart === undefined && value.quietHoursEnd === undefined) ||
+    (value.quietHoursStart === null && value.quietHoursEnd === null) ||
+    (Boolean(value.quietHoursStart) && Boolean(value.quietHoursEnd) &&
+      value.quietHoursStart !== value.quietHoursEnd),
+  { message: "Choose different start and end times for quiet hours, or clear both." })
+  .refine((value) => {
+    const { reminderTime, quietHoursStart: start, quietHoursEnd: end } = value;
+    if (!reminderTime || !start || !end) return true;
+    return start < end
+      ? reminderTime < start || reminderTime >= end
+      : reminderTime < start && reminderTime >= end;
+  }, { message: "Choose a reminder time outside quiet hours." });
 
 const auditQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -167,6 +187,9 @@ export function createSettingsController(service: SettingsService) {
     },
     async requestDeletion(request: Request, response: Response) {
       sendSuccess(response, await service.requestDeletion(userId(request)), 201);
+    },
+    async getDeletionCenter(request: Request, response: Response) {
+      sendSuccess(response, await service.getDeletionCenter(userId(request)));
     },
     async cancelDeletion(request: Request, response: Response) {
       sendSuccess(response, await service.cancelDeletion(userId(request), requireUuidParam(request, "requestId")));

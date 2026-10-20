@@ -14,10 +14,10 @@ export function ProfessionalRequestPreview({ organizationId, organizationName }:
   const prefix = organizationId.endsWith("0") ? "QA" : "QB";
   const userId = "synthetic-queue-professional";
   const rows: QueueRequest[] = [
-    { id: `${prefix}000001`, status: "submitted", assignedTo: null },
-    { id: `${prefix}000002`, status: "assigned", assignedTo: userId },
-    { id: `${prefix}000003`, status: "scheduled", assignedTo: "synthetic-practitioner" },
-    { id: `${prefix}000004`, status: "closed", assignedTo: userId },
+    { id: `${prefix}000001`, status: "submitted" as const, assignedTo: null },
+    { id: `${prefix}000002`, status: "assigned" as const, assignedTo: userId },
+    { id: `${prefix}000003`, status: "scheduled" as const, assignedTo: "synthetic-practitioner" },
+    { id: `${prefix}000004`, status: "closed" as const, assignedTo: userId },
   ].map((item, index) => ({ ...item, organizationId, createdAt: `2026-10-${10 + index}T09:00:00Z`, updatedAt: "2026-10-13T09:00:00Z" }));
   const assignedDates = { [rows[1].id]: "2026-10-11T10:00:00Z", [rows[3].id]: "2026-10-12T10:00:00Z" };
   return <details id="request-management" onToggle={(event) => setExpanded(event.currentTarget.open)} className="mt-6 scroll-mt-32 rounded-2xl border border-border bg-card p-5">

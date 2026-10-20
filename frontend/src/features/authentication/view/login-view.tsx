@@ -31,6 +31,9 @@ const loginRouteMessages: Record<string, string> = {
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before logging in.",
   sign_in_session_expired: "Your sign-in session expired. Please log in again.",
+  idle_timeout: "You were signed out after 30 minutes without activity. Please log in again.",
+  session_changed: "Your session changed. Please log in again.",
+  auth_unavailable: "Your session could not be checked. Please log in again.",
   google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
 };
 
@@ -117,15 +120,17 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
               required
             />
 
-            <div className="flex items-center justify-between gap-4 pt-0.5">
-              <EchoCheckbox
-                label="Remember me on this device"
-                checked={rememberSession}
-                onChange={(event) => setRememberSession(event.target.checked)}
-              />
+            <div className="flex flex-col items-start gap-1 pt-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="[&_label]:min-h-11 [&_label]:items-center">
+                <EchoCheckbox
+                  label="Remember me on this device"
+                  checked={rememberSession}
+                  onChange={(event) => setRememberSession(event.target.checked)}
+                />
+              </div>
               <Link
                 href="/forgot-password"
-                className="shrink-0 text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
+                className="inline-flex min-h-11 shrink-0 items-center text-sm font-bold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
               >
                 Forgot password?
               </Link>

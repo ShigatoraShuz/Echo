@@ -7,6 +7,30 @@ import { sendSuccess } from "../../shared/utils/response.js";
 import type { JournalService } from "./journals.service.js";
 
 const journalInputSchema = journalSubmissionInputSchema;
+const journalListSchema = z.object({
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(10),
+  query: z.string().trim().max(200).default(""),
+  mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]).optional(),
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional(),
+  sort: z.enum(["newest", "oldest"]).default("newest"),
+}).refine((value) => !value.dateFrom || !value.dateTo || value.dateFrom <= value.dateTo, { message: "dateFrom must be before dateTo" });
+const analysisInsightsQuerySchema = z
+  .object({
+    range: z.enum(["7d", "30d", "90d", "custom"]).default("30d"),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.range !== "custom") return;
+    if (!value.from) context.addIssue({ code: "custom", path: ["from"], message: "from is required for a custom range" });
+    if (!value.to) context.addIssue({ code: "custom", path: ["to"], message: "to is required for a custom range" });
+    if (value.from && value.to && value.from > value.to)
+      context.addIssue({ code: "custom", path: ["to"], message: "to must be on or after from" });
+    if (value.from && value.to && Date.parse(`${value.to}T00:00:00.000Z`) - Date.parse(`${value.from}T00:00:00.000Z`) > 366 * 86_400_000)
+      context.addIssue({ code: "custom", path: ["to"], message: "custom ranges cannot exceed 366 days" });
+  });
 
 const journalUpdateSchema = journalSubmissionObjectSchema.partial();
 
@@ -61,8 +85,24 @@ export function createJournalsController(service: JournalService) {
       if (!Buffer.isBuffer(request.body)) throw new ValidationError({image:["An image file is required."]});
       sendSuccess(response, await service.uploadImage(userId(request),requireUuidParam(request,"journalId"),requireUuidParam(request,"imageId"),request.body,request.header("content-type") ?? ""));
     },
+    async uploadDraftImage(request: Request, response: Response) {
+      if (!Buffer.isBuffer(request.body)) throw new ValidationError({ image: ["An image file is required."] });
+      sendSuccess(response, await service.uploadDraftImage(userId(request), requireUuidParam(request, "imageId"), request.body, request.header("content-type") ?? ""));
+    },
+    async listDraftImages(request: Request, response: Response) {
+      sendSuccess(response, await service.listDraftImages(userId(request)));
+    },
+    async removeDraftImage(request: Request, response: Response) {
+      await service.removeDraftImage(userId(request), requireUuidParam(request, "imageId"));
+      response.status(204).end();
+    },
+    async attachDraftImages(request: Request, response: Response) {
+      sendSuccess(response, await service.attachDraftImages(userId(request), requireUuidParam(request, "journalId")));
+    },
     async list(request: Request, response: Response) {
-      sendSuccess(response, { entries: await service.list(userId(request)) });
+      const result = journalListSchema.safeParse(request.query);
+      if (!result.success) throw new ValidationError({ query: result.error.issues.map((issue) => issue.message) });
+      sendSuccess(response, await service.listPage(userId(request), result.data));
     },
     async get(request: Request, response: Response) {
       sendSuccess(response, await service.get(userId(request), requireUuidParam(request, "journalId")));
@@ -116,7 +156,9 @@ export function createJournalsController(service: JournalService) {
       sendSuccess(response, await service.getAnalysisStatus(userId(request), requireUuidParam(request, "jobId")));
     },
     async dashboardInsights(request: Request, response: Response) {
-      sendSuccess(response, await service.dashboardInsights(userId(request)));
+      const result = analysisInsightsQuerySchema.safeParse(request.query);
+      if (!result.success) throw new ValidationError({ query: result.error.issues.map((issue) => issue.message) });
+      sendSuccess(response, await service.dashboardInsights(userId(request), result.data));
     },
     async supportResources(request: Request, response: Response) {
       const input = parse(supportResourceSchema, request.body);

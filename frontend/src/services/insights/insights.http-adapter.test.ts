@@ -50,6 +50,35 @@ describe("insights HTTP adapter", () => {
     }
   });
 
+  it("loads and validates the owner-scoped analysis overview range", async () => {
+    let requestedUrl = "";
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedUrl = String(input);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            latestResultId: null,
+            latest: null,
+            recommendation: null,
+            emotionTrend: [],
+            distressTrend: [],
+            period: { range: "custom", from: "2026-09-01", to: "2026-09-30", analyzedReflectionCount: 0 },
+            facialStatus: "not_requested",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { createInsightsHttpAdapter } = await import("@/services/insights/insights.http-adapter");
+    const result = await createInsightsHttpAdapter().getAnalysisOverview("custom", { from: "2026-09-01", to: "2026-09-30" });
+
+    expect(result).toEqual(expect.objectContaining({ success: true }));
+    expect(requestedUrl).toContain("range=custom&from=2026-09-01&to=2026-09-30");
+  });
+
   it("reports backend gaps explicitly instead of returning fabricated risk data", async () => {
     const { createInsightsHttpAdapter } = await import("@/services/insights/insights.http-adapter");
     const result = await createInsightsHttpAdapter().getRiskSignal();

@@ -166,7 +166,7 @@ describe("professional login presentation and authentication", () => {
     render(<ProfessionalLoginView />);
     await passwordForm();
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("We could not complete sign-in. Please try again.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Sign-in could not be reached. Check your connection and try again.");
     expect(screen.getByLabelText(/email address/i)).toHaveValue("professional@example.test");
     expect(screen.getByPlaceholderText("Enter your password")).toHaveValue("synthetic-password");
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();

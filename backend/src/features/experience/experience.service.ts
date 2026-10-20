@@ -5,7 +5,7 @@ import type { JournalService } from "../journals/journals.service.js";
 import type { EncryptionService } from "../../infrastructure/encryption/encryption.service.js";
 import { encryptText, decryptText } from "../../infrastructure/encryption/encryption.service.js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
-import { ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
+import { ConflictError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
 
 type DatabaseRow = Record<string, unknown>;
 
@@ -88,6 +88,19 @@ function buddyReply(message: string, urgent: boolean): string {
   return "I am here with you. What part of that feels most present right now, and what would make the next few minutes a little gentler?";
 }
 
+function buddyTitle(message: string): string {
+  const text = message.toLowerCase();
+  if (/\b(overwhelmed?|anxious|anxiety|stressed?|tense)\b/.test(text)) return "Feeling overwhelmed today";
+  if (/\b(sleep|tired|rest|insomnia)\b/.test(text)) return "Finding rest today";
+  if (/\b(sad|lonely|alone|grief)\b/.test(text)) return "Working through a hard day";
+  if (/\b(angry|frustrated?|frustration)\b/.test(text)) return "Working through frustration";
+  return "A conversation with Buddy";
+}
+
+function searchWords(value: string): string[] {
+  return [...new Set(value.normalize("NFKC").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])].slice(0, 256);
+}
+
 export class ExperienceService {
   readonly wellness: WellnessService;
   constructor(
@@ -100,9 +113,40 @@ export class ExperienceService {
 
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
+  private async historyEnabled(userId: string): Promise<boolean> {
+    const { data, error } = await this.reader.schema("user_service").from("privacy_preferences")
+      .select("buddy_history_enabled").eq("user_id", userId).maybeSingle();
+    throwIfDatabaseError(error, {
+      module: "experience.buddy", schema: "user_service", table: "privacy_preferences",
+      operation: "select Buddy history preference",
+    }, "Buddy privacy settings could not be loaded.");
+    return data?.buddy_history_enabled !== false;
+  }
+
+  async buddyPrivacy(userId: string) {
+    return { buddyHistoryEnabled: await this.historyEnabled(userId) };
+  }
+
+  private titleOf(row: DatabaseRow): string {
+    return row.title_ciphertext
+      ? decryptText(row.title_ciphertext, this.encryption)
+      : asString(row.title, "Buddy conversation");
+  }
+
+  private conversationSummary(row: DatabaseRow) {
+    return {
+      id: asString(row.id), title: this.titleOf(row),
+      preview: row.preview_ciphertext ? decryptText(row.preview_ciphertext, this.encryption) : "",
+      pinned_at: row.pinned_at ?? null,
+      last_message_at: row.last_message_at ?? null,
+      created_at: row.created_at,
+    };
+  }
+
   async dashboard(userId: string, range = "7d") {
-    const [entries, profileResult, preferenceResult] = await Promise.all([
-      this.journals.list(userId),
+    const [entries, analysisInsights, profileResult, preferenceResult] = await Promise.all([
+      this.journals.listSummaries(userId),
+      this.journals.dashboardInsights(userId),
       this.reader.schema("user_service").from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
       this.reader
         .schema("user_service")
@@ -133,6 +177,7 @@ export class ExperienceService {
     );
     const profile = profileResult.data;
     const preferences = preferenceResult.data;
+    const recentTitles = await this.journals.getJournalTitles(userId, entries.slice(0, 3).map((entry) => entry.id));
 
     const today = startOfUtcDay(new Date());
     let moodTrend: Array<{ label: string; value: number }>;
@@ -206,8 +251,9 @@ export class ExperienceService {
         nextCheckIn: asString((preferences as DatabaseRow | null)?.reminder_time, "Whenever you are ready"),
         privacyStatus: "Private",
       },
-      latestEntry: entries[0] ?? null,
-      journalEntries: entries,
+      latestEntry: entries[0] ? { ...entries[0], title: recentTitles.get(entries[0].id) ?? "" } : null,
+      journalEntries: entries.map((entry) => ({ ...entry, title: recentTitles.get(entry.id) ?? "" })),
+      analysisInsights,
       moodTrend,
       riskTrend: [],
       weeklyDigest,
@@ -224,56 +270,47 @@ export class ExperienceService {
     return decryptText(row.content, this.encryption);
   }
 
-  private async activeConversation(userId: string): Promise<DatabaseRow> {
-    const { data, error } = await this.reader
-      .schema("buddy_service")
-      .from("buddy_conversations")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("archived", false)
-      .order("last_message_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    throwIfDatabaseError(
-      error,
-      {
-        module: "experience.buddy",
-        schema: "buddy_service",
-        table: "buddy_conversations",
-        operation: "select active conversation",
-      },
-      "Buddy is temporarily unavailable.",
-    );
-    if (data) return data as DatabaseRow;
-
-    const { data: created, error: createError } = await this.database
-      .schema("buddy_service")
-      .from("buddy_conversations")
-      .insert({
-        user_id: userId,
-        title: "Buddy conversation",
-        archived: false,
-      })
-      .select("*")
-      .single();
-    throwIfDatabaseError(
-      createError,
-      {
-        module: "experience.buddy",
-        schema: "buddy_service",
-        table: "buddy_conversations",
-        operation: "insert active conversation",
-      },
-      "Buddy could not start a private conversation.",
-    );
-    if (!created) {
-      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy could not start a private conversation.");
-    }
-    return created as DatabaseRow;
+  async createBuddyConversation(userId: string) {
+    if (!(await this.historyEnabled(userId))) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to create a saved conversation.");
+    const title = "Buddy conversation";
+    const { data, error } = await this.database.schema("buddy_service").rpc("create_conversation", {
+      p_user_id: userId, p_title_ciphertext: encryptText(title, this.encryption),
+      p_title_hashes: searchWords(title).map((word) => this.encryption.searchHashes(word)[0]),
+    });
+    if (error?.message.includes("BUDDY_HISTORY_DISABLED"))
+      throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to create a saved conversation.");
+    if (error || !data) throw databaseError("Buddy could not start a conversation.");
+    return this.conversationSummary(data as DatabaseRow);
   }
 
-  async buddySession(userId: string) {
-    const conversation = await this.activeConversation(userId);
+  async renameBuddyConversation(userId: string, conversationId: string, title: string) {
+    await this.ownedConversation(userId, conversationId);
+    const { data, error } = await this.database.schema("buddy_service").rpc("rename_conversation", {
+      p_user_id: userId, p_conversation_id: conversationId,
+      p_title_ciphertext: encryptText(title, this.encryption),
+      p_title_hashes: searchWords(title).map((word) => this.encryption.searchHashes(word)[0]),
+    });
+    if (error?.message.includes("BUDDY_NOT_FOUND")) throw new NotFoundError("The Buddy conversation was not found.");
+    if (error || !data) throw databaseError("Buddy conversation could not be renamed.");
+    return this.conversationSummary(data as DatabaseRow);
+  }
+
+  async deleteBuddyConversation(userId: string, conversationId: string) {
+    await this.ownedConversation(userId, conversationId);
+    const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
+      .delete().eq("id", conversationId).eq("user_id", userId).select("id").maybeSingle();
+    if (error) throw databaseError("Buddy conversation could not be deleted.");
+    if (!data) throw new NotFoundError("The Buddy conversation was not found.");
+    return { deleted: true };
+  }
+
+  async buddySession(userId: string, selectedConversationId?: string) {
+    if (!selectedConversationId) {
+      return { conversationId: null, persisted: false, messages: [{
+        id: "welcome", role: "buddy", content: "I am here with you. What feels most present right now?", timestamp: "Now",
+      }] };
+    }
+    const conversation = await this.ownedConversation(userId, selectedConversationId);
     const conversationId = asString(conversation.id);
     const { data, error } = await this.reader
       .schema("buddy_service")
@@ -281,7 +318,9 @@ export class ExperienceService {
       .select("*")
       .eq("conversation_id", conversationId)
       .eq("user_id", userId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .order("role", { ascending: false })
+      .order("id", { ascending: true });
     throwIfDatabaseError(
       error,
       {
@@ -309,88 +348,56 @@ export class ExperienceService {
         timestamp: "Now",
       });
     }
-    return { conversationId, messages };
+    return { conversationId, conversation: this.conversationSummary(conversation), messages };
   }
 
-  async sendBuddyMessage(userId: string, content: string) {
-    const conversation = await this.activeConversation(userId);
-    const conversationId = asString(conversation.id);
+  async sendBuddyMessage(userId: string, content: string, selectedConversationId?: string) {
+    const saving = await this.historyEnabled(userId);
+    if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
     const urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm)\b/i.test(content);
     const reply = buddyReply(content, urgent);
-    const now = new Date().toISOString();
-    const { error } = await this.database
-      .schema("buddy_service")
-      .from("buddy_messages")
-      .insert([
-        {
-          conversation_id: conversationId,
-          user_id: userId,
-          role: "user",
-          content: encryptText(content, this.encryption),
-          is_flagged: urgent,
-        },
-        {
-          conversation_id: conversationId,
-          user_id: userId,
-          role: "assistant",
-          content: encryptText(reply, this.encryption),
-          is_flagged: urgent,
-        },
-      ]);
-    throwIfDatabaseError(
-      error,
-      {
-        module: "experience.buddy",
-        schema: "buddy_service",
-        table: "buddy_messages",
-        operation: "insert buddy exchange",
-      },
-      "Buddy could not save this conversation.",
-    );
-    const { error: updateError } = await this.database
-      .schema("buddy_service")
-      .from("buddy_conversations")
-      .update({ last_message_at: now })
-      .eq("id", conversationId)
-      .eq("user_id", userId);
-    throwIfDatabaseError(
-      updateError,
-      {
-        module: "experience.buddy",
-        schema: "buddy_service",
-        table: "buddy_conversations",
-        operation: "update last message time",
-      },
-      "Buddy could not save this conversation.",
-    );
-    if (urgent) {
-      const { error: auditError } = await this.database
-        .schema("user_service")
-        .from("audit_events")
-        .insert({
-          user_id: userId,
-          event_type: "buddy.urgent_language_detected",
-          resource_type: "buddy_conversation",
-          resource_id: conversationId,
-          request_id: randomUUID(),
+    if (!saving) {
+      if (urgent) {
+        const { error } = await this.database.schema("user_service").from("audit_events").insert({
+          user_id: userId, event_type: "buddy.urgent_language_detected",
+          resource_type: "buddy_temporary_session", request_id: randomUUID(),
           metadata: { support_resources_shown: true },
         });
-      throwIfDatabaseError(
-        auditError,
-        {
-          module: "experience.buddy",
-          schema: "user_service",
-          table: "audit_events",
-          operation: "insert urgent language audit event",
-        },
-        "Buddy could not save this conversation.",
-      );
+        if (error) throw databaseError("Buddy could not complete the safety check.");
+      }
+      return { conversationId: null, persisted: false, messages: [
+        { id: randomUUID(), role: "user", content, timestamp: new Date().toISOString() },
+        { id: randomUUID(), role: "buddy", content: reply, timestamp: new Date().toISOString() },
+      ] };
     }
-    return this.buddySession(userId);
+    const conversation = selectedConversationId
+      ? await this.ownedConversation(userId, selectedConversationId)
+      : await this.ownedConversation(userId, (await this.createBuddyConversation(userId)).id);
+    const conversationId = asString(conversation.id);
+    const firstMessage = !conversation.last_message_at;
+    const generatedTitle = firstMessage && !conversation.title_manual ? buddyTitle(content) : null;
+    const { error } = await this.database.schema("buddy_service").rpc("save_exchange", {
+      p_user_id: userId, p_conversation_id: conversationId,
+      p_user_content: encryptText(content, this.encryption),
+      p_buddy_content: encryptText(reply, this.encryption),
+      p_urgent: urgent,
+      p_preview: encryptText(reply.slice(0, 120), this.encryption),
+      p_auto_title: generatedTitle ? encryptText(generatedTitle, this.encryption) : null,
+      p_user_hashes: searchWords(content).map((word) => this.encryption.searchHashes(word)[0]),
+      p_buddy_hashes: searchWords(reply).map((word) => this.encryption.searchHashes(word)[0]),
+      p_title_hashes: generatedTitle ? searchWords(generatedTitle).map((word) => this.encryption.searchHashes(word)[0]) : [],
+    });
+    if (error?.message.includes("BUDDY_HISTORY_DISABLED"))
+      throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
+    if (error?.message.includes("BUDDY_NOT_FOUND")) throw new NotFoundError("The Buddy conversation was not found.");
+    throwIfDatabaseError(error, {
+      module: "experience.buddy", schema: "buddy_service", table: "buddy_messages", operation: "save exchange",
+    }, "Buddy could not save this conversation.");
+    return this.buddySession(userId, conversationId);
   }
 
   async emotionInsights(userId: string) {
-    const entries = await this.journals.list(userId);
+    const entries = await this.journals.listSummaries(userId);
     const moods = ["calm", "happy", "neutral", "anxious", "sad", "angry"];
     const counts = new Map(moods.map((mood) => [mood, 0]));
     for (const entry of entries) counts.set(entry.mood, (counts.get(entry.mood) ?? 0) + 1);
@@ -422,11 +429,13 @@ export class ExperienceService {
     };
   }
 
-  async completeGrounding(userId: string, input: { technique: string; durationSeconds: number; pace: string }) {
-    const { data, error } = await this.database
+  async completeGrounding(userId: string, input: { sessionId?: string; technique: string; durationSeconds: number; pace: string }) {
+    const sessionId = input.sessionId ?? randomUUID();
+    const inserted = await this.database
       .schema("grounding_service")
       .from("grounding_sessions")
       .insert({
+        id: sessionId,
         user_id: userId,
         exercise_type: input.technique,
         duration_seconds: input.durationSeconds,
@@ -436,8 +445,26 @@ export class ExperienceService {
       })
       .select("id, completed_at")
       .single();
-    throwIfDatabaseError(
-      error,
+    let data = inserted.data;
+    if (inserted.error?.code === "23505") {
+      const existing = await this.reader
+        .schema("grounding_service")
+        .from("grounding_sessions")
+        .select("id, user_id, exercise_type, duration_seconds, reflection, completed, completed_at")
+        .eq("id", sessionId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      throwIfDatabaseError(existing.error, {
+        module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "load existing completed session",
+      }, "The grounding session could not be confirmed.");
+      if (!existing.data || existing.data.exercise_type !== input.technique ||
+        existing.data.duration_seconds !== input.durationSeconds || existing.data.reflection !== input.pace ||
+        existing.data.completed !== true) {
+        throw new ConflictError("GROUNDING_SESSION_CONFLICT", "This practice key is already used for a different session.");
+      }
+      data = existing.data;
+    } else throwIfDatabaseError(
+      inserted.error,
       {
         module: "experience.grounding",
         schema: "grounding_service",
@@ -466,6 +493,34 @@ export class ExperienceService {
       "Grounding history could not be loaded.",
     );
     return { id: data.id, completedAt: data.completed_at, completedSessions: count ?? 1 };
+  }
+
+  async groundingHistory(userId: string) {
+    const { data, error } = await this.reader
+      .schema("grounding_service")
+      .from("grounding_sessions")
+      .select("id, exercise_type, duration_seconds, reflection, completed_at")
+      .eq("user_id", userId)
+      .eq("completed", true)
+      .order("completed_at", { ascending: false })
+      .limit(250);
+    throwIfDatabaseError(
+      error,
+      {
+        module: "experience.grounding",
+        schema: "grounding_service",
+        table: "grounding_sessions",
+        operation: "list completed grounding sessions",
+      },
+      "Grounding history could not be loaded.",
+    );
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      type: row.exercise_type,
+      duration: row.duration_seconds,
+      pace: row.reflection,
+      completedAt: row.completed_at,
+    }));
   }
 
   async supportResources(query?: string, type?: string, country = "PH") {
@@ -514,13 +569,40 @@ export class ExperienceService {
     }));
   }
 
-  async buddyHistory(userId: string) {
-    const { data, error } = await this.reader
-      .schema("buddy_service")
-      .from("buddy_conversations")
-      .select("id, archived, last_message_at, created_at")
-      .eq("user_id", userId)
-      .order("last_message_at", { ascending: false });
+  async buddyHistory(userId: string, options: { page: number; pageSize: number; query: string }) {
+    if (options.query) {
+      const words = searchWords(options.query);
+      if (!words.length) return { conversations: [], total: 0, page: options.page, page_size: options.pageSize, pinsAvailable: true };
+      const hashes = words.map((word) => this.encryption.searchHashes(word)[0]);
+      const { data, error } = await this.database.schema("buddy_service").rpc("search_history", {
+        p_user_id: userId, p_hashes: hashes, p_page: options.page, p_page_size: options.pageSize,
+      });
+      if (error) throw databaseError("Buddy history could not be searched.");
+      const rows = (data ?? []) as DatabaseRow[];
+      return { conversations: rows.map((row) => this.conversationSummary(row)),
+        total: Number(rows[0]?.total ?? 0), page: options.page, page_size: options.pageSize, pinsAvailable: true };
+    }
+    const readPage = async (pinsAvailable: boolean) => {
+      let request = this.reader
+        .schema("buddy_service")
+        .from("buddy_conversations")
+        .select(pinsAvailable
+          ? "id, title, title_ciphertext, preview_ciphertext, archived, pinned_at, last_message_at, created_at"
+          : "id, title, title_ciphertext, preview_ciphertext, archived, last_message_at, created_at", { count: "exact" })
+        .eq("user_id", userId);
+      if (pinsAvailable) request = request.order("pinned_at", { ascending: false, nullsFirst: false });
+      return request
+        .order("last_message_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range((options.page - 1) * options.pageSize, options.page * options.pageSize - 1);
+    };
+    let pinsAvailable = true;
+    let { data, count, error } = await readPage(true);
+    // shortcut: keep history readable before the pin migration; remove this fallback once every database has it.
+    if (error?.code === "42703" && error.message.includes("pinned_at")) {
+      pinsAvailable = false;
+      ({ data, count, error } = await readPage(false));
+    }
     throwIfDatabaseError(
       error,
       {
@@ -531,7 +613,25 @@ export class ExperienceService {
       },
       "Buddy history could not be loaded.",
     );
-    return data ?? [];
+    return { conversations: ((data ?? []) as unknown as DatabaseRow[]).map((row) => this.conversationSummary(row)), total: count ?? 0, page: options.page, page_size: options.pageSize, pinsAvailable };
+  }
+
+  private async ownedConversation(userId: string, conversationId: string): Promise<DatabaseRow> {
+    const { data, error } = await this.reader.schema("buddy_service").from("buddy_conversations")
+      .select("*").eq("id", conversationId).eq("user_id", userId).maybeSingle();
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy conversation could not be loaded.");
+    if (!data) throw new NotFoundError("The Buddy conversation was not found.");
+    return data as DatabaseRow;
+  }
+
+  async pinBuddyConversation(userId: string, conversationId: string, pinned: boolean) {
+    const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
+      .update({ pinned_at: pinned ? new Date().toISOString() : null })
+      .eq("id", conversationId).eq("user_id", userId)
+      .select("id,pinned_at").maybeSingle();
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy conversation could not be updated.");
+    if (!data) throw new NotFoundError("The Buddy conversation was not found.");
+    return data;
   }
 
   async ensureOwnedConversation(userId: string, conversationId: string) {

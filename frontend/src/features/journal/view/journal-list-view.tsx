@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,6 +10,8 @@ import {
   ListTree,
   PenLine,
 } from "lucide-react";
+import type { JournalDraft } from "../model/journal.model";
+import { getJournalService } from "@/services/journal/journal-service.factory";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
 import { JournalFilters } from "../components/journal-filters";
 import { JournalCard } from "../components/journal-card";
@@ -42,6 +44,26 @@ export function JournalListView() {
   } = useJournalListViewModel();
 
   const [viewMode, setViewMode] = useState<JournalViewMode>("grid");
+  const [draft, setDraft] = useState<JournalDraft | null>(null);
+  const [draftError, setDraftError] = useState("");
+  const [draftLoading, setDraftLoading] = useState(true);
+  const draftRequest = useRef(0);
+  const loadDraft = useCallback(async () => {
+    const request = ++draftRequest.current;
+    setDraftLoading(true);
+    setDraftError("");
+    try {
+      const result = await getJournalService().getDraft("current");
+      if (request !== draftRequest.current) return;
+      if (result.success) setDraft(result.data);
+      else setDraftError(result.error.message);
+    } catch {
+      if (request === draftRequest.current) setDraftError("Your draft could not be loaded.");
+    } finally {
+      if (request === draftRequest.current) setDraftLoading(false);
+    }
+  }, []);
+  useEffect(() => { void loadDraft(); return () => { draftRequest.current++; }; }, [loadDraft]);
 
   // Group entries by Month Year (e.g. "August 2026") for the timeline view
   const groupedTimelineEntries = useMemo(() => {
@@ -59,6 +81,7 @@ export function JournalListView() {
 
     return groups;
   }, [entries]);
+  const contentKey = `${viewMode}:${pagination.page}:${filters.query}:${filters.mood}:${filters.sort}:${filters.dateFrom}:${filters.dateTo}:${isLoading}`;
 
   if (error && entries.length === 0) {
     return (
@@ -72,7 +95,10 @@ export function JournalListView() {
 
   return (
     <div className="flex flex-col gap-5 [font-family:var(--font-echo-sans)] sm:gap-6">
-      <Link href="/journal/drafts" className="order-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--landing-primary)] underline-offset-4 hover:underline sm:order-1 sm:min-h-0 sm:self-start sm:rounded-full sm:border sm:border-primary/20 sm:bg-card sm:px-4 sm:py-2 sm:no-underline">Unfinished pages · Resume a draft</Link>
+      {draft && <Link href="/journal/new" className="journal-draft-card order-2 flex min-h-20 items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-card px-5 py-4 shadow-sm outline-none hover:bg-secondary/40 focus-visible:ring-4 focus-visible:ring-primary/20 sm:order-1">
+        <span className="min-w-0"><span className="block text-[11px] font-bold uppercase tracking-[0.13em] text-primary">Continue writing</span><span className="mt-1 block truncate font-[family-name:var(--font-echo-display)] text-lg text-foreground">{draft.title || draft.body.slice(0, 80) || "Untitled reflection"}</span><span className="mt-1 block text-xs text-muted-foreground">Saved {new Date(draft.updatedAt).toLocaleString()}</span></span><PenLine className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+      </Link>}
+      {!draftLoading && draftError && <div className="order-2 flex flex-wrap items-center gap-3 rounded-2xl border border-danger/20 bg-card px-5 py-4 text-sm sm:order-1" role="alert"><span>Draft unavailable: {draftError}</span><button type="button" onClick={() => void loadDraft()} className="min-h-11 font-semibold text-primary underline">Retry</button></div>}
       {/* ── Top Hero Banner ────────────────────────────────────────── */}
       <EchoMotionSurface className="relative order-1 overflow-hidden rounded-2xl bg-[linear-gradient(120deg,rgba(251,247,238,0.96),rgba(220,232,214,0.7))] p-5 sm:order-2 sm:rounded-[2rem] sm:border sm:border-[var(--landing-primary-15)] sm:p-8 sm:shadow-[0_18px_48px_rgba(47,53,39,0.07)]">
         <div className="relative z-10 max-w-xl">
@@ -80,7 +106,7 @@ export function JournalListView() {
             <span>Your private journal</span>
           </p>
 
-          <h1 className="text-[2rem] font-bold leading-none tracking-tight text-[var(--landing-ink)] sm:mt-2 sm:text-4xl [font-family:var(--font-echo-display)]">
+          <h1 className="journal-ink-arrive text-[2rem] font-bold leading-none tracking-tight text-[var(--landing-ink)] sm:mt-2 sm:text-4xl [font-family:var(--font-echo-display)]">
             <span className="sm:hidden">Your journal</span>
             <span className="hidden sm:inline">Pages to return to, at your pace.</span>
           </h1>
@@ -96,7 +122,7 @@ export function JournalListView() {
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--landing-primary)] px-5 text-sm font-bold text-[var(--landing-inverse)] shadow-sm outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-emerald-600/30 active:scale-[0.98] sm:h-11 sm:w-auto"
             >
               <PenLine className="h-4 w-4" aria-hidden="true" />
-              <span>Open today&apos;s page</span>
+              <span>{draft ? "Continue your draft" : "New reflection"}</span>
             </Link>
 
             <span className="hidden h-11 items-center gap-2 rounded-full border border-[var(--landing-primary-15)] bg-white/80 px-4 text-xs font-semibold text-[var(--landing-ink)] shadow-xs sm:inline-flex">
@@ -174,6 +200,7 @@ export function JournalListView() {
         />
 
         {/* ── Content Stream ────────────────────────────────────────── */}
+        <div key={contentKey} className="echo-member-content-swap">
         {isLoading ? (
           <EchoLoadingState variant="skeleton" count={4} />
         ) : entries.length === 0 ? (
@@ -210,12 +237,13 @@ export function JournalListView() {
           </div>
         ) : (
           /* ── Gallery Grid Mode ── */
-          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 pt-2">
-            {entries.map((entry) => (
-              <JournalCard key={entry.id} entry={entry} />
+          <div className="mx-auto grid max-w-[1020px] grid-cols-1 justify-items-center gap-x-5 gap-y-8 pt-2 sm:grid-cols-2 lg:grid-cols-3">
+            {entries.map((entry, index) => (
+              <JournalCard key={entry.id} entry={entry} index={index} />
             ))}
           </div>
         )}
+        </div>
 
         {/* ── Pagination ────────────────────────────────────────────── */}
         {pagination.totalPages > 1 && (

@@ -16,7 +16,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build --workspace @echo/contracts
+      - run: npm run test:e2e:routes --workspace echo-theme-system
       - run: npm run typecheck --workspace echo-theme-system
       - run: npm run lint --workspace echo-theme-system
       - run: npm run test --workspace echo-theme-system
       - run: npm run build --workspace echo-theme-system
+        env:
+          # Compile-only public values. Staging acceptance uses its own deployment.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-build.invalid
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-build-only
+          NEXT_PUBLIC_API_BASE_URL: https://api.ci-build.invalid/api/v1
+          NEXT_PUBLIC_DATA_ADAPTER: http
+
+  public-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace @echo/contracts
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e:mobile --workspace echo-theme-system
+        env:
+          NEXT_PUBLIC_DATA_ADAPTER: http
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: public-browser-failures
+          path: frontend/test-results/

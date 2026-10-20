@@ -20,6 +20,7 @@ function createHarness() {
     downloadExport: vi.fn().mockResolvedValue(JSON.stringify({ format: "synthetic-export" })),
     requestExport: vi.fn().mockResolvedValue({ latestExport: { id: "export-1" } }),
     requestDeletion: vi.fn().mockResolvedValue({ deletionRequest: { id: "deletion-1" } }),
+    getDeletionCenter: vi.fn().mockResolvedValue({ deletionRequest: { id: "deletion-1", status: "pending" }, exportHistory: [] }),
     cancelDeletion: vi.fn().mockResolvedValue({ deletionRequest: null }),
     changePassword: vi.fn().mockResolvedValue({ passwordChanged: true }),
     listSecurityAuditEvents: vi.fn().mockResolvedValue({ auditEvents: [] }),
@@ -139,6 +140,46 @@ describe("settings routes", () => {
     expect(settings.updateNotifications).not.toHaveBeenCalled();
   });
 
+  it("rejects an invalid reminder timezone before saving it", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app)
+      .patch("/api/v1/settings/notifications")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        emailEnabled: false,
+        pushEnabled: false,
+        inAppEnabled: true,
+        journalRemindersEnabled: true,
+        wellbeingRemindersEnabled: false,
+        insightNotificationsEnabled: false,
+        reminderTime: "08:00",
+        reminderTimezone: "Invalid/Timezone",
+      });
+    expect(response.status).toBe(400);
+    expect(settings.updateNotifications).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reminder scheduled inside quiet hours", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app)
+      .patch("/api/v1/settings/notifications")
+      .set("Authorization", "Bearer valid-token")
+      .send({
+        emailEnabled: false,
+        pushEnabled: false,
+        inAppEnabled: true,
+        journalRemindersEnabled: true,
+        wellbeingRemindersEnabled: false,
+        insightNotificationsEnabled: false,
+        reminderTime: "22:30",
+        reminderTimezone: "Asia/Manila",
+        quietHoursStart: "22:00",
+        quietHoursEnd: "07:00",
+      });
+    expect(response.status).toBe(400);
+    expect(settings.updateNotifications).not.toHaveBeenCalled();
+  });
+
   it("creates trusted contacts and returns 201", async () => {
     const { app, settings } = createHarness();
 
@@ -175,6 +216,15 @@ describe("settings routes", () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
     expect(settings.cancelDeletion).not.toHaveBeenCalled();
+  });
+
+  it("loads the deletion center for the authenticated account", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app).get("/api/v1/settings/account-deletion")
+      .set("Authorization", "Bearer valid-token");
+    expect(response.status).toBe(200);
+    expect(response.body.data.deletionRequest.status).toBe("pending");
+    expect(settings.getDeletionCenter).toHaveBeenCalledWith("user-1");
   });
 
   it("returns security audit events with a validated limit", async () => {

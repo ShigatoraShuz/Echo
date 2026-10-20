@@ -58,6 +58,7 @@ export function createOnboardingHttpAdapter(): OnboardingService {
         await client.post("/onboarding/setup", {
           theme: setup.theme,
           notifications: setup.notifications,
+          facialAnalysis: setup.facialAnalysis,
           genderIdentity: setup.genderIdentity,
           genderSelfDescription: setup.genderSelfDescription,
           pronouns: setup.pronouns,

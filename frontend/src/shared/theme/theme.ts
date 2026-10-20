@@ -2,18 +2,22 @@ export const ECHO_THEME_STORAGE_KEY = "echo-theme:v1";
 
 export const echoThemeVariants = ["echo-calm", "echo-night", "echo-soft", "echo-focus"] as const;
 export const echoThemeModes = ["light", "dark", "system"] as const;
+export const echoMotionModes = ["system", "full"] as const;
 
 export type EchoThemeVariant = (typeof echoThemeVariants)[number];
 export type EchoThemeMode = (typeof echoThemeModes)[number];
+export type EchoMotionMode = (typeof echoMotionModes)[number];
 
 export type EchoThemePreferences = {
   variant: EchoThemeVariant;
   mode: EchoThemeMode;
+  motion: EchoMotionMode;
 };
 
 export const defaultEchoTheme: EchoThemePreferences = {
   variant: "echo-calm",
   mode: "light",
+  motion: "system",
 };
 
 export const echoThemeLabels: Record<EchoThemeVariant, string> = {
@@ -86,6 +90,10 @@ export function isEchoThemeMode(value: unknown): value is EchoThemeMode {
   return typeof value === "string" && echoThemeModes.includes(value as EchoThemeMode);
 }
 
+export function isEchoMotionMode(value: unknown): value is EchoMotionMode {
+  return typeof value === "string" && echoMotionModes.includes(value as EchoMotionMode);
+}
+
 export function normalizeThemePreferences(value: unknown): EchoThemePreferences {
   if (!value || typeof value !== "object") {
     return defaultEchoTheme;
@@ -94,5 +102,6 @@ export function normalizeThemePreferences(value: unknown): EchoThemePreferences 
   return {
     variant: isEchoThemeVariant(candidate.variant) ? candidate.variant : defaultEchoTheme.variant,
     mode: isEchoThemeMode(candidate.mode) ? candidate.mode : defaultEchoTheme.mode,
+    motion: isEchoMotionMode(candidate.motion) ? candidate.motion : defaultEchoTheme.motion,
   };
 }

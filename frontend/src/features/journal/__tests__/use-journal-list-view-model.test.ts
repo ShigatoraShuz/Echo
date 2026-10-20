@@ -55,6 +55,10 @@ function createMockService() {
       },
     }),
     getEntry: vi.fn(),
+    uploadDraftImage: vi.fn(),
+    listDraftImages: vi.fn(),
+    removeDraftImage: vi.fn(),
+    attachDraftImages: vi.fn(),
     createEntry: vi.fn(),
     updateEntry: vi.fn(),
     deleteEntry: vi.fn().mockResolvedValue({ success: true, data: undefined }),
@@ -222,6 +226,15 @@ describe("useJournalListViewModel", () => {
 
   it("deletes entry from list", async () => {
     const mockService = createMockService();
+    const initial = await mockService.listEntries();
+    mockService.listEntries.mockClear();
+    mockService.deleteEntry.mockImplementation(async () => {
+      mockService.listEntries.mockResolvedValue({
+        success: true,
+        data: { entries: initial.data.entries.slice(1), pagination: { ...initial.data.pagination, totalItems: 1 } },
+      });
+      return { success: true, data: undefined };
+    });
     vi.mocked(getJournalService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useJournalListViewModel());

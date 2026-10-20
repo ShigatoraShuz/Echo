@@ -142,6 +142,24 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
     }
   }
 
+  const canAssign = ["coordinator", "org_admin"].includes(activeMembership?.role ?? "");
+  async function assign(id: string, profileId: string) {
+    if (claimInFlight.current || busyId || error || !canAssign || !requests?.some((item) => item.id === id && isPendingRequest(item))) return false;
+    claimInFlight.current = true;
+    const currentScope = scope.current;
+    setBusyId(id); setError(null); setSuccess("");
+    try {
+      await professionalApi.assign(id, profileId);
+      if (currentScope !== scope.current) return false;
+      const updated = await refresh();
+      if (updated && currentScope === scope.current) setSuccess("Practitioner assignment confirmed. Your overview is up to date.");
+      return updated && currentScope === scope.current;
+    } catch (reason) {
+      if (currentScope === scope.current) { queueRequest.current += 1; setRequests(null); setDashboardSummary(null); reportFailure(reason, true); }
+      return false;
+    } finally { if (currentScope === scope.current) { claimInFlight.current = false; setBusyId(""); } }
+  }
+
   function refreshWorkspace() {
     if (claimInFlight.current) return;
     scope.current += 1; queueRequest.current += 1;
@@ -159,5 +177,5 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
     router.replace(`${basePath}?${params.toString()}${window.location.hash}`, { scroll: false });
   }
   function retry() { if (memberships?.length && organizationId) void refresh(); else refreshWorkspace(); }
-  return { memberships, userId, organizationId, activeMembership, requests, overview, dashboardSummary, summaryUnavailable, error, success, busyId, canClaim, selectionNotice, destination, refreshWorkspace, switchOrganization, retry, claim };
+  return { memberships, userId, organizationId, activeMembership, requests, overview, dashboardSummary, summaryUnavailable, error, success, busyId, canClaim, selectionNotice, destination, refreshWorkspace, switchOrganization, retry, claim, canAssign, assign };
 }

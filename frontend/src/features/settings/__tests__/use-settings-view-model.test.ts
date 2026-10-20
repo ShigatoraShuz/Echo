@@ -25,6 +25,7 @@ describe("useSettingsViewModel", () => {
         avatarPath: null,
       },
       privacy: {
+        buddyHistoryEnabled: true,
         journalPrivate: true,
         facialAnalysisEnabled: false,
         crisisSupportVisible: true,
@@ -79,6 +80,7 @@ describe("useSettingsViewModel", () => {
         avatarPath: null,
       },
       privacy: {
+        buddyHistoryEnabled: true,
         journalPrivate: true,
         facialAnalysisEnabled: false,
         crisisSupportVisible: true,

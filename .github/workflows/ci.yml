@@ -39,6 +39,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build --workspace @echo/contracts
+      - run: npm run test:e2e:routes --workspace echo-theme-system
+      - run: npm run test:qa-target --workspace @echo/backend
       - run: npm run test --workspaces --if-present -- --coverage
       - uses: actions/upload-artifact@v4
         with:
@@ -58,3 +60,9 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+        env:
+          # Compile-only public values. Staging acceptance uses its own deployment.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-build.invalid
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-build-only
+          NEXT_PUBLIC_API_BASE_URL: https://api.ci-build.invalid/api/v1
+          NEXT_PUBLIC_DATA_ADAPTER: http

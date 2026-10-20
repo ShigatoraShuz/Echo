@@ -139,6 +139,47 @@ describe("useLoginViewModel", () => {
     expect(result.current.error).toEqual(mockError);
   });
 
+  it("preserves credentials and allows retry after a rejected network request", async () => {
+    const mockService = createMockService();
+    mockService.login.mockRejectedValueOnce(new TypeError("network failed"));
+    mockService.login.mockResolvedValueOnce({ success: true, data: { user: { id: "1" } } });
+    vi.mocked(getAuthService).mockReturnValue(mockService);
+    const { result } = renderHook(() => useLoginViewModel());
+
+    act(() => result.current.setEmail("mira@test.com"));
+    act(() => result.current.setPassword("password123"));
+    await act(async () => { await result.current.submit(); });
+    expect(result.current.status).toBe("error");
+    expect(result.current.error?.code).toBe("NETWORK");
+    expect(result.current.email).toBe("mira@test.com");
+    expect(result.current.password).toBe("password123");
+
+    await act(async () => { await result.current.submit(); });
+    expect(result.current.status).toBe("success");
+    expect(mockService.login).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not send the same login twice while its request is pending", async () => {
+    const mockService = createMockService();
+    let resolveRequest!: (value: { success: false; error: { code: "NETWORK"; message: string } }) => void;
+    mockService.login.mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+    vi.mocked(getAuthService).mockReturnValue(mockService);
+    const { result } = renderHook(() => useLoginViewModel());
+    act(() => result.current.setEmail("mira@test.com"));
+    act(() => result.current.setPassword("password123"));
+
+    let first!: Promise<unknown>;
+    await act(async () => {
+      first = result.current.submit();
+      await result.current.submit();
+    });
+    expect(mockService.login).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveRequest({ success: false, error: { code: "NETWORK", message: "Try again." } });
+      await first;
+    });
+  });
+
   it("resets to initial state", () => {
     const mockService = createMockService();
     vi.mocked(getAuthService).mockReturnValue(mockService);

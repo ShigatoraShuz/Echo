@@ -1,5 +1,7 @@
 # Echo Professional Module — Implementation Contract
 
+> **20 October integration note:** The dated BE-003 baseline below records Sprint 0. Its endpoint totals and future-gap labels are historical. For the integrated v1/v2 consent contracts, PHQ-8 snapshots, messages, scheduling and Professional workflow protections, use the [main integration checkpoint](../progress/professional-main-integration.md), [current shared types](../../packages/contracts/src/professional.ts) and [current router](../../backend/src/features/professionals/professional.routes.ts). The new integration migration is an unapplied proposal, not a claim of deployed functionality.
+
 **Scrum:** Sprint 0 / BE-003 — Define professional module contracts (P0)
 
 **Verified:** 12 October 2026, current working tree on `feat/professional-portal-sprint-0`, including existing uncommitted service changes.

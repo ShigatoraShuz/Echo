@@ -9,6 +9,7 @@ import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
 import { ProfessionalShell, ProfessionalSkeleton } from "../components/professional-shell";
 import { ProfessionalHeading, ProfessionalMetrics, ProfessionalNotice, ProfessionalPanel } from "../components/professional-ui";
+import { ProfessionalAssignmentPanel } from "../components/professional-assignment-panel";
 import { ProfessionalAccessError } from "../components/professional-access-error";
 import { useProfessionalWorkspace } from "../hooks/use-professional-workspace";
 import { ProfessionalRequestQueue, type ProfessionalQueueHandle } from "../components/professional-request-queue";
@@ -21,7 +22,7 @@ export function ProfessionalDashboard() {
 }
 
 function DashboardWorkspace() {
-  const { memberships, organizationId, userId, requests, activeMembership, overview, dashboardSummary, summaryUnavailable, error, success, busyId, canClaim, selectionNotice, destination, switchOrganization, refreshWorkspace, retry, claim } = useProfessionalWorkspace();
+  const { memberships, organizationId, userId, requests, activeMembership, overview, dashboardSummary, summaryUnavailable, error, success, busyId, canClaim, selectionNotice, destination, switchOrganization, refreshWorkspace, retry, claim, canAssign, assign } = useProfessionalWorkspace();
   const queueView = useRef<ProfessionalQueueHandle>(null);
   const scheduledCount = dashboardSummary?.counts.scheduledCount ?? overview.scheduledCases.length;
   const scheduledCases = dashboardSummary?.scheduledCases ?? overview.scheduledCases;
@@ -58,6 +59,7 @@ function DashboardWorkspace() {
           <ProfessionalMetrics newRequests={dashboardSummary?.counts.pendingCount ?? overview.pendingCount} activeCases={dashboardSummary?.counts.activeCount ?? overview.activeCount} scheduled={scheduledCount} loading={requests === null} />
           <details className="mb-5 rounded-2xl border border-border/70 px-4 py-2 text-xs leading-6 text-muted-foreground"><summary className="echo-focus-ring min-h-11 cursor-pointer content-center rounded-lg font-semibold text-primary">About these counts</summary><p className="pb-2 break-words">{dashboardSummary ? `Counts cover all pending requests and your authorized active cases in ${activeMembership?.organization?.name ?? "your organization"}. The request list below is a bounded page.` : <>Counts cover the loaded requests for {activeMembership?.organization?.name ?? "your organization"}.{requests !== null && requests.length >= 100 ? " This overview includes the latest 100 requests; older cases may be outside this view." : ""}</>}{summaryUnavailable ? " Organization-wide totals are temporarily unavailable; only loaded-request counts are shown." : ""}</p></details>
           {success ? <p role="status" className="mb-4 text-sm font-semibold text-primary">{success}</p> : null}
+          {canAssign && requests ? <ProfessionalAssignmentPanel key={organizationId} organizationId={organizationId} requests={requests} busy={!!busyId} onAssign={assign} /> : null}
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
           <ProfessionalRequestQueue key={organizationId} ref={queueView} requests={requests} organizationId={organizationId} organizationName={activeMembership?.organization?.name ?? "your organization"} userId={userId} canClaim={canClaim} canOpenCases={canClaim} busyId={busyId} compact onClaim={(item) => claim(item.id)} />
           <ProfessionalPanel id="calendar" title="Scheduled cases" icon={CalendarDays} description="Assigned to you. Open a case to check appointment time and current status.">

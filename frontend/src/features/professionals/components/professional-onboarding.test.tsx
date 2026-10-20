@@ -24,7 +24,7 @@ vi.mock("./professional-shell", () => ({
 const ORG = "fc000000-0000-4000-8000-000000000001";
 const membership: Membership = {
   id: "sample-member", organizationId: ORG,
-  organization: { id: ORG, slug: "synthetic", name: "Synthetic Care Organization", description: "Synthetic organization", serviceHours: "", status: "active" },
+  organization: { id: ORG, slug: "synthetic", name: "Synthetic Care Organization", description: "Synthetic organization", location: "", serviceTypes: [], consultationMethods: [], serviceHours: "", status: "active" },
   role: "counselor", status: "pending", displayName: "Synthetic professional", credentialLabel: "Synthetic qualification", credentialExpiresAt: "2099-12-31", accessState: "pending_membership",
 };
 beforeEach(() => { vi.stubGlobal("fetch", mocks.fetch); mocks.searchParams = new URLSearchParams(); });

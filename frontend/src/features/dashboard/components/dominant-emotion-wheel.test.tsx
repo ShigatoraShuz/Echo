@@ -55,6 +55,14 @@ describe("DominantEmotionWheel", () => {
     expect(screen.getByText(/appeared in 1 of 1 reflection/i)).toBeInTheDocument();
   });
 
+  it("expands to the nearest range containing saved reflections", () => {
+    render(<DominantEmotionWheel entries={[entry("older", 40, [])]} />);
+
+    expect(screen.getByRole("radio", { name: "the last 3 months" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Calm", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(/across the last 3 months/i)).toBeInTheDocument();
+  });
+
   it("shows a useful empty state for a period without reflections", () => {
     render(<DominantEmotionWheel entries={[entry("old", 220, ["hopeful"])]} />);
 

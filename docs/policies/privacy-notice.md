@@ -44,6 +44,10 @@ After that period, the cleanup workflow purges the encrypted journal and associa
 
 ## Other retention periods
 
+Buddy history is saved by default. You can turn off **Save Buddy history** in Privacy settings; new chats then remain only in the current browser session and disappear when you leave or refresh. Chats saved before this choice remain accessible until you delete them. While saving is off, a saved chat can be read but cannot be continued. Turning saving back on does not retroactively save a temporary chat.
+
+Confirming **Delete conversation** removes that chat, its messages, feedback, and search records from ECHO's live database. It cannot be restored through the application. Provider backup snapshots follow the provider's backup schedule, and restricted content-free safety audit records follow their separate retention limit; neither is represented as an active chat.
+
 - Active journals and source-derived records remain while the source journal is active, subject to the shorter record-specific limits below.
 - Submission idempotency records and rejected reservations expire after 24 hours and must no longer be used for replay after expiry.
 - Callback receipts expire 30 days after terminal job completion.

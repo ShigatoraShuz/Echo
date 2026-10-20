@@ -29,9 +29,16 @@ export function createExperienceRouter(
   router.post("/wellness/phq8", authenticate, aiWriteLimiter, controller.saveAssessment);
   router.post("/wellness/support-prompt", authenticate, aiWriteLimiter, controller.claimSupportPrompt);
   router.get("/buddy/session", authenticate, requireVerifiedAi, controller.buddySession);
+  router.get("/buddy/privacy", authenticate, requireVerifiedAi, controller.buddyPrivacy);
   router.post("/buddy/messages", authenticate, requireVerifiedAi, aiWriteLimiter, controller.sendBuddyMessage);
   router.get("/buddy/history", authenticate, requireVerifiedAi, controller.buddyHistory);
+  router.post("/buddy/conversations", authenticate, requireVerifiedAi, aiWriteLimiter, controller.createBuddyConversation);
+  router.get("/buddy/conversations/:id", authenticate, requireVerifiedAi, controller.buddyConversation);
+  router.patch("/buddy/conversations/:id", authenticate, requireVerifiedAi, aiWriteLimiter, controller.renameBuddyConversation);
+  router.delete("/buddy/conversations/:id", authenticate, requireVerifiedAi, aiWriteLimiter, controller.deleteBuddyConversation);
+  router.put("/buddy/conversations/:id/pin", authenticate, requireVerifiedAi, aiWriteLimiter, controller.pinBuddyConversation);
   router.get("/insights/emotions", authenticate, controller.emotionInsights);
   router.post("/grounding/sessions", authenticate, aiWriteLimiter, controller.completeGrounding);
+  router.get("/grounding/sessions", authenticate, controller.groundingHistory);
   return router;
 }

@@ -1,0 +1,570 @@
+[
+  {
+    "path": "/",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use primary navigation",
+    "expected": "Destination page or section opens",
+    "empty": "Content remains readable",
+    "failure": "Navigation and support links remain reachable"
+  },
+  {
+    "path": "/about",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use primary navigation",
+    "expected": "Destination page or section opens",
+    "empty": "Content remains readable",
+    "failure": "Navigation and support links remain reachable"
+  },
+  {
+    "path": "/terms",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use primary navigation",
+    "expected": "Destination page or section opens",
+    "empty": "Content remains readable",
+    "failure": "Navigation and support links remain reachable"
+  },
+  {
+    "path": "/privacy-policy",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use primary navigation",
+    "expected": "Destination page or section opens",
+    "empty": "Content remains readable",
+    "failure": "Navigation and support links remain reachable"
+  },
+  {
+    "path": "/support/find-help",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use support or call action",
+    "expected": "Resource or tel: destination opens",
+    "empty": "Show an actionable fallback",
+    "failure": "Emergency and hotline actions remain visible"
+  },
+  {
+    "path": "/crisis",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use support or call action",
+    "expected": "Resource or tel: destination opens",
+    "empty": "Show an actionable fallback",
+    "failure": "Emergency and hotline actions remain visible"
+  },
+  {
+    "path": "/crisis-help",
+    "role": "public",
+    "fixture": "none",
+    "action": "Use support or call action",
+    "expected": "Resource or tel: destination opens",
+    "empty": "Show an actionable fallback",
+    "failure": "Emergency and hotline actions remain visible"
+  },
+  {
+    "path": "/login",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Submit form",
+    "expected": "Supabase Auth and registration state update",
+    "empty": "Show clear account guidance",
+    "failure": "Preserve input and explain retry"
+  },
+  {
+    "path": "/signup",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Submit form",
+    "expected": "Supabase Auth and registration state update",
+    "empty": "Show clear account guidance",
+    "failure": "Preserve input and explain retry"
+  },
+  {
+    "path": "/forgot-password",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Submit form",
+    "expected": "Supabase Auth and registration state update",
+    "empty": "Show clear account guidance",
+    "failure": "Preserve input and explain retry"
+  },
+  {
+    "path": "/reset-password",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Submit form",
+    "expected": "Supabase Auth and registration state update",
+    "empty": "Show clear account guidance",
+    "failure": "Preserve input and explain retry"
+  },
+  {
+    "path": "/admin-login",
+    "role": "public",
+    "fixture": "privileged-auth",
+    "action": "Submit role sign-in",
+    "expected": "Authorized role reaches its portal",
+    "empty": "Show role requirements",
+    "failure": "Reject unauthorized role without exposing portal"
+  },
+  {
+    "path": "/professional/login",
+    "role": "public",
+    "fixture": "privileged-auth",
+    "action": "Submit role sign-in",
+    "expected": "Authorized role reaches its portal",
+    "empty": "Show role requirements",
+    "failure": "Reject unauthorized role without exposing portal"
+  },
+  {
+    "path": "/onboarding",
+    "role": "user",
+    "fixture": "new-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/onboarding/age",
+    "role": "user",
+    "fixture": "new-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/onboarding/consent",
+    "role": "user",
+    "fixture": "consent-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/onboarding/profile",
+    "role": "user",
+    "fixture": "profile-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/onboarding/setup",
+    "role": "user",
+    "fixture": "setup-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/onboarding/policies",
+    "role": "user",
+    "fixture": "policies-user",
+    "action": "Complete current step",
+    "expected": "Onboarding and policy state persists",
+    "empty": "Show required step",
+    "failure": "Preserve completed steps and block bypass"
+  },
+  {
+    "path": "/dashboard",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use check-in or quick action",
+    "expected": "Saved check-in and destination update",
+    "empty": "Show no-data guidance",
+    "failure": "Saved data stays accessible"
+  },
+  {
+    "path": "/journal",
+    "role": "user",
+    "fixture": "journal",
+    "action": "Write, resume, or open reflection",
+    "expected": "Owned entry, draft, and photo state persists",
+    "empty": "Show write or resume action",
+    "failure": "Preserve text and selected photos"
+  },
+  {
+    "path": "/journal/new",
+    "role": "user",
+    "fixture": "journal",
+    "action": "Write, resume, or open reflection",
+    "expected": "Owned entry, draft, and photo state persists",
+    "empty": "Show write or resume action",
+    "failure": "Preserve text and selected photos"
+  },
+  {
+    "path": "/journal/drafts",
+    "role": "user",
+    "fixture": "journal",
+    "action": "Write, resume, or open reflection",
+    "expected": "Owned entry, draft, and photo state persists",
+    "empty": "Show write or resume action",
+    "failure": "Preserve text and selected photos"
+  },
+  {
+    "path": "/journal/[id]",
+    "role": "user",
+    "fixture": "journal",
+    "action": "Write, resume, or open reflection",
+    "expected": "Owned entry, draft, and photo state persists",
+    "empty": "Show write or resume action",
+    "failure": "Preserve text and selected photos"
+  },
+  {
+    "path": "/calendar",
+    "role": "user",
+    "fixture": "calendar",
+    "action": "Navigate date or open item",
+    "expected": "Owned item or appointment appears on local date",
+    "empty": "Show empty day",
+    "failure": "Previously loaded items remain usable"
+  },
+  {
+    "path": "/buddy",
+    "role": "user",
+    "fixture": "buddy-eligible",
+    "action": "Send or reopen chat",
+    "expected": "Owned conversation and history update",
+    "empty": "Show new conversation action",
+    "failure": "Preserve unsent draft"
+  },
+  {
+    "path": "/buddy/history",
+    "role": "user",
+    "fixture": "buddy-eligible",
+    "action": "Send or reopen chat",
+    "expected": "Owned conversation and history update",
+    "empty": "Show new conversation action",
+    "failure": "Preserve unsent draft"
+  },
+  {
+    "path": "/insights",
+    "role": "user",
+    "fixture": "insights",
+    "action": "Change range or inspect result",
+    "expected": "Source and provider status are accurate",
+    "empty": "Label absent results unavailable",
+    "failure": "Do not display a fabricated low-risk result"
+  },
+  {
+    "path": "/insights/emotion",
+    "role": "user",
+    "fixture": "insights",
+    "action": "Open legacy Emotion link",
+    "expected": "Redirect to Insights overview",
+    "empty": "Label absent results unavailable",
+    "failure": "Do not display a fabricated low-risk result"
+  },
+  {
+    "path": "/insights/risk",
+    "role": "user",
+    "fixture": "insights",
+    "action": "Open legacy Risk link",
+    "expected": "Redirect to Insights distress section",
+    "empty": "Label absent results unavailable",
+    "failure": "Do not display a fabricated low-risk result"
+  },
+  {
+    "path": "/insights/facial",
+    "role": "user",
+    "fixture": "insights",
+    "action": "Open legacy Facial link",
+    "expected": "Redirect to Insights facial section",
+    "empty": "Label absent results unavailable",
+    "failure": "Do not display a fabricated low-risk result"
+  },
+  {
+    "path": "/tools/grounding",
+    "role": "user",
+    "fixture": "member",
+    "action": "Start or resume exercise",
+    "expected": "Session history updates",
+    "empty": "Show available exercises",
+    "failure": "Exercise remains usable if history fails"
+  },
+  {
+    "path": "/settings",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/profile",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/privacy",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/notifications",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/security",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/trusted-contacts",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/verification",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/settings/export",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/deletion",
+    "role": "user",
+    "fixture": "member",
+    "action": "Use and save visible control",
+    "expected": "Owned preference or lifecycle state persists",
+    "empty": "Show current or unavailable state",
+    "failure": "Preserve edits and explain retry"
+  },
+  {
+    "path": "/professional-support",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/discover",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/requests",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/requests/new",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/requests/[id]",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/messages",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/appointments",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional-support/history",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Request, message, or inspect case",
+    "expected": "Owned case, appointment, and history update",
+    "empty": "Show discovery or empty-case guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Claim, message, or manage case",
+    "expected": "Assigned case and appointment update",
+    "empty": "Show authorized empty queue",
+    "failure": "Deny unassigned cases and preserve draft"
+  },
+  {
+    "path": "/professional/access",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Claim, message, or manage case",
+    "expected": "Assigned case and appointment update",
+    "empty": "Show authorized empty queue",
+    "failure": "Deny unassigned cases and preserve draft"
+  },
+  {
+    "path": "/professional/request",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Open legacy new-request link",
+    "expected": "Redirect to professional-support request form",
+    "empty": "Show request form",
+    "failure": "Preserve request input"
+  },
+  {
+    "path": "/professional/my-requests",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Open legacy request-list link",
+    "expected": "Redirect to professional-support requests",
+    "empty": "Show request guidance",
+    "failure": "Keep prior case data and explain retry"
+  },
+  {
+    "path": "/professional/my-requests/[id]",
+    "role": "user",
+    "fixture": "support-case",
+    "action": "Open legacy owned-request link",
+    "expected": "Redirect to owned professional-support request",
+    "empty": "Show missing-request state",
+    "failure": "Deny other-user request"
+  },
+  {
+    "path": "/professional/cases/[id]",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Claim, message, or manage case",
+    "expected": "Assigned case and appointment update",
+    "empty": "Show authorized empty queue",
+    "failure": "Deny unassigned cases and preserve draft"
+  },
+  {
+    "path": "/admin",
+    "role": "admin",
+    "fixture": "mfa-admin",
+    "action": "Review or decide application",
+    "expected": "Decision and audit state update",
+    "empty": "Show empty review queue",
+    "failure": "Deny non-admin and preserve review state"
+  },
+  {
+    "path": "/admin/professionals",
+    "role": "admin",
+    "fixture": "mfa-admin",
+    "action": "Review or decide application",
+    "expected": "Decision and audit state update",
+    "empty": "Show empty review queue",
+    "failure": "Deny non-admin and preserve review state"
+  },
+  {
+    "path": "/admin/verifications",
+    "role": "admin",
+    "fixture": "mfa-admin",
+    "action": "Review or decide application",
+    "expected": "Decision and audit state update",
+    "empty": "Show empty review queue",
+    "failure": "Deny non-admin and preserve review state"
+  },
+  {
+    "path": "/analysis-preview",
+    "role": "public",
+    "fixture": "preview",
+    "action": "Inspect preview navigation",
+    "expected": "Demo or design content renders clearly labeled",
+    "empty": "Show preview guidance",
+    "failure": "Do not expose private data or claim real AI"
+  },
+  {
+    "path": "/dashboard-preview",
+    "role": "public",
+    "fixture": "preview",
+    "action": "Inspect preview navigation",
+    "expected": "Demo or design content renders clearly labeled",
+    "empty": "Show preview guidance",
+    "failure": "Do not expose private data or claim real AI"
+  },
+  {
+    "path": "/insights-preview",
+    "role": "public",
+    "fixture": "preview",
+    "action": "Inspect preview navigation",
+    "expected": "Demo or design content renders clearly labeled",
+    "empty": "Show preview guidance",
+    "failure": "Do not expose private data or claim real AI"
+  },
+  {
+    "path": "/design-system",
+    "role": "public",
+    "fixture": "preview",
+    "action": "Inspect preview navigation",
+    "expected": "Demo or design content renders clearly labeled",
+    "empty": "Show preview guidance",
+    "failure": "Do not expose private data or claim real AI"
+  },
+  {
+    "path": "/callback",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Open allowlisted auth callback",
+    "expected": "Valid code establishes session and routes to intended page",
+    "empty": "No code shows a recoverable error",
+    "failure": "Invalid or expired code does not establish a session",
+    "kind": "callback"
+  }
+]

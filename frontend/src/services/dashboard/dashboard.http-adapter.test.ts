@@ -18,7 +18,7 @@ describe("dashboard HTTP adapter", () => {
     vi.resetModules();
   });
 
-  it("loads the authenticated backend dashboard and maps journal DTOs", async () => {
+  it("loads one authenticated dashboard response with journal summaries", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -37,25 +37,17 @@ describe("dashboard HTTP adapter", () => {
                 {
                   id: "entry-1",
                   title: "A quiet minute",
-                  body: "I slowed down.",
-                  excerpt: "I slowed down.",
                   mood: "calm",
                   emotions: ["steady"],
                   tags: ["evening"],
-                  privacy_status: "private",
-                  analysis_consent: false,
-                  risk_score: 0,
-                  risk_band: "low",
-                  summary: "No analysis.",
-                  perspective: null,
                   created_at: "2026-07-25T00:00:00.000Z",
-                  updated_at: "2026-07-25T00:00:00.000Z",
                 },
               ],
               moodTrend: [{ label: "Sat", value: 82 }],
               riskTrend: [{ label: "Sat", value: 18 }],
               weeklyDigest: ["One reflection saved."],
               quickActions: [],
+              analysisInsights: { latest: null, emotionTrend: [], distressTrend: [] },
             },
           }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -70,7 +62,7 @@ describe("dashboard HTTP adapter", () => {
     if (result.success) {
       expect(result.data.journalEntries[0]).toMatchObject({
         id: "entry-1",
-        privacyStatus: "private",
+        title: "A quiet minute",
         createdAt: "2026-07-25T00:00:00.000Z",
       });
     }
@@ -80,5 +72,6 @@ describe("dashboard HTTP adapter", () => {
         headers: expect.objectContaining({ Authorization: "Bearer access-token" }),
       }),
     );
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

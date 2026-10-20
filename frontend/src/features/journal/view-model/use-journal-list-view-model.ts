@@ -34,7 +34,7 @@ function reducer(state: ListState, action: ListAction): ListState {
     case "LOAD_ERROR":
       return { ...state, isLoading: false, error: action.error };
     case "SET_FILTERS":
-      return { ...state, filters: { ...state.filters, ...action.filters } };
+      return { ...state, filters: { ...state.filters, ...action.filters }, pagination: { ...state.pagination, page: 1 } };
     case "SET_SEARCH":
       return { ...state, searchInput: action.searchInput };
     case "SET_PAGE":
@@ -42,7 +42,7 @@ function reducer(state: ListState, action: ListAction): ListState {
     case "DELETE_ENTRY":
       return { ...state, entries: state.entries.filter((e) => e.id !== action.id) };
     case "RESET_FILTERS":
-      return { ...state, filters: DefaultJournalFilters, searchInput: "" };
+      return { ...state, filters: DefaultJournalFilters, searchInput: "", pagination: { ...state.pagination, page: 1 } };
     default:
       return state;
   }
@@ -61,6 +61,7 @@ export function useJournalListViewModel() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getJournalService();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastLoadedAt = useRef(0);
 
   const loadEntries = useCallback(
     async (filters: JournalSearchFilters, page: number) => {
@@ -74,6 +75,7 @@ export function useJournalListViewModel() {
       const result = await service.listEntries(filters, page, JOURNAL_PAGE_SIZE, controller.signal);
       if (controller.signal.aborted) return;
       if (result.success) {
+        lastLoadedAt.current = Date.now();
         dispatch({ type: "LOAD_SUCCESS", entries: result.data.entries, pagination: result.data.pagination });
       } else {
         dispatch({ type: "LOAD_ERROR", error: result.error.message });
@@ -85,6 +87,16 @@ export function useJournalListViewModel() {
   useEffect(() => {
     loadEntries(state.filters, state.pagination.page);
   }, [state.filters, state.pagination.page, loadEntries]);
+
+  useEffect(() => {
+    const refreshPhotos = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastLoadedAt.current > 4 * 60_000)
+        void loadEntries(state.filters, state.pagination.page);
+    };
+    document.addEventListener("visibilitychange", refreshPhotos);
+    const interval = window.setInterval(refreshPhotos, 60_000);
+    return () => { document.removeEventListener("visibilitychange", refreshPhotos); window.clearInterval(interval); };
+  }, [loadEntries, state.filters, state.pagination.page]);
 
   useEffect(() => {
     return () => {
@@ -126,9 +138,12 @@ export function useJournalListViewModel() {
       const result = await service.deleteEntry(id);
       if (result.success) {
         dispatch({ type: "DELETE_ENTRY", id });
+        const nextPage = state.entries.length === 1 && state.pagination.page > 1 ? state.pagination.page - 1 : state.pagination.page;
+        if (nextPage !== state.pagination.page) dispatch({ type: "SET_PAGE", page: nextPage });
+        else void loadEntries(state.filters, nextPage);
       }
     },
-    [service]
+    [service, loadEntries, state.entries.length, state.filters, state.pagination.page]
   );
 
   const resetFilters = useCallback(() => {

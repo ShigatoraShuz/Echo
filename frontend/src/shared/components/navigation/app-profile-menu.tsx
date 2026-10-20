@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -51,7 +50,7 @@ export function AppProfileMenu() {
       active = false;
     };
   }, [isOpen]);
-  const [displayName, setDisplayName] = useState("Mira");
+  const [displayName, setDisplayName] = useState("");
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [openedWithKeyboard, setOpenedWithKeyboard] = useState(false);
@@ -146,7 +145,7 @@ export function AppProfileMenu() {
         }
       })
       .catch(() => {
-        // Keep the friendly fallback name if profile settings are unavailable.
+        // The account icon remains neutral until this user's profile is available.
       });
 
     return () => {
@@ -197,7 +196,7 @@ export function AppProfileMenu() {
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={menuId}
-        aria-label={`Profile menu for ${displayName}`}
+        aria-label={displayName ? `Profile menu for ${displayName}` : "Profile menu"}
         className="flex items-center gap-2 rounded-full p-1 outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20 active:scale-[0.97]"
       >
         {avatar ? (
@@ -229,7 +228,7 @@ export function AppProfileMenu() {
           }`}
         >
           <div className="border-b border-border/65 px-3 pb-3 pt-2">
-            <p className="text-sm font-semibold text-foreground">{displayName}</p>
+            <p className="text-sm font-semibold text-foreground">{displayName || "Your account"}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">Your private ECHO space</p>
           </div>
           <div className="py-1.5">

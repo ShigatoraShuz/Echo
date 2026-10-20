@@ -56,6 +56,7 @@ export interface VerificationDocument {
 export interface VerificationSnapshot {
   status: VerificationStatus;
   canAccessAi: boolean;
+  accessRequirement: "verification" | "trusted_contact" | null;
   canReview: boolean;
   isMinor: boolean | null;
   application: VerificationApplication | null;
