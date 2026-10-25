@@ -1,5 +1,6 @@
 "use client";
 
+import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -961,6 +962,7 @@ export function NotificationSettingsView() {
               ? "Choose in-app updates and a local time for daily reminders. External alerts become active only when their channels are configured."
               : "Choose analysis-ready updates in the app now. Other choices save preferences for future services."}
           >
+            <NotificationSoundControls />
             {/* -------------------------------------------------------------- */}
             {/* NOTIFICATION TOGGLES                                           */}
             {/* -------------------------------------------------------------- */}

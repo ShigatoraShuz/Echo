@@ -9,7 +9,7 @@ export function ProfessionalCaseSharing({ detail, previewState }: { detail: Case
   const active = detail.request.sharingActive === true && (!previewState || previewState === "active");
   const title = active ? "Active sharing" : previewState === "expired" ? "Sharing expired" : previewState === "revoked" ? "Sharing revoked" : "Sharing is unavailable";
   return <div className="space-y-6">
-    <ProfessionalPanel title="What the user shared" icon={ShieldCheck} description="Only the message and snapshots included in this authorized case response.">
+    <ProfessionalPanel title="What the user shared" icon={ShieldCheck} description={previewState ? "Fictional sharing scenario. No patient record or sharing grant is loaded." : "Only the message and snapshots included in this authorized case response."}>
       <ProfessionalNotice title={title}>
         {active ? "The current response permits access to the shared message and selected journal snapshots." : "The user stopped sharing or this grant expired. Their message and selected journal snapshots are unavailable."}
         {!active && !previewState ? " The service does not disclose the reason or expiry date." : ""}

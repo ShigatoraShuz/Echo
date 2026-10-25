@@ -57,6 +57,15 @@ export class ProfessionalCredentialService {
     return { credential: metadata(data as Row) };
   }
 
+  async correct(actorId: string, credentialId: string, input: { credentialLabel: string; expiresAt: string }) {
+    if (input.expiresAt < new Date().toISOString().slice(0, 10)) throw new ConflictError("CREDENTIAL_EXPIRED", "Choose a current expiry before correction.");
+    const { data, error } = await this.database.schema("professional_service").rpc("correct_pending_credential", {
+      p_actor: actorId, p_credential_id: credentialId, p_label: input.credentialLabel, p_expires_at: input.expiresAt,
+    });
+    if (error) fail(error);
+    return { credential: metadata(data as Row) };
+  }
+
   async listOwn(actorId: string) {
     const { data, error } = await this.database.schema("professional_service").from("credential_reviews")
       .select(METADATA).eq("user_id", actorId).order("submitted_at", { ascending: false }).limit(100);

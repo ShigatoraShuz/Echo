@@ -18,6 +18,7 @@ import {
 } from "@/services/professionals/professional-api";
 import { ProfessionalSupportNav } from "../components/professional-support-nav";
 import { RequestStatus } from "../components/professional-shell";
+import { mergeCaseMessages, validateCaseMessages } from "../professional-messaging.model";
 
 const format = (value: string) =>
   new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -37,6 +38,8 @@ export function ProfessionalMessagesView() {
   const [error, setError] = useState("");
   const [sharingError, setSharingError] = useState("");
   const messageClientId = useRef<string | null>(null);
+  const pendingAction = useRef(false);
+  const threadGeneration = useRef(0);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
 
@@ -70,6 +73,7 @@ export function ProfessionalMessagesView() {
   useEffect(() => {
     if (!selectedId) return;
     let active = true;
+    threadGeneration.current += 1;
     setLoadingThread(true);
     setThreadReady(false);
     setError("");
@@ -80,6 +84,7 @@ export function ProfessionalMessagesView() {
       .messages(selectedId)
       .then((thread) => {
         if (!active) return;
+        validateCaseMessages(thread.messages, selectedId);
         setMessages(thread.messages);
         setCursor(thread.nextCursor);
         setThreadReady(true);
@@ -100,7 +105,7 @@ export function ProfessionalMessagesView() {
         if (active) setSharingError(normalizeError(reason).userMessage);
       });
     return () => {
-      active = false;
+      active = false; threadGeneration.current += 1;
     };
   }, [selectedId, retryCount]);
 
@@ -116,7 +121,9 @@ export function ProfessionalMessagesView() {
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedId || !draft.trim() || !canSend) return;
+    if (pendingAction.current || !selectedId || !draft.trim() || !canSend) return;
+    pendingAction.current = true;
+    const generation = threadGeneration.current;
     setBusy("send");
     setError("");
     try {
@@ -125,32 +132,55 @@ export function ProfessionalMessagesView() {
         clientMessageId: messageClientId.current,
         body: draft.trim(),
       });
-      messageClientId.current = null;
-      if (selectedIdRef.current === selectedId) {
-        setMessages((current) => [...current, message]);
+      if (selectedIdRef.current === selectedId && generation === threadGeneration.current) {
+        validateCaseMessages([message], selectedId);
+        if (message.sender !== "user" || message.body !== draft.trim()) throw new Error("Message receipt could not be confirmed.");
+        messageClientId.current = null;
+        setMessages((current) => mergeCaseMessages(current, [message]));
         setDraft("");
       }
     } catch (reason) {
-      setError(normalizeError(reason).userMessage);
+      if (generation === threadGeneration.current) setError(normalizeError(reason).userMessage);
     } finally {
-      setBusy("");
+      pendingAction.current = false;
+      if (generation === threadGeneration.current) setBusy("");
     }
   }
 
+  async function refreshConversation() {
+    if (pendingAction.current || !selectedId) return;
+    pendingAction.current = true; setBusy("refresh"); setError("");
+    const generation = threadGeneration.current;
+    try {
+      const own = await professionalApi.ownRequests();
+      if (generation !== threadGeneration.current) return;
+      setRequests(own.requests);
+      if (!own.requests.some(item => item.id === selectedId)) {
+        setSelectedId(""); setMessages([]); setRecords([]); setCursor(null); setThreadReady(false); setDraft("");
+      } else setRetryCount(value => value + 1);
+    } catch (reason) {
+      if (generation === threadGeneration.current) { setMessages([]); setRecords([]); setThreadReady(false); setError(normalizeError(reason).userMessage); }
+    } finally { pendingAction.current = false; setBusy(""); }
+  }
+
   async function loadOlder() {
-    if (!cursor || !selectedId) return;
+    if (pendingAction.current || !cursor || !selectedId) return;
+    pendingAction.current = true;
+    const generation = threadGeneration.current;
     setBusy("older");
     setError("");
     try {
       const result = await professionalApi.messages(selectedId, cursor);
-      if (selectedIdRef.current === selectedId) {
-        setMessages((current) => [...result.messages, ...current]);
+      if (selectedIdRef.current === selectedId && generation === threadGeneration.current) {
+        validateCaseMessages(result.messages, selectedId);
+        setMessages((current) => mergeCaseMessages(result.messages, current));
         setCursor(result.nextCursor);
       }
     } catch (reason) {
-      setError(normalizeError(reason).userMessage);
+      if (generation === threadGeneration.current) setError(normalizeError(reason).userMessage);
     } finally {
-      setBusy("");
+      pendingAction.current = false;
+      if (generation === threadGeneration.current) setBusy("");
     }
   }
 
@@ -192,7 +222,11 @@ export function ProfessionalMessagesView() {
               <button
                 key={item.id}
                 type="button"
+                disabled={Boolean(busy)}
                 onClick={() => {
+                  if (item.id === selectedId || pendingAction.current) return;
+                  threadGeneration.current += 1;
+                  setMessages([]); setRecords([]); setCursor(null); setThreadReady(false); setLoadingThread(true); setError(""); setSharingError("");
                   setSelectedId(item.id);
                   setDraft("");
                   messageClientId.current = null;
@@ -224,6 +258,7 @@ export function ProfessionalMessagesView() {
                   {selected ? organizationName(selected.organizationId) : ""}
                 </p>
               </div>
+              {selected ? <button type="button" disabled={Boolean(busy) || loadingThread} onClick={() => void refreshConversation()} className="min-h-11 text-xs font-bold text-primary">Refresh conversation</button> : null}
               {selected ? (
                 <Link href={ROUTES.professionalSupport.request(selected.id)} className="text-xs font-bold text-primary">
                   Case details <ArrowRight size={13} className="inline" />
@@ -275,6 +310,7 @@ export function ProfessionalMessagesView() {
                     rows={2}
                     maxLength={4000}
                     required
+                    disabled={Boolean(busy)}
                     value={draft}
                     onChange={(event) => {
                       setDraft(event.target.value);

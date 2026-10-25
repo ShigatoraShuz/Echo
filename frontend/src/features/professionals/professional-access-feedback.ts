@@ -55,3 +55,12 @@ export function membershipAccessFailure(memberships: Membership[]) {
 }
 export const professionalAccessDestination = (candidate: string) => `/professional/access?next=${encodeURIComponent(professionalReturnPath(candidate))}`;
 export const professionalLoginDestination = (candidate: string) => `/professional/login?error=sign_in_session_expired&next=${encodeURIComponent(professionalReturnPath(candidate))}`;
+
+/** A failed protected action must also conceal an already-open clinical view. */
+export function reportProfessionalAccessLoss(reason: unknown) {
+  const failure = professionalAccessFailure(reason);
+  if (typeof window !== "undefined" && ["session", "mfa", "reauth", "denied"].includes(failure.kind)) {
+    window.dispatchEvent(new CustomEvent("echo:professional-access-lost", { detail: { kind: failure.kind } }));
+  }
+  return failure;
+}

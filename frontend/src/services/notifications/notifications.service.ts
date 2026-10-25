@@ -1,6 +1,7 @@
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
+import type { NotificationCategory } from "@echo/contracts";
 
 export interface NotificationItem {
   id: string;
@@ -19,6 +20,7 @@ export type NotificationStatusFilter = "all" | "unread";
 interface NotificationList {
   notifications: NotificationItem[];
   unreadCount?: number;
+  nextCursor?: string | null;
 }
 
 interface ApiEnvelope<T> {
@@ -40,8 +42,10 @@ async function unwrap<T>(promise: Promise<ApiEnvelope<T>>): Promise<T> {
 }
 
 export const notificationsService = {
-  list(status: NotificationStatusFilter = "all", limit = 20) {
+  list(status: NotificationStatusFilter = "all", limit = 20, options: { category?: NotificationCategory; before?: string } = {}) {
     const params = new URLSearchParams({ status, limit: String(limit) });
+    if (options.category) params.set("category", options.category);
+    if (options.before) params.set("before", options.before);
     return unwrap(client.get<ApiEnvelope<NotificationList>>(`/notifications?${params}`));
   },
   markRead(notificationId: string) {

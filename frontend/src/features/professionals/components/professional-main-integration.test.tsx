@@ -50,7 +50,7 @@ it("ignores an old conversation after its workspace unmounts", async () => {
   expect(fail).not.toHaveBeenCalled();
 });
 it("coordinates assignment with scoped directory metadata and an explicit server action", async () => {
-  api.directory.mockResolvedValue({ practitioners: [{ id: "profile-one", organizationId: "org-one", role: "counselor", displayName: "Fictional clinician" }, { id: "outside", organizationId: "org-two", role: "counselor", displayName: "Other organization" }] });
+  api.directory.mockResolvedValue({ practitioners: [{ id: "profile-one", organizationId: "org-one", role: "counselor", displayName: "Fictional clinician", acceptingRequests: true }, { id: "outside", organizationId: "org-two", role: "counselor", displayName: "Other organization", acceptingRequests: true }] });
   const assign = vi.fn().mockResolvedValue(true);
   render(<ProfessionalAssignmentPanel organizationId="org-one" requests={[{ id: "request-one", organizationId: "org-one", status: "submitted", assignedTo: null, createdAt: "2026-10-01", updatedAt: "2026-10-01" }]} busy={false} onAssign={assign} />);
   await screen.findByRole("option", { name: /Fictional clinician/ });
@@ -69,4 +69,11 @@ it("clears assessment snapshots when case consent is no longer active", () => {
   view.rerender(<ProfessionalCaseSharing detail={consentLimitedCase({ ...detail, request: { ...detail.request, sharingActive: false } })} />);
   expect(screen.queryByText("Fictional selected check-in")).not.toBeInTheDocument();
   expect(screen.queryByText("Fictional shared message")).not.toBeInTheDocument();
+});
+
+it('does not fetch or mark messages read until Conversation is opened and preserves its draft across tabs',async()=>{
+ const fail=vi.fn();const view=render(<ProfessionalCaseMessages caseId="case-one" readOnly={false} active={false} onFailure={fail}/>);expect(api.caseMessages).not.toHaveBeenCalled();expect(api.markCaseMessagesRead).not.toHaveBeenCalled();view.rerender(<ProfessionalCaseMessages caseId="case-one" readOnly={false} active onFailure={fail}/>);await screen.findByText('Fictional private conversation');await userEvent.type(screen.getByLabelText('Case message'),'Fictional draft');view.rerender(<ProfessionalCaseMessages caseId="case-one" readOnly={false} active={false} onFailure={fail}/>);view.rerender(<ProfessionalCaseMessages caseId="case-one" readOnly={false} active onFailure={fail}/>);expect(screen.getByLabelText('Case message')).toHaveValue('Fictional draft');
+});
+it('does not acknowledge a late message read after Conversation becomes inactive',async()=>{
+ let resolve!:(value:unknown)=>void;api.caseMessages.mockReturnValue(new Promise(yes=>resolve=yes));const fail=vi.fn();const view=render(<ProfessionalCaseMessages caseId="case-one" readOnly active onFailure={fail}/>);view.rerender(<ProfessionalCaseMessages caseId="case-one" readOnly active={false} onFailure={fail}/>);await act(async()=>resolve({messages:[],nextCursor:null}));expect(api.markCaseMessagesRead).not.toHaveBeenCalled();expect(fail).not.toHaveBeenCalled();
 });

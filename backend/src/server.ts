@@ -1,3 +1,4 @@
+import { httpOnlyMode } from "./config/http-only-mode.js";
 import { DataExportService } from "./features/settings/data-export.service.js";
 import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
@@ -25,8 +26,11 @@ import { AnalysisMaintenanceService } from "./features/analysis/analysis-mainten
 import { createRequestUserClient } from "./infrastructure/supabase/supabase-user.client.js";
 import { ProfessionalService } from "./features/professionals/professional.service.js";
 import { CalendarService } from "./features/calendar/calendar.service.js";
+import { ProfessionalEventService } from "./features/professionals/professional-events.service.js";
+import { startProfessionalEventProcessor } from "./features/professionals/professional-event-processor.js";
 
 const environment = loadEnvironment();
+const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const supabaseAdmin = createSupabaseAdminClient(environment);
 const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
@@ -153,15 +157,22 @@ const app = createApp({
   },
 });
 
-const server = app.listen(environment.PORT, "0.0.0.0", () => {
+const server = app.listen(environment.PORT, httpOnly ? "127.0.0.1" : "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
+});
+const professionalEvents = startProfessionalEventProcessor(new ProfessionalEventService(supabaseAdmin), {
+  enabled: environment.PROFESSIONAL_EVENTS_ENABLED,
+  httpOnly,
+  report: event => console.info(JSON.stringify({ service: "professional-events", ...event })),
 });
 const maintenance = new AnalysisMaintenanceService(supabaseAdmin);
 const reportMaintenanceFailure = () =>
   console.warn(JSON.stringify({ service: "backend", event: "analysis_maintenance_failed" }));
+let maintenanceTimer: ReturnType<typeof setInterval> | undefined;
+if (!httpOnly) {
 void backgroundJournalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
 void dataExports.expire().catch(reportMaintenanceFailure);
-const maintenanceTimer = setInterval(() => {
+maintenanceTimer = setInterval(() => {
   void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
   void maintenance.tick().catch(reportMaintenanceFailure);
   void dataExports.expire().catch(reportMaintenanceFailure);
@@ -171,10 +182,15 @@ const maintenanceTimer = setInterval(() => {
 maintenanceTimer.unref();
 if (environment.AI_ANALYSIS_MODE === "local_worker") void localWorkerService.recover().catch(reportMaintenanceFailure);
 
+} else {
+  console.info(JSON.stringify({ service: "backend", event: "development_http_only", backgroundMaintenance: false }));
+}
+
 function shutdown(signal: string): void {
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
   developmentRunner.stop();
-  clearInterval(maintenanceTimer);
+  void professionalEvents.stop();
+  if (maintenanceTimer) clearInterval(maintenanceTimer);
   server.close((error) => {
     process.exitCode = error ? 1 : 0;
   });

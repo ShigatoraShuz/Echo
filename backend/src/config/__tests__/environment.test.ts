@@ -14,6 +14,11 @@ const validEnvironment = {
 };
 
 describe("backend environment", () => {
+  it("requires explicit Professional worker opt-in and rejects ambiguous flags", () => {
+    expect(loadEnvironment(validEnvironment).PROFESSIONAL_EVENTS_ENABLED).toBe(false);
+    expect(loadEnvironment({ ...validEnvironment, PROFESSIONAL_EVENTS_ENABLED: "true" }).PROFESSIONAL_EVENTS_ENABLED).toBe(true);
+    expect(() => loadEnvironment({ ...validEnvironment, PROFESSIONAL_EVENTS_ENABLED: "1" })).toThrow("PROFESSIONAL_EVENTS_ENABLED");
+  });
   it("validates a non-production mock-analysis configuration", () => {
     expect(loadEnvironment(validEnvironment).AI_ANALYSIS_MODE).toBe("development_stub");
   });

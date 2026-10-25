@@ -6,15 +6,15 @@ import type { Membership } from "@/services/professionals/professional-api";
 import { approvedOrganizations, organizationAccessLabel, professionalRoleLabel } from "../professional-organizations";
 import { ProfessionalPanel } from "./professional-ui";
 
-export function ProfessionalOrganizationSelect({ memberships, organizationId, onChange, disabled = false }: {
-  memberships?: Membership[]; organizationId?: string; onChange: (id: string) => void; disabled?: boolean;
+export function ProfessionalOrganizationSelect({ memberships, organizationId, onChange, disabled = false, compact = false }: {
+  memberships?: Membership[]; organizationId?: string; onChange: (id: string) => void; disabled?: boolean; compact?: boolean;
 }) {
   const id = useId();
   const approved = approvedOrganizations(memberships ?? []);
   const selected = approved.find((item) => item.organizationId === organizationId);
   const loading = memberships === undefined;
   return (
-    <div className="w-full min-w-0 sm:w-[250px]">
+    <div className={compact ? "pro-organization" : "w-full min-w-0 sm:w-[250px]"}>
       <label htmlFor={id} className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Active organization</label>
       <select id={id} className="echo-focus-ring min-h-11 w-full min-w-0 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground disabled:cursor-default disabled:opacity-70"
         value={selected?.organizationId ?? ""} disabled={disabled || loading || approved.length < 2} aria-describedby={`${id}-context`} aria-busy={loading || undefined}
@@ -22,7 +22,7 @@ export function ProfessionalOrganizationSelect({ memberships, organizationId, on
         {!selected ? <option value="">{loading ? "Loading organizations…" : approved.length ? "Choose an approved organization" : "No approved organizations"}</option> : null}
         {approved.map((item) => <option key={item.id} value={item.organizationId}>{item.organization!.name} · {professionalRoleLabel(item.role)}</option>)}
       </select>
-      <p id={`${id}-context`} className="mt-1.5 flex items-center gap-1.5 text-[11px] leading-5 text-muted-foreground">
+      <p id={`${id}-context`} className={compact ? "sr-only" : "mt-1.5 flex items-center gap-1.5 text-[11px] leading-5 text-muted-foreground"}>
         {selected ? <><ShieldCheck size={13} className="shrink-0 text-primary" aria-hidden="true" />{professionalRoleLabel(selected.role)} · Approved{approved.length === 1 ? " · Only organization" : ""}</> : loading ? "Checking your memberships." : "Only approved, available memberships can be selected."}
       </p>
     </div>

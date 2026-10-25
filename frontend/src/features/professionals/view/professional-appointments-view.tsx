@@ -1,7 +1,8 @@
 "use client";
 
+import { appointmentsChanged, useWorkspaceRefresh } from "@/shared/hooks/use-workspace-refresh";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, Clock3, MapPin } from "lucide-react";
 import { ROUTES } from "@/config/routes.config";
 import { AppShell } from "@/shared/components/layout/echo-shells";
@@ -15,31 +16,37 @@ import { ProfessionalSupportNav } from "../components/professional-support-nav";
 const format = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }).format(new Date(value));
 
 export function ProfessionalAppointmentsView() {
+  const version = useRef(0); const active = useRef(true); const mutation = useRef(false);
   const [items, setItems] = useState<ProfessionalAppointment[] | null>(null);
+  const [feedback,setFeedback] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const load = useCallback(async () => {
+    if (!active.current) return;
+    const current = ++version.current;
     setError("");
-    setItems((current) => current?.length ? current : null);
-    try { setItems((await professionalApi.appointments()).appointments); }
-    catch (reason) { setItems((current) => current ?? []); setError(normalizeError(reason).userMessage); }
+    try { const result = await professionalApi.appointments(); if (active.current && version.current === current) setItems(result.appointments); }
+    catch (reason) { if (active.current && version.current === current) { setItems([]); setError(normalizeError(reason).userMessage); } }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { active.current = true; void load(); return () => { active.current = false; version.current++; }; }, [load]);
+  useWorkspaceRefresh(() => { if (!mutation.current) void load(); }, "student-appointments", () => { active.current = false; version.current++; setItems(null); setError(""); setFeedback(""); });
   async function respond(item: ProfessionalAppointment, action: "accept" | "decline" | "cancel" | "change") {
+    if (!active.current || mutation.current) return;
     if (action === "cancel" && !window.confirm("Cancel this appointment?")) return;
+    mutation.current = true; const scope = version.current;
     setBusy(`${item.id}:${action}`); setError("");
     try {
-      if (action === "cancel") await professionalApi.cancelAppointment(item.id);
+      if (action === "cancel") { const result = await professionalApi.cancelAppointment(item.id); if (active.current) setFeedback(result.warning ?? ""); }
       else if (action === "change") {
         const preferredTime = window.prompt("What time would work better for you?");
         if (!preferredTime?.trim()) return;
         await professionalApi.requestAppointmentChange(item.id, preferredTime.trim());
-      } else await professionalApi.respondAppointment(item.id, action === "accept");
-      await load();
-    } catch (reason) { setError(normalizeError(reason).userMessage); }
-    finally { setBusy(""); }
+      } else { const result = await professionalApi.respondAppointment(item.id, action === "accept"); if (active.current) setFeedback(result.warning ?? ""); }
+      if (active.current && scope === version.current) { await load(); appointmentsChanged(); }
+    } catch (reason) { if (active.current && scope === version.current) setError(normalizeError(reason).userMessage); }
+    finally { mutation.current = false; if (active.current) setBusy(""); }
   }
-  const upcoming = items?.filter((item) => ["proposed", "confirmed"].includes(item.status) && new Date(item.startsAt) >= new Date()) ?? [];
+  const upcoming = items?.filter((item) => ["proposed", "confirmed"].includes(item.status) && new Date(item.endsAt) > new Date()) ?? [];
   const previous = items?.filter((item) => !upcoming.includes(item)) ?? [];
   return (
     <AppShell>
@@ -51,6 +58,7 @@ export function ProfessionalAppointmentsView() {
           <section><h2 className="mb-3 text-2xl [font-family:var(--font-echo-display)]">Previous</h2><div className="space-y-3">{previous.length ? previous.map((item) => <div key={item.id} className="rounded-2xl border border-border bg-card p-4"><strong className="text-sm">{format(item.startsAt)}</strong><p className="mt-1 text-xs capitalize text-muted-foreground">{item.mode.replaceAll("_", " ")} · {item.status}{item.locationHint ? ` · ${item.locationHint}` : ""}</p>{item.requestId ? <Link href={ROUTES.professionalSupport.request(item.requestId)} className="mt-2 inline-flex min-h-11 items-center text-xs font-bold text-primary">View case</Link> : null}</div>) : <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">No previous appointments.</p>}</div></section>
         </div>
       )}
+      {feedback ? <p role="status" className="mt-4 text-sm text-muted-foreground">{feedback}</p> : null}
       {error ? <div role="alert" className="mt-5 text-sm text-danger">{error} <button type="button" onClick={() => void load()} className="ml-2 min-h-11 font-semibold underline underline-offset-2">Reload appointments</button></div> : null}
     </AppShell>
   );

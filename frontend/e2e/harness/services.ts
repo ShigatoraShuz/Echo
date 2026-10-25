@@ -8,9 +8,18 @@ async function rpc(method: string, args: unknown[]) {
   if (!response.ok) throw new AppError({ code: result.code, statusCode: response.status, userMessage: "Synthetic private diagnostic" });
   return result;
 }
-export const professionalApi = Object.fromEntries(["memberships", "dashboard", "queue", "caseDetail", "claim", "addNote", "close", "proposeAppointment", "cancelAppointment", "addReferral", "directory", "assign", "caseMessages", "markCaseMessagesRead", "sendCaseMessage", "completeAppointment"].map((method) => [method, (...args: unknown[]) => rpc(method, args)]));
+export const professionalApi = Object.fromEntries(["credentials", "submitCredential", "adminCredentials", "adminCredential", "decideCredential", "approveMember", "adminOrganizations", "adminMembers", "adminAudit", "ownRequests", "organizations", "messages", "sharing", "markMessagesRead", "sendMessage", "notifications", "readNotification", "memberships", "dashboard", "queue", "caseDetail", "claim", "addNote", "close", "proposeAppointment", "rescheduleAppointment", "cancelAppointment", "addReferral", "directory", "assign", "caseMessages", "markCaseMessagesRead", "sendCaseMessage", "completeAppointment"].map((method) => [method, (...args: unknown[]) => rpc(method, args)]));
 export const experienceApi = { getSupportResources: (...args: unknown[]) => rpc("resources", args) };
-export const getAuthService = () => ({ getCurrentSession: async () => ({ success: true, data: null }), logout: async () => ({ success: true }), login: (...args: unknown[]) => rpc("login", args), sendLoginCode: (...args: unknown[]) => rpc("sendLoginCode", args), verifyLoginCode: (...args: unknown[]) => rpc("verifyLoginCode", args) });
+const userNotificationsFixture = () => ["/__qa/user-notifications", "/settings/verification"].includes(window.location.pathname);
+export const getAuthService = () => ({ getCurrentSession: async () => ({ success: true, data: userNotificationsFixture() ? { user: { id: "fictional-student" } } : null }), logout: async () => ({ success: true }), login: (...args: unknown[]) => rpc("login", args), sendLoginCode: (...args: unknown[]) => rpc("sendLoginCode", args), verifyLoginCode: (...args: unknown[]) => rpc("verifyLoginCode", args) });
 export type ReviewerFactor = { id: string };
 export const prepareReviewerMfa = () => rpc("prepareMfa", []);
 export const verifyReviewerMfa = (...args: unknown[]) => rpc("verifyMfa", args);
+
+export const settingsService = { get: () => rpc("settings", []), updateProfile: (...args: unknown[]) => rpc("updateProfile", args), updateNotifications: (...args: unknown[]) => rpc("updateNotifications", args) };
+
+export const notificationsService = {
+  list: (...args: unknown[]) => userNotificationsFixture() ? rpc("userNotifications", args) : Promise.resolve({ notifications: [], unreadCount: 0 }),
+  markRead: (...args: unknown[]) => userNotificationsFixture() ? rpc("userNotificationRead", args) : Promise.resolve({ notification: null }),
+  markAllRead: () => userNotificationsFixture() ? rpc("userNotificationsReadAll", []) : Promise.resolve({ notifications: [] }),
+};

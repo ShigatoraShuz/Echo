@@ -8,8 +8,8 @@ import { ProfessionalPanel } from "./professional-ui";
 import { requestDate } from "../professional-request.model";
 
 /** Mounted only inside a currently authorized case; never loads other cases. */
-export function ProfessionalCaseMessages({ caseId, readOnly, onFailure }: {
-  caseId: string; readOnly: boolean; onFailure: (reason: unknown) => void;
+export function ProfessionalCaseMessages({ caseId, readOnly, onFailure, active = true }: {
+  caseId: string; readOnly: boolean; onFailure: (reason: unknown) => void; active?: boolean;
 }) {
   const [messages, setMessages] = useState<CaseMessage[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -18,6 +18,8 @@ export function ProfessionalCaseMessages({ caseId, readOnly, onFailure }: {
   const [feedback, setFeedback] = useState("");
   const generation = useRef(0);
   const pending = useRef(false);
+  const visible = useRef(active);
+  useEffect(() => { visible.current = active; }, [active]);
   const failure = useRef(onFailure);
   failure.current = onFailure;
   const load = useCallback(async (before?: string) => {
@@ -26,7 +28,7 @@ export function ProfessionalCaseMessages({ caseId, readOnly, onFailure }: {
       const result = await professionalApi.caseMessages(caseId, before);
       if (current !== generation.current) return;
       if (result.messages.some((item) => item.requestId !== caseId)) throw new Error("Case message scope could not be confirmed.");
-      await professionalApi.markCaseMessagesRead(caseId);
+      if (visible.current) await professionalApi.markCaseMessagesRead(caseId);
       if (current !== generation.current) return;
       setMessages((previous) => before ? [...result.messages, ...(previous ?? [])].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index) : result.messages);
       setCursor(result.nextCursor);
@@ -34,10 +36,11 @@ export function ProfessionalCaseMessages({ caseId, readOnly, onFailure }: {
       if (current === generation.current) { setMessages(null); failure.current(reason); }
     }
   }, [caseId]);
-  useEffect(() => { void load(); return () => { generation.current += 1; }; }, [load]);
+  useEffect(() => { if (active && !pending.current) void load(); }, [active, load]);
+  useEffect(() => () => { generation.current += 1; }, [caseId]);
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending.current || readOnly || messages === null || draft.trim().length < 1 || draft.trim().length > 4000) return;
+    if (!visible.current || pending.current || readOnly || messages === null || draft.trim().length < 1 || draft.trim().length > 4000) return;
     pending.current = true; setBusy(true); setFeedback("");
     const current = generation.current;
     try {

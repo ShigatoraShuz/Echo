@@ -2,13 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, ClipboardList, HeartHandshake, LayoutDashboard, Leaf, LogOut, Menu, ShieldCheck, UserRoundCheck } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CalendarDays, ClipboardList, HeartHandshake, LayoutDashboard, Leaf, LogOut, Menu, Settings, ShieldCheck, UserRoundCheck } from "lucide-react";
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 import type { Membership } from "@/services/professionals/professional-api";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
 import { ProfessionalOrganizationSelect } from "./professional-organization-selector";
+import { ProfessionalAccessContext } from "../professional-access-context";
+import { ProfessionalNotificationBell } from "./professional-notification-bell";
+import { ProfessionalMessagesTrigger } from "./professional-messages-trigger";
+import { ProfessionalAccountMenu } from "./professional-account-menu";
+import "../professional-portal.css";
 
 const links = [
   { label: "Today", href: "/professional", icon: LayoutDashboard },
@@ -16,6 +21,7 @@ const links = [
   { label: "My cases", href: "/professional/my-cases", icon: UserRoundCheck },
   { label: "Calendar", href: "/professional/calendar", icon: CalendarDays },
   { label: "Resources", href: "/professional/resources", icon: HeartHandshake },
+  { label: "Settings", href: "/professional/settings", icon: Settings },
 ];
 
 const focusStyles = "echo-focus-ring motion-reduce:transition-none";
@@ -87,6 +93,7 @@ export function ProfessionalShell({
   navigationItems = links,
   accountActions,
   organizationDisabled = false,
+  presentation,
 }: {
   children: ReactNode;
   memberships?: Membership[];
@@ -95,16 +102,21 @@ export function ProfessionalShell({
   navigationItems?: typeof links;
   accountActions?: ReactNode;
   organizationDisabled?: boolean;
+  /** Presentation slots only; never used for authentication or role authorization. */
+  presentation?: { page: string; title: string; organization: ReactNode; commands: ReactNode; onNavigate: (href: string) => void };
 }) {
   const pathname = usePathname();
+  const access = useContext(ProfessionalAccessContext);
+  const currentMembership = (memberships ?? access?.memberships)?.find(item => item.organizationId === organizationId);
+  const settingsHref = `/professional/settings${organizationId ? `?organization=${encodeURIComponent(organizationId)}` : ""}`;
   const router = useRouter();
-  const items = navigationItems === links && organizationId
+  const items = useMemo(() => navigationItems === links && organizationId
     ? links.map((item) => {
       if (!item.href.startsWith("/professional")) return item;
       const [path, fragment] = item.href.split("#");
       return { ...item, href: `${path}?organization=${encodeURIComponent(organizationId)}${fragment ? `#${fragment}` : ""}` };
     })
-    : navigationItems;
+    : navigationItems, [navigationItems, organizationId]);
   const homeHref = items[0]?.href ?? "/professional";
   const [hash, setHash] = useState("");
   const [signingOut, setSigningOut] = useState(false);
@@ -136,6 +148,7 @@ export function ProfessionalShell({
 
   function syncNavigation(href: string) {
     setMenuOpen(false);
+    presentation?.onNavigate(href);
     // Next Link uses pushState for same-page anchors, which emits no hashchange.
     // onNavigate excludes modified clicks and leaves Next's routing/scroll intact.
     const [destination, fragment = ""] = href.split("#");
@@ -167,16 +180,16 @@ export function ProfessionalShell({
     </button>
   </> : accountActions;
   return (
-    <div className="min-h-dvh bg-background text-foreground [font-family:var(--font-echo-sans)]">
+    <div data-page={presentation?.page ?? (pathname === "/professional" ? "today" : pathname.split("/")[2])} className="professional-portal min-h-dvh bg-background text-foreground [font-family:var(--font-echo-sans)]">
       <a href="#professional-content" className={`skip-to-content ${focusStyles}`}>
         Skip to workspace content
       </a>
       <div className="flex min-h-dvh w-full">
-        <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-y-auto bg-[#0d211a] px-5 py-7 text-white lg:flex" data-lenis-prevent>
+        <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col overflow-y-auto bg-[#0d211a] px-5 py-7 text-white lg:flex" data-lenis-prevent>
           <Link
             href={homeHref}
             onNavigate={() => syncNavigation(homeHref)}
-            className="mb-10 flex items-center gap-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            className="mb-8 flex items-center gap-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
           >
             <span className="grid size-11 place-items-center rounded-2xl bg-[#8fc89a] text-[#0d211a]">
               <Leaf size={23} aria-hidden="true" />
@@ -196,39 +209,31 @@ export function ProfessionalShell({
           </div>
         </aside>
         <div className="min-w-0 flex-1">
-          <header className="border-b border-border/70 bg-background/95 px-4 pb-4 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur sm:px-6 lg:sticky lg:top-0 lg:z-20 lg:px-9 lg:py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <Link
-                  href={homeHref}
-                  onNavigate={() => syncNavigation(homeHref)}
-                  className={`${focusStyles} flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl text-primary lg:hidden`}
-                  aria-label="ECHO professional home"
-                >
-                  <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground"><Leaf size={21} aria-hidden="true" /></span>
-                  <span className="text-left leading-tight"><strong className="block text-xl tracking-tight">ECHO</strong><span className="text-[11px] font-medium text-muted-foreground">Professional care</span></span>
-                </Link>
-                <span className="hidden text-sm font-semibold text-foreground lg:inline">Professional workspace</span>
-              </div>
-              <button type="button" aria-label="Open workspace menu" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)} className={`${focusStyles} grid size-11 place-items-center rounded-2xl border border-border/70 bg-card text-primary lg:hidden ${items.slice(4).some((item) => navigationState(item.href, pathname, hash, items)) ? "bg-secondary ring-1 ring-primary/20" : ""}`}><Menu size={21} aria-hidden="true" /></button>
-              <div className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-2 lg:w-auto">
-                {onOrganizationChange ? <ProfessionalOrganizationSelect memberships={memberships} organizationId={organizationId} onChange={onOrganizationChange} disabled={organizationDisabled} /> : null}
-                <div className="hidden items-center gap-1 lg:flex">{actions}</div>
+          <header className="pro-command-header">
+            <div className="pro-command">
+              <Link href={homeHref} onNavigate={() => syncNavigation(homeHref)} className="echo-focus-ring pro-command-brand" aria-label="ECHO professional home"><span><Leaf size={21} aria-hidden="true" /></span><strong>ECHO<small>Professional care</small></strong></Link>
+              <div className="pro-command-context"><p>Professional workspace</p><strong>{presentation?.title ?? navigationItems.find(item => item.href.split("?")[0] === pathname)?.label ?? (pathname.includes("/cases/") ? "Case workspace" : "Professional care")}</strong></div>
+              <div className="pro-command-organization">{presentation?.organization ?? (onOrganizationChange ? <ProfessionalOrganizationSelect compact memberships={memberships} organizationId={organizationId} onChange={onOrganizationChange} disabled={organizationDisabled} /> : null)}</div>
+              <div className="pro-command-actions">
+                {presentation?.commands}
+                {accountActions === undefined && !signingOut ? <><ProfessionalMessagesTrigger key={"messages:" + organizationId + ":" + (access?.userId ?? "") + ":" + pathname} organizationId={organizationId ?? ""} userId={access?.userId ?? ""} role={currentMembership?.role ?? ""} /><ProfessionalNotificationBell key={"notifications:" + organizationId + ":" + (access?.userId ?? "") + ":" + pathname} organizationId={organizationId ?? ""} userId={access?.userId ?? ""} role={currentMembership?.role ?? ""} /></> : null}
+                <div className="hidden lg:block">{accountActions === undefined ? <ProfessionalAccountMenu key={organizationId + ":" + pathname} name={currentMembership?.displayName ?? ""} role={currentMembership?.role ?? ""} settingsHref={settingsHref}>{actions}</ProfessionalAccountMenu> : actions}</div>
+                <button type="button" aria-label="Open workspace menu" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)} className="echo-focus-ring pro-command-icon lg:hidden"><Menu size={21} aria-hidden="true" /></button>
               </div>
             </div>
             {signOutError ? <p role="alert" className="mt-2 text-xs text-danger">{signOutError}</p> : null}
           </header>
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-card/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_24px_hsl(var(--foreground)/0.04)] backdrop-blur lg:hidden">
+          <div className="pro-bottom-navigation fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-card/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_24px_hsl(var(--foreground)/0.04)] backdrop-blur lg:hidden">
             <div className="mx-auto max-w-lg"><ProfessionalNavigation items={items.slice(0, 4)} activeItems={items} pathname={pathname} hash={hash} onNavigate={syncNavigation} mobile /></div>
           </div>
-          <main id="professional-content" tabIndex={-1} className={`${focusStyles} mx-auto max-w-[1320px] scroll-mt-24 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-7 sm:px-6 lg:px-9 lg:py-9`}>{children}</main>
+          <main id="professional-content" tabIndex={-1} className={`${focusStyles} mx-auto w-full scroll-mt-24 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-7 sm:px-6 lg:px-7 lg:py-6 xl:px-9`}>{signingOut ? <ProfessionalSkeleton title="Signing out of professional workspace" variant="content" /> : children}</main>
         </div>
       </div>
       <EchoDialog open={menuOpen} onClose={() => setMenuOpen(false)} title="Your workspace" description={memberships?.find((item) => item.organizationId === organizationId)?.organization?.name ?? "Professional navigation and account"} size="small" className="rounded-3xl [font-family:var(--font-echo-sans)] [&_button[aria-label]]:min-h-11 [&_button[aria-label]]:min-w-11">
         <nav aria-label="Workspace menu" className="space-y-1">
           {items.map(({ label, href, icon: Icon }) => <Link key={label} href={href} onNavigate={() => syncNavigation(href)} aria-current={navigationState(href, pathname, hash, items)} className={`${focusStyles} flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold text-primary hover:bg-secondary aria-[current]:bg-secondary`}><Icon size={20} aria-hidden="true" />{label}</Link>)}
         </nav>
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{actions}</div>
+        <div className="mt-5 border-t border-border pt-4"><p className="mb-2 text-sm font-semibold">{currentMembership?.displayName}</p><div className="flex flex-wrap gap-2">{actions}</div></div>
         {signOutError ? <p role="alert" className="mt-3 text-sm text-danger">{signOutError}</p> : null}
       </EchoDialog>
     </div>

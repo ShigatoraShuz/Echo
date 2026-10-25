@@ -27,7 +27,8 @@
     "retention:active-policy": "tsx --env-file=.env scripts/audit-retention.mts",
     "erasure:restore": "tsx --env-file=.env scripts/account-erasure-restore.mts",
     "worker:account-erasure": "node --env-file=.env dist/workers/account-erasure.js",
-    "worker:in-app-reminders": "node --env-file=.env dist/workers/in-app-reminders.js"
+    "worker:in-app-reminders": "node --env-file=.env dist/workers/in-app-reminders.js",
+    "worker:professional-case-events": "node --env-file=.env dist/workers/professional-events.js"
   },
   "dependencies": {
     "@echo/contracts": "0.1.0",

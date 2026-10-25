@@ -566,5 +566,60 @@
     "empty": "No code shows a recoverable error",
     "failure": "Invalid or expired code does not establish a session",
     "kind": "callback"
+  },
+  {
+    "path": "/professional/requests",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Filter scoped intake metadata and accept an eligible request",
+    "expected": "Authorized queue and acknowledged workflow update",
+    "empty": "Show an honest bounded empty queue",
+    "failure": "Conceal denied data and recheck access"
+  },
+  {
+    "path": "/professional/my-cases",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Filter assigned cases and open an authorized case",
+    "expected": "Only own cases in the selected organization",
+    "empty": "Show bounded empty caseload or nonclinical role guidance",
+    "failure": "Clear prior organization data and deny unauthorized clinical access"
+  },
+  {
+    "path": "/professional/calendar",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Inspect assigned-case appointment agenda",
+    "expected": "Show real scoped appointments for clinicians and unavailable organization scheduling for administrators",
+    "empty": "Distinguish a genuine empty agenda from an unavailable service",
+    "failure": "Conceal clinical schedules when access is lost"
+  },
+  {
+    "path": "/professional/resources",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Review the support directory and safety limitations",
+    "expected": "Show reviewed resource facts without implying emergency dispatch",
+    "empty": "Show directory unavailable guidance and established emergency procedures",
+    "failure": "Keep safety limitations visible and offer directory retry"
+  },
+  {
+    "path": "/professional/settings",
+    "role": "practitioner",
+    "fixture": "mfa-practitioner",
+    "action": "Edit supported personal preferences and inspect read-only membership",
+    "expected": "Persist only authorized personal fields with organization roles and credentials read-only",
+    "empty": "Show truthful account or membership availability",
+    "failure": "Clear protected fields and preserve session/MFA boundaries"
+  },
+  {
+    "path": "/dev/professional-preview",
+    "kind": "development-only",
+    "role": "public",
+    "fixture": "preview",
+    "action": "Inspect fictional professional components locally",
+    "expected": "Inert synthetic controls in development; 404 outside development/loopback",
+    "empty": "Use explicit synthetic empty states",
+    "failure": "Deny production and non-loopback preview requests"
   }
 ]

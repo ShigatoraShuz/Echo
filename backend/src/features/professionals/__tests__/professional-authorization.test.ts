@@ -41,13 +41,15 @@ function harness(options: { member?: Row | null; organization?: Row | null; assi
   const writes = vi.fn();
   const from = vi.fn((table: string) => {
     const filters: [string, unknown][] = [];
+    const selections: [string, unknown[]][] = [];
     let inserted: Row | undefined;
     const rows = () => inserted ? [{ id: MEMBER, ...inserted }] : (tables[table] ?? [])
-      .filter((row) => filters.every(([key, value]) => row[key] === value));
+      .filter((row) => filters.every(([key, value]) => row[key] === value) && selections.every(([key, values]) => values.includes(row[key])));
     const result = () => { const data = rows(); options.afterRead?.(table, tables); return { data, error: null, count: data.length }; };
     const query = {
       select: vi.fn(() => query),
       eq: (key: string, value: unknown) => { filters.push([key, value]); return query; },
+      in: (key: string, values: unknown[]) => { selections.push([key, values]); return query; },
       order: () => query,
       limit: () => query,
       range: () => query,
@@ -66,7 +68,7 @@ function harness(options: { member?: Row | null; organization?: Row | null; assi
       return { data, error: options.rpcError ? { message: options.rpcError } : null };
     }
     if (name === "close_case") return { data: { request: tables.support_requests[0], reasonEncrypted: args.p_reason_encrypted }, error: options.rpcError ? { message: options.rpcError } : null };
-    if (name === "reschedule_appointment") return { data: { id: APPOINTMENT, status: "proposed", location_hint_encrypted: args.p_location_hint_encrypted }, error: options.rpcError ? { message: options.rpcError } : null };
+    if (name === "reschedule_appointment") return { data: { id: APPOINTMENT, request_id: CASE, status: "proposed", location_hint_encrypted: args.p_location_hint_encrypted }, error: options.rpcError ? { message: options.rpcError } : null };
     if (name === "transfer_case") return { data: { request: { ...tables.support_requests[0], assigned_to: args.p_target }, transferId: MEMBER, reasonEncrypted: args.p_reason_encrypted }, error: options.rpcError ? { message: options.rpcError } : null };
     return { data: name === "save_case_note" ? { id: MEMBER, body_encrypted: args.p_body_encrypted, state: args.p_state, revision: 1 } : name === "cancel_appointment" ? { id: APPOINTMENT, status: "canceled" } : tables.support_requests[0],
       error: options.rpcError ? { message: options.rpcError } : null };

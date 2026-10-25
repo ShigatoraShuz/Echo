@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** BE-005 metadata for isolated UI fixtures; no credential endpoint is enabled here. */
+/** Preview metadata remains fictional. The same strict input validation also serves live applications. */
 export interface CredentialReviewPreview {
   id: string;
   organizationName: string;

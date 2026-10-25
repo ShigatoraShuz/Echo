@@ -32,7 +32,7 @@ function CaseScenario({ organizationId }: { organizationId: string }) {
       </select>
     </label>
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
-      <div className="min-w-0 space-y-6"><ProfessionalCaseOverview detail={detail} /><ProfessionalCaseSharing detail={detail} previewState={consent} />
+      <div className="min-w-0 space-y-6"><ProfessionalCaseOverview detail={detail} preview /><ProfessionalCaseSharing detail={detail} previewState={consent} />
         <ProfessionalPanel title="Synthetic case notes" description="Inspect validation only; no saved draft or finalization is simulated.">
           <p className="text-sm leading-7">Fictional professional note</p>
           <ProfessionalCaseNoteEditor value={note} onChange={setNote} preview error={note ? noteValidation(note) : ""} />

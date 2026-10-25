@@ -16,4 +16,7 @@ export const professionalWorkflowMigrations = [
   "20261017100000_professional_event_health.sql",
   "20261019090000_professional_withdrawal_compatibility.sql",
   "20261020103920_professional_shared_case_snapshot.sql",
+  "20261023152235_professional_pending_credential_correction.sql",
+  "20261024150538_professional_appointment_delivery.sql",
+  "20261025065756_professional_notification_inbox.sql",
 ];

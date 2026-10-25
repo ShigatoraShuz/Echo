@@ -13,6 +13,7 @@ import {
 } from "@/services/authentication/reviewer-mfa";
 import { ProfessionalShell, ProfessionalSkeleton } from "../components/professional-shell";
 import { professionalOrganizationDestination, professionalReturnPath } from "../professional-return-path";
+import { ProfessionalApplication } from "../components/professional-application";
 import { ProfessionalOnboarding } from "../components/professional-onboarding";
 import { ProfessionalHeading, ProfessionalNotice } from "../components/professional-ui";
 import { approvedOrganizations } from "../professional-organizations";
@@ -31,8 +32,12 @@ function AccessCheck({ next }: { next: string }) {
   const router = useRouter();
   const inFlight = useRef(false);
   const verificationInFlight = useRef(false);
+  const applicantMfaInFlight = useRef(false);
+  const pendingMembership = useRef<ReturnType<typeof professionalApi.memberships> | null>(null);
   const request = useRef(0);
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
+  const [userId, setUserId] = useState("");
+  const [applicantMfaRequired, setApplicantMfaRequired] = useState(true);
   const [factor, setFactor] = useState<ReviewerFactor | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,9 +54,13 @@ function AccessCheck({ next }: { next: string }) {
     setCode("");
     let preparingMfa = false;
     try {
-      const result = await professionalApi.memberships();
+      // Effect replay may overlap the same access read. Verification still
+      // performs a new membership check after the previous read has settled.
+      const result = await (pendingMembership.current ??= professionalApi.memberships().finally(() => { pendingMembership.current = null; }));
       if (current !== request.current) return;
       setMemberships(result.memberships);
+      setUserId(result.userId ?? "");
+      setApplicantMfaRequired(!!result.mfaRequired);
       let active = approvedOrganizations(result.memberships);
       if (active.length === 0) return;
       if (result.mfaRequired) {
@@ -67,6 +76,7 @@ function AccessCheck({ next }: { next: string }) {
         if (current !== request.current) return;
         if (refreshed.mfaRequired) { setError(professionalAccessState("mfa_unavailable")); return; }
         setMemberships(refreshed.memberships);
+        setApplicantMfaRequired(!!refreshed.mfaRequired);
         active = approvedOrganizations(refreshed.memberships);
         if (active.length === 0) return;
       }
@@ -76,7 +86,6 @@ function AccessCheck({ next }: { next: string }) {
           ? `/professional?organization=${encodeURIComponent(active[0].organizationId)}`
           : next;
         router.replace(destination);
-        router.refresh();
       }
     } catch (reason) {
       if (current !== request.current) return;
@@ -93,6 +102,25 @@ function AccessCheck({ next }: { next: string }) {
     void load();
     return () => { request.current += 1; inFlight.current = false; };
   }, [load]);
+
+  useEffect(() => {
+    const clear = () => { request.current++; pendingMembership.current = null; inFlight.current = false; setMemberships(null); setUserId(""); setFactor(null); setCode(""); setBusy(false); setError(professionalAccessState("session")); };
+    window.addEventListener("echo:sensitive-state-cleared", clear);
+    return () => window.removeEventListener("echo:sensitive-state-cleared", clear);
+  }, []);
+
+  async function beginApplicantMfa() {
+    if (busy || inFlight.current || applicantMfaInFlight.current) return;
+    applicantMfaInFlight.current = true;
+    const current = request.current;
+    setBusy(true); setError(null);
+    try {
+      const prepared = await prepareReviewerMfa("ECHO professional");
+      if (current !== request.current) return;
+      if (prepared) setFactor(prepared); else { setBusy(false); await load(); }
+    } catch { if (current === request.current) setError(professionalAccessState("mfa_unavailable")); }
+    finally { applicantMfaInFlight.current = false; if (current === request.current) setBusy(false); }
+  }
 
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,10 +152,10 @@ function AccessCheck({ next }: { next: string }) {
         <ProfessionalHeading title="Professional access" label="ECHO professional care" description="Your ECHO account needs an approved organization, professional role, and authenticator verification." />
         {memberships === null && busy ? <ProfessionalSkeleton variant="content" title="Checking professional access" /> : null}
         {error ? <ProfessionalAccessError failure={error} destination={next} atAccess onRetry={() => void load()} busy={busy} /> : null}
-        {memberships && active.length === 0 ? <ProfessionalOnboarding memberships={memberships} /> : null}
+        {memberships && active.length === 0 ? applicantMfaRequired ? <ProfessionalOnboarding memberships={memberships} application={<ProfessionalNotice title="Verify your authenticator to apply">Credential submission and history require MFA, even before membership approval.<EchoButton className="mt-3" onClick={() => void beginApplicantMfa()} disabled={busy || !!factor}>Verify authenticator to apply</EchoButton></ProfessionalNotice>} reviewHistory={<ProfessionalNotice title="Application history requires MFA">Verify your authenticator to view your own credential applications.</ProfessionalNotice>} /> : <ProfessionalApplication key={userId} memberships={memberships} userId={userId} /> : null}
         {active.length > 0 ? <ProfessionalNotice title="Membership approved">{factor ? "Authenticator verification is required before entering your workspace. " : null}Continue through any required authenticator check, then choose your approved organization. Credential review alone does not grant workspace access.</ProfessionalNotice> : null}
         {memberships && active.length === 0 ? <div className="flex flex-wrap items-center gap-3"><EchoButton type="button" variant="outline" isLoading={busy} loadingText="Checking access" onClick={() => void load()}>Check approval status</EchoButton><Link href="/dashboard" className="echo-focus-ring inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-primary underline">Return to My ECHO</Link></div> : null}
-        {factor && active.length > 0 ? (
+        {factor ? (
           <form onSubmit={(event) => void verify(event)} className="mx-auto max-w-2xl space-y-4 rounded-3xl border border-border bg-card p-6 sm:p-8">
             <h2 className="text-2xl [font-family:var(--font-echo-display)]">Verify your authenticator</h2>
             <p className="text-sm leading-6 text-muted-foreground">
@@ -153,7 +181,6 @@ function AccessCheck({ next }: { next: string }) {
           <ProfessionalOrganizationChooser memberships={memberships ?? []} onChange={(id) => {
             if (!active.some((item) => item.organizationId === id)) return;
             router.replace(professionalOrganizationDestination(next, id));
-            router.refresh();
           }} />
         ) : null}
       </div>

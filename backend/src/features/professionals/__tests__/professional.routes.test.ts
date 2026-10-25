@@ -142,6 +142,7 @@ describe("professional portal routes", () => {
       CASE,
       "fe000000-0000-4000-8000-000000000005",
       "Could we discuss the next appointment?",
+      "owner",
     );
   });
 

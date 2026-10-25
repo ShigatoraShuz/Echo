@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useRef } from "react";
-import { ArrowRight, CalendarDays, ShieldCheck } from "lucide-react";
+import { ArrowRight, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
 import { EchoEmptyState } from "@/shared/components/feedback/echo-empty-state";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
@@ -37,8 +37,8 @@ function DashboardWorkspace() {
       <ProfessionalHeading
         label="Workspace overview"
         title="Today, at a glance"
-        description="Requests, assigned cases and scheduling in your organization."
-        action={<EchoButton type="button" variant="outline" disabled={!organizationId || !!busyId || !!error || requests === null} onClick={refreshWorkspace}>Refresh overview</EchoButton>}
+        description="Your priorities, in one place."
+        action={<EchoButton className="pro-overview-refresh" aria-label="Refresh overview" title="Refresh overview" type="button" variant="outline" disabled={!organizationId || !!busyId || !!error || requests === null} onClick={refreshWorkspace}><RefreshCw size={17} aria-hidden="true" /><span>Refresh overview</span></EchoButton>}
       />
       {selectionNotice ? <div className="mb-6"><ProfessionalNotice title="Organization selection updated">{selectionNotice}</ProfessionalNotice></div> : null}
       {error ? <ProfessionalAccessError failure={error} destination={destination} retryLabel="Retry workspace" onRetry={retry} /> : memberships === null ? (
@@ -57,13 +57,13 @@ function DashboardWorkspace() {
         <>
 
           <ProfessionalMetrics newRequests={dashboardSummary?.counts.pendingCount ?? overview.pendingCount} activeCases={dashboardSummary?.counts.activeCount ?? overview.activeCount} scheduled={scheduledCount} loading={requests === null} />
-          <details className="mb-5 rounded-2xl border border-border/70 px-4 py-2 text-xs leading-6 text-muted-foreground"><summary className="echo-focus-ring min-h-11 cursor-pointer content-center rounded-lg font-semibold text-primary">About these counts</summary><p className="pb-2 break-words">{dashboardSummary ? `Counts cover all pending requests and your authorized active cases in ${activeMembership?.organization?.name ?? "your organization"}. The request list below is a bounded page.` : <>Counts cover the loaded requests for {activeMembership?.organization?.name ?? "your organization"}.{requests !== null && requests.length >= 100 ? " This overview includes the latest 100 requests; older cases may be outside this view." : ""}</>}{summaryUnavailable ? " Organization-wide totals are temporarily unavailable; only loaded-request counts are shown." : ""}</p></details>
+          <details className="pro-overview-context mb-4 text-xs leading-6 text-muted-foreground"><summary className="echo-focus-ring min-h-11 cursor-pointer content-center rounded-lg font-semibold text-primary">{summaryUnavailable ? "Totals unavailable · counts from loaded requests" : dashboardSummary ? "About these counts" : "Counts from loaded requests · About this overview"}</summary><p className="pb-2 break-words">{dashboardSummary ? `Counts cover all pending requests and your authorized active cases in ${activeMembership?.organization?.name ?? "your organization"}. The request list below is a bounded page.` : <>Counts cover the loaded requests for {activeMembership?.organization?.name ?? "your organization"}.{requests !== null && requests.length >= 100 ? " This overview includes the latest 100 requests; older cases may be outside this view." : ""}</>}{summaryUnavailable ? " Organization-wide totals are temporarily unavailable; only loaded-request counts are shown." : ""}</p></details>
           {success ? <p role="status" className="mb-4 text-sm font-semibold text-primary">{success}</p> : null}
           {canAssign && requests ? <ProfessionalAssignmentPanel key={organizationId} organizationId={organizationId} requests={requests} busy={!!busyId} onAssign={assign} /> : null}
-          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="pro-dashboard-grid grid items-start gap-5 xl:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
           <ProfessionalRequestQueue key={organizationId} ref={queueView} requests={requests} organizationId={organizationId} organizationName={activeMembership?.organization?.name ?? "your organization"} userId={userId} canClaim={canClaim} canOpenCases={canClaim} busyId={busyId} compact onClaim={(item) => claim(item.id)} />
-          <ProfessionalPanel id="calendar" title="Scheduled cases" icon={CalendarDays} description="Assigned to you. Open a case to check appointment time and current status.">
-            <div className="space-y-3">
+          <ProfessionalPanel id="calendar" title="Scheduled cases" icon={CalendarDays} description="Your next conversations">
+            <div className="pro-scheduled-content space-y-3">
               {requests === null ? (
                 <EchoSkeleton variant="rectangular" className="h-10 w-48" />
               ) : (
@@ -81,13 +81,12 @@ function DashboardWorkspace() {
                   ))
               )}
               {requests !== null && scheduledCount === 0 ? (
-                <EchoEmptyState icon={<CalendarDays size={22} />} title="No scheduled cases in this overview." description="Cases marked scheduled and assigned to you will appear here. Check your active cases for appointment offers." className="py-6" />
+                <EchoEmptyState icon={<CalendarDays size={22} />} title="No scheduled cases in this overview." description="Open an active case to review appointment offers." className="pro-empty py-3" />
               ) : null}
               {requests !== null && scheduledCount > 3 ? dashboardSummary ? <Link href={`/professional/my-cases?organization=${encodeURIComponent(organizationId)}`} className="echo-focus-ring inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary underline">Open My cases</Link> : <button type="button" className="echo-focus-ring inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary underline" onClick={() => { queueView.current?.viewScheduled(); }}>View all {scheduledCount} scheduled cases in the queue</button> : null}
-              <div className="border-t border-border/70 pt-4 text-xs leading-6 text-muted-foreground">
+              <div className="pro-schedule-summary border-t border-border/70 pt-4 text-xs leading-6 text-muted-foreground">
                 {dashboardSummary ? <><h3 className="text-sm font-semibold text-foreground">Upcoming appointments</h3>{!dashboardSummary.clinicalAccess ? <p className="mt-2">Clinical appointment details are unavailable for your role.</p> : dashboardSummary.appointments.length ? <ul className="mt-3 space-y-3">{dashboardSummary.appointments.map((item) => <li key={item.id}><Link href={professionalCaseHref(item.requestId, organizationId)} className="echo-focus-ring flex min-h-11 flex-col justify-center rounded-lg text-primary underline"><span>{appointmentTime(item.startsAt)}</span><span className="text-xs capitalize">{sessionModes[item.mode as keyof typeof sessionModes] ?? "Session"} · {item.status}</span></Link></li>)}</ul> : <p className="mt-2">No upcoming or in-progress appointments.</p>}{dashboardSummary.clinicalAccess ? <p className="mt-2">Showing {dashboardSummary.appointments.length} of {dashboardSummary.appointmentTotal} upcoming or in-progress appointments. Open a case for current details.</p> : null}</> : <p>Upcoming appointment times are available inside your assigned cases. A combined schedule is not available here yet.</p>}
-                <h3 className="mt-4 text-sm font-semibold text-foreground">Professional follow-ups</h3>
-                <p className="mt-1">A task list is not available here yet. Review your active cases for follow-up actions.</p>
+                <details className="mt-3"><summary className="echo-focus-ring flex min-h-11 cursor-pointer items-center rounded-lg font-semibold text-foreground">Professional follow-ups · not available</summary><p>A task list is not available here yet. Review your active cases for follow-up actions.</p></details>
               </div>
             </div>
           </ProfessionalPanel>

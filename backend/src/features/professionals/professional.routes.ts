@@ -11,6 +11,7 @@ import { sendSuccess } from "../../shared/utils/response.js";
 import type { VerificationService } from "../verification/verification.service.js";
 import type { ProfessionalService } from "./professional.service.js";
 import { professionalQueueQuery } from "./professional-queue.contract.js";
+import { professionalMessageCursorSchema } from "./professional-message-cursor.js";
 
 const uuid = z.uuid();
 const revision = z.number().int().min(1).max(2147483646);
@@ -84,6 +85,10 @@ export function createProfessionalRouter(
   });
   router.post("/professional/credentials", requireMfa, endpointLimiter(8), async (request, response) => {
     sendSuccess(response, await service.credentials.submit(request.auth!.id, parse(credentialSchema, request.body)), 201);
+  });
+  router.patch("/professional/credentials/:credentialId", requireMfa, endpointLimiter(8), async (request, response) => {
+    const input = parse(z.strictObject({ credentialLabel: z.string().trim().min(2).max(160), expiresAt: z.iso.date() }), request.body);
+    sendSuccess(response, await service.credentials.correct(request.auth!.id, requireUuidParam(request, "credentialId"), input));
   });
   const credentialAdminPath = "/professional/admin/organizations/:organizationId/credentials";
   router.get(credentialAdminPath, requireMfa, requireRecentAuthentication, async (request, response) => {
@@ -175,7 +180,7 @@ export function createProfessionalRouter(
     ), 201);
   });
   router.get("/professional/my-requests/:requestId/sharing", async (request, response) => {
-    sendSuccess(response, await service.sharing(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.sharing(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.post("/professional/my-requests/:requestId/sharing", async (request, response) => {
     const input = parse(z.strictObject({
@@ -193,14 +198,14 @@ export function createProfessionalRouter(
     ));
   });
   router.get("/professional/my-requests/:requestId/timeline", async (request, response) => {
-    sendSuccess(response, await service.timeline(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.timeline(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.get("/professional/my-requests/:requestId/messages", async (request, response) => {
     const input = parse(z.strictObject({
-      before: z.iso.datetime({ offset: true }).optional(),
+      before: professionalMessageCursorSchema.optional(),
       limit: z.coerce.number().int().min(1).max(50).default(30),
     }), request.query);
-    sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit));
+    sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit, "owner"));
   });
   router.post("/professional/my-requests/:requestId/messages", endpointLimiter(20), async (request, response) => {
     const input = parse(z.strictObject({ clientMessageId: uuid, body: z.string().trim().min(1).max(4000) }), request.body);
@@ -209,10 +214,11 @@ export function createProfessionalRouter(
       requireUuidParam(request, "requestId"),
       input.clientMessageId,
       input.body,
+      "owner",
     ), 201);
   });
   router.patch("/professional/my-requests/:requestId/messages/read", async (request, response) => {
-    sendSuccess(response, await service.markMessagesRead(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.markMessagesRead(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.get("/professional/appointments", async (request, response) => {
     const range = parse(z.strictObject({
@@ -290,7 +296,7 @@ export function createProfessionalRouter(
   });
   router.get("/professional/cases/:requestId/messages", requireMfa, async (request, response) => {
     const input = parse(z.strictObject({
-      before: z.iso.datetime({ offset: true }).optional(),
+      before: professionalMessageCursorSchema.optional(),
       limit: z.coerce.number().int().min(1).max(50).default(30),
     }), request.query);
     sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit));

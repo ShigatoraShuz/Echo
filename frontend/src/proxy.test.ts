@@ -31,9 +31,11 @@ describe("authentication proxy", () => {
   it.each(["production", "test"])("rejects the preview with HTTP 404 in %s without checking authentication", async (mode) => {
     vi.stubEnv("NODE_ENV", mode);
     try {
-      const response = await proxy(request("/dev/professional-preview"));
-      expect(response.status).toBe(404);
-      expect(response.headers.get("cache-control")).toBe("no-store");
+      for (const path of ["/dev/professional-preview", "/dev/professional-preview/", "/dev/professional-preview/case/demo"]) {
+        const response = await proxy(request(path));
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+      }
       expect(mocks.createClient).not.toHaveBeenCalled();
     } finally { vi.unstubAllEnvs(); }
   });
@@ -61,6 +63,12 @@ describe("authentication proxy", () => {
     "/admin/professionals",
     "/professional/request",
     "/professional/my-requests",
+    "/professional",
+    "/professional/requests",
+    "/professional/my-cases",
+    "/professional/calendar",
+    "/professional/resources",
+    "/professional-support/requests",
     "/professional/access",
     "/professional/cases/fe000000-0000-4000-8000-000000000001",
     "/onboarding",
@@ -71,7 +79,7 @@ describe("authentication proxy", () => {
 
     expect(response.status).toBe(307);
     expect(location.pathname).toBe(
-      path === "/professional/access" || path === "/professional" || path.startsWith("/professional/cases/")
+      ["/professional", "/professional/access", "/professional/requests", "/professional/my-cases", "/professional/calendar", "/professional/resources", "/professional/settings"].includes(path) || path.startsWith("/professional/cases/")
         ? "/professional/login"
         : "/login",
     );

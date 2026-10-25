@@ -43,7 +43,7 @@ export function agendaGroups(appointments: Appointment[], period: AgendaPeriod, 
     const start = Date.parse(item.startsAt); const end = Date.parse(item.endsAt);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
     if (period === "canceled") return item.status === "canceled";
-    return item.status !== "canceled" && (period === "past" ? end <= now : end > now);
+    return item.status !== "canceled" && (period === "past" ? item.status === "completed" || end <= now : item.status !== "completed" && end > now);
   }).sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt) || a.id.localeCompare(b.id));
   const groups = new Map<string, Appointment[]>();
   for (const item of selected) {

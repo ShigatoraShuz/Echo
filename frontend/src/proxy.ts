@@ -163,6 +163,7 @@ function redirectToLogin(
   destination.pathname =
     request.nextUrl.pathname === "/professional" ||
     request.nextUrl.pathname === "/professional/access" ||
+    ["/professional/requests", "/professional/my-cases", "/professional/calendar", "/professional/resources", "/professional/settings"].includes(request.nextUrl.pathname) ||
     request.nextUrl.pathname.startsWith("/professional/cases/")
       ? "/professional/login"
       : "/login";
@@ -211,7 +212,7 @@ export async function proxy(
 ) {
   // Reject the temporary preview before rendering can stream a 200 response.
   // This guard only denies preview requests; it grants no authenticated access.
-  if (request.nextUrl.pathname === "/dev/professional-preview" && (
+  if ((request.nextUrl.pathname === "/dev/professional-preview" || request.nextUrl.pathname.startsWith("/dev/professional-preview/")) && (
     process.env.NODE_ENV !== "development" ||
     !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(request.headers.get("host") ?? "")
   )) {

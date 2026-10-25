@@ -1,0 +1,13 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {inspectSharedEnvironment} from './check-shared-professional-env.mjs';
+const ref='abcdefghijklmnopqrst';
+const backend={SUPABASE_URL:'https://'+ref+'.supabase.co',SUPABASE_PUBLISHABLE_KEY:'fixture-public',SUPABASE_SERVICE_ROLE_KEY:'fixture-server-only',FRONTEND_URL:'http://127.0.0.1:3000',PORT:'4200',JOURNAL_ENCRYPTION_KEY_BASE64:Buffer.alloc(32,7).toString('base64')};
+const frontend={NEXT_PUBLIC_SUPABASE_URL:backend.SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'fixture-public',NEXT_PUBLIC_DATA_ADAPTER:'http',NEXT_PUBLIC_API_BASE_URL:'http://127.0.0.1:4200/api/v1'};
+const inspect=(front=frontend,back=backend)=>inspectSharedEnvironment({frontend:front,backend:back,expectedProject:ref});
+test('accepts one shared project with each laptop serving its own local API',()=>assert.equal(inspect().ok,true));
+test('rejects a mismatched project without printing keys',()=>{const result=inspect({...frontend,NEXT_PUBLIC_SUPABASE_URL:'https://wrong-project.supabase.co'});assert.equal(result.ok,false);assert.equal(JSON.stringify(result).includes('fixture-server-only'),false);});
+test('rejects another laptop or hosted API as the browser target',()=>{for(const url of ['http://192.168.1.20:4200/api/v1','https://example.invalid/api/v1','http://127.0.0.1:4300/api/v1'])assert.equal(inspect({...frontend,NEXT_PUBLIC_API_BASE_URL:url}).ok,false);});
+test('rejects credentials in a URL and public secret variables',()=>{assert.equal(inspect({...frontend,NEXT_PUBLIC_API_BASE_URL:'http://user:secret@127.0.0.1:4200/api/v1'}).ok,false);assert.equal(inspect({...frontend,NEXT_PUBLIC_SERVICE_ROLE_KEY:'fixture-server-only'}).ok,false);});
+test('rejects mock mode and missing shared encryption material',()=>{assert.equal(inspect({...frontend,NEXT_PUBLIC_DATA_ADAPTER:'mock'}).ok,false);assert.equal(inspect(frontend,{...backend,JOURNAL_ENCRYPTION_KEY_BASE64:''}).ok,false);});
+test('does not silently replace an explicitly empty frontend target with backend configuration',()=>assert.equal(inspect({...frontend,NEXT_PUBLIC_SUPABASE_URL:''}).ok,false));

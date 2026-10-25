@@ -7,6 +7,7 @@ describe("professional return path", () => {
     expect(professionalReturnPath("/professional/requests?organization=one")).toBe("/professional/requests?organization=one");
     expect(professionalReturnPath("/professional/my-cases?organization=one#cases")).toBe("/professional/my-cases?organization=one#cases");
     expect(professionalReturnPath("/professional/calendar?organization=one")).toBe("/professional/calendar?organization=one");
+    expect(professionalReturnPath("/professional/settings?organization=one")).toBe("/professional/settings?organization=one");
     expect(professionalReturnPath("/professional/resources?organization=one")).toBe("/professional/resources?organization=one");
     expect(professionalReturnPath("/professional/cases/fe000000-0000-4000-8000-000000000001")).toContain("/cases/");
     for (const unsafe of ["//evil.test", "/professional/request", "/professional/access", "/professional/cases/invalid", "/dashboard"]) {

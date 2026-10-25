@@ -5,7 +5,7 @@ import type { CaseDetail } from "@/services/professionals/professional-api";
 import { AppError } from "@/shared/errors/app-error";
 import { ProfessionalCaseView } from "./professional-case-view";
 
-const mocks = vi.hoisted(() => ({ caseDetail: vi.fn(), proposeAppointment: vi.fn(), cancelAppointment: vi.fn(), addReferral: vi.fn(), respondAppointment: vi.fn(), replace: vi.fn(), params: new URLSearchParams() }));
+const mocks = vi.hoisted(() => ({ caseDetail: vi.fn(), proposeAppointment: vi.fn(), cancelAppointment: vi.fn(), rescheduleAppointment: vi.fn(), addReferral: vi.fn(), respondAppointment: vi.fn(), replace: vi.fn(), params: new URLSearchParams() }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks, useSearchParams: () => mocks.params }));
 vi.mock("@/services/professionals/professional-api", () => ({ professionalApi: mocks }));
 vi.mock("../components/professional-shell", () => ({ ProfessionalShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>, ProfessionalSkeleton: () => <p>Loading case</p> }));
@@ -16,16 +16,17 @@ function apiError(statusCode: number, code: string) { return new AppError({ stat
 beforeEach(() => { vi.resetAllMocks(); mocks.params = new URLSearchParams(); mocks.caseDetail.mockResolvedValue(structuredClone(fixture)); });
 it("preserves only the agenda period on refresh, resetting it on case navigation", async () => {
   const { rerender } = render(<ProfessionalCaseView id="case-one" />);
-  await userEvent.click(await screen.findByRole("button", { name: "Past" }));
+  await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); await userEvent.click(await screen.findByRole("button", { name: "Past" }));
   fireEvent.change(screen.getByLabelText("Resource name"), { target: { value: "Unsaved fictional referral" } });
   await userEvent.click(screen.getByRole("button", { name: "Refresh case" }));
   expect(await screen.findByRole("button", { name: "Past" })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByLabelText("Resource name")).toHaveValue("");
   mocks.caseDetail.mockResolvedValue({ ...fixture, request: { ...fixture.request, id: "case-two" } });
   rerender(<ProfessionalCaseView id="case-two" />);
-  expect(await screen.findByRole("button", { name: "Upcoming and in progress" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); expect(await screen.findByRole("button", { name: "Upcoming and in progress" })).toHaveAttribute("aria-pressed", "true");
 });
 async function reviewProposal() {
+  await userEvent.click(await screen.findByRole("tab", {name:"Appointments"}));
   fireEvent.change(await screen.findByLabelText("Starts"), { target: { value: "2099-10-20T10:00" } });
   fireEvent.change(screen.getByLabelText("Ends"), { target: { value: "2099-10-20T11:00" } });
   await userEvent.selectOptions(screen.getByLabelText("Session type"), "online");
@@ -35,7 +36,7 @@ describe("FE-019 real appointment proposals", () => {
   it("validates before confirmation and sends one proposal only after review", async () => {
     const pending = deferred<{ appointmentId: string }>(); mocks.proposeAppointment.mockReturnValue(pending.promise);
     render(<ProfessionalCaseView id="case-one" />);
-    await userEvent.click(await screen.findByRole("button", { name: "Review appointment proposal" }));
+    await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); await userEvent.click(await screen.findByRole("button", { name: "Review appointment proposal" }));
     expect(screen.getByRole("alert")).toHaveTextContent("valid start and end"); expect(mocks.proposeAppointment).not.toHaveBeenCalled();
     await reviewProposal(); expect(screen.getByRole("dialog")).toHaveTextContent("request owner"); expect(mocks.proposeAppointment).not.toHaveBeenCalled();
     const send = screen.getByRole("button", { name: "Send proposal" }); fireEvent.click(send); fireEvent.click(send);
@@ -74,7 +75,7 @@ describe("FE-021 practitioner cancellation", () => {
   it("requires confirmation, prevents duplicate requests, and reflects the refreshed state", async () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, request: { ...fixture.request, status: "scheduled" }, appointments: [{ ...appointment, status: "confirmed" }] });
     const pending = deferred<unknown>(); mocks.cancelAppointment.mockReturnValue(pending.promise); render(<ProfessionalCaseView id="case-one" />);
-    const trigger = await screen.findByRole("button", { name: "Cancel appointment" }); await userEvent.click(trigger); expect(mocks.cancelAppointment).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); const trigger = await screen.findByRole("button", { name: "Cancel appointment" }); await userEvent.click(trigger); expect(mocks.cancelAppointment).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Keep appointment" })); expect(trigger).toHaveFocus(); await userEvent.click(trigger);
     const confirm = screen.getByRole("button", { name: "Confirm cancellation" }); fireEvent.click(confirm); fireEvent.click(confirm);
     expect(mocks.cancelAppointment).toHaveBeenCalledTimes(1); expect(mocks.cancelAppointment).toHaveBeenCalledWith(appointment.id); expect(mocks.respondAppointment).not.toHaveBeenCalled();
@@ -85,18 +86,18 @@ describe("FE-021 practitioner cancellation", () => {
   });
   it.each([[401, "AUTHENTICATION_REQUIRED"], [403, "MFA_REQUIRED"], [403, "RESOURCE_FORBIDDEN"], [409, "APPOINTMENT_UNAVAILABLE"]])("handles cancellation %s / %s without exposing old content", async (status, code) => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, appointments: [appointment] }); mocks.cancelAppointment.mockRejectedValue(apiError(Number(status), String(code)));
-    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("button", { name: "Cancel appointment" })); await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); await userEvent.click(await screen.findByRole("button", { name: "Cancel appointment" })); await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
     await screen.findByRole("alert"); expect(screen.queryByText("Synthetic meeting details")).not.toBeInTheDocument(); expect(screen.queryByText("Synthetic private message")).not.toBeInTheDocument(); expect(screen.getByRole("alert")).not.toHaveTextContent("Private database");
     expect(mocks.cancelAppointment).toHaveBeenCalledTimes(1); if (status === 401 || code === "MFA_REQUIRED") expect(mocks.replace).toHaveBeenCalled();
   });
   it("uses a read to recover from an uncertain cancellation without replaying it", async () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, appointments: [appointment] }); mocks.cancelAppointment.mockRejectedValue(new TypeError("Network failed"));
-    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("button", { name: "Cancel appointment" })); await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); await userEvent.click(await screen.findByRole("button", { name: "Cancel appointment" })); await userEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
     await screen.findByText(/Cancellation could not be confirmed/); await userEvent.click(screen.getByRole("button", { name: "Retry" })); await screen.findByRole("button", { name: "Cancel appointment" }); expect(mocks.cancelAppointment).toHaveBeenCalledTimes(1);
   });
-  it("never offers owner confirmation or a working reschedule action", async () => {
+  it("offers authorized rescheduling without owner confirmation", async () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, appointments: [appointment] }); render(<ProfessionalCaseView id="case-one" />);
-    expect(await screen.findByRole("button", { name: "Rescheduling unavailable" })).toBeDisabled(); expect(screen.queryByRole("button", { name: /Accept appointment|Confirm appointment/ })).not.toBeInTheDocument(); expect(mocks.respondAppointment).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); expect(screen.getByRole("button", { name: "Reschedule appointment" })).toBeEnabled(); expect(screen.queryByRole("button", { name: /Accept appointment|Confirm appointment/ })).not.toBeInTheDocument(); expect(mocks.respondAppointment).not.toHaveBeenCalled();
   });
   it("rejects owner-view data before mounting any practitioner actions", async () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, viewer: "user", appointments: [appointment] }); render(<ProfessionalCaseView id="case-one" />);
@@ -105,6 +106,7 @@ describe("FE-021 practitioner cancellation", () => {
 });
 
 async function submitReferral(name = "Synthetic support resource", url = "https://example.invalid/resource") {
+  await userEvent.click(await screen.findByRole("tab", {name:"Notes and care coordination"}));
   fireEvent.change(await screen.findByLabelText("Resource name"), { target: { value: name } });
   fireEvent.change(screen.getByLabelText("Secure website, optional"), { target: { value: url } });
   fireEvent.submit(screen.getByLabelText("Resource name").closest("form")!);
@@ -147,3 +149,11 @@ describe("FE-023 real referral recording", () => {
 });
 
 vi.mock("@/services/experience/experience-api", () => ({ experienceApi: { getSupportResources: async () => [] } }));
+
+it('reschedules atomically after an explicit review, without a separate cancellation',async()=>{
+ mocks.caseDetail.mockResolvedValue({...fixture,appointments:[appointment]});mocks.rescheduleAppointment.mockResolvedValue({appointmentId:'replacement',status:'proposed'});
+ render(<ProfessionalCaseView id="case-one"/>);await userEvent.click(await screen.findByRole('tab',{name:'Appointments'}));await userEvent.click(screen.getByRole('button',{name:'Reschedule appointment'}));
+ expect(screen.getAllByRole('dialog')).toHaveLength(1);fireEvent.change(screen.getByLabelText('Starts'),{target:{value:'2099-10-21T10:00'}});fireEvent.change(screen.getByLabelText('Ends'),{target:{value:'2099-10-21T11:00'}});
+ await userEvent.click(screen.getByRole('button',{name:'Review appointment proposal'}));expect(screen.getAllByRole('dialog')).toHaveLength(1);expect(screen.getByText(/previous appointment will be canceled atomically/)).toBeVisible();expect(mocks.rescheduleAppointment).not.toHaveBeenCalled();
+ await userEvent.click(screen.getByRole('button',{name:'Send proposal'}));expect(mocks.rescheduleAppointment).toHaveBeenCalledWith(appointment.id,expect.objectContaining({startsAt:new Date('2099-10-21T10:00').toISOString()}));expect(mocks.cancelAppointment).not.toHaveBeenCalled();expect(await screen.findByText(/Replacement proposal recorded/)).toBeVisible();
+});

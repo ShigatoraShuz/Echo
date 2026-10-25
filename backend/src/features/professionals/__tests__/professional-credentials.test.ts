@@ -61,6 +61,17 @@ afterEach(() => { vi.restoreAllMocks(); });
 const base = `/api/v1/professional/admin/organizations/${ORG}/credentials`;
 
 describe("professional credential evidence and HTTP boundaries", () => {
+ it("corrects metadata through one owner-scoped RPC without a new application",async()=>{
+  const {app,rpc}=harness({status:"pending",reviewed_by:null,reviewed_at:null});
+  const result=await request(app).patch("/api/v1/professional/credentials/"+ID).set("Authorization","Bearer user").send({credentialLabel:"SYNTHETIC THESIS DEMO — NOT A LICENSE",expiresAt:"2099-12-31"});
+  expect(result.status).toBe(200);expect(rpc).toHaveBeenCalledTimes(1);expect(rpc).toHaveBeenCalledWith("correct_pending_credential",{p_actor:USER,p_credential_id:ID,p_label:"SYNTHETIC THESIS DEMO — NOT A LICENSE",p_expires_at:"2099-12-31"});expect(JSON.stringify(result.body)).not.toContain("evidence");
+ });
+ it("requires MFA and forbids forged owner/status/org correction fields",async()=>{
+  const {app,rpc}=harness();const path="/api/v1/professional/credentials/"+ID;const input={credentialLabel:"Fictional correction",expiresAt:"2099-12-31"};
+  expect((await request(app).patch(path).send(input)).status).toBe(401);
+  expect((await request(app).patch(path).set("Authorization","Bearer user-basic").send(input)).status).toBe(403);
+  for(const extra of [{userId:OTHER},{organizationId:OTHER},{status:"approved"},{expiresAt:"2020-01-01"}])expect((await request(app).patch(path).set("Authorization","Bearer user").send({...input,...extra})).status).toBeGreaterThanOrEqual(400);expect(rpc).not.toHaveBeenCalled();
+ });
   it("encrypts evidence before persistence and returns metadata only after submission", async () => {
     const { app, rpc } = harness({ status: "pending", reviewed_by: null, reviewed_at: null });
     const response = await request(app).post("/api/v1/professional/credentials").set("Authorization", "Bearer user").send(input);

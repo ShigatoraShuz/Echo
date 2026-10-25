@@ -37,7 +37,7 @@ describe("FE-013 case workspace", () => {
     mocks.addNote.mockResolvedValue({ noteId: "final-note" });
     render(<ProfessionalCaseView id="case-one" />);
     expect(await screen.findByText("Draft · not finalized")).toBeInTheDocument();
-    const editor = screen.getByLabelText("New case note"); fireEvent.change(editor, { target: { value: "Synthetic final note" } }); fireEvent.submit(editor.closest("form")!);
+    await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = screen.getByLabelText("New case note"); fireEvent.change(editor, { target: { value: "Synthetic final note" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByText("Note saved. The server confirmed receipt.");
     expect(mocks.addNote).toHaveBeenCalledWith("case-one", "Synthetic final note", { submissionId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
   });
@@ -102,7 +102,7 @@ describe("FE-016 consent and sensitive-state clearing", () => {
 describe("FE-017 authorized note saving", () => {
   it("validates trimmed input and keeps the editor accessible", async () => {
     render(<ProfessionalCaseView id="case-one" />);
-    const editor = await screen.findByLabelText("New case note");
+    await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: " x " } });
     fireEvent.submit(editor.closest("form")!);
     expect(screen.getByRole("alert")).toHaveTextContent("between 2 and 4,000");
@@ -110,7 +110,7 @@ describe("FE-017 authorized note saving", () => {
   });
   it("sends one trimmed note and reports success only after acknowledgment", async () => {
     const pending = deferred<{ noteId: string }>(); mocks.addNote.mockReturnValue(pending.promise);
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "  Synthetic new note  " } });
     fireEvent.submit(editor.closest("form")!); fireEvent.submit(editor.closest("form")!);
     expect(mocks.addNote).toHaveBeenCalledTimes(1); expect(mocks.addNote).toHaveBeenCalledWith("case-one", "Synthetic new note");
@@ -121,27 +121,27 @@ describe("FE-017 authorized note saving", () => {
   });
   it("retains a rejected draft for correction without exposing server diagnostics", async () => {
     mocks.addNote.mockRejectedValue(new AppError({ code: "VALIDATION_ERROR", statusCode: 400, userMessage: "Private diagnostic" }));
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "Synthetic draft" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByRole("alert"); expect(editor).toHaveValue("Synthetic draft"); expect(screen.getByRole("alert")).not.toHaveTextContent("Private diagnostic");
     expect(screen.queryByText(/Note saved/)).not.toBeInTheDocument();
   });
   it("clears the note and case when saving loses authorization", async () => {
     mocks.addNote.mockRejectedValue(failure(403)); render(<ProfessionalCaseView id="case-one" />);
-    const editor = await screen.findByLabelText("New case note"); fireEvent.change(editor, { target: { value: "Sensitive draft" } }); fireEvent.submit(editor.closest("form")!);
+    await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note"); fireEvent.change(editor, { target: { value: "Sensitive draft" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByRole("alert"); expect(screen.queryByLabelText("New case note")).not.toBeInTheDocument();
     expect(screen.queryByText("Synthetic shared message")).not.toBeInTheDocument(); expect(mocks.addNote).toHaveBeenCalledTimes(1);
   });
   it("distinguishes a confirmed save from a failed follow-up read and only retries the read", async () => {
     mocks.addNote.mockResolvedValue({ noteId: "confirmed-note" }); mocks.caseDetail.mockResolvedValueOnce(fixture).mockRejectedValueOnce(new TypeError("Read failed")).mockResolvedValue(fixture);
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "Synthetic note" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByRole("alert"); expect(screen.getByText("Note saved. The server confirmed receipt.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" })); await screen.findByLabelText("New case note"); expect(mocks.addNote).toHaveBeenCalledTimes(1);
   });
   it("never replays an uncertain save; requires a read and explicit review before a new note", async () => {
     mocks.addNote.mockRejectedValue(new TypeError("Network failed"));
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "Synthetic draft" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByText(/Note receipt could not be confirmed/);
     expect(screen.queryByLabelText("New case note")).not.toBeInTheDocument();
@@ -152,7 +152,7 @@ describe("FE-017 authorized note saving", () => {
   });
   it("clears drafts on access loss and ignores a departed case's save response", async () => {
     const pending = deferred<{ noteId: string }>(); mocks.addNote.mockReturnValue(pending.promise);
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "Synthetic draft" } }); fireEvent.submit(editor.closest("form")!);
     mocks.caseDetail.mockRejectedValue(failure(403));
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden"); fireEvent(document, new Event("visibilitychange"));
@@ -162,7 +162,7 @@ describe("FE-017 authorized note saving", () => {
   });
   it("warns before refreshing an unsaved note without persisting plaintext", async () => {
     const storage = vi.spyOn(Storage.prototype, "setItem"); const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<ProfessionalCaseView id="case-one" />); const editor = await screen.findByLabelText("New case note");
+    render(<ProfessionalCaseView id="case-one" />); await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = await screen.findByLabelText("New case note");
     fireEvent.change(editor, { target: { value: "Sensitive unsaved draft" } }); await userEvent.click(screen.getByRole("button", { name: "Refresh case" }));
     expect(confirm).toHaveBeenCalled(); expect(editor).toHaveValue("Sensitive unsaved draft"); expect(mocks.caseDetail).toHaveBeenCalledTimes(1); expect(storage).not.toHaveBeenCalled();
     storage.mockRestore(); confirm.mockRestore();

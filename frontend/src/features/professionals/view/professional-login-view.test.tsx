@@ -76,7 +76,7 @@ describe("professional login presentation and authentication", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
     expect(mocks.login).toHaveBeenCalledWith({ email: "professional@example.test", password: "synthetic-password", rememberSession: true });
     expect(mocks.router.replace).toHaveBeenCalledWith(destination);
-    expect(mocks.router.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.router.refresh).not.toHaveBeenCalled();
   });
 
   it("keeps email-code verification and resend safeguards before accessing the gateway", async () => {
@@ -91,7 +91,7 @@ describe("professional login presentation and authentication", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Verify code and log in" }));
     expect(mocks.verifyLoginCode).toHaveBeenCalledWith({ email: "professional@example.test", code: "123456", rememberSession: false });
     expect(mocks.router.replace).toHaveBeenCalledWith(destination);
-    expect(mocks.router.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.router.refresh).not.toHaveBeenCalled();
   });
 
   it("keeps email-code errors visible without navigating", async () => {

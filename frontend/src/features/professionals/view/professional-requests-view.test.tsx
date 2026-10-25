@@ -6,9 +6,9 @@ import { ProfessionalMyCasesView, ProfessionalRequestsView } from "./professiona
 import MyCasesPage from "@/app/(protected)/professional/my-cases/page";
 import RequestsPage from "@/app/(protected)/professional/requests/page";
 
-const mocks = vi.hoisted(() => ({ memberships: vi.fn(), queue: vi.fn(), claim: vi.fn(), caseDetail: vi.fn(), replace: vi.fn(), refresh: vi.fn(), searchParams: new URLSearchParams(), pathname: "/professional/my-cases" }));
+const mocks = vi.hoisted(() => ({ memberships: vi.fn(), queue: vi.fn(), claim: vi.fn(), caseDetail: vi.fn(), directory: vi.fn(), assign: vi.fn(), replace: vi.fn(), refresh: vi.fn(), searchParams: new URLSearchParams(), pathname: "/professional/my-cases" }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks, useSearchParams: () => mocks.searchParams, usePathname: () => mocks.pathname }));
-vi.mock("@/services/professionals/professional-api", () => ({ professionalApi: { memberships: mocks.memberships, queue: mocks.queue, claim: mocks.claim, caseDetail: mocks.caseDetail } }));
+vi.mock("@/services/professionals/professional-api", () => ({ professionalApi: { memberships: mocks.memberships, queue: mocks.queue, claim: mocks.claim, caseDetail: mocks.caseDetail, directory: mocks.directory, assign: mocks.assign } }));
 
 const membership = { id: "member", organizationId: "org-one", role: "counselor", status: "active", accessState: "active", organization: { id: "org-one", name: "Organization One", status: "active" } };
 const rows = [
@@ -93,9 +93,11 @@ describe("FE-012 My Cases", () => {
   it("offers no clinical case actions for a nonclinical role", async () => {
     mocks.memberships.mockResolvedValue({ userId: "me", mfaRequired: false, memberships: [{ ...membership, role: "coordinator" }] });
     render(<ProfessionalMyCasesView />);
-    await screen.findByRole("heading", { name: "Case CASE0001" });
+    await screen.findByRole("heading", { name: "A workspace for your role" });
+    expect(mocks.queue).not.toHaveBeenCalled();
     expect(screen.queryByRole("link", { name: "Open case" })).not.toBeInTheDocument();
-    expect(screen.getAllByText("Clinical case access is unavailable for your role.")).toHaveLength(2);
+    expect(screen.queryByRole("heading", { name: "Case CASE0001" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View organization requests" })).toHaveAttribute("href", "/professional/requests?organization=org-one");
   });
 
   it("switches organization on the My Cases route, clears old rows and resets filters", async () => {
@@ -148,4 +150,18 @@ describe("FE-012 My Cases", () => {
     expect(mocks.replace).toHaveBeenCalledWith(`/professional/access?next=${encodeURIComponent(`${pathname}?organization=org-one`)}`);
     expect(mocks.queue).not.toHaveBeenCalled();
   });
+});
+
+
+it("org_admin assigns from Requests using eligible organization choices without opening clinical details", async () => {
+ mocks.pathname="/professional/requests";mocks.memberships.mockResolvedValue({userId:"me",mfaRequired:false,memberships:[{...membership,role:"org_admin"}]});
+ mocks.directory.mockResolvedValue({practitioners:[{id:"fictional-profile",organizationId:"org-one",displayName:"Echo Demo Counselor",role:"counselor",acceptingRequests:true},{id:"foreign-profile",organizationId:"foreign",displayName:"Foreign practitioner",role:"counselor",acceptingRequests:true},{id:"inactive-profile",organizationId:"org-one",displayName:"Unavailable practitioner",role:"counselor",acceptingRequests:false}],nextCursor:null});
+ mocks.assign.mockImplementation(async()=>{mocks.queue.mockResolvedValue({requests:rows.map(row=>row.id==="PENDING1-synthetic"?{...row,status:"assigned",assignedTo:"counselor"}:row)});return {request:{id:"PENDING1-synthetic"}}});
+ render(<ProfessionalRequestsView/>);await userEvent.click(await screen.findByRole("button",{name:"Assign practitioner"}));
+ const dialog=screen.getByRole("dialog",{name:"Assign practitioner"});await within(dialog).findByRole("option",{name:"Echo Demo Counselor · counselor"});
+ expect(within(dialog).queryByRole("option",{name:/Foreign practitioner|Unavailable practitioner/})).not.toBeInTheDocument();
+ await userEvent.selectOptions(within(dialog).getByLabelText("Practitioner"),"fictional-profile");
+ await userEvent.click(within(dialog).getByRole("button",{name:"Confirm assignment"}));
+ await screen.findByText(/Assigned Echo Demo Counselor to request PENDING1/);
+ expect(mocks.assign).toHaveBeenCalledExactlyOnceWith("PENDING1-synthetic","fictional-profile");expect(mocks.caseDetail).not.toHaveBeenCalled();expect(screen.queryByRole("link",{name:"Open case"})).not.toBeInTheDocument();
 });

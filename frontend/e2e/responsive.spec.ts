@@ -4,10 +4,10 @@ import { caseId, fixtures } from "./fixtures";
 async function fits(page: Page) {
   expect(await page.evaluate(() => ({ document: document.documentElement.scrollWidth, viewport: innerWidth }))).toEqual(expect.objectContaining({ document: await page.evaluate(() => innerWidth) }));
 }
-for (const width of [320, 375, 390, 430, 768, 1024, 1440]) {
+for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1690]) {
   test(`professional screens fit ${width}px`, async ({ page }) => {
     await fixtures(page); await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/professional/login", "/professional/access", "/professional", "/professional/requests", "/professional/my-cases", "/professional/calendar", "/professional/resources", `/professional/cases/${caseId}`]) {
+    for (const path of ["/professional/login", "/professional/access", "/professional", "/professional/requests", "/professional/my-cases", "/professional/calendar", "/professional/resources", "/professional/settings", `/professional/cases/${caseId}`]) {
       await page.goto(path); await expect(page.locator("h1")).toBeVisible(); await expect(page.getByText("Checking professional access", { exact: true })).toHaveCount(0);
       if (path.includes("/cases/")) await expect(page.getByText("Fictional shared message for browser tests")).toBeVisible();
       await fits(page);

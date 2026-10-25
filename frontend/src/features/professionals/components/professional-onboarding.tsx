@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { BadgeCheck, Building2, CircleHelp, Clock3, FileCheck2, ShieldCheck } from "lucide-react";
 import type { Membership } from "@/services/professionals/professional-api";
 import type { CredentialReviewPreview } from "../professional-onboarding.model";
@@ -27,8 +28,8 @@ function StatusBadge({ children, attention = false, approved = false }: { childr
 }
 
 /** No authorization decisions or API calls. Real memberships are supplied by the access gateway. */
-export function ProfessionalOnboarding({ memberships, preview = false, credentials }: {
-  memberships: Membership[]; preview?: boolean; credentials?: CredentialReviewPreview[];
+export function ProfessionalOnboarding({ memberships, preview = false, credentials, application, reviewHistory }: {
+  memberships: Membership[]; preview?: boolean; credentials?: CredentialReviewPreview[]; application?: ReactNode; reviewHistory?: ReactNode;
 }) {
   const approved = memberships.some((item) => item.accessState === "active");
   return (
@@ -59,14 +60,14 @@ export function ProfessionalOnboarding({ memberships, preview = false, credentia
               </li>
             ))}</ul> : <div className="rounded-2xl border border-dashed border-border bg-background px-5 py-7"><CircleHelp size={24} className="text-primary" aria-hidden="true" /><h3 className="mt-3 text-sm font-semibold">No professional membership yet</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">No organization or professional role is linked to this account. Ask your organization or ECHO administrator about the approval process.</p></div>}
           </ProfessionalPanel>
-          {!approved || preview ? <ProfessionalCredentialForm preview={preview} organizations={preview ? [{ id: "fc000000-0000-4000-8000-000000000001", name: "Synthetic Care Organization" }] : []} /> : null}
+          {application ?? (!approved || preview ? <ProfessionalCredentialForm preview={preview} organizations={preview ? [{ id: "fc000000-0000-4000-8000-000000000001", name: "Synthetic Care Organization" }] : []} /> : null)}
         </div>
         <div className="min-w-0 space-y-6">
           <ProfessionalPanel title="What happens next" icon={Clock3}>
             <p className="text-sm leading-7 text-muted-foreground">Credential review and organization membership are separate decisions. An approved credential does not automatically activate your professional role.</p>
             <div className="mt-5 rounded-2xl bg-secondary/60 p-4 text-xs leading-6 text-muted-foreground">Keep your qualification current. Access is checked again when you enter the workspace; only an authorized administrator can approve membership.</div>
           </ProfessionalPanel>
-          {preview && credentials ? <ProfessionalPanel title="Synthetic credential review" icon={FileCheck2} description="Preview fixtures only. These are not your account's review records.">
+          {reviewHistory ?? (preview && credentials ? <ProfessionalPanel title="Synthetic credential review" icon={FileCheck2} description="Preview fixtures only. These are not your account's review records.">
             {credentials.length ? <ul className="space-y-5">{credentials.map((credential) => <li key={credential.id} className="space-y-3 rounded-2xl border border-border/70 bg-background p-4">
               <StatusBadge approved={credential.status === "approved"} attention={credential.status === "rejected" || credential.status === "expired"}>{reviewLabels[credential.status]}</StatusBadge>
               <h3 className="break-words text-sm font-semibold">{credential.credentialLabel}</h3><p className="break-words text-xs leading-5 text-muted-foreground">{credential.organizationName}</p>
@@ -74,7 +75,7 @@ export function ProfessionalOnboarding({ memberships, preview = false, credentia
               {credential.reasonCode ? <p className="text-xs leading-6 text-muted-foreground">{reasons[credential.reasonCode]}</p> : null}
               {credential.status === "approved" ? <p className="text-xs leading-6 text-muted-foreground">Membership approval and MFA are still required.</p> : null}
             </li>)}</ul> : <p className="text-sm leading-6 text-muted-foreground">No sample credential application yet.</p>}
-          </ProfessionalPanel> : <ProfessionalNotice title="Credential review status unavailable">Credential review integration is awaiting deployment. No credential history has been loaded or inferred from your membership status.</ProfessionalNotice>}
+          </ProfessionalPanel> : <ProfessionalNotice title="Credential review status unavailable">Credential review integration is awaiting deployment. No credential history has been loaded or inferred from your membership status.</ProfessionalNotice>)}
         </div>
       </div>
     </div>

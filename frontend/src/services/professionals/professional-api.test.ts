@@ -49,3 +49,29 @@ it("preserves the legacy queue URL and supports encoded filters with exact page 
   await professionalApi.queue("synthetic-org", { status: "assigned", assignedTo: "me", createdThrough: "2026-10-14", limit: 20, offset: 40 });
   expect(client.get).toHaveBeenLastCalledWith("/professional/organizations/synthetic-org/queue?status=assigned&assignedTo=me&createdThrough=2026-10-14&limit=20&offset=40");
 });
+
+it("uses authenticated organization notification reads and server read acknowledgement without client actor fields", async () => {
+  const data = { items: [], total: 0, hasMore: false, limit: 50 };
+  client.get.mockResolvedValue({ success: true, data });
+  expect(await professionalApi.notifications("synthetic/org")).toEqual(data);
+  expect(client.get).toHaveBeenCalledWith("/professional/organizations/synthetic%2Forg/notifications");
+  client.patch.mockResolvedValue({ success: true, data: { id: "notice", readAt: "2026-10-20T00:00:00Z" } });
+  expect(await professionalApi.readNotification("synthetic-org", "notice")).toEqual({ id: "notice", readAt: "2026-10-20T00:00:00Z" });
+  expect(client.patch).toHaveBeenCalledWith("/professional/organizations/synthetic-org/notifications/notice/read", {});
+  client.patch.mockRejectedValue(new Error("Synthetic denied"));
+  await expect(professionalApi.readNotification("synthetic-org", "notice")).rejects.toThrow("Synthetic denied");
+});
+
+
+it("connects credential application/review APIs without client actor or approval timestamps",async()=>{
+ client.get.mockResolvedValue({data:{credentials:[]}});await professionalApi.credentials();expect(client.get).toHaveBeenLastCalledWith("/professional/credentials");
+ await professionalApi.adminCredentials("synthetic/org");expect(client.get).toHaveBeenLastCalledWith("/professional/admin/organizations/synthetic%2Forg/credentials");
+ await professionalApi.adminCredential("synthetic-org","credential/one");expect(client.get).toHaveBeenLastCalledWith("/professional/admin/organizations/synthetic-org/credentials/credential%2Fone");
+ client.post.mockResolvedValue({data:{credential:{id:"fixture"}}});const input={organizationId:"synthetic-org",role:"counselor" as const,credentialLabel:"Fictional qualification",expiresAt:"2099-01-01",evidenceReference:"Fictional approved-channel locator"};
+ await professionalApi.submitCredential(input);expect(client.post).toHaveBeenLastCalledWith("/professional/credentials",input);
+ await professionalApi.decideCredential("synthetic-org","fixture",{decision:"rejected",reasonCode:"unable_to_verify"});expect(client.post).toHaveBeenLastCalledWith("/professional/admin/organizations/synthetic-org/credentials/fixture/decision",{decision:"rejected",reasonCode:"unable_to_verify"});
+ const membership={organizationId:"synthetic-org",userId:"fictional",role:"counselor" as const,displayName:"Fictional counselor",credentialLabel:input.credentialLabel,credentialExpiresAt:input.expiresAt,credentialChecked:true as const,credentialId:"review-id"};
+ await professionalApi.approveMember(membership);expect(client.post).toHaveBeenLastCalledWith("/professional/admin/memberships",membership);
+});
+
+it("corrects an existing pending application without posting a new one",async()=>{client.patch.mockResolvedValue({data:{credential:{id:"existing"}}});await professionalApi.correctCredential("existing/id",{credentialLabel:"Synthetic reference",expiresAt:"2099-12-31"});expect(client.patch).toHaveBeenCalledWith("/professional/credentials/existing%2Fid",{credentialLabel:"Synthetic reference",expiresAt:"2099-12-31"});expect(client.post).not.toHaveBeenCalled();});

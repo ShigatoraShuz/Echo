@@ -25,13 +25,15 @@ describe("FE-009 metadata-only queue", () => {
 
   it("renders dates, statuses, assignment IDs, and only own case links with organization context", () => {
     render(<ProfessionalRequestQueue {...props} />);
-    expect(screen.getByText("Assigned: You")).toBeInTheDocument();
-    expect(screen.getByText("Assigned: Practitioner ID other")).toBeInTheDocument();
-    expect(screen.getByText("Assigned: Unassigned")).toBeInTheDocument();
+    expect(document.querySelector(".pro-records")).toHaveTextContent("Assigned: You");
+    expect(document.querySelector(".pro-records")).toHaveTextContent("Assigned: Practitioner ID other");
+    expect(document.querySelector(".pro-records")).toHaveTextContent("Assigned: Unassigned");
     expect(screen.getByRole("link", { name: "Open case" })).toHaveAttribute("href", "/professional/cases/MYCASE01-demo?organization=org");
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.getByText("Scheduled", { selector: "span" })).toBeInTheDocument();
-    expect(screen.getByText("ID: PENDING1-demo")).toBeInTheDocument();
+    expect(screen.getByText("ID: PENDING1-demo")).not.toBeVisible();
+    fireEvent.click(within(screen.getByRole("heading", { name: "Request PENDING1" }).closest("li")!).getByRole("button", { name: "Request details" }));
+    expect(screen.getByText("ID: PENDING1-demo")).toBeVisible();
   });
 
   it("provides loading and genuine empty states without case actions", () => {

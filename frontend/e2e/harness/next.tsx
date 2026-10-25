@@ -6,6 +6,7 @@ const router = { push: (href: string) => navigate(href), replace: (href: string)
 export const useRouter = () => router;
 export function usePathname() { return new URL(useSyncExternalStore(subscribe, snapshot)).pathname; }
 export function useSearchParams() { return new URL(useSyncExternalStore(subscribe, snapshot)).searchParams; }
-export default function Link({ href = "", onNavigate, onClick, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: () => void }) {
+export default function Link({ href = "", onNavigate, onClick, prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { onNavigate?: () => void; prefetch?: boolean }) {
+  void prefetch; // Next-only behavior; do not forward a boolean attribute to the DOM.
   return <a {...props} href={href} onClick={(event) => { onClick?.(event); if (!event.defaultPrevented && href.startsWith("/") && !event.ctrlKey && !event.metaKey) { event.preventDefault(); onNavigate?.(); navigate(href); } }} />;
 }

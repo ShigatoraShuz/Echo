@@ -68,7 +68,6 @@ export function ProfessionalLoginView() {
 
   function authenticated() {
     router.replace(destination);
-    router.refresh();
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

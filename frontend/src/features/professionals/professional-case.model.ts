@@ -15,7 +15,7 @@ const activityLabels: Record<string, string> = {
   "request.transferred": "Case transferred",
   "sharing.revoked": "Sharing revoked", "appointment.proposed": "Appointment proposed", "appointment.confirmed": "Appointment confirmed",
   "appointment.declined": "Appointment declined", "appointment.canceled": "Appointment canceled",
-  "appointment.rescheduled": "Appointment rescheduled",
+  "appointment.rescheduled": "Appointment rescheduled", "appointment.completed": "Appointment completed",
   "note.created": "Case note recorded", "note.finalized": "Case note finalized", "referral.created": "Referral recorded",
 };
 
@@ -28,7 +28,7 @@ export function caseActivity(detail: CaseDetail): CaseActivity[] {
     { id: "submitted", at: detail.request.createdAt, label: "Request submitted", context: "Submission time" },
     ...detail.notes.map((note) => ({ id: `note-${note.id}`, at: note.createdAt, label: "Case note recorded", context: "Recorded action" })),
     ...detail.referrals.map((referral) => ({ id: `referral-${referral.id}`, at: referral.createdAt, label: "Referral recorded", context: "Recorded action" })),
-    ...detail.appointments.map((appointment) => ({ id: `appointment-${appointment.id}`, at: appointment.startsAt, label: "Appointment time", context: `Current status: ${["proposed", "confirmed", "canceled"].includes(appointment.status) ? appointment.status : "unavailable"}. This is the appointment start, not the time its status changed.` })),
+    ...detail.appointments.map((appointment) => ({ id: `appointment-${appointment.id}`, at: appointment.startsAt, label: "Appointment time", context: `Current status: ${["proposed", "confirmed", "canceled", "completed"].includes(appointment.status) ? appointment.status : "unavailable"}. This is the appointment start, not the time its status changed.` })),
   ];
   if (detail.request.updatedAt !== detail.request.createdAt) events.push({ id: "updated", at: detail.request.updatedAt, label: "Case record updated", context: "Latest record update; its cause is not supplied." });
   return events.filter((item) => Number.isFinite(Date.parse(item.at))).sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.id.localeCompare(b.id));

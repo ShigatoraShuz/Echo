@@ -8,6 +8,8 @@ import { professionalReturnPath } from "../professional-return-path";
 import { approvedOrganizations } from "../professional-organizations";
 import { membershipAccessFailure, professionalAccessDestination, professionalAccessFailure, professionalAccessState, professionalLoginDestination, type ProfessionalAccessFailure } from "../professional-access-feedback";
 import { ProfessionalAccessError } from "./professional-access-error";
+import { ProfessionalAccessContext, type ProfessionalAccess } from "../professional-access-context";
+export { ProfessionalAccessContext } from "../professional-access-context";
 
 export function ProfessionalWorkspaceGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -20,24 +22,27 @@ export function ProfessionalWorkspaceGate({ children }: { children: ReactNode })
 
 function WorkspaceCheck({ children, destination }: { children: ReactNode; destination: string }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [access, setAccess] = useState<ProfessionalAccess | null>(null);
+  const pendingCheck = useRef<Promise<ProfessionalAccess> | null>(null);
   const [error, setError] = useState<ProfessionalAccessFailure | null>(null);
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
   const check = useCallback(async () => {
     const current = ++request.current;
-    setReady(false);
+    setAccess(null);
     setError(null);
     setBusy(true);
     try {
-      const result = await professionalApi.memberships();
+      // Share only an in-flight read during Strict Mode effect replay. The
+      // settled result belongs to this gate and is discarded on navigation.
+      const result = await (pendingCheck.current ??= professionalApi.memberships().finally(() => { pendingCheck.current = null; }));
       if (current !== request.current) return;
       if (result.mfaRequired || approvedOrganizations(result.memberships).length === 0) {
         setError(result.mfaRequired && approvedOrganizations(result.memberships).length ? professionalAccessState("mfa") : membershipAccessFailure(result.memberships));
         router.replace(professionalAccessDestination(destination));
         return;
       }
-      setReady(true);
+      setAccess(result);
     } catch (reason) {
       if (current !== request.current) return;
       const failure = professionalAccessFailure(reason);
@@ -50,7 +55,30 @@ function WorkspaceCheck({ children, destination }: { children: ReactNode; destin
   }, [destination, router]);
 
   useEffect(() => { void check(); return () => { request.current += 1; }; }, [check]);
-  if (ready) return children;
+  useEffect(() => {
+    const clear = () => {
+      request.current += 1;
+      pendingCheck.current = null;
+      setAccess(null);
+      setError(professionalAccessState("session"));
+    };
+    const accessLost = (event: Event) => {
+      const kind = (event as CustomEvent<{ kind?: string }>).detail?.kind;
+      if (kind !== "session" && kind !== "mfa" && kind !== "reauth" && kind !== "denied") return;
+      request.current += 1;
+      pendingCheck.current = null;
+      setAccess(null);
+      setBusy(false);
+      setError(professionalAccessState(kind));
+    };
+    window.addEventListener("echo:sensitive-state-cleared", clear);
+    window.addEventListener("echo:professional-access-lost", accessLost);
+    return () => {
+      window.removeEventListener("echo:sensitive-state-cleared", clear);
+      window.removeEventListener("echo:professional-access-lost", accessLost);
+    };
+  }, []);
+  if (access) return <ProfessionalAccessContext.Provider value={access}>{children}</ProfessionalAccessContext.Provider>;
   return (
     <ProfessionalShell>
       {error ? <ProfessionalAccessError failure={error} destination={destination} onRetry={() => void check()} busy={busy} /> : <ProfessionalSkeleton title="Checking professional access" />}

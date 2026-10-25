@@ -169,9 +169,11 @@ describe("ProfessionalShell", () => {
     let resolveLogout!: (result: { success: boolean }) => void;
     mocks.logout.mockReturnValue(new Promise((resolve) => { resolveLogout = resolve; }));
     render(<ProfessionalShell>Content</ProfessionalShell>);
+    await userEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(screen.getByRole("button", { name: "Signing out" })).toBeDisabled();
     expect(mocks.logout).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Content")).not.toBeInTheDocument();
     await act(async () => { resolveLogout({ success: true }); });
     expect(mocks.replace).toHaveBeenCalledWith("/professional/login");
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
@@ -180,6 +182,7 @@ describe("ProfessionalShell", () => {
   it("allows retry after logout fails without redirecting", async () => {
     mocks.logout.mockResolvedValueOnce({ success: false, error: { message: "Failed" } });
     render(<ProfessionalShell>Content</ProfessionalShell>);
+    await userEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Could not sign out. Please try again.");
     expect(mocks.replace).not.toHaveBeenCalled();
@@ -192,6 +195,7 @@ describe("ProfessionalShell", () => {
     let resolve!: (value: { success: boolean }) => void;
     mocks.logout.mockReturnValue(new Promise((yes) => { resolve = yes; }));
     render(<ProfessionalShell>Content</ProfessionalShell>);
+    await userEvent.click(screen.getByRole("button", { name: "Open account menu" }));
     const button = screen.getByRole("button", { name: "Sign out" });
     act(() => { button.click(); button.click(); });
     expect(mocks.logout).toHaveBeenCalledTimes(1);

@@ -15,6 +15,11 @@ function harness() {
   return { rpc, app };
 }
 describe("professional notification API", () => {
+  it("does not expose queue processing over HTTP", async () => {
+    const h = harness();
+    expect((await request(h.app).post("/api/v1/professional/events/process").set("Authorization", "Bearer mfa").send({})).status).toBe(404);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
   it("passes authenticated actor and organization to unread query", async () => {
     const h = harness(); expect((await request(h.app).get(`${path}?status=unread`).set("Authorization", "Bearer mfa")).status).toBe(200);
     expect(h.rpc).toHaveBeenCalledWith("list_notifications", { p_actor: ids.actor, p_organization_id: ids.org, p_unread_only: true });

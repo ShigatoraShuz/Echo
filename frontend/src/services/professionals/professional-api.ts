@@ -35,6 +35,17 @@ export interface Membership {
     | "suspended_membership"
     | "credential_expired";
 }
+export type ClinicalRole = "counselor" | "psychologist" | "social_worker";
+export interface CredentialSubmission {
+  organizationId: string; role: ClinicalRole; credentialLabel: string; expiresAt: string; evidenceReference: string;
+}
+export interface CredentialReview {
+  id: string; organizationId: string; userId: string; role: ClinicalRole; credentialLabel: string; expiresAt: string;
+  status: "pending" | "approved" | "rejected" | "expired"; reviewStatus: "pending" | "approved" | "rejected";
+  submittedAt: string; reviewedAt: string | null; reviewedBy: string | null;
+  reasonCode: "invalid_evidence" | "expired_credential" | "unable_to_verify" | null;
+}
+export type CredentialDecision = { decision: "approved"; reasonCode: null } | { decision: "rejected"; reasonCode: Exclude<CredentialReview["reasonCode"], null> };
 export interface AdminMembership {
   id: string;
   userId: string;
@@ -70,6 +81,7 @@ export interface ProfessionalDashboardSummary {
 }
 export interface Appointment {
   id: string;
+  replacesAppointmentId?: string | null;
   startsAt: string;
   endsAt: string;
   mode: string;
@@ -89,6 +101,19 @@ export interface CaseDetail {
   referrals: Array<{ id: string; resourceName: string; resourceUrl: string | null; createdAt: string }>;
   notes: Array<{ id: string; body: string; createdAt: string; state?: "draft" | "final"; revision?: number; updatedAt?: string; finalizedAt?: string | null }>;
   viewer: "user" | "professional";
+}
+
+export interface ProfessionalNotification {
+  id: string;
+  kind: "case_updated" | "appointment_changed" | "follow_up" | "referral_updated" | "case_message";
+  caseId: string;
+  readAt: string | null;
+  createdAt: string;
+}
+export interface ProfessionalNotificationPage {
+  items: ProfessionalNotification[]; total: number; hasMore: boolean; limit: number;
+  /** Optional until the scoped inbox migration is applied. Never infer exact totals from a bounded page. */
+  unreadCount?: number; inAppEnabled?: boolean;
 }
 
 export interface ProfessionalFollowUp {
@@ -114,6 +139,7 @@ const patch = async <T>(path: string, input: unknown) => (await client.patch<Env
 const remove = async <T>(path: string) => (await client.delete<Envelope<T>>(path)).data;
 
 export const professionalApi = {
+  correctCredential: (id: string, input: { credentialLabel: string; expiresAt: string }) => patch<{ credential: CredentialReview }>("/professional/credentials/" + encodeURIComponent(id), input),
   journalChoices: async () => {
     const result = await get<{ entries: Array<{ id: string; title: string; created_at: string }> }>("/journals");
     return result.entries.map((item) => ({ id: item.id, title: item.title, createdAt: item.created_at }));
@@ -169,16 +195,18 @@ export const professionalApi = {
   requestAppointmentChange: (id: string, preferredTime: string) =>
     post<{ changeRequestId: string }>(`/professional/appointments/${id}/change-requests`, { preferredTime }),
   respondAppointment: (id: string, accept: boolean) =>
-    post<{ appointmentId: string; status: string }>(`/professional/appointments/${id}/respond`, { accept }),
-  rescheduleAppointment: (id: string, input: { startsAt: string; endsAt: string; mode: "in_person" | "online" | "phone"; locationHint: string }) => post<{ appointmentId: string; status: string }>(`/professional/appointments/${id}/reschedule`, input),
+    post<{ appointmentId: string; status: string; warning?: string }>(`/professional/appointments/${id}/respond`, { accept }),
+  rescheduleAppointment: (id: string, input: { startsAt: string; endsAt: string; mode: "in_person" | "online" | "phone"; locationHint: string }) => post<{ appointmentId: string; status: string; warning?: string }>(`/professional/appointments/${id}/reschedule`, input),
   cancelAppointment: (id: string) =>
-    post<{ appointmentId: string; status: string }>(`/professional/appointments/${id}/cancel`, {}),
+    post<{ appointmentId: string; status: string; warning?: string }>(`/professional/appointments/${id}/cancel`, {}),
   queue: (organizationId: string, filters?: ProfessionalQueueFilters) => {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(filters ?? {})) if (value !== undefined) query.set(key, String(value));
     const suffix = query.size ? `?${query.toString()}` : "";
     return get<{ requests: QueueRequest[]; page?: ProfessionalQueuePage }>(`/professional/organizations/${organizationId}/queue${suffix}`);
   },
+  notifications: (organizationId: string) => get<ProfessionalNotificationPage>(`/professional/organizations/${encodeURIComponent(organizationId)}/notifications`),
+  readNotification: (organizationId: string, notificationId: string) => patch<{ id: string; readAt: string }>(`/professional/organizations/${encodeURIComponent(organizationId)}/notifications/${encodeURIComponent(notificationId)}/read`, {}),
   dashboard: (organizationId: string) => get<ProfessionalDashboardSummary>(`/professional/organizations/${organizationId}/dashboard`),
   caseDetail: (id: string) => get<CaseDetail>(`/professional/cases/${id}`),
   followUps: (id: string) => get<{ items: ProfessionalFollowUp[]; total: number; hasMore: boolean; limit: number }>(`/professional/cases/${id}/follow-ups`),
@@ -186,7 +214,7 @@ export const professionalApi = {
   editFollowUp: async (id: string, followUpId: string, input: FollowUpInput & { expectedRevision: number }) => (await client.patch<Envelope<{ followUp: ProfessionalFollowUp }>, typeof input>(`/professional/cases/${id}/follow-ups/${followUpId}`, input)).data,
   completeFollowUp: (id: string, followUpId: string, expectedRevision: number) => post<{ followUp: ProfessionalFollowUp }>(`/professional/cases/${id}/follow-ups/${followUpId}/complete`, { expectedRevision }),
   completeAppointment: (id: string) =>
-    post<{ appointmentId: string; status: string }>(`/professional/appointments/${id}/complete`, {}),
+    post<{ appointmentId: string; status: string; warning?: string }>(`/professional/appointments/${id}/complete`, {}),
   caseMessages: (id: string, before?: string) => get<{ messages: CaseMessage[]; nextCursor: string | null }>(
     `/professional/cases/${id}/messages${before ? `?before=${encodeURIComponent(before)}` : ""}`,
   ),
@@ -198,13 +226,18 @@ export const professionalApi = {
   proposeAppointment: (
     id: string,
     input: { startsAt: string; endsAt: string; mode: "in_person" | "online" | "phone"; locationHint: string },
-  ) => post<{ appointmentId: string }>(`/professional/cases/${id}/appointments`, input),
+  ) => post<{ appointmentId: string; warning?: string }>(`/professional/cases/${id}/appointments`, input),
   addNote: (id: string, body: string, options?: { submissionId: string; state?: "draft" | "final" }) => post<{ noteId: string; state?: string; revision?: number }>(`/professional/cases/${id}/notes`, { body, ...options }),
   editNote: async (id: string, noteId: string, input: { body: string; expectedRevision: number; finalize: boolean }) => (await client.patch<Envelope<{ noteId: string; state: string; revision: number }>, typeof input>(`/professional/cases/${id}/notes/${noteId}`, input)).data,
   addReferral: (id: string, resourceName: string, resourceUrl: string | null) =>
     post<{ referralId: string }>(`/professional/cases/${id}/referrals`, { resourceName, resourceUrl }),
   close: (id: string, reason?: string) => post<{ request: SupportRequest }>(`/professional/cases/${id}/close`, reason ? { reason } : {}),
   transfer: (id: string, input: { targetUserId: string; reason: string; submissionId: string }) => post<{ request: SupportRequest; transferId: string }>(`/professional/cases/${id}/transfer`, input),
+  credentials: () => get<{ credentials: CredentialReview[] }>("/professional/credentials"),
+  submitCredential: (input: CredentialSubmission) => post<{ credential: CredentialReview }>("/professional/credentials", input),
+  adminCredentials: (organizationId: string) => get<{ credentials: CredentialReview[] }>("/professional/admin/organizations/" + encodeURIComponent(organizationId) + "/credentials"),
+  adminCredential: (organizationId: string, credentialId: string) => get<{ credential: CredentialReview & { evidenceReference: string } }>("/professional/admin/organizations/" + encodeURIComponent(organizationId) + "/credentials/" + encodeURIComponent(credentialId)),
+  decideCredential: (organizationId: string, credentialId: string, input: CredentialDecision) => post<{ credential: CredentialReview }>("/professional/admin/organizations/" + encodeURIComponent(organizationId) + "/credentials/" + encodeURIComponent(credentialId) + "/decision", input),
   adminOrganizations: () => get<{ organizations: Organization[] }>("/professional/admin/organizations"),
   adminMembers: (organizationId: string) =>
     get<{ memberships: AdminMembership[] }>(`/professional/admin/organizations/${organizationId}/memberships`),
@@ -224,6 +257,7 @@ export const professionalApi = {
     credentialLabel: string | null;
     credentialExpiresAt: string | null;
     credentialChecked: true;
+    credentialId?: string;
   }) => post<{ membershipId: string }>("/professional/admin/memberships", input),
   suspendMember: (id: string) =>
     post<{ membershipId: string; status: string }>(`/professional/admin/memberships/${id}/suspend`, {}),

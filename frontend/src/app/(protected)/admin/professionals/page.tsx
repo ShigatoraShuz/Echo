@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Building2, History, ShieldCheck, UserRoundCheck } from "lucide-react";
+import { ProfessionalCredentialReview } from "@/features/professionals/components/professional-credential-review";
 import { AppShell } from "@/shared/components/layout/echo-shells";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
@@ -14,7 +15,7 @@ import {
   type ProfessionalAuditEvent,
 } from "@/services/professionals/professional-api";
 
-type Role = "counselor" | "psychologist" | "social_worker" | "coordinator" | "org_admin";
+type Role = "coordinator" | "org_admin";
 
 export default function AdminProfessionalsPage() {
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
@@ -31,31 +32,40 @@ export default function AdminProfessionalsPage() {
   const [serviceHours, setServiceHours] = useState("");
   const [userId, setUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState<Role>("counselor");
-  const [credentialLabel, setCredentialLabel] = useState("");
-  const [credentialExpiresAt, setCredentialExpiresAt] = useState("");
+  const [role, setRole] = useState<Role>("coordinator");
   const [reviewed, setReviewed] = useState(false);
   const [organizationReviewed, setOrganizationReviewed] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const orgRequest = useRef(0), mutationPending = useRef(false);
 
   const loadOrganizations = useCallback(async () => {
+    const current = ++orgRequest.current;
     try {
       const result = await professionalApi.adminOrganizations();
+      if (current !== orgRequest.current) return false;
       setOrganizations(result.organizations);
       setForbidden(false);
       setSelectedId((current) =>
         result.organizations.some((item) => item.id === current) ? current : (result.organizations[0]?.id ?? ""),
       );
       setError("");
+      return true;
     } catch (reason) {
-      setOrganizations([]);
+      if (current !== orgRequest.current) return false;
+      setOrganizations([]); setSelectedId(""); setMembers([]); setEvents([]);
       const failure = normalizeError(reason);
       setForbidden(failure.statusCode === 401 || failure.statusCode === 403);
       setError(failure.userMessage);
+      return false;
     }
   }, []);
 
   useEffect(() => {
+    const effectScope = orgRequest;
     void loadOrganizations();
+    const clear = () => { orgRequest.current++; setOrganizations(null); setSelectedId(""); setMembers(null); setEvents(null); setForbidden(true); setUserId(""); setDisplayName(""); setReviewed(false); setNotice(""); setError("Administrator state cleared. Sign in again as an authorized reviewer."); };
+    window.addEventListener("echo:sensitive-state-cleared", clear); window.addEventListener("echo:professional-access-lost", clear);
+    return () => { effectScope.current++; window.removeEventListener("echo:sensitive-state-cleared", clear); window.removeEventListener("echo:professional-access-lost", clear); };
   }, [loadOrganizations]);
   useEffect(() => {
     if (!selectedId) {
@@ -83,19 +93,23 @@ export default function AdminProfessionalsPage() {
     return () => {
       active = false;
     };
-  }, [selectedId, busy]);
+  }, [selectedId, revision]);
 
   async function run(action: string, task: () => Promise<unknown>) {
+    if (mutationPending.current || forbidden || organizations === null) return;
+    mutationPending.current = true;
+    const current = orgRequest.current;
     setBusy(action);
     setError("");
     setNotice("");
     try {
       await task();
-      await loadOrganizations();
-      setNotice("Saved. Review the status shown below.");
+      if (current !== orgRequest.current) return;
+      if (await loadOrganizations()) { setRevision(value => value + 1); setNotice("Saved. Review the status shown below."); }
     } catch (reason) {
       setError(normalizeError(reason).userMessage);
     } finally {
+      mutationPending.current = false;
       setBusy("");
     }
   }
@@ -126,20 +140,17 @@ export default function AdminProfessionalsPage() {
         userId: userId.trim(),
         role,
         displayName: displayName.trim(),
-        credentialLabel: credentialLabel.trim() || null,
-        credentialExpiresAt: credentialExpiresAt || null,
+        credentialLabel: null,
+        credentialExpiresAt: null,
         credentialChecked: true,
       });
       setUserId("");
       setDisplayName("");
-      setCredentialLabel("");
-      setCredentialExpiresAt("");
       setReviewed(false);
     });
   }
 
   const selected = organizations?.find((item) => item.id === selectedId);
-  const practitioner = role === "counselor" || role === "psychologist" || role === "social_worker";
 
   return (
     <AppShell>
@@ -148,12 +159,14 @@ export default function AdminProfessionalsPage() {
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-primary">ECHO · Admin workspace</p>
           <h1 className="mt-2 text-3xl [font-family:var(--font-echo-display)] sm:text-4xl">Professional access</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Review each organization and staff credential before granting case access. Identity verification alone does
+            Review professional applications with independent verification-administrator authority. Organization administration alone does
             not grant professional access.
           </p>
           <Link href="/admin/verifications" className="mt-4 inline-block text-sm font-semibold text-primary underline">
             Identity reviews
           </Link>
+          <p className="mt-3 text-xs leading-6">Clinical membership is activated from an approved application, using its matching review ID. Coordination roles never grant private clinical access.</p>
+          <Link href="/admin-login" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline">Reviewer sign in / reauthenticate</Link>
         </header>
         {error ? (
           <p role="alert" className="rounded-xl border border-danger/25 bg-danger/10 p-4 text-sm">
@@ -168,7 +181,7 @@ export default function AdminProfessionalsPage() {
             {notice}
           </p>
         ) : null}
-        {!forbidden ? (
+        {!forbidden && organizations !== null ? (
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="space-y-5">
               <section className="rounded-3xl border border-border bg-card p-5 shadow-subtle sm:p-7">
@@ -191,7 +204,9 @@ export default function AdminProfessionalsPage() {
                       <button
                         key={item.id}
                         type="button"
+                        disabled={Boolean(busy)}
                         onClick={() => {
+                          setMembers(null); setEvents(null); setUserId(""); setDisplayName(""); setReviewed(false); setNotice("");
                           setSelectedId(item.id);
                           setOrganizationReviewed(false);
                         }}
@@ -265,6 +280,7 @@ export default function AdminProfessionalsPage() {
                   </div>
                 ) : null}
               </section>
+              {selected ? <ProfessionalCredentialReview key={selected.id} organizationId={selected.id} organizationName={selected.name} active={selected.status === "active"} onChanged={() => setRevision(value => value + 1)} /> : null}
               {selected?.status === "active" ? (
                 <section className="rounded-3xl border border-border bg-card p-5 shadow-subtle sm:p-7">
                   <h2 className="flex items-center gap-2 text-2xl [font-family:var(--font-echo-display)]">
@@ -415,7 +431,7 @@ export default function AdminProfessionalsPage() {
                 >
                   <h2 className="flex items-center gap-2 text-xl [font-family:var(--font-echo-display)]">
                     <ShieldCheck size={18} className="text-primary" />
-                    Approve staff
+                    Approve coordination access
                   </h2>
                   <label className="block text-xs font-semibold">
                     ECHO user UUID
@@ -446,33 +462,11 @@ export default function AdminProfessionalsPage() {
                       value={role}
                       onChange={(event) => setRole(event.target.value as Role)}
                     >
-                      <option value="counselor">Counselor</option>
-                      <option value="psychologist">Psychologist</option>
-                      <option value="social_worker">Social worker</option>
                       <option value="coordinator">Coordinator</option>
                       <option value="org_admin">Organization admin</option>
                     </select>
                   </label>
-                  <label className="block text-xs font-semibold">
-                    Credential or appointment label
-                    <input
-                      required={practitioner}
-                      maxLength={160}
-                      className="echo-input mt-1"
-                      value={credentialLabel}
-                      onChange={(event) => setCredentialLabel(event.target.value)}
-                    />
-                  </label>
-                  <label className="block text-xs font-semibold">
-                    Credential expiry
-                    <input
-                      required={practitioner}
-                      type="date"
-                      className="echo-input mt-1"
-                      value={credentialExpiresAt}
-                      onChange={(event) => setCredentialExpiresAt(event.target.value)}
-                    />
-                  </label>
+
                   <label className="flex items-start gap-2 text-xs leading-5">
                     <input
                       type="checkbox"
@@ -481,8 +475,8 @@ export default function AdminProfessionalsPage() {
                       onChange={(event) => setReviewed(event.target.checked)}
                       className="mt-1 accent-primary"
                     />
-                    I checked the user&apos;s identity, organization affiliation, role, and current credential where
-                    required.
+                    I checked the user&apos;s identity, organization affiliation and coordination role. Clinical access
+                    requires a separately approved credential application.
                   </label>
                   <EchoButton type="submit" disabled={!reviewed || Boolean(busy)} isLoading={busy === "add-member"}>
                     Approve access

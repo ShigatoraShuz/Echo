@@ -61,3 +61,10 @@ describe("user professional support actions", () => {
     expect(mocks.appointments).toHaveBeenCalledTimes(2);
   });
 });
+
+it('refreshes on focus and declines through the owner API',async()=>{
+ const item={id:'a1',startsAt:'2099-10-15T10:00:00Z',endsAt:'2099-10-15T11:00:00Z',status:'proposed',mode:'online',locationHint:''};mocks.appointments.mockResolvedValue({appointments:[item]});render(<ProfessionalAppointmentsView/>);await screen.findByRole('button',{name:'Decline'});window.dispatchEvent(new Event('focus'));await waitFor(()=>expect(mocks.appointments).toHaveBeenCalledTimes(2));await userEvent.click(screen.getByRole('button',{name:'Decline'}));expect(mocks.respondAppointment).toHaveBeenCalledWith('a1',false);
+});
+it('ignores late appointment reads and stops polling after sensitive state clearing',async()=>{
+ let resolve!:(value:unknown)=>void;mocks.appointments.mockReturnValue(new Promise(yes=>{resolve=yes;}));render(<ProfessionalAppointmentsView/>);window.dispatchEvent(new Event('echo:sensitive-state-cleared'));resolve({appointments:[{id:'old',startsAt:'2099-10-15T10:00:00Z',endsAt:'2099-10-15T11:00:00Z',status:'proposed',mode:'online',locationHint:'Fictional old account details'}]});await waitFor(()=>expect(screen.queryByText('Fictional old account details')).not.toBeInTheDocument());window.dispatchEvent(new Event('focus'));expect(mocks.appointments).toHaveBeenCalledTimes(1);
+});

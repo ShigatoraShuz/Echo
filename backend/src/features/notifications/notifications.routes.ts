@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { notificationCursorSchema } from "@echo/contracts";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
 import { ValidationError } from "../../shared/errors/app-error.js";
@@ -13,6 +14,8 @@ import type { PushSubscriptionsService } from "./push-subscriptions.service.js";
 const listQuerySchema = z.object({
   status: z.enum(["all", "unread"]).default("all"),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  category: z.enum(["all", "general", "appointments"]).optional(),
+  before: notificationCursorSchema.optional(),
 });
 const subscriptionSchema = z.strictObject({
   endpoint: z.url().max(2_048),

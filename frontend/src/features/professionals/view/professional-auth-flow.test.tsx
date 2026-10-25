@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -422,3 +423,13 @@ describe("professional auth flow", () => {
 });
 
 vi.mock("@/services/experience/experience-api", () => ({ experienceApi: { getSupportResources: async () => [] } }));
+
+it("coalesces the initial access read during Strict Mode without skipping MFA preparation", async () => {
+  mocks.memberships.mockResolvedValue({ userId: "u1", mfaRequired: true, memberships: [membership] });
+  mocks.prepareMfa.mockResolvedValue({ id: "synthetic-factor" });
+  render(<StrictMode><ProfessionalAccessView /></StrictMode>);
+  await screen.findByRole("heading", { name: "Verify your authenticator" });
+  expect(mocks.memberships).toHaveBeenCalledTimes(1);
+  expect(mocks.prepareMfa).toHaveBeenCalledTimes(1);
+  expect(mocks.verifyMfa).not.toHaveBeenCalled();
+});

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useWorkspaceRefresh } from "@/shared/hooks/use-workspace-refresh";
 import { DefaultJournalFilters, type JournalAnalysis, type JournalEntry } from "@/features/journal/model/journal.model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 import { calendarApi, type CalendarItem } from "@/services/calendar/calendar-api";
@@ -9,6 +10,10 @@ import { normalizeError } from "@/shared/errors/normalize-error";
 import { getCalendarDays, toLocalDateKey } from "../model/calendar-date";
 
 export function useCalendarViewModel() {
+  const sessionActive = useRef(true);
+  const loadController = useRef<AbortController | null>(null);
+  const loadedRange = useRef("");
+  const appointmentRead = useRef<AbortController | null>(null);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState(() => toLocalDateKey(new Date()));
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -39,8 +44,10 @@ export function useCalendarViewModel() {
     for (const item of items) counts.set(item.scheduledOn, (counts.get(item.scheduledOn) ?? 0) + 1);
     return counts;
   }, [items]);
-  const visibleAppointments = useMemo(() => appointments.filter((item) =>
-    ["proposed", "confirmed", "completed"].includes(item.status)), [appointments]);
+  const visibleAppointments = useMemo(
+    () => appointments.filter((item) => ["proposed", "confirmed", "completed"].includes(item.status)),
+    [appointments],
+  );
   const appointmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const appointment of visibleAppointments) {
@@ -49,14 +56,22 @@ export function useCalendarViewModel() {
     }
     return counts;
   }, [visibleAppointments]);
-  const selectedEntries = useMemo(() => entries.filter((entry) => toLocalDateKey(new Date(entry.createdAt)) === selected), [entries, selected]);
+  const selectedEntries = useMemo(
+    () => entries.filter((entry) => toLocalDateKey(new Date(entry.createdAt)) === selected),
+    [entries, selected],
+  );
   const selectedItems = useMemo(() => items.filter((item) => item.scheduledOn === selected), [items, selected]);
-  const selectedAppointments = useMemo(() => visibleAppointments.filter((item) =>
-    toLocalDateKey(new Date(item.startsAt)) === selected), [visibleAppointments, selected]);
+  const selectedAppointments = useMemo(
+    () => visibleAppointments.filter((item) => toLocalDateKey(new Date(item.startsAt)) === selected),
+    [visibleAppointments, selected],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    if (!sessionActive.current) return;
+    appointmentRead.current?.abort();
+    loadController.current = controller;
+    if (loadedRange.current !== from + to) setLoading(true);
     setError(null);
     async function load() {
       try {
@@ -68,54 +83,108 @@ export function useCalendarViewModel() {
             itemError = normalizeError(cause).userMessage;
             return null;
           }),
-          professionalApi.appointments({
-            from: days[0].toISOString(),
-            to: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
-          }, controller.signal).catch((cause: unknown) => {
-            appointmentError = normalizeError(cause).userMessage;
-            return null;
-          }),
+          professionalApi
+            .appointments(
+              {
+                from: days[0].toISOString(),
+                to: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
+              },
+              controller.signal,
+            )
+            .catch((cause: unknown) => {
+              appointmentError = normalizeError(cause).userMessage;
+              return null;
+            }),
           journal.listEntries({ ...DefaultJournalFilters, dateFrom: from, dateTo: to }, 1, 50, controller.signal),
         ]);
         if (!first.success) throw new Error(first.error.message);
         const allEntries = [...first.data.entries];
         for (let page = 2; page <= first.data.pagination.totalPages; page++) {
           const next = await journal.listEntries(
-            { ...DefaultJournalFilters, dateFrom: from, dateTo: to }, page, 50, controller.signal,
+            { ...DefaultJournalFilters, dateFrom: from, dateTo: to },
+            page,
+            50,
+            controller.signal,
           );
           if (!next.success) throw new Error(next.error.message);
           allEntries.push(...next.data.entries);
         }
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && sessionActive.current) {
+          loadedRange.current = from + to;
           setItems(savedItems ?? []);
           setAppointments(scheduled?.appointments ?? []);
           setEntries(allEntries);
           setError([itemError, appointmentError].filter(Boolean).join(" ") || null);
         }
       } catch (cause) {
-        if (!controller.signal.aborted) setError(normalizeError(cause).userMessage);
+        if (!controller.signal.aborted && sessionActive.current) setError(normalizeError(cause).userMessage);
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && sessionActive.current) setLoading(false);
       }
     }
     void load();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      appointmentRead.current?.abort();
+    };
   }, [from, to, days, last, reloadCount]);
 
+  useWorkspaceRefresh(
+    () => {
+      // Remote appointment changes need one small read, not another journal/analysis waterfall.
+      if (!sessionActive.current || loading) return;
+      appointmentRead.current?.abort();
+      const controller = new AbortController();
+      appointmentRead.current = controller;
+      void professionalApi
+        .appointments(
+          {
+            from: days[0].toISOString(),
+            to: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
+          },
+          controller.signal,
+        )
+        .then((result) => {
+          if (!controller.signal.aborted && sessionActive.current) setAppointments(result.appointments);
+        })
+        .catch((cause) => {
+          if (!controller.signal.aborted && sessionActive.current) {
+            setAppointments([]);
+            setError(normalizeError(cause).userMessage);
+          }
+        });
+    },
+    "personal-calendar:" + from + ":" + to,
+    () => {
+      sessionActive.current = false;
+      loadController.current?.abort();
+      appointmentRead.current?.abort();
+      setEntries([]);
+      setItems([]);
+      setAppointments([]);
+      setAnalyses({});
+      setContent("");
+    },
+  );
   useEffect(() => {
     const controller = new AbortController();
     const journal = getJournalService();
     void Promise.all(
-      selectedEntries.filter((entry) => entry.analysisConsent).map(async (entry) => {
-        try {
-          const result = await journal.getAnalysis(entry.id);
-          return [entry.id, result.success ? (result.data && !result.data.isDemoData ? result.data : null) : false] as const;
-        } catch {
-          return [entry.id, false] as const;
-        }
-      }),
+      selectedEntries
+        .filter((entry) => entry.analysisConsent)
+        .map(async (entry) => {
+          try {
+            const result = await journal.getAnalysis(entry.id);
+            return [
+              entry.id,
+              result.success ? (result.data && !result.data.isDemoData ? result.data : null) : false,
+            ] as const;
+          } catch {
+            return [entry.id, false] as const;
+          }
+        }),
     ).then((results) => {
-      if (!controller.signal.aborted) setAnalyses(Object.fromEntries(results));
+      if (!controller.signal.aborted && sessionActive.current) setAnalyses(Object.fromEntries(results));
     });
     return () => controller.abort();
   }, [selectedEntries]);
@@ -126,7 +195,12 @@ export function useCalendarViewModel() {
     setSaving(true);
     setError(null);
     try {
-      const item = await calendarApi.create({ scheduledOn: selected, scheduledTime: time || null, kind, content: content.trim() });
+      const item = await calendarApi.create({
+        scheduledOn: selected,
+        scheduledTime: time || null,
+        kind,
+        content: content.trim(),
+      });
       setItems((current) => [...current, item]);
       setContent("");
       setTime("");
@@ -140,7 +214,7 @@ export function useCalendarViewModel() {
   async function toggleItem(item: CalendarItem) {
     try {
       const updated = await calendarApi.update(item, !item.completedAt);
-      setItems((current) => current.map((candidate) => candidate.id === item.id ? updated : candidate));
+      setItems((current) => current.map((candidate) => (candidate.id === item.id ? updated : candidate)));
     } catch (cause) {
       setError(normalizeError(cause).userMessage);
     }
@@ -167,9 +241,31 @@ export function useCalendarViewModel() {
   }
 
   return {
-    month, days, selected, selectedEntries, selectedItems, selectedAppointments,
-    entryCounts, itemCounts, appointmentCounts, analyses,
-    loading, saving, error, content, time, kind, setSelected, setContent, setTime, setKind,
-    goToday, shiftMonth, addItem, toggleItem, removeItem, retry: () => setReloadCount((count) => count + 1),
+    month,
+    days,
+    selected,
+    selectedEntries,
+    selectedItems,
+    selectedAppointments,
+    entryCounts,
+    itemCounts,
+    appointmentCounts,
+    analyses,
+    loading,
+    saving,
+    error,
+    content,
+    time,
+    kind,
+    setSelected,
+    setContent,
+    setTime,
+    setKind,
+    goToday,
+    shiftMonth,
+    addItem,
+    toggleItem,
+    removeItem,
+    retry: () => setReloadCount((count) => count + 1),
   };
 }

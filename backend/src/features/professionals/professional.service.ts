@@ -1,6 +1,6 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   decryptText,
   encryptText,
@@ -22,6 +22,7 @@ import { ProfessionalFollowUpService } from "./professional-follow-ups.service.j
 import { ProfessionalReferralService } from "./professional-referrals.service.js";
 import { ProfessionalNotificationService } from "./professional-notifications.service.js";
 import { professionalQueueQuery, type ProfessionalQueueQuery } from "./professional-queue.contract.js";
+import { messageBoundary } from "./professional-message-cursor.js";
 
 type Row = Record<string, unknown>;
 type ProfessionalRole = "counselor" | "psychologist" | "social_worker" | "coordinator" | "org_admin";
@@ -112,22 +113,41 @@ export class ProfessionalService {
     this.notifications = new ProfessionalNotificationService(database);
   }
 
-  private async notify(userId: string | null, type: string, title: string, message: string, requestId: string) {
-    if (!userId) return;
-    await this.database.schema("notification_service").from("notifications").insert({
-      user_id: userId,
-      notification_type: type,
-      title,
-      message,
-      resource_type: "professional_case",
-      resource_id: requestId,
-    });
+  private async notify(userId: string | null, type: string, title: string, message: string, requestId: string, notificationId?: string): Promise<boolean> {
+    if (!userId) return true;
+    try {
+      const preference = await this.database.schema("user_service").from("notification_preferences")
+        .select("in_app_enabled").eq("user_id", userId).maybeSingle();
+      if (preference.error) { logDatabaseError("notify.preferences", preference.error); return false; }
+      // Missing preferences fail closed. Never infer or silently turn on opt-in.
+      if (preference.data?.in_app_enabled !== true) return true;
+      const { error } = await this.database.schema("notification_service").from("notifications").insert({ ...(notificationId ? { id: notificationId } : {}), user_id: userId, notification_type: type, title, message, resource_type: "professional_case", resource_id: requestId });
+      if (error && error.code !== "23505") { logDatabaseError("notify", error); return false; }
+      return true;
+    } catch { console.error("[professional.notify] Delivery could not be confirmed"); return false; }
   }
-
-  private async event(requestId: string, actorUserId: string, eventType: string, label: string) {
-    await this.database.schema("professional_service").from("case_events").insert({
-      request_id: requestId, actor_user_id: actorUserId, event_type: eventType, label,
-    });
+  private async event(requestId: string, actorUserId: string, eventType: string, label: string, eventId?: string): Promise<boolean> {
+    try {
+      const { error } = await this.database.schema("professional_service").from("case_events").insert({ ...(eventId ? { id: eventId } : {}), request_id: requestId, actor_user_id: actorUserId, event_type: eventType, label });
+      if (error && error.code !== "23505") { logDatabaseError("event", error); return false; }
+      return true;
+    } catch { console.error("[professional.event] History could not be confirmed"); return false; }
+  }
+  private appointmentEventId(id: string, status: string) {
+    const raw = createHash("md5").update(`${id}:${status}`).digest("hex");
+    const hex = raw.slice(0,12) + "4" + raw.slice(13,16) + "8" + raw.slice(17);
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
+  private async deliverCaseEvents(requestId: string): Promise<boolean> {
+    if (!requestId) return false;
+    try {
+      const {data,error} = await this.database.schema("professional_service").rpc("process_case_events", {p_request_id:requestId,p_limit:10});
+      if (error) { logDatabaseError("appointmentDelivery",error); return false; }
+      return Number(data?.failures ?? 0) === 0 && Number(data?.pending ?? 0) === 0;
+    } catch { console.error("[professional.appointmentDelivery] Delivery remains unconfirmed"); return false; }
+  }
+  private deliveryFeedback(results: boolean[]) {
+    return results.every(Boolean) ? {} : { warning: "The appointment was saved. Some notification or history updates could not be confirmed. Refresh its status; do not submit another proposal." };
   }
 
   async listOrganizations() {
@@ -329,6 +349,7 @@ export class ProfessionalService {
     });
 
     if (error) {
+      if (modern && error.code === "23505") throw new ConflictError("REQUEST_RETRY_REQUIRED", "This submission is already being processed. Retry the same request to check its result.");
       if (error.message === "INVALID_REQUEST" || error.message === "INVALID_SHARED_ITEM") throw new ValidationError();
       if (error.message.includes("USER_NOT_ELIGIBLE")) {
         throw new AuthorizationError("This support request is currently available to eligible adult accounts.");
@@ -343,6 +364,23 @@ export class ProfessionalService {
       throw databaseError("Your support request could not be submitted.");
     }
 
+    if (modern) {
+      const recorded = data as Row;
+      const sameIds = (left: string[], right: string[]) => JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+      if (!recorded || recorded.user_id !== userId || recorded.organization_id !== input.organizationId ||
+          recorded.submission_id !== input.submissionId || optional(recorded, "preferred_profile_id") !== (input.preferredProfileId ?? null) ||
+          decryptText(recorded.summary_encrypted, this.encryption) !== input.summary ||
+          decryptText(recorded.preferred_time_encrypted, this.encryption) !== input.preferredTime ||
+          !sameIds(strings(recorded, "shared_journal_ids"), journalIds)) {
+        throw new ConflictError("REQUEST_SUBMISSION_CONFLICT", "This submission already belongs to a different request. Review My requests before sending another.");
+      }
+      const shares = await this.database.schema("professional_service").from("case_shared_records")
+        .select("source_record_id").eq("request_id", value(recorded, "id")).eq("owner_user_id", userId).eq("resource_type", "phq8");
+      if (shares.error) throw databaseError("Your request receipt could not be confirmed. Retry the same submission.");
+      if (!sameIds(((shares.data ?? []) as Row[]).map(item => value(item, "source_record_id")), phq8Ids)) {
+        throw new ConflictError("REQUEST_SUBMISSION_CONFLICT", "This submission already contains different sharing choices. Review My requests before sending another.");
+      }
+    }
     return { request: mapRequest(data as Row) };
   }
 
@@ -557,7 +595,7 @@ export class ProfessionalService {
       this.database
         .schema("professional_service")
         .from("appointments")
-        .select("id,starts_at,ends_at,mode,location_hint_encrypted,status,professional_user_id")
+        .select("id,starts_at,ends_at,mode,location_hint_encrypted,status,professional_user_id,replaces_appointment_id")
         .eq("request_id", requestId)
         .order("created_at", { ascending: false }),
       this.database
@@ -611,6 +649,17 @@ export class ProfessionalService {
     if (!snapshot || snapshot.request?.id !== requestId || snapshot.request.organization_id !== initial.organization_id || snapshot.request.assigned_to !== userId) {
       throw databaseError("The case details could not be confirmed.");
     }
+    // Older authorized snapshots omit replacement links. Read only these IDs,
+    // within this request, and retain the final access recheck before projection.
+    if (snapshot.appointments.some(item => !Object.hasOwn(item, "replaces_appointment_id"))) {
+      const links = await this.database.schema("professional_service").from("appointments")
+        .select("id,replaces_appointment_id").eq("request_id", requestId)
+        .in("id", snapshot.appointments.map(item => value(item, "id")));
+      if (links.error) throw databaseError("Appointment replacement details could not be confirmed.");
+      snapshot.appointments = snapshot.appointments.map(item => ({ ...item,
+        replaces_appointment_id: ((links.data ?? []) as Row[]).find(link => link.id === item.id)?.replaces_appointment_id ?? null,
+      }));
+    }
     // Revocation or permission loss may commit after the RPC returns. Recheck
     // before decrypting; already delivered data cannot be recalled.
     let currentShares: Row[] | undefined;
@@ -659,7 +708,7 @@ export class ProfessionalService {
         endsAt: value(item, "ends_at"),
         mode: value(item, "mode"),
         locationHint: decryptText(item.location_hint_encrypted, this.encryption),
-        status: value(item, "status"),
+        status: value(item, "status"), replacesAppointmentId: optional(item, "replaces_appointment_id"),
       })),
       referrals: children.referrals.map((item) => ({
         id: value(item, "id"),
@@ -806,9 +855,12 @@ export class ProfessionalService {
     if (error) {
       this.appointmentError(error, "The appointment proposal could not be confirmed. Refresh the case before retrying.");
     }
-    await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A new appointment time is ready for your review.", requestId);
-    await this.event(requestId, userId, "appointment_proposed", "Appointment proposed");
-    return { appointmentId: value(data as Row, "id") };
+    const appointmentId = value(data as Row, "id");
+    const delivery = await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A new appointment time is ready for your review.", requestId, appointmentId);
+    const history = await this.event(requestId, userId, "appointment_proposed", "Appointment proposed", this.appointmentEventId(appointmentId, "proposed"));
+    const queued = await this.deliverCaseEvents(requestId);
+    return { appointmentId, ...this.deliveryFeedback([delivery, history, queued]) };
+
   }
 
   async respondAppointment(userId: string, appointmentId: string, accept: boolean) {
@@ -821,8 +873,8 @@ export class ProfessionalService {
     if (error) {
       this.appointmentError(error, "The appointment response could not be confirmed. Refresh its status before retrying.");
     }
-    await this.event(value(data as Row, "request_id"), userId, accept ? "appointment_confirmed" : "appointment_declined", accept ? "Appointment confirmed" : "Appointment declined");
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    const history = await this.event(value(data as Row, "request_id"), userId, accept ? "appointment_confirmed" : "appointment_declined", accept ? "Appointment confirmed" : "Appointment declined", this.appointmentEventId(appointmentId, value(data as Row, "status")));
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([history, await this.deliverCaseEvents(value(data as Row, "request_id"))]) };
   }
 
   async cancelAppointment(
@@ -882,7 +934,7 @@ export class ProfessionalService {
       this.appointmentError(error, "The appointment cancellation could not be confirmed. Refresh its status before retrying.");
     }
 
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([await this.deliverCaseEvents(value(appointment as Row, "request_id"))]) };
   }
 
   private appointmentError(error: { message: string; code?: string }, fallback: string): never {
@@ -905,8 +957,12 @@ export class ProfessionalService {
     if (!data || decryptText(data.location_hint_encrypted, this.encryption) !== input.locationHint) {
       throw new ConflictError("APPOINTMENT_CONFLICT", "This appointment already has a different replacement. Refresh the case.");
     }
-    await this.event(value(data as Row, "request_id"), userId, "appointment_canceled", "Appointment canceled");
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    const requestId = value(data as Row, "request_id"), replacementId = value(data as Row, "id");
+    let request: Row | null = null;
+    try { request = await this.requestRow(requestId); } catch { /* The durable owner queue still records this committed replacement. */ }
+    const delivery = request ? await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A replacement time is ready for your review.", requestId, replacementId) : false;
+    const history = await this.event(requestId, userId, "appointment_rescheduled", "Replacement appointment proposed", this.appointmentEventId(replacementId, "proposed"));
+    return { appointmentId: replacementId, status: value(data as Row, "status"), ...this.deliveryFeedback([delivery, history, await this.deliverCaseEvents(requestId)]) };
   }
 
   async completeAppointment(userId: string, appointmentId: string) {
@@ -917,7 +973,7 @@ export class ProfessionalService {
       .maybeSingle();
     if (appointmentError) throw databaseError("The appointment could not be loaded.");
     if (!appointment) throw new NotFoundError();
-    await this.assignedCase(userId, value(appointment as Row, "request_id"));
+    const request = await this.assignedCase(userId, value(appointment as Row, "request_id"));
     if (new Date(value(appointment as Row, "starts_at")).getTime() > Date.now())
       throw new ConflictError("APPOINTMENT_NOT_STARTED", "This appointment cannot be completed before its scheduled start.");
     const { data, error } = await this.database.schema("professional_service").rpc("complete_appointment", {
@@ -931,10 +987,9 @@ export class ProfessionalService {
       throw databaseError("The appointment could not be completed.");
     }
     const requestId = value(data as Row, "request_id");
-    const request = await this.requestRow(requestId);
-    await this.event(requestId, userId, "appointment_completed", "Appointment completed");
-    await this.notify(optional(request, "user_id"), "professional_appointment_completed", "Appointment updated", "Your professional appointment was marked complete.", requestId);
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    const history = await this.event(requestId, userId, "appointment_completed", "Appointment completed", this.appointmentEventId(appointmentId, "completed"));
+    const delivery = await this.notify(optional(request, "user_id"), "professional_appointment_completed", "Appointment updated", "Your professional appointment was marked complete.", requestId, this.appointmentEventId(appointmentId, "completed"));
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([history, delivery, await this.deliverCaseEvents(requestId)]) };
   }
 
   async addNote(userId: string, requestId: string, body: string, options: { submissionId?: string; state?: "draft" | "final" } = {}) {
@@ -1109,7 +1164,7 @@ export class ProfessionalService {
       appointments = ((appointmentResult.data ?? []) as Row[]).map((item) => ({
         id: value(item, "id"), requestId: value(item, "request_id"), startsAt: value(item, "starts_at"),
         endsAt: value(item, "ends_at"), mode: value(item, "mode"),
-        locationHint: decryptText(item.location_hint_encrypted, this.encryption), status: value(item, "status"),
+        locationHint: decryptText(item.location_hint_encrypted, this.encryption), status: value(item, "status"), replacesAppointmentId: optional(item, "replaces_appointment_id"),
       }));
       const readAt = new Map(((readResult.data ?? []) as Row[]).map((item) => [value(item, "request_id"), value(item, "last_read_at")]));
       unreadCount = ((messageResult.data ?? []) as Row[]).filter((item) => value(item, "created_at") > (readAt.get(value(item, "request_id")) ?? "")).length;
@@ -1129,35 +1184,35 @@ export class ProfessionalService {
     };
   }
 
-  private async caseParticipant(userId: string, requestId: string): Promise<{ row: Row; kind: "user" | "professional" }> {
+  private async caseParticipant(userId: string, requestId: string, access: "participant" | "owner" = "participant"): Promise<{ row: Row; kind: "user" | "professional" }> {
     const row = await this.requestRow(requestId);
     if (row.user_id === userId) return { row, kind: "user" };
-    if (row.assigned_to !== userId) throw new NotFoundError("The support request was not found.");
+    if (access === "owner" || row.assigned_to !== userId) throw new NotFoundError("The support request was not found.");
     await this.membership(userId, value(row, "organization_id"), true);
     return { row, kind: "professional" };
   }
 
-  async messages(userId: string, requestId: string, before: string | undefined, limit: number) {
-    await this.caseParticipant(userId, requestId);
+  async messages(userId: string, requestId: string, before: string | undefined, limit: number, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     let query = this.database.schema("professional_service").from("case_messages")
       .select("id,request_id,sender_kind,body_encrypted,created_at")
       .eq("request_id", requestId).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
-    if (before) query = query.lt("created_at", before);
+    if (before) { const boundary = messageBoundary(before); query = boundary.id ? query.or(`created_at.lt.${boundary.at},and(created_at.eq.${boundary.at},id.lt.${boundary.id})`) : query.lt("created_at", boundary.at); }
     const { data, error } = await query;
     if (error) throw databaseError("Case messages could not be loaded.");
-    await this.caseParticipant(userId, requestId);
+    await this.caseParticipant(userId, requestId, access);
     const rows = (data ?? []) as Row[];
     return {
       messages: rows.slice(0, limit).reverse().map((item) => ({
         id: value(item, "id"), requestId: value(item, "request_id"), sender: value(item, "sender_kind"),
         body: decryptText(item.body_encrypted, this.encryption), createdAt: value(item, "created_at"),
       })),
-      nextCursor: rows.length > limit ? value(rows[limit - 1], "created_at") : null,
+      nextCursor: rows.length > limit ? `${value(rows[limit - 1], "created_at")}~${value(rows[limit - 1], "id")}` : null,
     };
   }
 
-  async sendMessage(userId: string, requestId: string, clientMessageId: string, body: string) {
-    const participant = await this.caseParticipant(userId, requestId);
+  async sendMessage(userId: string, requestId: string, clientMessageId: string, body: string, access: "participant" | "owner" = "participant") {
+    const participant = await this.caseParticipant(userId, requestId, access);
     const { data, error } = await this.database.schema("professional_service").rpc("send_case_message", {
       p_request_id: requestId, p_actor: userId, p_client_message_id: clientMessageId,
       p_body_encrypted: encryptText(body, this.encryption),
@@ -1176,13 +1231,13 @@ export class ProfessionalService {
       "professional_case_message",
       "New professional support message",
       "A new message is available in your support case.",
-      requestId,
+      requestId, value(row, "id"),
     );
     return { message: { id: value(row, "id"), requestId, sender: value(row, "sender_kind"), body, createdAt: value(row, "created_at") } };
   }
 
-  async markMessagesRead(userId: string, requestId: string) {
-    await this.caseParticipant(userId, requestId);
+  async markMessagesRead(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     const { error } = await this.database.schema("professional_service").from("case_message_read_state").upsert({
       request_id: requestId, participant_user_id: userId, last_read_at: new Date().toISOString(),
     }, { onConflict: "request_id,participant_user_id" });
@@ -1190,8 +1245,8 @@ export class ProfessionalService {
     return { read: true };
   }
 
-  async sharing(userId: string, requestId: string) {
-    const { row, kind } = await this.caseParticipant(userId, requestId);
+  async sharing(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    const { row, kind } = await this.caseParticipant(userId, requestId, access);
     let query = this.database.schema("professional_service").from("case_shared_records")
       .select("id,resource_type,source_record_id,label_encrypted,granted_at,expires_at,revoked_at")
       .eq("request_id", requestId).order("granted_at", { ascending: false });
@@ -1210,6 +1265,9 @@ export class ProfessionalService {
   async revokeSharedRecord(userId: string, requestId: string, shareId: string) {
     const { row, kind } = await this.caseParticipant(userId, requestId);
     if (kind !== "user" || row.user_id !== userId) throw new NotFoundError();
+    const { data: record, error: scopeError } = await this.database.schema("professional_service").from("case_shared_records").select("id").eq("id", shareId).eq("request_id", requestId).eq("owner_user_id", userId).maybeSingle();
+    if (scopeError) throw databaseError("Sharing could not be stopped.");
+    if (!record) throw new NotFoundError();
     const { data, error } = await this.database.schema("professional_service").rpc("revoke_shared_record", {
       p_share_id: shareId, p_actor: userId,
     });
@@ -1255,8 +1313,8 @@ export class ProfessionalService {
     return this.sharing(userId, requestId);
   }
 
-  async timeline(userId: string, requestId: string) {
-    await this.caseParticipant(userId, requestId);
+  async timeline(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     const { data, error } = await this.database.schema("professional_service").from("case_events")
       .select("id,event_type,label,created_at").eq("request_id", requestId)
       .order("created_at", { ascending: false }).limit(50);
@@ -1291,7 +1349,7 @@ export class ProfessionalService {
 
   async listOwnAppointments(userId: string, range: { from?: string; to?: string } = {}) {
     let query = this.database.schema("professional_service").from("appointments")
-      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status,support_requests!inner()")
+      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status,replaces_appointment_id,support_requests!inner()")
       .eq("support_requests.user_id", userId);
     if (range.from && range.to) query = query.gte("starts_at", range.from).lt("starts_at", range.to);
     const { data, error } = await query.order("starts_at", { ascending: false }).limit(100);

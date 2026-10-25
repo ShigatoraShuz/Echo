@@ -1,11 +1,13 @@
 "use client";
 
+import { useWorkspaceRefresh } from "@/shared/hooks/use-workspace-refresh";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { professionalApi, type Membership, type ProfessionalDashboardSummary, type QueueRequest } from "@/services/professionals/professional-api";
 import { AppError } from "@/shared/errors/app-error";
 import { approvedOrganizations } from "../professional-organizations";
 import { membershipAccessFailure, professionalAccessDestination, professionalAccessFailure, professionalAccessState, professionalLoginDestination, type ProfessionalAccessFailure } from "../professional-access-feedback";
+import { ProfessionalAccessContext } from "../professional-access-context";
 import { isPendingRequest, professionalDashboardOverview } from "../professional-dashboard.model";
 import { professionalClaimFailure, scopedRequestMetadata } from "../professional-request.model";
 
@@ -16,9 +18,12 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
   const requestedOrganization = searchParams.get("organization");
   const query = searchParams.toString();
   const destination = `${basePath}${query ? `?${query}` : ""}`;
-  const [memberships, setMemberships] = useState<Membership[] | null>(null);
-  const [userId, setUserId] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
+  const gateAccess = useContext(ProfessionalAccessContext);
+  const initialOrganizations = approvedOrganizations(gateAccess?.memberships ?? []);
+  const initialSelection = initialOrganizations.find((item) => item.organizationId === requestedOrganization) ?? initialOrganizations[0];
+  const [memberships, setMemberships] = useState<Membership[] | null>(gateAccess?.memberships ?? null);
+  const [userId, setUserId] = useState(gateAccess?.userId ?? "");
+  const [organizationId, setOrganizationId] = useState(initialSelection?.organizationId ?? "");
   const [requests, setRequests] = useState<QueueRequest[] | null>(null);
   const [dashboardSummary, setDashboardSummary] = useState<ProfessionalDashboardSummary | null>(null);
   const [summaryUnavailable, setSummaryUnavailable] = useState(false);
@@ -26,10 +31,20 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
   const [success, setSuccess] = useState("");
   const [busyId, setBusyId] = useState("");
   const [membershipAttempt, setMembershipAttempt] = useState(0);
-  const [selectionNotice, setSelectionNotice] = useState("");
+  const [selectionNotice, setSelectionNotice] = useState(requestedOrganization && initialSelection && initialSelection.organizationId !== requestedOrganization ? "That organization is unavailable. Showing your approved organization instead." : "");
   const queueRequest = useRef(0);
   const scope = useRef(0);
   const claimInFlight = useRef(false);
+  const pendingReads = useRef(new Map<string, Promise<unknown>>());
+  const readOnce = useCallback(<T,>(key: string, load: () => Promise<T>): Promise<T> => {
+    const existing = pendingReads.current.get(key);
+    if (existing) return existing as Promise<T>;
+    const read = Promise.resolve().then(load);
+    pendingReads.current.set(key, read);
+    const clear = () => { if (pendingReads.current.get(key) === read) pendingReads.current.delete(key); };
+    void read.then(clear, clear);
+    return read;
+  }, []);
 
   const reportFailure = useCallback((reason: unknown, claiming = false) => {
     const failure = claiming ? professionalClaimFailure(reason) : professionalAccessFailure(reason);
@@ -43,10 +58,15 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
     let active = true;
     scope.current += 1;
     queueRequest.current += 1;
+    // The route gate just verified membership/MFA for this exact navigation.
+    // Explicit refresh still revalidates; no result survives a gate unmount.
+    if (gateAccess && membershipAttempt === 0) {
+      return () => { active = false; scope.current += 1; queueRequest.current += 1; };
+    }
     setMemberships(null); setOrganizationId(""); setRequests(null);
     setDashboardSummary(null); setSummaryUnavailable(false);
     setSuccess(""); setBusyId(""); setError(null); setSelectionNotice("");
-    professionalApi.memberships().then(({ memberships: items, userId: actor, mfaRequired }) => {
+    readOnce("memberships", () => professionalApi.memberships()).then(({ memberships: items, userId: actor, mfaRequired }) => {
       if (!active) return;
       setMemberships(items); setUserId(actor);
       if (mfaRequired) {
@@ -62,18 +82,17 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
       if (first) setOrganizationId(first.organizationId);
     }).catch((reason) => { if (active) { reportFailure(reason); setMemberships([]); } });
     return () => { active = false; scope.current += 1; queueRequest.current += 1; };
-  }, [requestedOrganization, membershipAttempt, router, destination, reportFailure]);
+  }, [requestedOrganization, membershipAttempt, router, destination, reportFailure, gateAccess, readOnce]);
 
   const activeMembership = approvedOrganizations(memberships ?? []).find((item) => item.organizationId === organizationId);
   const canClaim = ["counselor", "psychologist", "social_worker"].includes(activeMembership?.role ?? "");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!organizationId) return false;
     const current = ++queueRequest.current;
-    setError(null); setRequests(null); setSuccess("");
-    setDashboardSummary(null); setSummaryUnavailable(false);
+    if (!silent) { setError(null); setRequests(null); setSuccess(""); setDashboardSummary(null); setSummaryUnavailable(false); }
     try {
-      if (data === "none") {
+      if (data === "none" || basePath === "/professional/my-cases" && !canClaim) {
         setRequests([]);
         return true;
       }
@@ -85,7 +104,7 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
           setRequests([]);
           return true;
         }
-        const summary = await professionalApi.dashboard(organizationId);
+        const summary = await readOnce(`dashboard:${userId}:${organizationId}`, () => professionalApi.dashboard(organizationId));
         if (current !== queueRequest.current) return false;
         if (summary.organizationId !== organizationId || summary.userId !== userId) {
           throw new AppError({ code: "AUTHORIZATION_ERROR", statusCode: 403, userMessage: "Schedule scope could not be confirmed." });
@@ -94,21 +113,30 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
         setRequests([]);
         return true;
       }
-      const result = await professionalApi.queue(organizationId);
+      // Both endpoints independently enforce membership, MFA and organization
+      // scope. Start together after the fresh access check; retain only pending
+      // reads within this hook to coalesce Strict Mode effect replay.
+      const summaryRead = basePath === "/professional"
+        ? readOnce(`dashboard:${userId}:${organizationId}`, () => professionalApi.dashboard(organizationId))
+          .then(value => ({ status: "fulfilled" as const, value }), reason => ({ status: "rejected" as const, reason }))
+        : null;
+      const result = await readOnce(`queue:${userId}:${organizationId}`, () => professionalApi.queue(organizationId));
       if (current !== queueRequest.current) return false;
       let summary: ProfessionalDashboardSummary | null = null;
       let unavailable = false;
-      // Legacy deployments have no page envelope. Keep their existing bounded
-      // overview; never fabricate aggregation when the new RPC is not deployed.
-      if (basePath === "/professional" && result.page) {
-        try {
-          summary = await professionalApi.dashboard(organizationId);
-          if (summary.organizationId !== organizationId || summary.userId !== userId) {
+      // Legacy deployments have no page envelope. Keep their bounded overview
+      // without waiting for an aggregation endpoint they may not have.
+      if (result.page && summaryRead) {
+        const summaryResult = await summaryRead;
+        if (current !== queueRequest.current) return false;
+        if (summaryResult.status === "rejected") {
+          if (professionalAccessFailure(summaryResult.reason).conceal) throw summaryResult.reason;
+          unavailable = true;
+        } else {
+          summary = summaryResult.value;
+          if (!summary || summary.organizationId !== organizationId || summary.userId !== userId) {
             throw new AppError({ code: "AUTHORIZATION_ERROR", statusCode: 403, userMessage: "Dashboard scope could not be confirmed." });
           }
-        } catch (reason) {
-          if (professionalAccessFailure(reason).conceal) throw reason;
-          summary = null; unavailable = true;
         }
       }
       if (current === queueRequest.current) {
@@ -118,9 +146,10 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
       }
     } catch (reason) { if (current === queueRequest.current) { reportFailure(reason); setRequests(null); } }
     return false;
-  }, [organizationId, reportFailure, basePath, userId, data, canClaim]);
+  }, [organizationId, reportFailure, basePath, userId, data, canClaim, readOnce]);
 
   useEffect(() => { void refresh(); return () => { queueRequest.current += 1; }; }, [refresh]);
+  useWorkspaceRefresh(() => { if (!claimInFlight.current && !error) void refresh(true); }, data === "schedule" && canClaim ? userId + ":" + organizationId + ":" + activeMembership?.role : "", () => { queueRequest.current++; pendingReads.current.clear(); setRequests(null); setDashboardSummary(null); setOrganizationId(""); });
   const overview = useMemo(() => professionalDashboardOverview(requests ?? [], organizationId, userId), [requests, organizationId, userId]);
 
   async function claim(id: string) {
@@ -162,14 +191,14 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
 
   function refreshWorkspace() {
     if (claimInFlight.current) return;
-    scope.current += 1; queueRequest.current += 1;
+    scope.current += 1; queueRequest.current += 1; pendingReads.current.clear();
     setRequests(null); setMemberships(null); setOrganizationId(""); setSuccess("");
     setDashboardSummary(null); setSummaryUnavailable(false);
     setMembershipAttempt((attempt) => attempt + 1);
   }
   function switchOrganization(id: string) {
     if (id === organizationId || claimInFlight.current || !approvedOrganizations(memberships ?? []).some((item) => item.organizationId === id)) return;
-    scope.current += 1; queueRequest.current += 1;
+    scope.current += 1; queueRequest.current += 1; pendingReads.current.clear();
     setRequests(null); setMemberships(null); setOrganizationId(""); setSuccess(""); setError(null);
     setDashboardSummary(null); setSummaryUnavailable(false);
     const params = new URLSearchParams(searchParams.toString());
