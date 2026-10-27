@@ -9,6 +9,7 @@ function createHarness() {
   };
   const settings = {
     get: vi.fn().mockResolvedValue({ profile: { displayName: "Echo" } }),
+    getProfileSummary: vi.fn().mockResolvedValue({ displayName: "Echo", avatarPath: null }),
     updateProfile: vi.fn().mockResolvedValue({ profile: { displayName: "Echo" } }),
     uploadAvatar: vi.fn().mockResolvedValue({ profile: { avatarPath: "https://cdn.example/avatar.png" } }),
     updatePrivacy: vi.fn().mockResolvedValue({ privacy: { journalPrivate: true } }),
@@ -47,6 +48,18 @@ describe("settings routes", () => {
 
     expect(response.status).toBe(200);
     expect(settings.get).toHaveBeenCalledWith("user-1");
+  });
+
+  it("returns only the authenticated user's profile summary", async () => {
+    const { app, settings } = createHarness();
+    const response = await request(app).get("/api/v1/settings/profile").set("Authorization", "Bearer valid-token");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ displayName: "Echo", avatarPath: null });
+    expect(settings.getProfileSummary).toHaveBeenCalledWith("user-1");
+    expect(settings.get).not.toHaveBeenCalled();
+    const denied = await request(app).get("/api/v1/settings/profile");
+    expect(denied.status).toBe(401);
+    expect(settings.getProfileSummary).toHaveBeenCalledTimes(1);
   });
 
   it("updates the profile with validated fields", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { JournalImagesService } from "../journal-images.service.js";
 import { JournalService } from "../journals.service.js";
 
 function row(id: number, userId = "owner") {
@@ -36,6 +37,10 @@ function harness(rows: ReturnType<typeof row>[]) {
         matched.sort((a, b) => ascending ? a.created_at.localeCompare(b.created_at) : b.created_at.localeCompare(a.created_at));
         return Promise.resolve({ data: matched.slice(start, end + 1), count: matched.length, error: null });
       },
+      maybeSingle: () => Promise.resolve({
+        data: rows.find((item) => item.id === filters.id && item.user_id === filters.user_id && item.deleted_at === filters.deleted_at) ?? null,
+        error: null,
+      }),
       then: (resolve: (value: { data: unknown[]; error: null }) => unknown) => {
         calls.push({ table, filters: { ...filters } });
         return Promise.resolve({ data: [], error: null }).then(resolve);
@@ -59,6 +64,25 @@ describe("journal list", () => {
       entries: [], total: 0, page: 1, page_size: 10,
     });
     expect(calls.map((call) => call.table)).toEqual(["journals"]);
+  });
+
+  it("starts owned journal analysis and photo reads together", async () => {
+    const { service } = harness([row(1)]);
+    let finishAnalysis!: (value: null) => void;
+    const analysis = new Promise<null>((resolve) => { finishAnalysis = resolve; });
+    const latestAnalysis = vi.spyOn(service as unknown as { latestAnalysis: () => Promise<null> }, "latestAnalysis")
+      .mockReturnValue(analysis);
+    const photos = vi.spyOn(JournalImagesService.prototype, "list").mockResolvedValue([]);
+    try {
+      const result = service.get("owner", "journal-1");
+      await vi.waitFor(() => expect(photos).toHaveBeenCalledWith("owner", "journal-1"));
+      expect(latestAnalysis).toHaveBeenCalledWith("journal-1", "owner");
+      finishAnalysis(null);
+      await expect(result).resolves.toMatchObject({ id: "journal-1", images: [] });
+    } finally {
+      latestAnalysis.mockRestore();
+      photos.mockRestore();
+    }
   });
 
   it("returns exactly ten entries for a full first page", async () => {

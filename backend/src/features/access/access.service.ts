@@ -23,31 +23,49 @@ export class AccessService {
     return Boolean(data?.length);
   }
   async decide(user: AuthenticatedUser): Promise<{ decision: AccessDecision; onboardingStep: number }> {
-    if (await this.hasPendingDeletion(user.id)) return { decision: "DELETION_PENDING", onboardingStep: 0 };
-    if (!user.emailVerified) return { decision: "EMAIL_VERIFICATION_REQUIRED", onboardingStep: 0 };
-    const { data: profile, error } = await this.reader
-      .schema("user_service")
-      .from("profiles")
-      .select("account_status,eligible_18_plus,eligibility_verified_at,onboarding_completed,onboarding_step")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Account access could not be checked.");
-    if (!profile || profile.account_status !== "active") return { decision: "ACCOUNT_UNAVAILABLE", onboardingStep: 0 };
-    if (profile.eligible_18_plus !== true || !profile.eligibility_verified_at)
-      return { decision: "AGE_VERIFICATION_REQUIRED", onboardingStep: Number(profile.onboarding_step ?? 0) };
-    const [{ data: active }, { data: consents }] = await Promise.all([
+    if (!user.emailVerified) {
+      if (await this.hasPendingDeletion(user.id)) return { decision: "DELETION_PENDING", onboardingStep: 0 };
+      return { decision: "EMAIL_VERIFICATION_REQUIRED", onboardingStep: 0 };
+    }
+    const reader = this.reader;
+    const accountChecks = Promise.allSettled([
+      this.hasPendingDeletion(user.id),
+      reader
+        .schema("user_service")
+        .from("profiles")
+        .select("account_status,eligible_18_plus,eligibility_verified_at,onboarding_completed,onboarding_step")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
+    const policyChecks = Promise.allSettled([
       this.database
         .schema("auth_provisioning")
         .from("policy_documents")
         .select("document_type,version")
         .eq("is_active", true),
-      this.reader
+      reader
         .schema("user_service")
         .from("user_consents")
         .select("consent_type,consent_version,accepted")
         .eq("user_id", user.id)
         .eq("accepted", true),
     ]);
+    const [deletionResult, profileResult] = await accountChecks;
+    if (deletionResult.status === "rejected") throw deletionResult.reason;
+    if (deletionResult.value) return { decision: "DELETION_PENDING", onboardingStep: 0 };
+    if (profileResult.status === "rejected") throw profileResult.reason;
+    const { data: profile, error } = profileResult.value;
+    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Account access could not be checked.");
+    if (!profile || profile.account_status !== "active") return { decision: "ACCOUNT_UNAVAILABLE", onboardingStep: 0 };
+    if (profile.eligible_18_plus !== true || !profile.eligibility_verified_at)
+      return { decision: "AGE_VERIFICATION_REQUIRED", onboardingStep: Number(profile.onboarding_step ?? 0) };
+    const [policyResult, consentResult] = await policyChecks;
+    if (policyResult.status === "rejected") throw policyResult.reason;
+    if (consentResult.status === "rejected") throw consentResult.reason;
+    const { data: active, error: policyError } = policyResult.value;
+    const { data: consents, error: consentError } = consentResult.value;
+    if (policyError || consentError)
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Account access could not be checked.");
     const accepted = new Set((consents ?? []).map((item) => `${item.consent_type}:${item.consent_version}`));
     if (
       !active ||

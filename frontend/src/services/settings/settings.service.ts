@@ -16,6 +16,7 @@ import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-to
 
 export interface SettingsService {
   get(): Promise<SettingsSnapshot>;
+  getProfileSummary(): Promise<Pick<ProfileSettings, "displayName" | "avatarPath">>;
   updateProfile(updates: Partial<ProfileSettings>): Promise<ProfileSettings>;
   uploadAvatar(file: File): Promise<SettingsSnapshot>;
   updatePrivacy(updates: Partial<PrivacySettings>): Promise<PrivacySettings>;
@@ -59,6 +60,9 @@ function endpoint(path: string): string {
 export const settingsService: SettingsService = {
   get() {
     return unwrap(client.get<ApiEnvelope<SettingsSnapshot>>("/settings"));
+  },
+  getProfileSummary() {
+    return unwrap(client.get<ApiEnvelope<Pick<ProfileSettings, "displayName" | "avatarPath">>>("/settings/profile"));
   },
   updateProfile(updates) {
     return unwrap(client.patch<ApiEnvelope<ProfileSettings>, Partial<ProfileSettings>>("/settings/profile", updates));
