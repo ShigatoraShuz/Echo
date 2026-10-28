@@ -11,9 +11,14 @@ export function createAccessRouter(service: AccessService, verifier: AccessToken
   const router = Router();
   const authenticate = createAuthMiddleware(verifier);
   router.get("/access/status", authenticate, async (request, response, next) => {
+    const startedAt = performance.now();
     try {
-      sendSuccess(response, await service.decide(request.auth!));
+      const decision = await service.decide(request.auth!);
+      response.locals.accessDecisionMs = Math.round(performance.now() - startedAt);
+      response.setHeader("Server-Timing", `access;dur=${response.locals.accessDecisionMs}`);
+      sendSuccess(response, decision);
     } catch (error) {
+      response.locals.accessDecisionMs = Math.round(performance.now() - startedAt);
       next(error);
     }
   });
@@ -56,9 +61,16 @@ export function createAccessGuard(service: AccessService) {
     "/analysis-jobs",
     "/support-resources",
   ];
-  return async (request: Request, _response: Response, next: NextFunction) => {
+  return async (request: Request, response: Response, next: NextFunction) => {
+    const startedAt = performance.now();
     try {
-      if (await service.hasPendingDeletion(request.auth!.id)) {
+      const scopedRoute = allowedPrefixes.some((prefix) => request.path.startsWith(prefix));
+      const decision = scopedRoute ? null : await service.decide(request.auth!);
+      const pendingDeletion = scopedRoute
+        ? await service.hasPendingDeletion(request.auth!.id)
+        : decision?.decision === "DELETION_PENDING";
+      response.locals.accessDecisionMs = Math.round(performance.now() - startedAt);
+      if (pendingDeletion) {
         const path = request.path;
         const permitted =
           (request.method === "GET" && path === "/settings/account-deletion") ||
@@ -68,12 +80,12 @@ export function createAccessGuard(service: AccessService) {
         if (!permitted) throw new AuthorizationError("Only account deletion, cancellation and export are available while deletion is pending.");
         return next();
       }
-      if (allowedPrefixes.some((prefix) => request.path.startsWith(prefix))) return next();
-      const result = await service.decide(request.auth!);
-      if (result.decision !== "ACCESS_GRANTED")
-        throw new AuthorizationError(`ECHO access is not ready: ${result.decision}.`);
+      if (scopedRoute) return next();
+      if (decision?.decision !== "ACCESS_GRANTED")
+        throw new AuthorizationError(`ECHO access is not ready: ${decision?.decision}.`);
       next();
     } catch (error) {
+      response.locals.accessDecisionMs = Math.round(performance.now() - startedAt);
       next(error);
     }
   };

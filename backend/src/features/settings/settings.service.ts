@@ -197,6 +197,21 @@ export class SettingsService {
     );
   }
 
+  async getProfileSummary(userId: string) {
+    const { data, error } = await this.database
+      .schema("user_service")
+      .from("profiles")
+      .select("display_name,avatar_path")
+      .eq("user_id", userId)
+      .maybeSingle();
+    throwIfDatabaseError(
+      error,
+      { module: "settings", schema: "user_service", table: "profiles", operation: "select profile summary" },
+      "Your profile could not be loaded.",
+    );
+    return { displayName: stringValue(data?.display_name), avatarPath: nullableString(data?.avatar_path) };
+  }
+
   async get(userId: string) {
     await this.ensureDefaults(userId);
     const [profileResult, notificationResult, privacyResult, contactsResult, exportResult, deletionResult] =

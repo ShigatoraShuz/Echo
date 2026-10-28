@@ -327,6 +327,7 @@ export async function proxy(
             authorization: `Bearer ${token}`,
           },
           cache: "no-store",
+          signal: AbortSignal.timeout(75_000),
         },
       );
 

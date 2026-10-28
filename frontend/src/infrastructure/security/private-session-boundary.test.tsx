@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrivateSessionBoundary } from "./private-session-boundary";
 
@@ -44,6 +44,30 @@ function mount() {
   return render(<PrivateSessionBoundary userId="account-a"><p>Private journal for A</p></PrivateSessionBoundary>);
 }
 describe("private account lifecycle boundary", () => {
+  it("shows a session status without exposing private content while verification is pending", async () => {
+    let finish!: (value: { data: { session: typeof session }; error: null }) => void;
+    h.getSession.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    mount();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your private session");
+    expect(screen.queryByText("Private journal for A")).toBeNull();
+    await act(async () => finish({ data: { session }, error: null }));
+    expect(screen.getByText("Private journal for A")).toBeVisible();
+  });
+
+  it("offers a safe retry when session verification stalls", async () => {
+    vi.useFakeTimers();
+    h.getSession.mockReturnValueOnce(new Promise(() => {}));
+    mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(screen.getByRole("alert")).toHaveTextContent("could not confirm your private session");
+    expect(screen.queryByText("Private journal for A")).toBeNull();
+    expect(h.signOut).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry session check" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("Private journal for A")).toBeVisible();
+    expect(h.getSession).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the page mounted across token refresh and same-account events", async () => {
     mount();
     await screen.findByText("Private journal for A");

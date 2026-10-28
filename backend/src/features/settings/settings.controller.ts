@@ -118,6 +118,9 @@ function accessToken(request: Request): string {
 
 export function createSettingsController(service: SettingsService) {
   return {
+    async getProfileSummary(request: Request, response: Response) {
+      sendSuccess(response, await service.getProfileSummary(userId(request)));
+    },
     async get(request: Request, response: Response) {
       sendSuccess(response, await service.get(userId(request)));
     },

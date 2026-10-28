@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   logout: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn(),
-  getSettings: vi.fn(),
+  getProfileSummary: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -36,21 +36,19 @@ vi.mock("@/services/authentication/auth-service.factory", () => ({
 
 vi.mock("@/services/settings/settings.service", () => ({
   settingsService: {
-    get: mocks.getSettings,
+    getProfileSummary: mocks.getProfileSummary,
   },
 }));
 
 describe("AppProfileMenu", () => {
   beforeEach(() => {
-    mocks.getSettings.mockResolvedValue({
-      profile: { displayName: "Mira" },
-    });
+    mocks.getProfileSummary.mockResolvedValue({ displayName: "Mira", avatarPath: null });
     mocks.logout.mockResolvedValue({ success: true, data: undefined });
   });
 
   it("shows a neutral icon while the current profile is loading", async () => {
-    let finishProfile: ((value: { profile: { displayName: string } }) => void) | undefined;
-    mocks.getSettings.mockReturnValue(new Promise((resolve) => {
+    let finishProfile: ((value: { displayName: string; avatarPath: null }) => void) | undefined;
+    mocks.getProfileSummary.mockReturnValue(new Promise((resolve) => {
       finishProfile = resolve;
     }));
     render(<AppProfileMenu />);
@@ -59,7 +57,7 @@ describe("AppProfileMenu", () => {
     expect(trigger).not.toHaveTextContent("M");
     expect(trigger.querySelector("svg")).toBeInTheDocument();
 
-    finishProfile?.({ profile: { displayName: "Lloyd" } });
+    finishProfile?.({ displayName: "Lloyd", avatarPath: null });
     expect(await screen.findByRole("button", { name: "Profile menu for Lloyd" })).toHaveTextContent("L");
   });
 

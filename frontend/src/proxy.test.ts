@@ -122,6 +122,28 @@ describe("authentication proxy", () => {
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
+  it("bounds a stalled access check and fails closed", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://api.example.test/api/v1");
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "account-a" } } });
+    mocks.createClient.mockReturnValue({ auth: {
+      getClaims: mocks.getClaims,
+      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "token" } } }),
+    } });
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError"));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const response = await proxy(request("/dashboard"));
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("access_check_unavailable");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://api.example.test/api/v1/access/status",
+        expect.objectContaining({ signal: expect.any(AbortSignal), cache: "no-store" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps the login page available when Supabase configuration is missing", async () => {
     mocks.getConfig.mockReturnValue(null);
 

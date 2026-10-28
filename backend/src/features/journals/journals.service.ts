@@ -385,7 +385,11 @@ export class JournalService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal service is temporarily unavailable.");
     if (!data) throw new NotFoundError("The journal entry was not found.");
     const row = data as JournalRow;
-    return { ...this.toJournalResponse(row, await this.latestAnalysis(journalId, userId)), images: await new JournalImagesService(this.database).list(userId,journalId) };
+    const [analysis, images] = await Promise.all([
+      this.latestAnalysis(journalId, userId),
+      new JournalImagesService(this.database).list(userId, journalId),
+    ]);
+    return { ...this.toJournalResponse(row, analysis), images };
   }
 
   async uploadImage(userId:string,journalId:string,imageId:string,bytes:Buffer,mime:string) {

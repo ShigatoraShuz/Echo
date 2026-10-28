@@ -11,6 +11,8 @@ export function requestLoggerMiddleware(request: Request, response: Response, ne
       method: request.method,
       statusCode: response.statusCode,
       durationMs: Math.round(performance.now() - startedAt),
+      authVerificationMs: response.locals.authVerificationMs,
+      accessDecisionMs: response.locals.accessDecisionMs,
       userIdHash: request.auth?.id ? "present" : undefined,
     }));
   });
