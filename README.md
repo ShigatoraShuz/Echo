@@ -21,18 +21,26 @@ A full-stack mental wellness application with AI-powered journaling, mood tracki
 
 ## Quick Start
 
+For the local model branch, start with the [simple model integration workflow and requirements](docs/model-integration-quickstart.md).
+
 ```bash
 # Install dependencies
 npm install
 
 # Copy environment variables
-cp .env.example .env.local
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
 
 # Start development
+npm run check:contracts
 npm run dev
 ```
 
 ## Project Structure
+
+For offline XLM-R, E4 emotion analysis, and CBT Buddy generation, see
+[Local core models](docs/local-core-models.md). Models live in the sibling
+`CODEX/models` folder and are not committed to this repository.
 
 - `frontend/` — Next.js application
 - `backend/` — Express API server
@@ -42,3 +50,11 @@ npm run dev
 ## License
 
 MIT
+
+## Local JSON analysis and Buddy
+
+The core launcher defaults to local JSON storage. See [startup, data controls and limits](docs/local-json-storage.md).
+
+## Journal PHQ-8 estimates
+
+Journal analysis now supports nullable experimental SeaLLMs estimates in local JSON, separately from the PHQ-8 questionnaire. See [startup, scoring rules and verification](docs/journal-phq8-integration.md). MOSS work is currently deferred.

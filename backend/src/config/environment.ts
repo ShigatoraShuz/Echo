@@ -46,9 +46,12 @@ const environmentSchema = z.object({
     } catch { context.addIssue({ code: "custom", message: "Invalid previous key configuration." }); return z.NEVER; }
   }),
   ACCOUNT_ERASURE_HMAC_KEY_BASE64: base64KeySchema.optional(),
-  AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker"]).default("disabled"),
+  LOCAL_DATA_DIR: z.string().default("../../local-data/Echo"),
+  AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker", "local_json"]).default("disabled"),
   AI_DEVELOPMENT_USER_IDS: z.string().default(""),
   AI_WORKER_TOKEN: z.string().min(32).optional(),
+  AI_SERVICE_URL: z.string().url().optional(),
+  AI_SERVICE_TOKEN: z.string().min(32).optional(),
   AI_STUB_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(1),
   AI_JOB_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
   IDEMPOTENCY_HMAC_ACTIVE_VERSION: z.string().trim().min(1).default("v1"),
@@ -87,6 +90,8 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
     throw new Error("Development stub analysis is not permitted in production.");
   if (parsed.data.AI_ANALYSIS_MODE === "local_worker" && !parsed.data.AI_WORKER_TOKEN)
     throw new Error("AI_WORKER_TOKEN is required in local_worker mode.");
+  if (parsed.data.AI_SERVICE_URL && (!parsed.data.AI_SERVICE_TOKEN || !["127.0.0.1", "localhost"].includes(new URL(parsed.data.AI_SERVICE_URL).hostname)))
+    throw new Error("Local AI service requires a loopback URL and dedicated bearer token.");
   if (!parsed.data.IDEMPOTENCY_HMAC_KEYS_JSON[parsed.data.IDEMPOTENCY_HMAC_ACTIVE_VERSION])
     throw new Error("The active idempotency HMAC key version is not configured.");
   if (parsed.data.NODE_ENV === "production" && !parsed.data.SIGNUP_DRAFT_SECRET) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { LocalDataControls } from "../components/local-data-controls";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -723,9 +724,10 @@ export function PrivacySettingsView() {
                 disabled
                 onChange={() => {}}
                 label="Encrypted Records"
-                description="Your entries are encrypted at rest and read through authenticated ECHO services."
+                description="Cloud journals are encrypted. In local JSON mode, analysis results and saved Buddy chats are readable files on this computer."
               />
 
+              <LocalDataControls />
               <Toggle
                 checked={form.buddyHistoryEnabled}
                 disabled={settings?.privacy.buddyHistoryAvailable === false}
@@ -740,7 +742,7 @@ export function PrivacySettingsView() {
                 checked={form.journalAiAnalysisEnabled ?? false}
                 onChange={(value) => setForm({ ...form, journalAiAnalysisEnabled: value })}
                 label="Journal analysis consent"
-                description="Allow analysis only when you also request it for a new entry. Existing private journals are never analyzed automatically."
+                description="Analyze each newly saved reflection locally when enabled. Existing journals are not analyzed automatically."
               />
 
               <Toggle

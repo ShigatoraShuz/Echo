@@ -134,7 +134,9 @@ const selectConversation = useCallback(async (id: string) => {
     return null;
   }, [service, state.historyEnabled]);
 
+  const temporarySession=useRef<string|undefined>(undefined);
   const clearConversation = useCallback(() => {
+    temporarySession.current=undefined;
     activeConversationIdRef.current = null;
     dispatch({ type: "NEW_TEMPORARY_CONVERSATION" });
   }, []);
@@ -161,7 +163,8 @@ const selectConversation = useCallback(async (id: string) => {
     };
     dispatch({ type: "SEND_START", optimistic });
     dispatch({ type: "SET_STREAMING", content: "" });
-    const result = await service.sendMessage({ ...(targetId ? { conversationId: targetId } : {}), content });
+    if(!targetId)temporarySession.current??=crypto.randomUUID();
+    const result = await service.sendMessage({ ...(targetId ? { conversationId: targetId } : {temporarySessionId:temporarySession.current}), content });
     if (result.success) {
       dispatch({ type: "SEND_SUCCESS", optimisticId: optimistic.id, messages: result.data.messages });
       dispatch({ type: "STOP_STREAMING" });

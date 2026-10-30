@@ -114,7 +114,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   } = data;
 
   const latestAnalysis = data.analysisInsights?.latest;
-  const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && ["moderate", "high", "severe"].includes(latestAnalysis.distressBand);
+  const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && (latestAnalysis.schemaVersion !== "echo-journal-analysis-v1" ? latestAnalysis.supportReviewRequired : ["moderate", "high", "severe"].includes(latestAnalysis.distressBand));
 
   const recentEntries = journalEntries.slice(0, 3);
 

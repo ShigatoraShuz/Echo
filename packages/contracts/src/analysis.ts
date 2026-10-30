@@ -16,7 +16,7 @@ export const analysisStatuses = [
 ] as const;
 
 export const analysisStatusSchema = z.enum(analysisStatuses);
-export const analysisModeSchema = z.enum(["disabled", "development_stub", "local_worker"]);
+export const analysisModeSchema = z.enum(["disabled", "development_stub", "local_worker", "local_json"]);
 export const analysisFixtureSchema = z.enum([
   "standard_low_distress",
   "standard_moderate_distress",
@@ -45,10 +45,18 @@ const modelEmotionOutputSchema = z
     if (Math.abs(total - 1) > 0.001)
       context.addIssue({ code: "custom", path: ["emotionDistribution"], message: "Emotion values must total 1." });
     if (new Set(result.emotionDistribution.map((item) => item.emotion)).size !== 6)
-      context.addIssue({ code: "custom", path: ["emotionDistribution"], message: "Each emotion must occur exactly once." });
+      context.addIssue({
+        code: "custom",
+        path: ["emotionDistribution"],
+        message: "Each emotion must occur exactly once.",
+      });
     const maximum = Math.max(...result.emotionDistribution.map((item) => item.value));
     if (!result.emotionDistribution.some((item) => item.emotion === result.dominantEmotion && item.value === maximum))
-      context.addIssue({ code: "custom", path: ["dominantEmotion"], message: "Dominant emotion must have the highest distribution value." });
+      context.addIssue({
+        code: "custom",
+        path: ["dominantEmotion"],
+        message: "Dominant emotion must have the highest distribution value.",
+      });
   });
 
 export const sanctuaryPerspectiveSchema = z
@@ -123,7 +131,7 @@ export const analysisProgressSchema = z.object({
   checks: z.array(analysisCheckProgressSchema).length(5).optional(),
 });
 
-export const journalAnalysisResultSchema = z
+export const journalAnalysisV1ResultSchema = z
   .object({
     schemaVersion: z.literal("echo-journal-analysis-v1"),
     thresholdVersion: z.string().trim().min(1).max(80),
@@ -191,7 +199,193 @@ export const journalAnalysisResultSchema = z
     }
   });
 
+export const plutchikEmotionSchema = z.enum([
+  "joy",
+  "trust",
+  "fear",
+  "surprise",
+  "sadness",
+  "disgust",
+  "anger",
+  "anticipation",
+]);
+export const distressCategorySchema = z.enum(["Others", "Anxious", "Depressed", "Frustrated", "Suicidal"]);
+export const goEmotionNameSchema = z.enum([
+  "admiration",
+  "amusement",
+  "anger",
+  "annoyance",
+  "approval",
+  "caring",
+  "confusion",
+  "curiosity",
+  "desire",
+  "disappointment",
+  "disapproval",
+  "disgust",
+  "embarrassment",
+  "excitement",
+  "fear",
+  "gratitude",
+  "grief",
+  "joy",
+  "love",
+  "nervousness",
+  "optimism",
+  "pride",
+  "realization",
+  "relief",
+  "remorse",
+  "sadness",
+  "surprise",
+]);
+const provenanceSchema = z
+  .object({ providerName: z.string().min(1), modelVersion: z.string().min(1), inferenceVersion: z.string().min(1) })
+  .strict();
+const nativeDistributionSchema = z
+  .array(z.object({ emotion: plutchikEmotionSchema, value: z.number().min(0).max(1) }).strict())
+  .length(8);
+export const journalAnalysisV2ResultSchema = z
+  .object({
+    schemaVersion: z.literal("echo-journal-analysis-v2"),
+    thresholdVersion: z.string().min(1).max(80),
+    providerName: z.string().min(1).max(80),
+    modelVersion: z.string().min(1).max(120),
+    isSimulated: z.literal(false),
+    emotionDistribution: nativeDistributionSchema,
+    dominantEmotion: plutchikEmotionSchema,
+    emotionConfidence: z.number().min(0).max(1),
+    distressBand: z.null(),
+    distressConfidence: z.null(),
+    depressiveSymptomRange: z.null(),
+    distressCategory: distressCategorySchema,
+    categoryScores: z
+      .object({
+        Others: z.number().min(0).max(1),
+        Anxious: z.number().min(0).max(1),
+        Depressed: z.number().min(0).max(1),
+        Frustrated: z.number().min(0).max(1),
+        Suicidal: z.number().min(0).max(1),
+      })
+      .strict(),
+    goEmotions: z.record(goEmotionNameSchema, z.number().min(0).max(1)),
+    supportReviewRequired: z.boolean(),
+    classificationMetadata: z
+      .object({
+        maxLength: z.literal(384),
+        stride: z.literal(64),
+        threshold: z.number().min(0).max(1),
+        windowCount: z.number().int().positive(),
+        declaredLanguage: z.enum(["en", "fil", "taglish", "unknown"]),
+      })
+      .strict(),
+    models: z.object({ xlmr: provenanceSchema, e4: provenanceSchema }).strict(),
+    recommendationFeatures: z
+      .array(
+        z.enum(["paced_breathing", "grounding", "behavioral_activation", "thought_reframing", "support_connection"]),
+      )
+      .min(1)
+      .max(5),
+    facialExpressionAnalysis: z.null(),
+    combinedEmotionAnalysis: z.null().optional(),
+    sanctuaryPerspective: z.null().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const emotions = value.emotionDistribution;
+    if (
+      new Set(emotions.map((x) => x.emotion)).size !== 8 ||
+      Math.abs(emotions.reduce((s, x) => s + x.value, 0) - 1) > 0.001
+    )
+      context.addIssue({ code: "custom", message: "Expected eight unique normalized emotions." });
+    if (
+      !emotions.some(
+        (x) => x.emotion === value.dominantEmotion && x.value === Math.max(...emotions.map((v) => v.value)),
+      )
+    )
+      context.addIssue({ code: "custom", message: "Dominant emotion must have the highest score." });
+    const scores = Object.values(value.categoryScores);
+    if (
+      Math.abs(scores.reduce((s, x) => s + x, 0) - 1) > 0.001 ||
+      value.categoryScores[value.distressCategory] !== Math.max(...scores)
+    )
+      context.addIssue({ code: "custom", message: "Invalid five-category distribution." });
+  });
+export const screeningItemsSchema = z
+  .object(
+    Object.fromEntries(
+      [
+        "anhedonia",
+        "depressed_mood",
+        "sleep",
+        "fatigue",
+        "appetite",
+        "worthlessness_guilt",
+        "concentration",
+        "psychomotor",
+      ].map((k) => [k, z.number().int().min(0).max(3).nullable()]),
+    ) as Record<
+      | "anhedonia"
+      | "depressed_mood"
+      | "sleep"
+      | "fatigue"
+      | "appetite"
+      | "worthlessness_guilt"
+      | "concentration"
+      | "psychomotor",
+      z.ZodNullable<z.ZodNumber>
+    >,
+  )
+  .strict();
+export const journalScreeningSchema = z
+  .object({
+    generatedAt: z.string().datetime().optional(),
+    status: z.enum(["available", "unavailable", "failed"]),
+    experimental: z.literal(true),
+    inferenceVersion: z.string(),
+    items: screeningItemsSchema.nullable(),
+    coverage: z.number().int().min(0).max(8),
+    subtotal: z.number().int().min(0).max(24).nullable(),
+    total: z.number().int().min(0).max(24).nullable(),
+    modelFingerprint: z.string().optional(),
+    truncated: z.boolean().optional(),
+    inputTokens: z.number().int().optional(),
+    retainedTokens: z.number().int().optional(),
+  })
+  .strict()
+  .superRefine((v, c) => {
+    const nums = v.items ? Object.values(v.items).filter((x): x is number => x !== null) : [];
+    const sum = nums.reduce((a, b) => a + b, 0);
+    if (
+      (v.status === "available") !== (v.items !== null) ||
+      v.coverage !== nums.length ||
+      v.subtotal !== (nums.length ? sum : null) ||
+      v.total !== (nums.length === 8 ? sum : null)
+    )
+      c.addIssue({ code: "custom", message: "Invalid nullable screening arithmetic" });
+  });
+export const journalAnalysisV3ResultSchema = z
+  .object({
+    ...journalAnalysisV2ResultSchema.shape,
+    schemaVersion: z.literal("echo-journal-analysis-v3"),
+    journalScreening: journalScreeningSchema,
+  })
+  .strict()
+  .superRefine((v, c) => {
+    const { journalScreening, ...native } = v;
+    const checked = journalAnalysisV2ResultSchema.safeParse({ ...native, schemaVersion: "echo-journal-analysis-v2" });
+    if (!checked.success)
+      for (const issue of checked.error.issues)
+        c.addIssue({ code: "custom", message: issue.message, path: issue.path });
+  });
+export const journalAnalysisResultSchema = z.union([
+  journalAnalysisV1ResultSchema,
+  journalAnalysisV2ResultSchema,
+  journalAnalysisV3ResultSchema,
+]);
+
 export const journalSubmissionResponseSchema = z.object({
+  storage: z.enum(["local_json", "supabase"]).optional(),
   journalId: z.string().uuid(),
   analysisJobId: z.string().uuid(),
   status: z.enum(["queued", "waiting_for_provider"]),
@@ -199,6 +393,17 @@ export const journalSubmissionResponseSchema = z.object({
 });
 
 export const dashboardInsightsSchema = z.object({
+  journalScreeningTrend: z
+    .array(
+      z.object({
+        date: z.string(),
+        status: z.enum(["available", "unavailable", "failed"]),
+        coverage: z.number().int().min(0).max(8),
+        subtotal: z.number().nullable(),
+        total: z.number().nullable(),
+      }),
+    )
+    .optional(),
   latestResultId: z.string().uuid().nullable().optional(),
   latest: journalAnalysisResultSchema.nullable(),
   recommendation: z
@@ -209,6 +414,9 @@ export const dashboardInsightsSchema = z.object({
       date: z.string().date(),
       values: z.record(z.string(), z.number().min(0).max(1)),
       isSimulated: z.boolean(),
+      schemaVersion: z
+        .enum(["echo-journal-analysis-v1", "echo-journal-analysis-v2", "echo-journal-analysis-v3"])
+        .optional(),
     }),
   ),
   distressTrend: z.array(
@@ -295,9 +503,18 @@ export function analysisChecksFor(
     aggregating_week: 3,
     completed: 3,
   };
-  const inferredCompleted = status === "retrying" || status === "failed"
-    ? progress >= 55 ? 3 : progress >= 45 ? 2 : progress >= 35 ? 1 : progress >= 25 ? 0 : -1
-    : completedThrough[status] ?? -1;
+  const inferredCompleted =
+    status === "retrying" || status === "failed"
+      ? progress >= 55
+        ? 3
+        : progress >= 45
+          ? 2
+          : progress >= 35
+            ? 1
+            : progress >= 25
+              ? 0
+              : -1
+      : (completedThrough[status] ?? -1);
 
   const checks = order.map<AnalysisCheckProgress>((id, index) => {
     if (status === "safety_action_required" && index === 0) {
@@ -308,7 +525,14 @@ export function analysisChecksFor(
     }
     if (index <= inferredCompleted) return { id, state: "complete", detail: textCheckDetails[id] };
     if (runningIndex[status] === index) {
-      const detail = index === 0 ? "Checking for support needs" : index === 1 ? "Reading emotional patterns" : index === 2 ? "Estimating distress" : "Estimating a symptom range";
+      const detail =
+        index === 0
+          ? "Checking for support needs"
+          : index === 1
+            ? "Reading emotional patterns"
+            : index === 2
+              ? "Estimating distress"
+              : "Estimating a symptom range";
       return { id, state: "running", detail };
     }
     return { id, state: "pending", detail: "Waiting" };

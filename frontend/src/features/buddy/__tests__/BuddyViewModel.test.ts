@@ -212,7 +212,7 @@ describe("useBuddyViewModel", () => {
     await waitFor(() => expect(result.current.accessStatus).toBe("allowed"));
     await act(async () => { await result.current.sendMessage(null, "Hello"); });
     expect(mockService.createConversation).not.toHaveBeenCalled();
-    expect(mockService.sendMessage).toHaveBeenCalledWith({ content: "Hello" });
+    expect(mockService.sendMessage).toHaveBeenCalledWith({ content: "Hello",temporarySessionId:expect.any(String) });
     expect(result.current.messages).toHaveLength(2);
     unmount();
     const fresh = renderHook(() => useBuddyViewModel());

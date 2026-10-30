@@ -37,7 +37,7 @@ export function RiskInsightsView() {
             {latest ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <RiskBadge band={latest.distressBand} />
+                  {latest.schemaVersion !== "echo-journal-analysis-v1" ? <span>{latest.distressCategory} category · clinical severity unavailable</span> : <RiskBadge band={latest.distressBand} />}
                   {latest.isSimulated ? <span className="text-xs font-semibold text-muted-foreground">Simulated development result</span> : null}
                 </div>
                 <p className="text-sm leading-6 text-muted-foreground">

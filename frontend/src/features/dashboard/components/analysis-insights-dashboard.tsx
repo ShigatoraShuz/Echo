@@ -3,6 +3,7 @@
 import { Activity, ChevronDown, HeartPulse, Radar } from "lucide-react";
 import type { DashboardInsights, JournalAnalysisResult } from "@echo/contracts";
 import { AnalysisBuddyAction } from "./analysis-buddy-action";
+import { NativeAnalysis } from "@/features/journal/components/native-analysis";
 
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
   if (!insights?.latest)
@@ -18,6 +19,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
       </section>
     );
   const result = insights.latest;
+  if (result.schemaVersion !== "echo-journal-analysis-v1") return <NativeAnalysis result={result} insights={insights} />;
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (
     <details className="echo-compact-card group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="analysis-insights-title">
