@@ -35,6 +35,7 @@ import {
 } from "react";
 
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import { GoogleEmailMigration } from "../components/google-email-migration";
 import { cn } from "@/shared/lib/utils";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { ThemeControls } from "@/shared/theme";
@@ -1205,6 +1206,9 @@ export function SecuritySettingsView() {
   const [passwordStatus, setPasswordStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
+  const [migrationAccount, setMigrationAccount] = useState<{ id: string; email: string } | null>(null);
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [accountError, setAccountError] = useState(false);
   const [auditEvents, setAuditEvents] = useState<SecurityAuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(true);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -1212,9 +1216,18 @@ export function SecuritySettingsView() {
   const [signingOutAll, setSigningOutAll] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
-    });
+    supabase.auth.getUser().then(({ data, error: authError }) => {
+      if (authError || !data.user) {
+        setAccountError(true);
+        return;
+      }
+      const user = data.user;
+      setEmail(user?.email ?? null);
+      const providers = user?.identities?.map((identity) => identity.provider) ?? [];
+      if (user?.email && providers.includes("google") && !providers.includes("email")) {
+        setMigrationAccount({ id: user.id, email: user.email });
+      }
+    }).catch(() => setAccountError(true)).finally(() => setAccountLoading(false));
   }, []);
 
   const loadAuditEvents = useCallback(async () => {
@@ -1326,7 +1339,9 @@ export function SecuritySettingsView() {
           title="Password & Authentication"
           description="Your ECHO account is secured via Supabase Auth."
         >
-          <div className="flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
+          {accountError ? <p role="alert" className="mb-4 text-sm text-destructive">Account security could not be loaded. Refresh and try again.</p> : null}
+          {migrationAccount ? <GoogleEmailMigration account={migrationAccount} /> : null}
+          {!accountLoading && !accountError && !migrationAccount ? <div className="flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10">
                 <KeyRound className="h-5 w-5 text-primary" />
@@ -1344,7 +1359,7 @@ export function SecuritySettingsView() {
               isChanging={passwordStatus === "saving"}
               successMessage={passwordStatus === "saved" ? "Password changed successfully." : null}
             />
-          </div>
+          </div> : null}
 
           <div className="mt-4 flex w-full min-w-0 flex-col gap-4 rounded-2xl border border-border/60 bg-card p-5">
             <div className="flex items-center gap-3">

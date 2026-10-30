@@ -8,11 +8,11 @@ import {
 } from "@/services/verification/verification-api";
 import { AppError } from "@/shared/errors/app-error";
 
-vi.mock("@/shared/components/layout/echo-shells", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+vi.mock("@/shared/components/layout/admin-shell", () => ({
+  AdminShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("@/services/verification/verification-api", () => ({
-  verificationApi: { adminList: vi.fn(), adminDetail: vi.fn(), adminClaim: vi.fn(), adminDecide: vi.fn() },
+  verificationApi: { adminList: vi.fn(), adminDetail: vi.fn(), adminClaim: vi.fn(), adminRescan: vi.fn(), adminDecide: vi.fn() },
 }));
 const summary: AdminVerificationSummary = {
   id: "application-one",
@@ -62,6 +62,7 @@ beforeEach(() => {
   vi.mocked(verificationApi.adminList).mockResolvedValue([summary]);
   vi.mocked(verificationApi.adminDetail).mockResolvedValue(detail);
   vi.mocked(verificationApi.adminClaim).mockResolvedValue({ ...detail, status: "under_review" });
+  vi.mocked(verificationApi.adminRescan).mockResolvedValue(detail);
   vi.mocked(verificationApi.adminDecide).mockResolvedValue({ ...detail, status: "approved" });
 });
 async function openReview() {
@@ -147,5 +148,42 @@ describe("Admin verification workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm decision" }));
     expect(await screen.findByRole("alert")).toBeVisible();
     expect(screen.queryByText("Decision saved: approved.")).not.toBeInTheDocument();
+  });
+  it("automatically rescans quarantined evidence before opening a selected application", async () => {
+    vi.mocked(verificationApi.adminDetail).mockRejectedValue(
+      new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document security checks must finish before review.", statusCode: 409 }),
+    );
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    await waitFor(() => expect(verificationApi.adminRescan).toHaveBeenCalledWith("application-one"));
+    expect(await screen.findByRole("heading", { name: "Sample Applicant" })).toBeVisible();
+  });
+  it("shows the scan error and a retry action if the automatic rescan does not complete", async () => {
+    vi.mocked(verificationApi.adminDetail).mockRejectedValue(
+      new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document security checks must finish before review.", statusCode: 409 }),
+    );
+    vi.mocked(verificationApi.adminRescan).mockRejectedValueOnce(
+      new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document scanning did not complete.", statusCode: 409 }),
+    );
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Document scanning did not complete.");
+    expect(screen.queryByRole("heading", { name: "Sample Applicant" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run security scan" }));
+    expect(await screen.findByRole("heading", { name: "Sample Applicant" })).toBeVisible();
+    expect(verificationApi.adminRescan).toHaveBeenCalledTimes(2);
+  });
+  it("does not show scanned details after the reviewer changes filters", async () => {
+    let resolve!: (value: AdminVerificationDetail) => void;
+    vi.mocked(verificationApi.adminDetail).mockRejectedValue(
+      new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document security checks must finish before review.", statusCode: 409 }),
+    );
+    vi.mocked(verificationApi.adminRescan).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    await waitFor(() => expect(verificationApi.adminRescan).toHaveBeenCalledWith("application-one"));
+    fireEvent.click(screen.getByRole("button", { name: "Approved" }));
+    await act(async () => { resolve(detail); });
+    expect(screen.queryByRole("heading", { name: "Sample Applicant" })).not.toBeInTheDocument();
   });
 });

@@ -25,6 +25,10 @@ const environmentSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_PUBLISHABLE_KEY: z.string().trim().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
+  VERIFICATION_SCANNER_URL: z.union([z.url(), z.literal("")]).optional(),
+  VERIFICATION_SCANNER_TOKEN: z.union([z.string().min(32), z.literal("")]).optional(),
+  VERIFICATION_SCANNER_MODE: z.enum(["quarantine", "windows_defender"]).default("quarantine"),
+  VERIFICATION_PDFINFO_PATH: z.string().trim().optional(),
   EMAIL_PROVIDER: z.enum(["disabled", "resend", "smtp"]).default("disabled"),
   EMAIL_FROM: z.union([z.email(), z.literal("")]).optional().transform((value) => value || undefined),
   RESEND_API_KEY: z.string().trim().optional().transform((value) => value || undefined),
@@ -94,6 +98,18 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
   if (parsed.data.NODE_ENV === "production" && !parsed.data.SIGNUP_DRAFT_SECRET) {
     throw new Error("SIGNUP_DRAFT_SECRET is required in production.");
   }
+  if (Boolean(parsed.data.VERIFICATION_SCANNER_URL) !== Boolean(parsed.data.VERIFICATION_SCANNER_TOKEN))
+    throw new Error("VERIFICATION_SCANNER_URL and VERIFICATION_SCANNER_TOKEN must be configured together.");
+  if (parsed.data.VERIFICATION_SCANNER_URL) {
+    const scannerUrl = new URL(parsed.data.VERIFICATION_SCANNER_URL);
+    if (scannerUrl.protocol !== "https:" &&
+        !(scannerUrl.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(scannerUrl.hostname)))
+      throw new Error("Verification scanner must use HTTPS or a local loopback address.");
+  }
+  if (parsed.data.VERIFICATION_SCANNER_MODE === "windows_defender" &&
+      (parsed.data.NODE_ENV === "production" || process.platform !== "win32" ||
+       !parsed.data.VERIFICATION_PDFINFO_PATH || parsed.data.VERIFICATION_SCANNER_URL))
+    throw new Error("Windows Defender scanning requires local Windows, pdfinfo, and no remote scanner configuration.");
   if (parsed.data.NODE_ENV === "production" &&
       [parsed.data.FRONTEND_URL, parsed.data.SUPABASE_URL].some((value) => new URL(value).protocol !== "https:"))
     throw new Error("Production frontend and Supabase URLs must use HTTPS.");

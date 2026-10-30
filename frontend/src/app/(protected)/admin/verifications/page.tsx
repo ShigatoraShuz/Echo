@@ -15,7 +15,7 @@ import {
   UserRoundCheck,
   XCircle,
 } from "lucide-react";
-import { AppShell } from "@/shared/components/layout/echo-shells";
+import { AdminShell } from "@/shared/components/layout/admin-shell";
 import { EchoButton } from "@/shared/components/ui";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import {
@@ -67,10 +67,12 @@ export default function AdminVerificationsPage() {
   const [busy, setBusy] = useState(false);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [decision, setDecision] = useState<"approved" | "needs_changes" | "rejected">("approved");
   const [reasonCode, setReasonCode] = useState("");
   const [note, setNote] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [checkedEvidence, setCheckedEvidence] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export default function AdminVerificationsPage() {
     const requestId = ++listRequest.current;
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     try {
       const next = await verificationApi.adminList(filter);
       if (requestId !== listRequest.current) return;
@@ -93,6 +96,7 @@ export default function AdminVerificationsPage() {
       setSelectedId(null);
       setDetail(null);
       setError(normalized.userMessage);
+      setErrorCode(normalized.code);
     } finally {
       if (requestId === listRequest.current) setLoading(false);
     }
@@ -108,6 +112,7 @@ export default function AdminVerificationsPage() {
 
   useEffect(() => {
     setDetail(null);
+    setScanning(false);
     setCheckedEvidence(false);
     setConfirmed(false);
     setReasonCode("");
@@ -119,23 +124,55 @@ export default function AdminVerificationsPage() {
     let active = true;
     setDetailLoading(true);
     setError(null);
-    void verificationApi
-      .adminDetail(selectedId)
-      .then((next) => {
+    setErrorCode(null);
+    void (async () => {
+      try {
+        let next: AdminVerificationDetail;
+        try {
+          next = await verificationApi.adminDetail(selectedId);
+        } catch (reason) {
+          if (normalizeError(reason).code !== "DOCUMENT_SCAN_PENDING") throw reason;
+          if (!active) return;
+          setScanning(true);
+          next = await verificationApi.adminRescan(selectedId);
+        }
         if (!next.application)
           throw new Error("The protected application is unavailable. No decision can be recorded.");
         if (active) setDetail(next);
-      })
-      .catch((reason) => {
-        if (active) setError(normalizeError(reason).userMessage);
-      })
-      .finally(() => {
-        if (active) setDetailLoading(false);
-      });
+      } catch (reason) {
+        if (active) {
+          const normalized = normalizeError(reason);
+          setError(normalized.userMessage);
+          setErrorCode(normalized.code);
+        }
+      } finally {
+        if (active) {
+          setDetailLoading(false);
+          setScanning(false);
+        }
+      }
+    })();
     return () => {
       active = false;
     };
   }, [selectedId]);
+
+  async function rescan() {
+    if (!selectedId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setDetail(await verificationApi.adminRescan(selectedId));
+      setNotice("Security scan completed. The evidence is ready for review.");
+      await loadList();
+    } catch (reason) {
+      const normalized = normalizeError(reason);
+      setError(normalized.userMessage);
+      setErrorCode(normalized.code);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function claim() {
     if (!selectedId || detail?.id !== selectedId || busy) return;
@@ -189,7 +226,7 @@ export default function AdminVerificationsPage() {
 
   if (forbidden) {
     return (
-      <AppShell>
+      <AdminShell>
         <div className="mx-auto max-w-2xl rounded-[2rem] border border-danger/20 bg-card p-8 text-center shadow-card">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-crisis-soft text-danger">
             <ShieldAlert className="h-7 w-7" aria-hidden="true" />
@@ -206,12 +243,12 @@ export default function AdminVerificationsPage() {
             <ArrowLeft className="h-4 w-4" /> Return to account verification
           </Link>
         </div>
-      </AppShell>
+      </AdminShell>
     );
   }
 
   return (
-    <AppShell>
+    <AdminShell>
       <header className="mb-5 overflow-hidden rounded-[2rem] border border-[var(--landing-primary-10)] bg-[linear-gradient(115deg,rgba(251,247,238,0.97),rgba(220,232,214,0.78))] p-6 shadow-card sm:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -224,7 +261,6 @@ export default function AdminVerificationsPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/admin/professionals" className="inline-flex h-11 items-center rounded-xl border border-primary/20 px-4 text-sm font-semibold text-primary">Professional access</Link>
             <EchoButton
               type="button"
               variant="outline"
@@ -237,12 +273,6 @@ export default function AdminVerificationsPage() {
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </EchoButton>
-            <Link
-              href="/settings/verification"
-              className="inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
-            >
-              My verification
-            </Link>
           </div>
         </div>
       </header>
@@ -311,6 +341,8 @@ export default function AdminVerificationsPage() {
                     setDetail(null);
                     setSelectedId(item.id);
                     setNotice(null);
+                    setError(null);
+                    setErrorCode(null);
                   }}
                   className={cn(
                     "mb-1 w-full rounded-2xl border p-4 text-left outline-none transition-[background-color,border-color,transform] duration-150 hover:bg-secondary/70 focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[0.99]",
@@ -348,11 +380,16 @@ export default function AdminVerificationsPage() {
               <div>
                 <LockKeyhole className="mx-auto h-8 w-8 text-primary" />
                 <p role="status" className="mt-4 font-semibold">
-                  {detailLoading ? "Opening protected application…" : "Select an application to begin."}
+                  {scanning || (busy && errorCode === "DOCUMENT_SCAN_PENDING") ? "Scanning protected documents…" : detailLoading ? "Opening protected application…" : selectedId && error ? "Application unavailable for review" : "Select an application to begin."}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Sensitive details are only decrypted for authorized reviewers.
                 </p>
+                {selectedId && errorCode === "DOCUMENT_SCAN_PENDING" && (
+                  <EchoButton type="button" className="mt-5" isLoading={busy} loadingText="Scanning…" onClick={() => void rescan()}>
+                    <RefreshCw className="h-4 w-4" /> Run security scan
+                  </EchoButton>
+                )}
               </div>
             </div>
           ) : (
@@ -574,6 +611,6 @@ export default function AdminVerificationsPage() {
           ) : null}
         </section>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }

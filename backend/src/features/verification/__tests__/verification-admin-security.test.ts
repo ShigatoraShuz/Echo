@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EncryptionService } from "../../../infrastructure/encryption/encryption.service.js";
+import type { DocumentScanner } from "../../../infrastructure/security/document-scanner.js";
 import { VerificationService } from "../verification.service.js";
 
-function harness(admin: boolean, row: Record<string, unknown> | null = null) {
+function harness(admin: boolean, row: Record<string, unknown> | null = null, documents: Record<string, unknown>[] = [], scanner?: DocumentScanner) {
   let table = "";
+  const download = vi.fn();
   const chain = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -15,9 +18,10 @@ function harness(admin: boolean, row: Record<string, unknown> | null = null) {
       data: table === "verification_admins" ? (admin ? { user_id: "reviewer" } : null) : row,
       error: null,
     })),
-    order: vi.fn(async () => ({ data: [], error: null })),
+    order: vi.fn(async () => ({ data: documents, error: null })),
   };
   const db = {
+    storage: { from: vi.fn(() => ({ download })) },
     schema: vi.fn().mockReturnThis(),
     from: vi.fn((name) => {
       table = name;
@@ -28,9 +32,11 @@ function harness(admin: boolean, row: Record<string, unknown> | null = null) {
     service: new VerificationService(
       db as unknown as SupabaseClient,
       { encrypt: vi.fn(), decrypt: vi.fn() } as EncryptionService,
+      scanner,
     ),
     chain,
     db,
+    download,
   };
 }
 describe("Verification administrator authorization", () => {
@@ -74,6 +80,65 @@ describe("Verification administrator authorization", () => {
     await expect(
       service.decide("reviewer", "application", { decision: "approved", reasonCode: null, note: null }),
     ).rejects.toMatchObject({ statusCode: 400 });
+    expect(chain.update).not.toHaveBeenCalled();
+  });
+  it("does not submit documents that the scanner has not cleared", async () => {
+    const { service, chain } = harness(true, {
+      id: "application",
+      verification_status: "draft",
+      details_ciphertext: "encrypted",
+      is_minor: false,
+    }, [{ document_kind: "user_government_id", scan_status: "quarantined" }]);
+    await expect(service.submit("applicant")).rejects.toMatchObject({ code: "DOCUMENT_SCAN_PENDING" });
+    expect(chain.update).not.toHaveBeenCalled();
+  });
+  it("rescans a draft after scanner recovery before submitting it", async () => {
+    const bytes = Buffer.from("%PDF-1.7\n synthetic fixture\n%%EOF");
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const documents: Record<string, unknown>[] = [{ id: "document", document_kind: "user_government_id", mime_type: "application/pdf", storage_path: "applicant/document.pdf", sha256_hex: sha256, scan_status: "quarantined" }];
+    const scanner: DocumentScanner = { inspect: vi.fn(async () => ({ status: "clean", sha256, scannerVersion: "test-scanner", pages: 1 })) };
+    const { service, chain, download } = harness(false, {
+      id: "application", verification_status: "draft", details_ciphertext: "encrypted", is_minor: false,
+    }, documents, scanner);
+    download.mockResolvedValue({ data: new Blob([new Uint8Array(bytes)]), error: null });
+    chain.update.mockImplementation((patch) => {
+      if ("scan_status" in patch) Object.assign(documents[0], patch);
+      return chain;
+    });
+    vi.spyOn(service, "getStatus").mockResolvedValue({} as never);
+
+    await service.submit("applicant");
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ scan_status: "clean" }));
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ verification_status: "submitted" }));
+  });
+  it("does not claim a quarantined application", async () => {
+    const { service, chain } = harness(true);
+    vi.spyOn(service, "getForAdmin").mockRejectedValue(new Error("Document security checks must finish before review."));
+    await expect(service.claimForReview("reviewer", "application")).rejects.toThrow("Document security checks");
+    expect(chain.update).not.toHaveBeenCalled();
+  });
+  it("rescans a stored document only after checking its hash and reviewer authority", async () => {
+    const bytes = Buffer.from("%PDF-1.7\n synthetic fixture\n%%EOF");
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const scanner: DocumentScanner = { inspect: vi.fn(async () => ({ status: "clean", sha256, scannerVersion: "test-scanner", pages: 1 })) };
+    const { service, chain, download } = harness(true, {
+      user_id: "applicant", verification_status: "submitted",
+    }, [{ id: "document", document_kind: "user_government_id", mime_type: "application/pdf", storage_path: "applicant/document.pdf", sha256_hex: sha256, scan_status: "quarantined" }], scanner);
+    download.mockResolvedValue({ data: new Blob([new Uint8Array(bytes)]), error: null });
+    vi.spyOn(service, "getForAdmin").mockResolvedValue({} as never);
+
+    await service.rescanForAdmin("reviewer", "application");
+    expect(download).toHaveBeenCalledWith("applicant/document.pdf");
+    expect(chain.update).toHaveBeenCalledWith(expect.objectContaining({ scan_status: "clean", scanner_version: "test-scanner" }));
+  });
+  it("never marks altered stored bytes clean", async () => {
+    const scanner: DocumentScanner = { inspect: vi.fn() };
+    const { service, chain, download } = harness(true, {
+      user_id: "applicant", verification_status: "submitted",
+    }, [{ id: "document", mime_type: "application/pdf", storage_path: "applicant/document.pdf", sha256_hex: "wrong", scan_status: "quarantined" }], scanner);
+    download.mockResolvedValue({ data: new Blob(["altered"]), error: null });
+    await expect(service.rescanForAdmin("reviewer", "application")).rejects.toMatchObject({ code: "DOCUMENT_INTEGRITY_FAILED" });
+    expect(scanner.inspect).not.toHaveBeenCalled();
     expect(chain.update).not.toHaveBeenCalled();
   });
   it("links a verification decision notification to the user's verification settings", async () => {

@@ -21,6 +21,12 @@ The backend is one Express modular monolith. Feature routers call controllers or
 Supabase PostgreSQL with Row-Level Security.
 Migrations in `supabase/migrations/`.
 
+## Buddy demo replies
+
+Buddy currently uses fixed, clearly labeled example replies in [`buddy-demo-replies.ts`](src/features/experience/buddy-demo-replies.ts); no CBT response model or FastAPI inference is involved. The examples use simple reflection questions inspired by the [NHS thought-record exercise](https://www.nhs.uk/every-mind-matters/mental-wellbeing-tips/self-help-cbt-techniques/thought-record/). They are for testing the conversation flow, not personalized therapy.
+
+To test in the app, sign in with an account that has approved verification and a valid Trusted Support Contact, open Buddy, choose one of the four prompt ideas, and send it. Each idea gets a distinct `Demo reply (not AI-generated)` message. Ordinary messages get a fixed theme response or a generic example. Existing urgent-language handling still takes precedence. History saving and deletion continue to use the existing privacy setting. `AI_ANALYSIS_MODE` controls a separate journal-analysis feature and is not required for these replies.
+
 ## Development
 
 ```bash

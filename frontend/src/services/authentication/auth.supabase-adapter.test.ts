@@ -98,6 +98,21 @@ describe("email login codes", () => {
     });
   });
 
+  it("reports email delivery failures without exposing provider details", async () => {
+    mocks.signInWithOtp.mockResolvedValue({
+      error: { status: 500, code: "unexpected_failure", message: "SMTP provider details" },
+    });
+
+    const result = await createAuthSupabaseAdapter().sendLoginCode!("mira@test.com");
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        message: expect.stringMatching(/sign-in email is temporarily unavailable/i),
+      },
+    });
+    expect(result).not.toHaveProperty("error.message", expect.stringContaining("SMTP provider details"));
+  });
+
   it("requires a verified OTP session and explains expired codes", async () => {
     mocks.verifyOtp.mockResolvedValue({
       data: {
@@ -307,6 +322,20 @@ describe("createAuthSupabaseAdapter session persistence", () => {
     expect(result).toMatchObject({
       success: false,
       error: { code: "RATE_LIMITED", message: expect.stringMatching(/wait and try again later/i) },
+    });
+  });
+
+  it("explains that a new email account must be confirmed before password login", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { session: null },
+      error: { status: 400, code: "email_not_confirmed", message: "Email not confirmed" },
+    });
+    const result = await createAuthSupabaseAdapter().login({
+      email: "mira@test.com", password: "SecurePass1", rememberSession: false,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: "EMAIL_NOT_CONFIRMED", message: "Verify your email address before logging in." },
     });
   });
 

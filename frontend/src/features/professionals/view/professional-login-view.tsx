@@ -8,9 +8,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Leaf, Mail, ShieldC
 import { AuthFormField } from "@/features/authentication/components/auth-form-field";
 import { AuthStatusMessage } from "@/features/authentication/components/auth-status-message";
 import { EmailOtpForm } from "@/features/authentication/components/email-otp-form";
-import { AuthDivider } from "@/features/authentication/components/google-auth-button";
 import { PasswordField } from "@/features/authentication/components/password-field";
-import { SecureGoogleLoginButton } from "@/features/authentication/components/secure-google-login-button";
 import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
 import { EchoInlineMessage } from "@/shared/components/feedback/echo-inline-message";
@@ -26,7 +24,7 @@ const routeMessages: Record<string, string> = {
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before signing in.",
   sign_in_session_expired: "Your sign-in session expired. Please sign in again.",
-  google_account_exists: "This Google account already exists. Sign in with Google to continue.",
+  google_account_exists: "This Google account already exists. Use the account migration page to move it to email sign-in.",
 };
 const linkStyle = "inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]";
 
@@ -134,11 +132,6 @@ export function ProfessionalLoginView() {
             </header>
             {routeMessage ? <EchoInlineMessage variant="error" message={routeMessage} className="mt-5" /> : null}
 
-            <div className="mt-7 space-y-5 [&_button:focus-visible]:outline-none [&_button:focus-visible]:ring-4 [&_button:focus-visible]:ring-primary/20" inert={busy || finished || undefined}>
-              <SecureGoogleLoginButton successPath={destination} />
-              <AuthDivider />
-            </div>
-
             <div role="group" aria-label="Email sign-in method" className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-[var(--landing-primary-15)] bg-secondary/50 p-1">
               {(["code", "password"] as const).map((value) => (
                 <button key={value} type="button" aria-pressed={method === value} disabled={busy || finished}
@@ -180,7 +173,8 @@ export function ProfessionalLoginView() {
               <p className="text-xs leading-6 text-[var(--landing-muted)]">Signing in confirms your identity. Professional access still requires approved membership and multi-factor verification.</p>
             </div>
           </section>
-          <p className="mt-4 text-center text-xs leading-6 text-[var(--landing-muted)]">New to ECHO? <Link href="/signup" className={`${linkStyle} text-xs`}>Create an account<ArrowRight size={13} aria-hidden="true" /></Link></p>
+          <p className="mt-4 text-center text-xs leading-6 text-[var(--landing-muted)]">Used Google before? <Link href="/google-migration" className={`${linkStyle} text-xs`}>Move your account to email<ArrowRight size={13} aria-hidden="true" /></Link></p>
+          <p className="mt-2 text-center text-xs leading-6 text-[var(--landing-muted)]">New to ECHO? <Link href="/signup" className={`${linkStyle} text-xs`}>Create an account<ArrowRight size={13} aria-hidden="true" /></Link></p>
           <div className="flex justify-center"><Link href="/" className={`${linkStyle} text-xs text-[var(--landing-muted)]`}><ArrowLeft size={14} aria-hidden="true" />Return home</Link></div>
         </div>
       </main>

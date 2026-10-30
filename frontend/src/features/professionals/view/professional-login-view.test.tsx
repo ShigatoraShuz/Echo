@@ -13,10 +13,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router, useSearchParams: () => mocks.searchParams,
 }));
 vi.mock("@/services/authentication/auth-service.factory", () => ({ getAuthService: () => mocks }));
-// Keep the established provider implementation untouched; its own tests cover GIS.
-vi.mock("@/features/authentication/components/secure-google-login-button", () => ({
-  SecureGoogleLoginButton: ({ successPath }: { successPath: string }) => <button data-destination={successPath}>Continue with Google</button>,
-}));
 
 const session: AuthSession = {
   user: { id: "synthetic-user", name: "Synthetic Professional", email: "professional@example.test" },
@@ -55,7 +51,8 @@ describe("professional login presentation and authentication", () => {
     const { container } = render(<ProfessionalLoginView />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Email code" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toHaveAttribute("data-destination", destination);
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Move your account to email/i })).toHaveAttribute("href", "/google-migration");
     expect(screen.getByRole("link", { name: "Personal sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: /create an account/i })).toHaveAttribute("href", "/signup");
     expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute("href", "/");
@@ -104,10 +101,12 @@ describe("professional login presentation and authentication", () => {
     expect(mocks.router.replace).not.toHaveBeenCalled();
   });
 
-  it.each(["https://other.example/", "//other.example/", "/professional/request"])("limits an unapproved return path %s for every login method", (next) => {
+  it.each(["https://other.example/", "//other.example/", "/professional/request"])("limits an unapproved return path %s for password sign-in", async (next) => {
     mocks.searchParams = new URLSearchParams({ next });
     render(<ProfessionalLoginView />);
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toHaveAttribute("data-destination", destination);
+    await passwordForm();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
+    expect(mocks.router.replace).toHaveBeenCalledWith(destination);
   });
 
   it("preserves an allowed case deep link through the access gateway", async () => {
@@ -117,7 +116,6 @@ describe("professional login presentation and authentication", () => {
     await passwordForm();
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
     expect(mocks.router.replace).toHaveBeenCalledWith(`/professional/access?next=${encodeURIComponent(next)}`);
-    expect(screen.getByRole("button", { name: "Continue with Google" })).toHaveAttribute("data-destination", `/professional/access?next=${encodeURIComponent(next)}`);
   });
 
   it("shows busy feedback, disables competing controls and prevents duplicate password submission", async () => {
@@ -133,7 +131,6 @@ describe("professional login presentation and authentication", () => {
     expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
     expect(screen.getByLabelText(/email address/i)).toBeDisabled();
     expect(screen.getByRole("button", { name: "Email code" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Continue with Google" }).closest("[inert]")).not.toBeNull();
     await act(async () => finish({ success: true, data: session }));
     expect(mocks.router.replace).toHaveBeenCalledTimes(1);
   });

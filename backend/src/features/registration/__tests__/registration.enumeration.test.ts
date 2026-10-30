@@ -4,12 +4,25 @@ import { RegistrationService } from "../registration.service.js";
 function harness(error:unknown) {
  const secret="synthetic-test-secret";
  const rpc=vi.fn(async(name:string)=>name==="echo_registration_get_draft" ? {data:{id:"draft",state:"account",csrf_hash:createHmac("sha256",secret).update("csrf").digest("hex")},error:null}:{data:true,error:null});
- const signUp=vi.fn().mockResolvedValue({error});
+ const signUp=vi.fn().mockResolvedValue({data:{user:{id:"new-user"}},error});
  const factory=vi.fn(()=>({auth:{signUp}}));
  const service=new RegistrationService({rpc} as never,factory as never,secret,"","https://echo.example");
  return {service,signUp,factory,rpc};
 }
 describe("registration enumeration boundary",()=>{
+ it("passes the chosen password and confirmation redirect to Supabase",async()=>{
+ const h=harness(null);
+ await h.service.registerEmail("token","csrf","  New@Example.Test  ","StrongPass1");
+ expect(h.signUp).toHaveBeenCalledWith({
+   email:"new@example.test",password:"StrongPass1",
+   options:{data:{signup_reservation:expect.any(String)},emailRedirectTo:"https://echo.example/callback?next=/onboarding"},
+ });
+ });
+ it("does not claim an account was created if Auth returns no user",async()=>{
+ const h=harness(null);
+ h.signUp.mockResolvedValueOnce({data:{user:null},error:null});
+ await expect(h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1")).rejects.toMatchObject({code:"EMAIL_SIGNUP_FAILED"});
+ });
  it.each([null,{code:"user_already_exists",message:"private account detail"},{code:"email_exists",message:"private account detail"}])("returns identical credential shapes for existing and new addresses",async(error)=>{
  const h=harness(error);const result=await h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1");
  expect(Object.keys(result).sort()).toEqual(["csrf","token"]);expect(result.token).toHaveLength(43);expect(h.factory).toHaveBeenCalledOnce();

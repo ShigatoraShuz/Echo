@@ -168,7 +168,7 @@ export class RegistrationService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Email registration could not be prepared.");
     let failure: { code?: string; status?: number } | null = null;
     try {
-      const { error } = await this.publicAuth.auth.signUp({
+      const { data, error } = await this.publicAuth.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
@@ -176,7 +176,7 @@ export class RegistrationService {
           emailRedirectTo: `${this.frontendUrl.replace(/\/$/, "")}/callback?next=/onboarding`,
         },
       });
-      failure = error;
+      failure = error ?? (data.user ? null : {});
     } catch {
       failure = {};
     }

@@ -1,0 +1,2 @@
+# Migration manifests hash exact bytes on every platform.
+supabase/migrations/*.sql -text
