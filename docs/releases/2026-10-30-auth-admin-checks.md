@@ -11,6 +11,7 @@ The release preserves the committed Professional Portal work and the remote navi
 - Type checking, lint (existing warnings), production build, route manifest, source/bundle scan, query boundaries, password policy, and isolated SQL security checks passed.
 - Runtime and full dependency audits report zero vulnerabilities. Updated Vite/Vitest remain within their existing major versions.
 - Archived migration hashes are retained; the manifest test accepts only byte-identical SQL or LF/CRLF equivalents. Migration checkout conversion is disabled to preserve repository bytes.
+- The Linux build's Google-font loader failure is avoided by bundling the same Latin WOFF2 fonts with their licenses. The secret-history exception is limited to one fingerprint for a public migration filename in a test fixture.
 
 ## Live acceptance still required
 

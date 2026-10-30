@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import {
-  Cormorant_Garamond,
-  Manrope,
-} from "next/font/google";
+import localFont from "next/font/local";
 
 import { ThemeProvider } from "@/shared/theme";
 import { EchoIntroGate } from "@/shared/components/branding/echo-intro-gate";
@@ -22,21 +19,18 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "ECHO", statusBarStyle: "default" },
 };
 
-const echoSans = Manrope({
-  subsets: ["latin"],
+const echoSans = localFont({
+  src: "./fonts/Manrope-Latin.woff2",
+  weight: "200 800",
   variable:
     "--font-echo-sans",
   display: "swap",
 });
 
 const echoDisplay =
-  Cormorant_Garamond({
-    subsets: ["latin"],
-    weight: [
-      "400",
-      "500",
-      "600",
-    ],
+  localFont({
+    src: "./fonts/CormorantGaramond-Latin.woff2",
+    weight: "400 600",
     variable:
       "--font-echo-display",
     display: "swap",
