@@ -8,7 +8,7 @@ export function sealAnalysisResult(value:unknown,encryption:EncryptionService) {
   providerName:result.providerName,modelVersion:result.modelVersion,isSimulated:result.isSimulated,
   recommendationFeatures:result.recommendationFeatures,
   // Minimal existing safety-prompt index; detailed scores/distributions remain encrypted.
-  supportSeverity:result.distressBand==="low" ? "minimal" : result.distressBand==="high" ? "moderately_severe" : result.distressBand,
+  supportSeverity:result.schemaVersion==="echo-journal-analysis-v2" ? null : result.distressBand==="low" ? "minimal" : result.distressBand==="high" ? "moderately_severe" : result.distressBand,
  };
 }
 export function openAnalysisResult(value:unknown,encryption:EncryptionService):JournalAnalysisResult {

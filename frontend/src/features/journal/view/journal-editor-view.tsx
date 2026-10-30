@@ -41,6 +41,7 @@ export function JournalEditorView() {
   const photoBackGuardRef = useRef(false);
   const faceCaptureRef = useRef<JournalFaceCaptureHandle>(null);
   const [facialAllowed, setFacialAllowed] = useState(false);
+  const [journalAiAllowed,setJournalAiAllowed]=useState<boolean|null>(null);
   const [facialRequested, setFacialRequested] = useState(false);
 
   useEffect(() => {
@@ -50,10 +51,10 @@ export function JournalEditorView() {
     else router.push(destination);
   }, [savedEntry, router]);
   useEffect(() => {
-    if (!env.enableFacialAnalysis) return;
+
     let active = true;
     void settingsService.get().then((settings) => {
-      if (active) setFacialAllowed(settings.privacy.facialAnalysisEnabled);
+      if (active) {setJournalAiAllowed(settings.privacy.journalAiAnalysisEnabled ?? false);setFacialAllowed(settings.privacy.facialAnalysisEnabled);setAnalysisConsent(settings.privacy.journalAiAnalysisEnabled ?? false);}
     }).catch(() => { if (active) setFacialAllowed(false); });
     return () => { active = false; };
   }, []);
@@ -261,7 +262,7 @@ export function JournalEditorView() {
             <div className="mt-4 space-y-4">
               <label htmlFor="journal-tags" className="block text-xs font-semibold text-muted-foreground">Tags, separated by commas</label>
               <input id="journal-tags" value={tags.join(", ")} onChange={(event) => setTags(event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean))} placeholder="rest, work" className="h-11 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-4 focus-visible:ring-primary/20" />
-              <label className="flex items-center gap-3 text-sm text-foreground"><input type="checkbox" checked={analysisConsent} onChange={(event) => setAnalysisConsent(event.target.checked)} className="h-4 w-4 accent-primary" /> Allow a reflective summary after saving</label>
+              <p className="text-sm text-foreground">{journalAiAllowed===null ? "Analysis follows your journal-analysis consent in Privacy settings." : journalAiAllowed ? "Saving runs analysis on this computer. Results stay in local JSON files." : "Your reflection will be saved without analysis because journal analysis is disabled."} <Link href="/settings/privacy" className="underline">Privacy settings</Link></p>
               {analysisConsent && env.enableFacialAnalysis && (facialAllowed ? <JournalFaceCapture ref={faceCaptureRef} requested={facialRequested} onRequestedChange={setFacialRequested} /> : <p className="text-xs text-muted-foreground">Face mesh is off. You can enable it in <Link href="/settings/privacy" className="underline">Privacy settings</Link>.</p>)}
               {env.enableAnalysisFixtures && analysisConsent && <label className="grid gap-1 text-xs text-muted-foreground">Development fixture<select value={fixture} onChange={(event) => setFixture(analysisFixtureSchema.parse(event.target.value))} className="h-10 rounded-xl border border-border bg-card px-3 text-foreground">{analysisFixtureSchema.options.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select></label>}
             </div>

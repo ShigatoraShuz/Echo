@@ -1,3 +1,6 @@
+import { AuthorizationError } from "../../shared/errors/app-error.js";
+import { assertAiEnabled as assertVoiceEnabled } from "../../infrastructure/security/runtime-controls.js";
+import { LocalBuddyStore } from "../../infrastructure/analysis/local-buddy-store.js";
 import { randomUUID } from "node:crypto";
 import { WellnessService, defaultWellnessSchedule, type WellnessSchedule } from "./wellness.service.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -6,6 +9,7 @@ import type { EncryptionService } from "../../infrastructure/encryption/encrypti
 import { encryptText, decryptText } from "../../infrastructure/encryption/encryption.service.js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 import { ConflictError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
+import type { CoreClient, ChatTurn } from "../../infrastructure/analysis/core-client.js";
 
 type DatabaseRow = Record<string, unknown>;
 
@@ -102,6 +106,11 @@ function searchWords(value: string): string[] {
 }
 
 export class ExperienceService {
+  private temporary=new Map<string,{turns:ChatTurn[];expires:number}>();
+  private approvedVoice=new Map<string,{text:string;expires:number}>();
+  async transcribeVoice(user:string,audio:Buffer,signal?:AbortSignal){await assertVoiceEnabled();await this.historyEnabled(user);if(!this.coreClient)throw new NotFoundError('Local speech is unavailable.');return this.coreClient.speech({task:'transcribe',audio:audio.toString('base64')},signal);}
+  async speakVoice(user:string,text:string,signal?:AbortSignal){await assertVoiceEnabled();const allowed=[...this.approvedVoice.entries()].some(([key,v])=>key.startsWith(user+':')&&v.expires>Date.now()&&v.text===text);if(!allowed&&!this.localBuddy?.list(user).some(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text)))throw new AuthorizationError('Only recent approved Buddy replies can be spoken.');if(!this.coreClient)throw new NotFoundError('Local speech unavailable.');const result=await this.coreClient.speech({task:'speak',text},signal);if(result.model&&this.localBuddy){const c=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text));if(c){c.provenance.push({speech:result.model,at:new Date().toISOString()});this.localBuddy.save(c);}}return result;}
+  private rememberReply(user:string,text:string){for(const [key,value] of this.approvedVoice)if(value.expires<Date.now())this.approvedVoice.delete(key);if(this.approvedVoice.size>=1000)this.approvedVoice.delete(this.approvedVoice.keys().next().value!);this.approvedVoice.set(user+':'+randomUUID(),{text,expires:Date.now()+1800000});}
   readonly wellness: WellnessService;
   constructor(
     private readonly database: SupabaseClient,
@@ -109,8 +118,15 @@ export class ExperienceService {
     private readonly encryption: EncryptionService,
     schedule: WellnessSchedule = defaultWellnessSchedule,
     private readonly userDatabase?: () => SupabaseClient,
+    private readonly coreClient?: CoreClient,
+    readonly localBuddy?: LocalBuddyStore,
   ) { this.wellness = new WellnessService(database, schedule, encryption); }
 
+  async cancelLocal(user:string,journal:string){await this.journals.get(user,journal);this.journals.localResults?.remove(user,journal);}
+  archiveLocal(user:string,id:string,archived:boolean){if(!this.localBuddy)throw new NotFoundError('Local storage is disabled.');return this.localBuddy.save({...this.localBuddy.get(user,id),archived});}
+  exportLocal(user:string){if(!this.localBuddy||!this.journals.localResults)throw new NotFoundError('Local storage is disabled.');return {format:'echo-local-v1',analysis:this.journals.localResults.export(user),buddy:this.localBuddy.list(user)};}
+  clearLocal(user:string){for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);this.journals.localResults?.clear(user);for(const c of this.localBuddy?.list(user)??[])this.localBuddy!.remove(user,c.id);}
+  async retryLocal(user:string,journal:string){return this.journals.retryLocalAnalysis(user,journal);}
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
   private async historyEnabled(userId: string): Promise<boolean> {
@@ -272,6 +288,7 @@ export class ExperienceService {
 
   async createBuddyConversation(userId: string) {
     if (!(await this.historyEnabled(userId))) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to create a saved conversation.");
+    if(this.localBuddy)return this.localBuddy.create(userId);
     const title = "Buddy conversation";
     const { data, error } = await this.database.schema("buddy_service").rpc("create_conversation", {
       p_user_id: userId, p_title_ciphertext: encryptText(title, this.encryption),
@@ -284,6 +301,7 @@ export class ExperienceService {
   }
 
   async renameBuddyConversation(userId: string, conversationId: string, title: string) {
+    if(this.localBuddy)return this.localBuddy.save({...this.localBuddy.get(userId,conversationId),title});
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").rpc("rename_conversation", {
       p_user_id: userId, p_conversation_id: conversationId,
@@ -296,6 +314,7 @@ export class ExperienceService {
   }
 
   async deleteBuddyConversation(userId: string, conversationId: string) {
+    if(this.localBuddy)return this.localBuddy.remove(userId,conversationId);
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .delete().eq("id", conversationId).eq("user_id", userId).select("id").maybeSingle();
@@ -310,6 +329,7 @@ export class ExperienceService {
         id: "welcome", role: "buddy", content: "I am here with you. What feels most present right now?", timestamp: "Now",
       }] };
     }
+    if(this.localBuddy){const c=this.localBuddy.get(userId,selectedConversationId);return {conversationId:c.id,conversation:c,messages:c.messages};}
     const conversation = await this.ownedConversation(userId, selectedConversationId);
     const conversationId = asString(conversation.id);
     const { data, error } = await this.reader
@@ -351,13 +371,34 @@ export class ExperienceService {
     return { conversationId, conversation: this.conversationSummary(conversation), messages };
   }
 
-  async sendBuddyMessage(userId: string, content: string, selectedConversationId?: string) {
+  async sendBuddyMessage(userId: string, content: string, selectedConversationId?: string,temporarySessionId?:string) {
+    const temporaryKey=userId+':'+(temporarySessionId??'legacy');
     const saving = await this.historyEnabled(userId);
     if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
-    const urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm)\b/i.test(content);
-    const reply = buddyReply(content, urgent);
+    let urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm|want to die)\b/i.test(content);
+    let provenance:Record<string,unknown>|undefined;
+    let reply: string;
+    if (this.coreClient && !urgent) {
+      const turns: ChatTurn[] = [];
+      if (selectedConversationId) {
+        await this.ownedConversation(userId, selectedConversationId);
+        const session = await this.buddySession(userId, selectedConversationId);
+        for (const item of session.messages.slice(-18)) turns.push({ role: item.role === "user" ? "user" : "assistant", content: item.content });
+      }
+      if(!saving){const prior=this.temporary.get(temporaryKey);if(prior&&prior.expires>Date.now())turns.push(...prior.turns);}
+      turns.push({ role: "user", content });
+      while(turns.length>1&&turns.reduce((n,t)=>n+t.content.length,0)>20000)turns.shift();
+      const generated = await this.coreClient.chat(turns);
+      provenance={model:generated.model,quality:generated.quality};
+      urgent = generated.supportRequired;
+      reply = urgent ? buddyReply(content, true) : generated.reply!;
+    } else reply = buddyReply(content, urgent);
+    this.rememberReply(userId,reply);
     if (!saving) {
-      if (urgent) {
+      const prior=this.temporary.get(temporaryKey);const turns=prior&&prior.expires>Date.now()?prior.turns:[];
+      if(this.temporary.size>=1000)this.temporary.delete(this.temporary.keys().next().value!);
+      this.temporary.set(temporaryKey,{turns:[...turns,{role:'user' as const,content},{role:'assistant' as const,content:reply}].slice(-16),expires:Date.now()+1800000});
+      if (urgent && !this.localBuddy) {
         const { error } = await this.database.schema("user_service").from("audit_events").insert({
           user_id: userId, event_type: "buddy.urgent_language_detected",
           resource_type: "buddy_temporary_session", request_id: randomUUID(),
@@ -370,6 +411,7 @@ export class ExperienceService {
         { id: randomUUID(), role: "buddy", content: reply, timestamp: new Date().toISOString() },
       ] };
     }
+    if(this.localBuddy){const c=selectedConversationId?this.localBuddy.get(userId,selectedConversationId):this.localBuddy.create(userId);const timestamp=new Date().toISOString();c.messages.push({id:randomUUID(),role:"user",content,timestamp},{id:randomUUID(),role:"buddy",content:reply,timestamp});c.preview=reply.slice(0,120);c.last_message_at=timestamp;c.supportRequired=urgent;if(provenance)c.provenance.push(provenance);if(c.messages.length===2)c.title=buddyTitle(content);this.localBuddy.save(c);return {conversationId:c.id,persisted:true,conversation:c,messages:c.messages};}
     const conversation = selectedConversationId
       ? await this.ownedConversation(userId, selectedConversationId)
       : await this.ownedConversation(userId, (await this.createBuddyConversation(userId)).id);
@@ -570,6 +612,7 @@ export class ExperienceService {
   }
 
   async buddyHistory(userId: string, options: { page: number; pageSize: number; query: string }) {
+    if(this.localBuddy){const rows=this.localBuddy.list(userId).filter(c=>!options.query||JSON.stringify(c).toLowerCase().includes(options.query.toLowerCase())).sort((a,b)=>(b.pinned_at??b.last_message_at??b.created_at).localeCompare(a.pinned_at??a.last_message_at??a.created_at));return {conversations:rows.slice((options.page-1)*options.pageSize,options.page*options.pageSize),total:rows.length,page:options.page,page_size:options.pageSize,pinsAvailable:true};}
     if (options.query) {
       const words = searchWords(options.query);
       if (!words.length) return { conversations: [], total: 0, page: options.page, page_size: options.pageSize, pinsAvailable: true };
@@ -617,6 +660,7 @@ export class ExperienceService {
   }
 
   private async ownedConversation(userId: string, conversationId: string): Promise<DatabaseRow> {
+    if(this.localBuddy)return this.localBuddy.get(userId,conversationId);
     const { data, error } = await this.reader.schema("buddy_service").from("buddy_conversations")
       .select("*").eq("id", conversationId).eq("user_id", userId).maybeSingle();
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Buddy conversation could not be loaded.");
@@ -625,6 +669,7 @@ export class ExperienceService {
   }
 
   async pinBuddyConversation(userId: string, conversationId: string, pinned: boolean) {
+    if(this.localBuddy)return this.localBuddy.save({...this.localBuddy.get(userId,conversationId),pinned_at:pinned?new Date().toISOString():null});
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .update({ pinned_at: pinned ? new Date().toISOString() : null })
       .eq("id", conversationId).eq("user_id", userId)
@@ -635,6 +680,7 @@ export class ExperienceService {
   }
 
   async ensureOwnedConversation(userId: string, conversationId: string) {
+    if(this.localBuddy){this.localBuddy.get(userId,conversationId);return;}
     const { data, error } = await this.reader
       .schema("buddy_service")
       .from("buddy_conversations")

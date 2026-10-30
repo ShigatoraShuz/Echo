@@ -19,6 +19,8 @@ export function BuddyView() {
   const vm = useBuddyViewModel();
   const reducedMotion = usePrefersReducedMotion();
   const voice = useBuddyVoiceControls();
+  const [mode,setMode]=useState<'chat'|'talk'>('chat');
+  const speakNext=useRef(false);
   const [draft, setDraft] = useState("");
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
@@ -32,6 +34,7 @@ export function BuddyView() {
   const initialMessageIds = useRef(new Set<string>());
   const historyReady = useRef(false);
   const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
+  useEffect(()=>{if(mode==='talk'&&speakNext.current&&!vm.isSending&&latestBuddyReply){speakNext.current=false;void voice.speak(latestBuddyReply);}},[mode,vm.isSending,latestBuddyReply]);
   const { accessStatus, selectConversation, clearConversation } = vm;
   const activeConversation = vm.conversations.find((conversation) => conversation.id === vm.activeConversationId);
   const savedChatReadOnly = Boolean(vm.activeConversationId && !vm.historyEnabled);
@@ -115,10 +118,12 @@ export function BuddyView() {
   async function handleSend() {
     const content = draft.trim();
     if (!content || vm.isSending || savedChatReadOnly) return;
-    if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");
+    speakNext.current=mode==="talk";
+    if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");else speakNext.current=false;
   }
 
   function openConversation(id: string) {
+    voice.cancel();speakNext.current=false;
     if (id === vm.activeConversationId) return;
     setHistoryOpen(false);
     setActionsId(null);
@@ -298,6 +303,9 @@ export function BuddyView() {
 
         <div className="shrink-0 border-t border-[var(--landing-primary-10)] bg-[#fffdf8] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl">
+            <div role="group" aria-label="Buddy conversation mode" className="mb-2 inline-flex gap-1 rounded-full border border-[var(--landing-primary-20)] bg-white p-1">{(['chat','talk'] as const).map(value=><button type="button" key={value} className={`min-h-11 rounded-full px-5 text-sm font-semibold ${mode===value?"bg-[var(--landing-primary)] text-white":"text-[var(--landing-primary)]"}`} aria-pressed={mode===value} onClick={()=>{voice.cancel();speakNext.current=false;setMode(value);}}>{value==='chat'?'Chat':'Talk'}</button>)}</div><p className="mb-2 text-xs text-[var(--landing-muted)]">{mode==='talk'?'Record a message, then stop to send. Buddy will read the reply aloud.':'Type a message. Your conversation continues when you switch modes.'}</p>
+            {voice.isTranscribing&&<p role="status">Transcribing locally...</p>}
+            {mode==='talk'&&(voice.isTranscribing||voice.isSpeaking||vm.isSending)&&<button type="button" onClick={()=>{speakNext.current=false;voice.cancel();}}>Cancel voice</button>}
             {showPrompts && (
               <div aria-label="Prompt ideas" className="echo-panel-scroll mb-2 flex gap-2 overflow-x-auto pb-1">
                 {PROMPT_CHIPS.map((prompt) => (
@@ -308,7 +316,7 @@ export function BuddyView() {
               </div>
             )}
             {!vm.historyEnabled && <p className="mb-2 text-xs text-[var(--landing-muted)]">{savedChatReadOnly ? "Saved chats are read-only while history saving is off. Turn it on in Privacy settings to continue this chat." : "Temporary chat: messages disappear when you leave or refresh this page."}</p>}
-            {voice.interimTranscript && <p role="status" className="mb-2 text-xs text-[var(--landing-primary)]">Listening: {voice.interimTranscript}</p>}
+            {voice.interimTranscript && <p role="status" className="mb-2 text-xs text-[var(--landing-primary)]">Transcript: {voice.interimTranscript}</p>}
             <div className="rounded-[1.35rem] border border-[var(--landing-primary-20)] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(30,53,34,0.06)] focus-within:border-[var(--landing-primary)] focus-within:ring-2 focus-within:ring-[var(--landing-primary-10)]">
               <textarea
                 ref={composerRef}
@@ -331,9 +339,9 @@ export function BuddyView() {
                   type="button"
                   onClick={() => {
                     if (voice.isListening) voice.stopListening();
-                    else voice.startListening((transcript) => setDraft((current) => current + (current.trim() ? " " : "") + transcript));
+                    else void voice.startListening(async(transcript)=>{setDraft(transcript);speakNext.current=true;const ok=await vm.sendMessage(vm.activeConversationId,transcript);if(ok)setDraft('');else speakNext.current=false;});
                   }}
-                  disabled={!voice.voiceSupported || vm.isSending || savedChatReadOnly}
+                  disabled={mode!=="talk" || !voice.voiceSupported || voice.isTranscribing || vm.isSending || savedChatReadOnly}
                   aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
                   className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
                 >

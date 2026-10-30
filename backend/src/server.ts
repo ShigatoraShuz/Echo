@@ -1,4 +1,6 @@
 import { httpOnlyMode } from "./config/http-only-mode.js";
+import { LocalAnalysisStore } from "./infrastructure/analysis/local-analysis-store.js";
+import { LocalBuddyStore } from "./infrastructure/analysis/local-buddy-store.js";
 import { DataExportService } from "./features/settings/data-export.service.js";
 import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
@@ -31,8 +33,13 @@ import { CalendarService } from "./features/calendar/calendar.service.js";
 import { ProfessionalEventService } from "./features/professionals/professional-events.service.js";
 import { startProfessionalEventProcessor } from "./features/professionals/professional-event-processor.js";
 
-const environment = loadEnvironment();
 const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
+import { CoreClient } from "./infrastructure/analysis/core-client.js";
+
+const environment = loadEnvironment();
+const localResults=environment.AI_ANALYSIS_MODE==="local_json"?new LocalAnalysisStore(environment.LOCAL_DATA_DIR):undefined;
+const localBuddy=localResults?new LocalBuddyStore(environment.LOCAL_DATA_DIR):undefined;
+const coreClient = environment.AI_SERVICE_URL ? new CoreClient(environment.AI_SERVICE_URL, environment.AI_SERVICE_TOKEN!) : undefined;
 const supabaseAdmin = createSupabaseAdminClient(environment);
 const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
@@ -79,6 +86,7 @@ const journalService = new JournalService(
   developmentRunner,
   undefined,
   () => createRequestUserClient(environment),
+  localResults,coreClient,
 );
 const localWorkerService = new LocalWorkerService(
   supabaseAdmin,
@@ -94,7 +102,7 @@ const experienceService = new ExperienceService(supabaseAdmin, journalService, e
   supportThreshold: environment.SUPPORT_PROMPT_THRESHOLD,
   supportWindowDays: environment.SUPPORT_PROMPT_WINDOW_DAYS,
   supportCooldownDays: environment.SUPPORT_PROMPT_COOLDOWN_DAYS,
-}, () => createRequestUserClient(environment));
+}, () => createRequestUserClient(environment), coreClient, localBuddy);
 const verificationService = new VerificationService(
   supabaseAdmin,
   encryptionService,
@@ -167,6 +175,12 @@ const app = createApp({
   },
 });
 
+app.locals.checkReadiness = async () => {
+  if(localResults){const storage=localResults.healthy();for(const user of localResults.users())localBuddy?.list(user);const db=await supabaseAdmin.schema("user_service").from("privacy_preferences").select("user_id").limit(1);const models=Boolean(await coreClient?.ready());app.locals.readinessComponents={database:!db.error,localStorage:storage,models};return !db.error && models;}
+  const { data, error } = await supabaseAdmin.schema("ai_analysis").from("worker_health").select("accepting_jobs,last_heartbeat_at").eq("worker_id", "local-worker").maybeSingle();
+  const workerReady = environment.AI_ANALYSIS_MODE !== "local_worker" || (data?.accepting_jobs === true && Date.now() - Date.parse(data.last_heartbeat_at) < 60_000);
+  return !error && workerReady && (!coreClient || await coreClient.ready());
+};
 const server = app.listen(environment.PORT, httpOnly ? "127.0.0.1" : "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
 });
@@ -180,11 +194,13 @@ const reportMaintenanceFailure = () =>
   console.warn(JSON.stringify({ service: "backend", event: "analysis_maintenance_failed" }));
 let maintenanceTimer: ReturnType<typeof setInterval> | undefined;
 if (!httpOnly) {
-void backgroundJournalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
+if(!localResults)void backgroundJournalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
 void dataExports.expire().catch(reportMaintenanceFailure);
+if(localResults)void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);
 maintenanceTimer = setInterval(() => {
+  if(localResults){void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);void (async()=>{for(const user of localResults.users()){const found=await supabaseAdmin.auth.admin.getUserById(user);if(found.error?.status===404 && found.error.code==="user_not_found")experienceService.clearLocal(user);}})().catch(reportMaintenanceFailure);}
   void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
-  void maintenance.tick().catch(reportMaintenanceFailure);
+  if(!localResults)void maintenance.tick().catch(reportMaintenanceFailure);
   void dataExports.expire().catch(reportMaintenanceFailure);
   if (environment.AI_ANALYSIS_MODE === "local_worker")
     void localWorkerService.recover().catch(reportMaintenanceFailure);
@@ -202,6 +218,7 @@ function shutdown(signal: string): void {
   void professionalEvents.stop();
   if (maintenanceTimer) clearInterval(maintenanceTimer);
   server.close((error) => {
+    localResults?.close();
     process.exitCode = error ? 1 : 0;
   });
 }

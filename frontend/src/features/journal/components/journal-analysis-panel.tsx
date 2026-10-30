@@ -1,4 +1,5 @@
 "use client";
+import { NativeAnalysis } from "./native-analysis";
 import Link from "next/link";
 
 import {
@@ -219,6 +220,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
     );
   }
 
+  if (result.schemaVersion !== "echo-journal-analysis-v1") return <NativeAnalysis result={result} entryId={analysis.entryId} />;
   const facialStatus =
     analysis.facialStatus ?? (result.facialExpressionAnalysis ? "completed" : "not_requested");
   const facialDetail =

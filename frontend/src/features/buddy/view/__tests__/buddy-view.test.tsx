@@ -5,6 +5,8 @@ import { BuddyView } from "../buddy-view";
 import { useBuddyViewModel } from "@/features/buddy/view-model/use-buddy-view-model";
 import type { BuddyConversation, BuddyPagination } from "@/features/buddy/model/buddy.model";
 
+const voiceMock=vi.hoisted(()=>({start:vi.fn(),speak:vi.fn(),cancel:vi.fn()}));
+vi.mock('@/features/buddy/view-model/use-buddy-voice-controls',()=>({useBuddyVoiceControls:()=>({voiceSupported:true,speechSupported:true,isListening:false,isSpeaking:false,isTranscribing:false,interimTranscript:'',voiceError:null,startListening:voiceMock.start,stopListening:()=>{},speak:voiceMock.speak,stopSpeaking:()=>{},cancel:voiceMock.cancel})}));
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     value: vi.fn(),
@@ -167,61 +169,9 @@ describe("BuddyView", () => {
     expect(mock.sendMessage).toHaveBeenCalledWith("conv-1", expect.any(String));
   });
 
-  it("adds final speech recognition text to the draft", async () => {
-    const user = userEvent.setup();
-    const mock = setupMock();
-    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
-    vi.stubGlobal("webkitSpeechRecognition", MockRecognition);
-    vi.stubGlobal("speechSynthesis", { speak: vi.fn(), cancel: vi.fn() });
-
-    render(<BuddyView />);
-
-    await user.click(screen.getByRole("button", { name: /start voice input/i }));
-    act(() => {
-      MockRecognition.instance?.emitFinal("I feel tense");
-    });
-
-    await waitFor(() => expect(screen.getByLabelText(/message buddy/i)).toHaveValue("I feel tense"));
-  });
-
-  it("speaks and stops the latest Buddy reply", async () => {
-    const user = userEvent.setup();
-    const mock = setupMock();
-    class MockUtterance {
-      text: string;
-      rate = 1;
-      pitch = 1;
-      onend: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-
-      constructor(text: string) {
-        this.text = text;
-      }
-    }
-    const speak = vi.fn();
-    const cancel = vi.fn();
-    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
-    vi.stubGlobal("webkitSpeechRecognition", MockRecognition);
-    vi.stubGlobal("speechSynthesis", { speak, cancel });
-    vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
-
-    render(<BuddyView />);
-
-    await user.click(screen.getByRole("button", { name: /speak latest buddy reply/i }));
-
-    expect(cancel).toHaveBeenCalled();
-    expect(speak).toHaveBeenCalled();
-  });
-
-  it("disables voice input when speech recognition is unsupported", () => {
-    const mock = setupMock();
-    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
-
-    render(<BuddyView />);
-
-    expect(screen.getByRole("button", { name: /start voice input/i })).toBeDisabled();
-  });
-
+  it('defaults to Chat and switches to Talk without changing conversation',async()=>{const user=userEvent.setup();const mock=setupMock();vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);render(<BuddyView/>);expect(screen.getByRole('button',{name:'Chat'})).toHaveAttribute('aria-pressed','true');expect(screen.getByRole('button',{name:/start voice input/i})).toBeDisabled();await user.click(screen.getByRole('button',{name:'Talk'}));expect(screen.getByRole('button',{name:/start voice input/i})).toBeEnabled();expect(voiceMock.cancel).toHaveBeenCalled();expect(mock.selectConversation).not.toHaveBeenCalled();});
+  it('sends a stopped Talk transcript using the current conversation',async()=>{const user=userEvent.setup();const mock=setupMock();vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);voiceMock.start.mockImplementation((callback:(text:string)=>void)=>callback('Synthetic voice input'));render(<BuddyView/>);await user.click(screen.getByRole('button',{name:'Talk'}));await user.click(screen.getByRole('button',{name:/start voice input/i}));expect(mock.sendMessage).toHaveBeenCalledWith('conv-1','Synthetic voice input');});
+  it('requests local playback of the latest approved reply',async()=>{const user=userEvent.setup();const mock=setupMock();vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);render(<BuddyView/>);await user.click(screen.getByRole('button',{name:/speak latest buddy reply/i}));expect(voiceMock.speak).toHaveBeenCalled();});
   it("hides pin actions without the pin migration and offers history retry", async () => {
     const user = userEvent.setup();
     const base = setupMock();

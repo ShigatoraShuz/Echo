@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Literal["development", "test", "production"] = "development"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
     ai_service_token: str = ""
     base_model_id: str = "microsoft/Phi-4-mini-instruct"
@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    core_models_enabled: bool = False
+    models_root: str = "../../models"
+    backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
+    ai_worker_token: str = ""
+    worker_enabled: bool = False
+    queue_limit: int = Field(default=4, ge=1, le=16)
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":

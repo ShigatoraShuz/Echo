@@ -41,7 +41,7 @@ const stageLabels: Record<string, string> = {
   safety_action_required: "Support is ready",
   analyzing_emotions: "Understanding emotions",
   classifying_distress: "Estimating distress",
-  estimating_screening: "Estimating distress",
+  estimating_screening: "Reviewing available insights",
   generating_recommendation: "Preparing your reflection",
   aggregating_week: "Updating your dashboard",
   retrying: "Trying again safely",
@@ -235,7 +235,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
     }, 5_000);
     let channel: ReturnType<ReturnType<typeof createBrowserSupabaseClient>["channel"]> | undefined;
     try {
-      channel = createBrowserSupabaseClient()
+      if(submission.storage!=="local_json")channel = createBrowserSupabaseClient()
         .channel(`analysis-status:${submission.analysisJobId}`)
         .on(
           "postgres_changes",

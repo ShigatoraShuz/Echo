@@ -5,6 +5,7 @@ import { JournalEditorView } from "../journal-editor-view";
 import { useJournalEditorViewModel } from "@/features/journal/view-model/use-journal-editor-view-model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
+vi.mock("@/services/settings",()=>({settingsService:{get:async()=>({privacy:{facialAnalysisEnabled:false,journalAiAnalysisEnabled:false}})}}));
 vi.mock("next/image", () => ({
   default: (props: { alt: string }) => <img alt={props.alt} />,
 }));
@@ -86,7 +87,7 @@ describe("JournalEditorView", () => {
     URL.revokeObjectURL = originalRevokeObjectURL;
   });
 
-  it("wires textboxes, mood buttons, checkbox, and save", async () => {
+  it("wires writing, mood and save with privacy-controlled automatic analysis", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
     vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
@@ -99,13 +100,14 @@ describe("JournalEditorView", () => {
     await user.type(screen.getByLabelText(/start writing/i), "I felt steady today.");
     await user.click(screen.getByRole("button", { name: /happy/i }));
     await user.click(screen.getByText("More options"));
-    await user.click(screen.getByLabelText(/allow a reflective summary after saving/i));
+    expect(screen.queryByLabelText(/allow a reflective summary after saving/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/journal analysis is disabled/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /save reflection/i }));
 
     expect(mock.setTitle).toHaveBeenCalled();
     expect(mock.setBody).toHaveBeenCalled();
     expect(mock.setMood).toHaveBeenCalledWith("happy");
-    expect(mock.setAnalysisConsent).toHaveBeenCalled();
+
     expect(mock.save).toHaveBeenCalled();
   });
 

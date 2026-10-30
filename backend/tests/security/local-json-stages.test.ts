@@ -1,0 +1,9 @@
+import {it,expect} from 'vitest';
+import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';import {resolve,join} from 'node:path';import {randomUUID} from 'node:crypto';
+import {LocalAnalysisStore} from '../../src/infrastructure/analysis/local-analysis-store.js';
+import {JournalService} from '../../src/features/journals/journals.service.js';
+import fixture from '../../../packages/contracts/fixtures/core-v2.json';
+const base=resolve('../runtime-cache/stage-tests');mkdirSync(base,{recursive:true});
+it('preserves support pauses, provider failures, consent revocation, cancellation and retry bounds',async()=>{const dir=mkdtempSync(join(base,'flow-')),store=new LocalAnalysisStore(dir),user=randomUUID();let flag=true,available=true,consent=true,cancel=false;const core={ready:async()=>available,classify:async()=>({suicidal_language_flag:flag}),analyze:async()=>{if(cancel)store.clear(user);return fixture;}};
+const service:any=new JournalService({} as any,{} as any,{} as any,undefined,undefined,undefined,undefined,undefined,store,core as any);service.hasGlobalAnalysisConsent=async()=>consent;service.assertAnalysisGates=async()=>{};service.get=async()=>({body:'Synthetic reflection'});
+try{let job=store.create(user,randomUUID(),'a','a');await service.processLocal(job);expect(store.get(user,job.id)?.status).toBe('safety_action_required');flag=false;available=false;job=store.create(user,randomUUID(),'b','b');await service.processLocal(job);expect(store.get(user,job.id)?.status).toBe('waiting_for_provider');available=true;consent=false;await service.processLocal(job);expect(store.get(user,job.id)?.status).toBe('failed');for(let i=0;i<3;i++){store.retry(user,job.id);store.set(user,job.id,'failed',0);}expect(()=>store.retry(user,job.id)).toThrow();consent=true;cancel=true;job=store.create(user,randomUUID(),'c','c');await service.processLocal(job);expect(store.get(user,job.id)).toBeUndefined();}finally{store.close();rmSync(dir,{recursive:true,force:true});}});

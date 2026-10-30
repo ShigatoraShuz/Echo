@@ -1,4 +1,5 @@
 "use client";
+import { NativeAnalysis } from "@/features/journal/components/native-analysis";
 
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
@@ -226,7 +227,8 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
   const [customTo, setCustomTo] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
   const insights = vm.overview;
-  const latest = insights?.latest ?? null;
+  const latest = insights?.latest?.schemaVersion === "echo-journal-analysis-v1" ? insights.latest : null;
+  const native = insights?.latest && insights.latest.schemaVersion !== "echo-journal-analysis-v1" ? insights.latest : null;
   const period = insights?.period;
   const distressStart = insights?.distressTrend[0]?.value;
   const distressEnd = insights?.distressTrend.at(-1)?.value;
@@ -249,6 +251,7 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
     return <VerifiedFeatureGate featureName="AI insights"><EmotionInsightsView preview /></VerifiedFeatureGate>;
   }
 
+  if (native) return <VerifiedFeatureGate featureName="AI insights"><NativeAnalysis result={native} insights={insights ?? undefined} /></VerifiedFeatureGate>;
   const dashboard = (
     <div className="echo-insights-dashboard mx-auto max-w-[1440px] space-y-2.5 pb-4 sm:space-y-3">
         <header className="relative overflow-visible rounded-[1.35rem] border border-primary/10 bg-[rgba(251,247,238,0.88)] px-4 py-4 shadow-[0_14px_34px_rgba(24,48,37,0.06)] sm:rounded-[1.5rem] sm:px-5">

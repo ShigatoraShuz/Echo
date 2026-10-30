@@ -35,6 +35,7 @@ export interface CreateConversationInput {
 }
 
 export interface SendMessageInput {
+  temporarySessionId?:string;
   conversationId?: string;
   content: string;
 }

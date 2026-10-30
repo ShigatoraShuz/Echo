@@ -138,7 +138,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
       status: data.status,
       leaseToken,
       leaseExpiresAt: data.leaseExpiresAt,
-      input: { journalText: journal.body, language: "en" },
+      input: { journalText: journal.body, language: "unknown" },
       modelHealthNotAsserted: true,
     };
   }
@@ -181,6 +181,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const identity = this.identity(key, payload);
     const receipt = await this.probe(type, jobId, workerId, leaseToken, identity);
     if (receipt?.replay) return receipt.outcome;
+    if (type !== "failure") await assertAiEnabled();
     const parsed = schema ? this.parse(schema, payload) : payload;
     const { data, error } = await this.database.schema("ai_analysis").rpc("apply_worker_callback", {
       p_job_id: jobId,
@@ -211,6 +212,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const identity = this.identity(key, payload);
     const receipt = await this.probe("final_result", jobId, workerId, leaseToken, identity);
     if (receipt?.replay) return receipt.outcome;
+    await assertAiEnabled();
     const result = this.parse(journalAnalysisResultSchema, payload);
     const { data, error } = await this.database.schema("ai_analysis").rpc("complete_worker_callback", {
       p_job_id: jobId,

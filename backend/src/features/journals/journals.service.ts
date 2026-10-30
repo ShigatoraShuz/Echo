@@ -8,6 +8,7 @@ import {
   analysisFixtureSchema,
   facialAnalysisStatusSchema,
   journalAnalysisResultSchema,
+  journalScreeningSchema,
   type AnalysisFixture,
   type AnalysisInsightRange,
   type FaceMeshCapture,
@@ -36,6 +37,8 @@ import { DevelopmentAnalysisRunner } from "../../infrastructure/analysis/develop
 import { analysisProgressFor, assertAnalysisTransition } from "../../infrastructure/analysis/analysis-state-machine.js";
 import type { IdempotencyIdentity, IdempotencyService } from "../../infrastructure/idempotency/idempotency.service.js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
+import { LocalAnalysisStore, type LocalAnalysisJob } from "../../infrastructure/analysis/local-analysis-store.js";
+import type { CoreClient } from "../../infrastructure/analysis/core-client.js";
 
 export interface JournalInput {
   title: string;
@@ -162,6 +165,8 @@ function databaseError(error: unknown, operation: SupabaseOperation, message: st
 }
 
 export class JournalService {
+  private readonly localActive = new Set<string>();
+  private localTail: Promise<void> = Promise.resolve();
   constructor(
     private readonly database: SupabaseClient,
     private readonly encryption: EncryptionService,
@@ -175,13 +180,105 @@ export class JournalService {
     private readonly runner = new DevelopmentAnalysisRunner(1),
     private readonly facialAnalysisProvider: FacialAnalysisProvider = new DisabledFacialAnalysisProvider(),
     private readonly userDatabase?: () => SupabaseClient,
+    readonly localResults?: LocalAnalysisStore,
+    private readonly coreClient?: CoreClient,
   ) {}
+
+  private localRow(job:LocalAnalysisJob):AnalysisRow {
+    return {id:job.id,journal_id:job.journal_id,user_id:job.user_id,status:job.status,created_at:job.created_at,
+      result_payload:job.result_ciphertext?{ciphertext:job.result_ciphertext}:null,severity:null,phq8_score:null,
+      facial_status:job.facial_status};
+  }
+  async recoverLocalJobs():Promise<void> {
+    if(!this.localResults || !this.coreClient || !await this.coreClient.ready())return;
+    for(const job of this.localResults.pending())this.enqueueLocal(job);
+  }
+  private enqueueLocal(job:LocalAnalysisJob){
+    if(this.localActive.has(job.id))return;
+    this.localActive.add(job.id);
+    this.localTail=this.localTail.then(()=>this.processLocal(job)).catch(()=>{}).finally(()=>this.localActive.delete(job.id));
+  }
+  private async processLocal(job:LocalAnalysisJob){
+    const store=this.localResults!;
+    if(!store.get(job.user_id,job.id))return;
+    if(!this.coreClient || !await this.coreClient.ready()){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
+    try {
+      if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent is required.');
+      await this.assertAnalysisGates(job.user_id);
+      const entry=await this.get(job.user_id,job.journal_id);
+      store.set(job.user_id,job.id,'safety_checking',10);
+      const classification=await this.coreClient.classify(entry.body);
+      if(!store.get(job.user_id,job.id))return;
+      if(!job.approved && (classification.suicidal_language_flag || /\b(kill myself|end my life|hurt myself|want to die)\b/i.test(entry.body))){
+        store.set(job.user_id,job.id,'safety_action_required',10);return;
+      }
+      await this.assertAnalysisGates(job.user_id);
+      if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
+      store.set(job.user_id,job.id,'analyzing_emotions',25);
+      const result=await this.coreClient.analyze(entry.body);
+      if(!store.get(job.user_id,job.id))return;
+      const current=await this.get(job.user_id,job.journal_id);
+      if(current.body!==entry.body)throw new ConflictError('JOURNAL_CHANGED','The reflection changed during local analysis.');
+      await this.assertAnalysisGates(job.user_id);
+      if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
+      store.set(job.user_id,job.id,'completed',100,JSON.stringify(result));
+    } catch {
+      store.set(job.user_id,job.id,'failed',job.progress);
+    }
+  }
+  private async createLocal(userId:string,input:JournalInput,key:string|undefined,fixture?:string):Promise<JournalSubmissionResult>{
+    if(fixture)throw new ValidationError({fixture:['Development fixtures are not available for local model results.']});
+    if(!this.idempotency)throw new ExternalServiceError('IDEMPOTENCY_UNAVAILABLE','Secure submission is not configured.');
+    const identity=this.idempotency.identify(key,{...input,analysisConsent:true,fixture:null});
+    const replay=this.localResults!.replay(userId,identity.keyHmac,identity.requestHash);
+    if(replay){
+      await this.get(userId,replay.journal_id);
+      return {kind:'analysis',submission:{storage:'local_json',journalId:replay.journal_id,analysisJobId:replay.id,status:replay.status==='waiting_for_provider'?'waiting_for_provider':'queued',facialStatus:replay.facial_status},replayed:true};
+    }
+    if(!await this.hasGlobalAnalysisConsent(userId))throw new AnalysisGateError('Enable journal-analysis consent or save without analysis.','global_consent');
+    await this.assertAnalysisGates(userId);
+    // Supabase receives only an ordinary encrypted journal save. Never request its AI workflow.
+    const saved=await this.create(userId,{...input,analysisConsent:false,facialAnalysisRequested:false,facialCapture:undefined},key,undefined,true);
+    if(saved.kind!=='private')throw new Error('Local save entered a remote AI workflow.');
+    const facial:FacialAnalysisStatus=input.facialAnalysisRequested?(input.facialCapture?'captured_pending_provider':'not_captured'):'not_requested';
+    let job:LocalAnalysisJob;
+    try {job=this.localResults!.create(userId,saved.journalId,identity.keyHmac,identity.requestHash,facial);}
+    catch(error){if(error instanceof AppError)throw error;throw new ExternalServiceError('LOCAL_RESULTS_UNAVAILABLE','Your reflection is saved, but local analysis could not be queued. Check local storage and retry saving.');}
+    this.enqueueLocal(job);
+    return {kind:'analysis',submission:{storage:'local_json',journalId:job.journal_id,analysisJobId:job.id,status:'queued',facialStatus:facial},replayed:saved.replayed};
+  }
+  private localRecommendation(job:LocalAnalysisJob){
+    const result=this.readAnalysisResult({ciphertext:job.result_ciphertext});
+    const activity=result.recommendationFeatures[0];
+    const titles:Record<string,string>={paced_breathing:'Take a gentle breathing pause',grounding:'Try a grounding activity',behavioral_activation:'Choose one small activity',thought_reframing:'Explore a different perspective',support_connection:'Explore support options'};
+    return {id:job.id,title:titles[activity]??'A gentle next step',description:'An optional activity selected by application rules.',activity};
+  }
+  private async localDashboard(userId:string,input:AnalysisInsightsRangeInput){
+    const now=new Date(),to=input.to?new Date(`${input.to}T23:59:59.999Z`):now;
+    const days=input.range==='7d'?7:input.range==='90d'?90:30;
+    const from=input.from?new Date(`${input.from}T00:00:00.000Z`):new Date(to.getTime()-(days-1)*86400000);
+    const rows=this.localResults!.completed(userId).filter(x=>x.created_at>=from.toISOString()&&x.created_at<=to.toISOString());
+    let visible=rows;
+    if(rows.length){
+      const {data,error}=await this.reader.schema('journal_service').from('journals').select('id').eq('user_id',userId).in('id',rows.map(x=>x.journal_id)).is('deleted_at',null);
+      if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Journal ownership could not be checked.');
+      const ids=new Set((data??[]).map(x=>x.id));visible=rows.filter(x=>ids.has(x.journal_id));
+      for(const row of rows)if(!ids.has(row.journal_id))this.localResults!.remove(userId,row.journal_id);
+    }
+    const latest=visible.at(-1);
+    return {latestResultId:latest?.id??null,latest:latest?this.readAnalysisResult({ciphertext:latest.result_ciphertext}):null,
+      recommendation:latest?this.localRecommendation(latest):null,
+      emotionTrend:[...new Map(visible.map(x=>[x.created_at.slice(0,10),x])).values()].map(row=>{const result=this.readAnalysisResult({ciphertext:row.result_ciphertext});return {date:row.created_at.slice(0,10),values:Object.fromEntries(result.emotionDistribution.map(x=>[x.emotion,x.value])),isSimulated:result.isSimulated,schemaVersion:result.schemaVersion};}),
+      journalScreeningTrend:visible.flatMap(row=>{const r=this.readAnalysisResult({ciphertext:row.result_ciphertext});return r.schemaVersion==='echo-journal-analysis-v3'?[{date:row.created_at.slice(0,10),status:r.journalScreening.status,coverage:r.journalScreening.coverage,subtotal:r.journalScreening.subtotal,total:r.journalScreening.total}]:[];}),
+      distressTrend:[],facialStatus:latest?.facial_status??'not_requested',period:{range:input.range,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10),analyzedReflectionCount:visible.length}};
+  }
 
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
   encryptAnalysisResult(value: unknown) { return sealAnalysisResult(value, this.encryption); }
 
-  private readAnalysisResult(value: unknown) { return openAnalysisResult(value, this.encryption); }
+  private readAnalysisResult(value: unknown) { if(this.localResults && value && typeof value === "object" && "ciphertext" in value)return journalAnalysisResultSchema.parse(JSON.parse(String(value.ciphertext)));
+    return openAnalysisResult(value, this.encryption); }
 
   private async hasGlobalFacialConsent(userId: string): Promise<boolean> {
     const { data, error } = await this.database
@@ -248,6 +345,7 @@ export class JournalService {
   }
 
   private async latestAnalysis(journalId: string, userId: string): Promise<AnalysisRow | null> {
+    if(this.localResults){const job=this.localResults.journal(userId,journalId);return job?.result_ciphertext?this.localRow(job):null;}
     const { data, error } = await this.database
       .schema("ai_analysis")
       .from("analysis_results")
@@ -266,7 +364,7 @@ export class JournalService {
   private toJournalResponse(row: JournalRow, analysis: AnalysisRow | null): JournalResponse {
     const journal = this.decryptJournal(row);
     const structured = analysis?.result_payload ? this.readAnalysisResult(analysis.result_payload) : null;
-    const score = structured ? Math.round((structured.depressiveSymptomRange.lower + structured.depressiveSymptomRange.upper) / 2) : 0;
+    const score = structured?.depressiveSymptomRange ? Math.round((structured.depressiveSymptomRange.lower + structured.depressiveSymptomRange.upper) / 2) : null;
     const severity = analysis?.severity;
     return {
       id: asString(row.id),
@@ -277,9 +375,9 @@ export class JournalService {
       emotions: asStringArray(row.emotions),
       tags: asStringArray(row.tags),
       privacy_status: asString(row.privacy_status, "private"),
-      analysis_consent: row.analysis_consent === true,
-      risk_score: structured ? Math.round((score / 24) * 100) : null,
-      risk_band: analysis ? riskBand(severity) : null,
+      analysis_consent: this.localResults ? Boolean(this.localResults.journal(asString(row.user_id),asString(row.id))) : row.analysis_consent === true,
+      risk_score: score !== null ? Math.round((score / 24) * 100) : null,
+      risk_band: analysis && structured?.schemaVersion === "echo-journal-analysis-v1" ? riskBand(severity) : null,
       summary: analysis
         ? `${analysis.is_simulated ? "Simulated analysis" : "Analysis"} is available. It is not a clinical assessment.`
         : "No analysis result is available.",
@@ -329,7 +427,7 @@ export class JournalService {
     const ids = rows.map((row) => asString(row.id));
     if (ids.length === 0) return { entries: [], total, page: options.page, page_size: options.pageSize };
     const [analysisResult, images] = await Promise.all([
-      this.database.schema("ai_analysis").from("analysis_results")
+      this.localResults ? Promise.resolve({data:ids.flatMap(id=>{const job=this.localResults!.journal(userId,id);return job?.result_ciphertext?[{...this.localRow(job),analysis_requests:{journal_id:id}}]:[];}),error:null}) : this.database.schema("ai_analysis").from("analysis_results")
         .select("*,analysis_requests!inner(journal_id,deleted_at)")
         .eq("user_id", userId).is("analysis_requests.deleted_at", null)
         .in("analysis_requests.journal_id", ids).order("created_at", { ascending: false }),
@@ -432,7 +530,10 @@ export class JournalService {
     input: JournalInput,
     rawIdempotencyKey?: string,
     requestedFixture?: string,
+    skipLocal=false,
   ): Promise<JournalSubmissionResult> {
+    if(this.localResults && !skipLocal && await this.hasGlobalAnalysisConsent(userId))return this.createLocal(userId,input,rawIdempotencyKey,requestedFixture);
+    if(this.localResults)input={...input,analysisConsent:false};
     if (!this.idempotency) {
       throw new ExternalServiceError("IDEMPOTENCY_UNAVAILABLE", "Secure journal submission is not configured.");
     }
@@ -525,7 +626,7 @@ export class JournalService {
       p_analysis_requested: analysisRequested,
       p_initial_status: initialStatus,
       p_fixture: fixture,
-      p_processing_mode: this.runtime.mode,
+      p_processing_mode: this.localResults ? "disabled" : this.runtime.mode,
       p_idempotency_key_version: identity.keyVersion,
       p_idempotency_hmac: identity.keyHmac,
       p_request_hash: identity.requestHash,
@@ -849,7 +950,7 @@ export class JournalService {
         emotions: next.emotions,
         tags: next.tags,
         privacy_status: next.privacyStatus,
-        analysis_consent: next.analysisConsent,
+        analysis_consent: this.localResults ? false : next.analysisConsent,
       })
       .eq("id", journalId)
       .eq("user_id", userId)
@@ -857,6 +958,7 @@ export class JournalService {
       .maybeSingle();
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal could not be updated.");
     if (!data) throw new NotFoundError("The journal entry was not found.");
+    if(this.localResults && (input.analysisConsent===false || (input.body!==undefined && input.body!==current.body)))this.localResults.remove(userId,journalId);
     return this.toJournalResponse(data as JournalRow, await this.latestAnalysis(journalId, userId));
   }
 
@@ -869,6 +971,7 @@ export class JournalService {
       .eq("user_id", userId);
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal could not be deleted.");
     if (!count) throw new NotFoundError("The journal entry was not found.");
+    this.localResults?.remove(userId,journalId);
   }
 
   private toDraftResponse(row: JournalRow): JournalDraftResponse {
@@ -938,7 +1041,28 @@ export class JournalService {
     if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "remove draft" }, "Your draft could not be removed.");
   }
 
+  private screeningActive=new Set<string>();
+  async retryScreening(user:string,journal:string){
+    const entry=await this.get(user,journal);await this.assertAnalysisGates(user);
+    if(!this.localResults||!this.coreClient||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Local screening is unavailable.');
+    const job=this.localResults.journal(user,journal);if(!job?.result_ciphertext)throw new NotFoundError('No completed analysis.');
+    const key=user+':'+journal;if(this.screeningActive.has(key))throw new ConflictError('RETRY_BUSY','Screening retry in progress.');this.screeningActive.add(key);
+    try{this.localResults.reserveScreening(user,job.id);const previous=this.readAnalysisResult({ciphertext:job.result_ciphertext});if(previous.schemaVersion==='echo-journal-analysis-v1')throw new ConflictError('RETRY_UNSUPPORTED','Legacy results cannot be retried.');
+    const screening=journalScreeningSchema.parse(await this.coreClient.screening(entry.body));
+    await this.assertAnalysisGates(user);if(!await this.hasGlobalAnalysisConsent(user)||(await this.get(user,journal)).body!==entry.body||!this.localResults.get(user,job.id))throw new ConflictError('JOURNAL_CHANGED','Result discarded because the reflection or consent changed.');
+    this.localResults.replaceScreening(user,job.id,{...previous,schemaVersion:'echo-journal-analysis-v3',journalScreening:screening});return {updated:true};}finally{this.screeningActive.delete(key);}
+  }
+  async retryLocalAnalysis(userId:string,journalId:string){
+    await this.get(userId,journalId);
+    if(!this.localResults)throw new NotFoundError('Local storage is disabled.');
+    if(!await this.hasGlobalAnalysisConsent(userId))throw new AnalysisGateError('Analysis consent is disabled.');
+    await this.assertAnalysisGates(userId);
+    const job=this.localResults.journal(userId,journalId);if(!job)throw new NotFoundError('Local analysis job unavailable.');
+    this.localResults.retry(userId,job.id);this.enqueueLocal(this.localResults.get(userId,job.id)!);
+    return {queued:true};
+  }
   async analyze(userId: string, journalId: string): Promise<AnalysisResponse> {
+
     const existing = await this.getLatestAnalysis(userId, journalId);
     if (existing) return existing;
     throw new ValidationError({
@@ -947,6 +1071,12 @@ export class JournalService {
   }
 
   async getAnalysisStatus(userId: string, jobId: string) {
+    if(this.localResults){
+      const job=this.localResults.get(userId,jobId);if(!job)throw new NotFoundError('The local analysis job was not found.');
+      await this.get(userId,job.journal_id);
+      return {userId,journalId:job.journal_id,jobId:job.id,status:job.status,progress:job.progress,facialStatus:job.facial_status,updatedAt:job.updated_at,
+        checks:analysisChecksFor(job.status,job.facial_status,job.progress).map(x=>x.id==='phq8'?{...x,state:(job.status==='completed'?(job.result_ciphertext&&JSON.parse(job.result_ciphertext).journalScreening?.status==='available'?'complete':'partial'):'pending') as 'complete'|'partial'|'pending',detail:'Experimental journal estimate; questionnaire remains separate'}:x)};
+    }
     const { data, error } = await this.database
       .schema("public")
       .from("analysis_status_projection")
@@ -965,13 +1095,15 @@ export class JournalService {
       status,
       progress: data.progress,
       facialStatus,
-      checks: analysisChecksFor(status, facialStatus, data.progress),
+      checks: analysisChecksFor(status, facialStatus, data.progress).map(check => this.runtime.mode === "local_worker" && check.id === "phq8"
+        ? { ...check, state: "skipped" as const, detail: "Screening estimate unavailable; questionnaire check-ins stay separate" } : check),
       updatedAt: data.updated_at,
     };
   }
 
   async getLatestAnalysis(userId: string, journalId: string): Promise<AnalysisResponse | null> {
     await this.get(userId, journalId);
+    if(this.localResults){const job=this.localResults.journal(userId,journalId);return job?.result_ciphertext?this.toAnalysisResponse(this.localRow(job)):null;}
     const { data: request, error } = await this.database
       .schema("ai_analysis")
       .from("analysis_requests")
@@ -999,6 +1131,7 @@ export class JournalService {
   }
 
   async dashboardInsights(userId: string, input: AnalysisInsightsRangeInput = { range: "30d" }) {
+    if(this.localResults)return this.localDashboard(userId,input);
     const now = new Date();
     const days = input.range === "7d" ? 7 : input.range === "90d" ? 90 : 30;
     const from = input.range === "custom" && input.from
@@ -1050,22 +1183,25 @@ export class JournalService {
       latest,
       latestResultId: latestRow ? asString(latestRow.id) : null,
       recommendation,
-      emotionTrend: dailyRows.map((row) => {
+      emotionTrend: dailyRows.flatMap((row) => {
         const parsed = this.readAnalysisResult(row.result_payload);
-        return {
+        if (parsed.schemaVersion !== latest?.schemaVersion) return [];
+        return [{
           date: asString(row.created_at).slice(0, 10),
           values: Object.fromEntries(parsed.emotionDistribution.map((item) => [item.emotion, item.value])),
           isSimulated: parsed.isSimulated,
-        };
+          schemaVersion: parsed.schemaVersion,
+        }];
       }),
-      distressTrend: dailyRows.map((row) => {
+      distressTrend: dailyRows.flatMap((row) => {
         const parsed = this.readAnalysisResult(row.result_payload);
-        return {
+        if (parsed.schemaVersion !== "echo-journal-analysis-v1") return [];
+        return [{
           date: asString(row.created_at).slice(0, 10),
           band: parsed.distressBand,
           value: ["low", "mild", "moderate", "high", "severe"].indexOf(parsed.distressBand) / 4,
           isSimulated: parsed.isSimulated,
-        };
+        }];
       }),
       period: {
         range: input.range,
@@ -1096,6 +1232,7 @@ export class JournalService {
   }
 
   async requestSupportContact(userId: string, trustedContactId: string, jobId?: string) {
+    if(this.localResults && jobId)throw new ExternalServiceError("LOCAL_CONTACT_UNAVAILABLE","Contact-review requests linked to local analysis are unavailable. Support resources remain available.");
     const { data: contact, error } = await this.database
       .schema("user_service")
       .from("trusted_contacts")
@@ -1173,6 +1310,7 @@ export class JournalService {
   }
 
   async createBuddyHandoff(userId: string, analysisResultId: string) {
+    if(this.localResults){const job=this.localResults.get(userId,analysisResultId);if(!job)throw new NotFoundError('Local analysis is unavailable.');await this.get(userId,job.journal_id);return this.localResults.handoff(userId,analysisResultId);}
     const { data: result, error } = await this.database
       .schema("ai_analysis")
       .from("analysis_results")
@@ -1198,7 +1336,7 @@ export class JournalService {
         recommendation_selection_id: selection.id,
         approved_context: {
           dominantEmotion: parsed.dominantEmotion,
-          distressBand: parsed.distressBand,
+          ...(parsed.schemaVersion !== "echo-journal-analysis-v1" ? { distressCategory: parsed.distressCategory } : { distressBand: parsed.distressBand }),
           recommendationFeatures: parsed.recommendationFeatures,
         },
         expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(),
@@ -1210,6 +1348,7 @@ export class JournalService {
   }
 
   async getBuddyHandoff(userId: string, handoffId: string) {
+    if(this.localResults){const handoff=this.localResults.readHandoff(userId,handoffId);const job=handoff?this.localResults.get(userId,handoff.job_id):undefined;if(!job?.result_ciphertext)throw new NotFoundError('The local activity is unavailable.');await this.get(userId,job.journal_id);return {id:handoffId,expiresAt:handoff!.expires_at,recommendation:this.localRecommendation(job)};}
     const { data, error } = await this.database
       .schema("buddy_service")
       .from("recommendation_handoffs")
@@ -1244,6 +1383,14 @@ export class JournalService {
     decision: "approved_continue" | "end_analysis",
     decisionKey: string,
   ) {
+    if(this.localResults){
+      const job=this.localResults.find(jobId);if(!job)throw new NotFoundError('The local review job is unavailable.');
+      const {data,error}=await this.database.schema('ai_analysis').from('safety_reviewers').select('user_id').eq('user_id',reviewerId).maybeSingle();
+      if(error||!data)throw new AuthorizationError('Restricted safety-review permission is required.');
+      const outcome=this.localResults.review(reviewerId,job.user_id,jobId,decision,decisionKey);
+      if(decision==='approved_continue')this.enqueueLocal(this.localResults.get(job.user_id,jobId)!);
+      return outcome;
+    }
     const { data, error } = await this.database.schema("ai_analysis").rpc("resolve_safety_review", {
       p_reviewer: reviewerId,
       p_job_id: jobId,
@@ -1287,11 +1434,11 @@ export class JournalService {
         : "No result is available.",
       perspective: "This AI-generated estimate is not a diagnosis or completed PHQ-8 assessment.",
       mood_insight: result?.dominantEmotion ?? "Unavailable",
-      risk_indication: result?.distressBand ?? "Unavailable",
+      risk_indication: result && result.schemaVersion !== "echo-journal-analysis-v1" ? `${result.distressCategory} category; clinical severity unavailable` : result?.distressBand ?? "Unavailable",
       is_demo_data: result?.isSimulated ?? false,
       created_at: asString(row.created_at),
       status: asString(row.status),
-      phq8_score: result ? Math.round((result.depressiveSymptomRange.lower + result.depressiveSymptomRange.upper) / 2) : null,
+      phq8_score: result?.depressiveSymptomRange ? Math.round((result.depressiveSymptomRange.lower + result.depressiveSymptomRange.upper) / 2) : null,
       severity: typeof row.severity === "string" ? row.severity : null,
       urgent_language_detected: row.urgent_language_detected === true,
       provider: result?.providerName ?? "unavailable",

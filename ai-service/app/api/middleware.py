@@ -2,7 +2,7 @@ import time
 from collections import defaultdict, deque
 from uuid import UUID, uuid4
 
-from fastapi import Request
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
@@ -53,10 +53,16 @@ async def request_id_middleware(request: Request, call_next):
         request_id = str(uuid4())
 
     request.state.request_id = request_id
+    body_limit=MAX_BODY_BYTES
+    if request.url.path=='/v2/speech':
+        from app.core.security import require_internal_token
+        try:require_internal_token(request.headers.get('authorization'))
+        except HTTPException as error:return _error_response(error.status_code,error.detail,request_id)
+        body_limit=14*1024*1024
     content_length = request.headers.get("content-length")
     if content_length:
         try:
-            if int(content_length) > MAX_BODY_BYTES:
+            if int(content_length) > body_limit:
                 return _error_response(413, "Request body is too large.", request_id)
         except ValueError:
             return _error_response(400, "Invalid Content-Length header.", request_id)
@@ -76,7 +82,7 @@ async def request_id_middleware(request: Request, call_next):
         message = await original_receive()
         if message["type"] == "http.request":
             received_bytes += len(message.get("body", b""))
-            if received_bytes > MAX_BODY_BYTES:
+            if received_bytes > body_limit:
                 limit_exceeded = True
                 return {"type": "http.disconnect"}
         return message

@@ -186,9 +186,10 @@ export function createBuddyHttpAdapter(): BuddyService {
 
     async sendMessage(input) {
       try {
-        const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string; conversationId?: string }>(
+        const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string; conversationId?: string;temporarySessionId?:string }>(
           "/buddy/messages",
-          { content: input.content, conversationId: input.conversationId },
+          { content: input.content, conversationId: input.conversationId,temporarySessionId:input.temporarySessionId },
+          { timeout: 315_000 },
         );
         const messages = mapMessages(response.data.conversationId ?? "temporary", response.data.messages).slice(-2);
         return messages.length === 2

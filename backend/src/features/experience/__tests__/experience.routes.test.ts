@@ -84,7 +84,7 @@ describe("experience routes", () => {
       .set("Authorization", "Bearer valid-token")
       .send({ content: "I feel overwhelmed." });
     expect(valid.status).toBe(201);
-    expect(service.sendBuddyMessage).toHaveBeenCalledWith("user-1", "I feel overwhelmed.", undefined);
+    expect(service.sendBuddyMessage).toHaveBeenCalledWith("user-1", "I feel overwhelmed.", undefined, undefined);
   });
 
   it("opens and pins only a validated conversation id through the authenticated route", async () => {

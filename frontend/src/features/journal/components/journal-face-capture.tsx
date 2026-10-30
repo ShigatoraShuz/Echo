@@ -36,6 +36,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
     const workerRef = useRef<Worker | null>(null);
     const timerRef = useRef<number | null>(null);
     const busyRef = useRef(false);
+    const requestGeneration = useRef(0);
     const connectionsRef = useRef<Connection[]>([]);
     const latestCaptureRef = useRef<FaceMeshCapture | undefined>(undefined);
 
@@ -45,6 +46,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
     }, []);
 
     const stop = useCallback(() => {
+      requestGeneration.current += 1;
       if (timerRef.current !== null) window.clearInterval(timerRef.current);
       timerRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -103,6 +105,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
     }, []);
 
     const start = useCallback(async () => {
+      const generation = ++requestGeneration.current;
       onRequestedChange(true);
       latestCaptureRef.current = undefined;
       setHasFace(false);
@@ -116,12 +119,14 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
           video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false,
         });
+        if (generation !== requestGeneration.current) { stream.getTracks().forEach(track => track.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
         setState("loading_mesh");
         const worker = new Worker(new URL("../workers/face-mesh.worker.ts", import.meta.url), { type: "module" });
         workerRef.current = worker;
         worker.onmessage = (event: MessageEvent) => {
+          if (generation !== requestGeneration.current) return;
           const message = event.data as {
             type: "ready" | "result" | "error" | "frame_error";
             connections?: Connection[];
@@ -156,19 +161,24 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             return;
           }
           busyRef.current = false;
-          if (message.type === "error") setState("error");
+          if (message.type === "error") { stop(); setState("error"); }
         };
+        worker.onerror = () => { if (generation !== requestGeneration.current) return; stop(); setState("error"); };
         worker.postMessage({
           type: "init",
           wasmRoot: new URL("/vendor/mediapipe", window.location.origin).toString(),
           modelUrl: new URL("/models/face_landmarker.task", window.location.origin).toString(),
         });
       } catch (error) {
-        streamRef.current?.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
+        if (generation !== requestGeneration.current) return;
+        stop();
         setState(error instanceof DOMException && ["NotAllowedError", "PermissionDeniedError"].includes(error.name) ? "denied" : "unavailable");
       }
-    }, [beginFrames, clearCanvas, drawMesh, onRequestedChange]);
+    }, [beginFrames, clearCanvas, drawMesh, onRequestedChange, stop]);
+
+    useEffect(() => {
+      if (videoRef.current && streamRef.current && (state === "active" || state === "loading_mesh")) videoRef.current.srcObject = streamRef.current;
+    }, [state]);
 
     useEffect(() => {
       const handleVisibility = () => {

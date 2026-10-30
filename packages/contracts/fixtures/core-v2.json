@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "echo-journal-analysis-v2",
+  "thresholdVersion": "xlmr-v2-frozen",
+  "providerName": "echo-core",
+  "modelVersion": "echo-core-v2",
+  "isSimulated": false,
+  "emotionDistribution": [
+    {
+      "emotion": "joy",
+      "value": 0.99773151
+    },
+    {
+      "emotion": "trust",
+      "value": 0.00046582
+    },
+    {
+      "emotion": "fear",
+      "value": 6.488e-05
+    },
+    {
+      "emotion": "surprise",
+      "value": 0.00076018
+    },
+    {
+      "emotion": "sadness",
+      "value": 0.00017364
+    },
+    {
+      "emotion": "disgust",
+      "value": 0.00018197
+    },
+    {
+      "emotion": "anger",
+      "value": 4.822e-05
+    },
+    {
+      "emotion": "anticipation",
+      "value": 0.00057381
+    }
+  ],
+  "dominantEmotion": "joy",
+  "emotionConfidence": 0.99773151,
+  "distressBand": null,
+  "distressConfidence": null,
+  "depressiveSymptomRange": null,
+  "distressCategory": "Others",
+  "categoryScores": {
+    "Others": 0.936841,
+    "Anxious": 0.017601,
+    "Depressed": 0.014324,
+    "Frustrated": 0.020711,
+    "Suicidal": 0.010522
+  },
+  "goEmotions": {
+    "admiration": 0.74017441,
+    "amusement": 0.1431877,
+    "anger": 0.04146227,
+    "annoyance": 0.04672496,
+    "approval": 0.27357441,
+    "caring": 0.14608724,
+    "confusion": 0.05261895,
+    "curiosity": 0.09138211,
+    "desire": 0.1732882,
+    "disappointment": 0.04208773,
+    "disapproval": 0.04813677,
+    "disgust": 0.06465349,
+    "embarrassment": 0.06465349,
+    "excitement": 0.284576,
+    "fear": 0.02635535,
+    "gratitude": 0.30652705,
+    "grief": 0.04023794,
+    "joy": 0.75635755,
+    "love": 0.715424,
+    "nervousness": 0.063715,
+    "optimism": 0.256832,
+    "pride": 0.08389039,
+    "realization": 0.12852514,
+    "relief": 0.09401018,
+    "remorse": 0.02716923,
+    "sadness": 0.07477004,
+    "surprise": 0.04535258
+  },
+  "supportReviewRequired": false,
+  "classificationMetadata": {
+    "maxLength": 384,
+    "stride": 64,
+    "threshold": 0.16983573167936325,
+    "windowCount": 1,
+    "declaredLanguage": "en"
+  },
+  "models": {
+    "xlmr": {
+      "providerName": "xlmr",
+      "modelVersion": "4d2a5741eeb0ceb29bbed4de15bc4b774dc73006e99319adfa98c6fe142877eb",
+      "inferenceVersion": "aeb903bf0b023c06c146e9f8f258515621c0fc382e117bd7292f56f1353566f1"
+    },
+    "e4": {
+      "providerName": "e4",
+      "modelVersion": "88024583897ec274462fcb1dd4170f31a17a2ecf20c5b692c2dbf4b210537308",
+      "inferenceVersion": "6f3d2031cb2afb4f2466e375821aa0384e65186b568ae27f6549e4f3dee38d88"
+    }
+  },
+  "recommendationFeatures": [
+    "grounding"
+  ],
+  "facialExpressionAnalysis": null
+}

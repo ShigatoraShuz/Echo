@@ -233,7 +233,7 @@ export function JournalAnalysisPreviewView() {
   const [selectedState, setSelectedState] = useState<PreviewState>("fully-ready");
   const current = mockAnalyses[selectedState];
   const checks = analysisChecksFor(current.aggregateStatus, current.facialStatus, current.progressPercent);
-  const result = current.analysis.result;
+  const result = current.analysis.result?.schemaVersion === "echo-journal-analysis-v1" ? current.analysis.result : undefined;
   const facialStatus = current.facialStatus;
   const facialIsReady = facialStatus === "completed";
 

@@ -15,6 +15,13 @@ dependencies = [
 requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
+[project.optional-dependencies]
+core = [
+  "torch==2.12.0+cu130", "transformers==5.5.0", "accelerate==1.15.0",
+  "peft==0.21.0", "bitsandbytes==0.50.2", "safetensors==0.8.0",
+  "numpy>=1.26", "scipy>=1.12", "pandas>=2.1", "scikit-learn>=1.4",
+]
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 

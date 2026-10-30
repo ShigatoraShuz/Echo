@@ -6,6 +6,7 @@ import { sendSuccess } from "../../shared/utils/response.js";
 import type { ExperienceService } from "./experience.service.js";
 
 const buddyMessageSchema = z.strictObject({
+  temporarySessionId:z.uuid().optional(),
   content: z.string().trim().min(1).max(4_000),
   conversationId: z.uuid().optional(),
 });
@@ -63,7 +64,7 @@ export function createExperienceController(service: ExperienceService) {
     },
     async sendBuddyMessage(request: Request, response: Response) {
       const input = parse(buddyMessageSchema, request.body);
-      sendSuccess(response, await service.sendBuddyMessage(authenticatedUserId(request), input.content, input.conversationId), 201);
+      sendSuccess(response, await service.sendBuddyMessage(authenticatedUserId(request), input.content, input.conversationId,input.temporarySessionId), 201);
     },
     async buddyConversation(request: Request, response: Response) {
       sendSuccess(response, await service.buddySession(authenticatedUserId(request), parse(z.uuid(), request.params.id)));
