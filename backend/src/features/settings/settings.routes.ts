@@ -12,6 +12,7 @@ export function createSettingsRouter(service: SettingsService, verifier: AccessT
   const authenticate = createAuthMiddleware(verifier);
   router.use(["/settings/data-exports", "/settings/account-deletion", "/settings/security"], authenticate, endpointLimiter(6));
   router.get("/settings", authenticate, controller.get);
+  router.get("/settings/profile", authenticate, controller.getProfileSummary);
   router.patch("/settings/profile", authenticate, controller.updateProfile);
   router.put(
     "/settings/profile/avatar",

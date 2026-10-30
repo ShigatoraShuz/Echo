@@ -48,6 +48,13 @@ function legacyDatabase() {
 }
 
 describe("SettingsService with an older Buddy schema", () => {
+  it("reads only owner profile fields for the navigation menu", async () => {
+    const mocks = legacyDatabase();
+    const profile = await new SettingsService(mocks.database as never).getProfileSummary(userId);
+    expect(profile).toEqual({ displayName: "Lloyd", avatarPath: null });
+    expect(mocks.from).toHaveBeenCalledExactlyOnceWith("profiles");
+  });
+
   it("loads other settings and marks Buddy history controls unavailable", async () => {
     const mocks = legacyDatabase();
     const service = new SettingsService(mocks.database as never);

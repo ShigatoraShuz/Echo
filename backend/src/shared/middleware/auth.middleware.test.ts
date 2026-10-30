@@ -37,4 +37,16 @@ describe("request authentication reuse", () => {
     expect(accepted.getUser).toHaveBeenCalledTimes(1);
     expect(rejected.getUser).toHaveBeenCalledTimes(1);
   });
+
+  it("records verification time when the identity provider fails", async () => {
+    const verifier = { getUser: vi.fn().mockRejectedValue(new Error("provider unavailable")) };
+    const app = express();
+    app.get("/", createAuthMiddleware(verifier), (_req, response) => response.status(204).end());
+    app.use((_error: unknown, _req: express.Request, response: express.Response, _next: express.NextFunction) =>
+      response.status(401).json({ authVerificationMs: response.locals.authVerificationMs }));
+
+    const result = await request(app).get("/").set("Authorization", "Bearer valid-token");
+    expect(result.status).toBe(401);
+    expect(result.body.authVerificationMs).toEqual(expect.any(Number));
+  });
 });
