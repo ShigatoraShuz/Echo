@@ -49,6 +49,7 @@ export type SignupResult = AuthSession | PendingEmailConfirmation;
 
 export type AuthServiceErrorCode =
   | "INVALID_CREDENTIALS"
+  | "EMAIL_NOT_CONFIRMED"
   | "EMAIL_IN_USE"
   | "WEAK_PASSWORD"
   | "INVALID_TOKEN"

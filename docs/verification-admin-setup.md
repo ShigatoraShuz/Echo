@@ -1,5 +1,15 @@
 # ECHO administrator setup and verification review
 
+## Document scanning required for review
+
+The backend quarantines identity documents unless a trusted scanner is configured. The scanner is a separate service; setting these variables does not install or operate one. Configure `VERIFICATION_SCANNER_URL` and `VERIFICATION_SCANNER_TOKEN` together in the backend environment. Use HTTPS, or loopback HTTP for a local scanner. Keep the token server-side.
+
+The scanner endpoint accepts a `POST` containing the raw JPG, PNG, or PDF bytes with the matching `Content-Type` and `Authorization: Bearer <token>`. It must perform malware and active-content checks, decode the document, and return JSON containing `status` (`clean`, `rejected`, or `quarantined`), lowercase hex `sha256`, and a nonempty `scannerVersion`. Clean PDFs also require `pages` (1–20); clean images require positive `width` and `height` with at most 40 million pixels. ECHO independently checks the SHA-256 digest and metadata before recording a clean scan. Scanner errors, timeouts, or incomplete results remain quarantined.
+
+For this Windows development machine only, set `VERIFICATION_SCANNER_MODE=windows_defender` and `VERIFICATION_PDFINFO_PATH` to the absolute path of Poppler's `pdfinfo.exe` in `backend/.env`. This opt-in scans a temporary private copy with Microsoft Defender using `-DisableRemediation`, checks the original digest, decodes images with Sharp, and checks PDF page count, encryption, forms, JavaScript, and common active-action markers with Poppler. It quarantines files when any check or cleanup fails. This local adapter is blocked in production; a deployed backend needs the approved HTTPS scanner above. Restart the backend after changing its environment.
+
+New uploads are scanned at upload time. A draft with quarantined files can retry submission after the scanner is available; the backend rescans its stored files. When an administrator selects an existing submitted application with quarantined documents, the review page runs one authorized rescan automatically and offers **Run security scan** to retry if it fails. This action requires reviewer MFA and recent authentication, checks stored-file integrity, and opens the evidence only after every document passes. No reviewer can approve quarantined evidence. Do not change a document's scan fields manually.
+
 ## Scope
 
 The admin workspace is at `/admin/verifications` (`/admin` redirects there). It uses ECHO's existing cream/green theme and server-enforced verification reviewer role. `admin:super` is the operator-friendly command alias for this scoped administrator account; it does not create an unrestricted database superuser, grant access to private journals/passwords, or introduce a separate hierarchy of staff roles.

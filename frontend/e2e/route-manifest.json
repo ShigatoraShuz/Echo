@@ -81,6 +81,24 @@
     "failure": "Preserve input and explain retry"
   },
   {
+    "path": "/callback/finish",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Complete an email confirmation session from the URL fragment",
+    "expected": "Clear confirmation tokens and continue to a safe internal destination",
+    "empty": "Offer password login when no confirmation session is present",
+    "failure": "Reject invalid tokens without opening protected pages"
+  },
+  {
+    "path": "/google-migration",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Sign in with an existing Google-linked account",
+    "expected": "Open Security settings on the same user account",
+    "empty": "Explain that this page is for existing accounts",
+    "failure": "Show a retry path without creating a new account"
+  },
+  {
     "path": "/forgot-password",
     "role": "public",
     "fixture": "auth",

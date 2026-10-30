@@ -8,6 +8,14 @@ export async function GET(request: Request) {
   const next = safeRedirectPath(requestUrl.searchParams.get("next"));
   const intent = requestUrl.searchParams.get("intent");
 
+  if (!code && !requestUrl.searchParams.has("error")) {
+    // Implicit email confirmation tokens live in the browser fragment, which
+    // is not sent to this route. A redirect without a fragment preserves it.
+    const finish = new URL("/callback/finish", requestUrl.origin);
+    finish.searchParams.set("next", next);
+    return NextResponse.redirect(finish);
+  }
+
   if (code) {
     try {
       const supabase = await createServerSupabaseClient();

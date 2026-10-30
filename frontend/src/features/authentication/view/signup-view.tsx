@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { registrationApi, type PolicyDocument } from "@/services/authentication/registration-api";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
-import { SecureGoogleSignupButton } from "../components/secure-google-signup-button";
 
 interface SignupViewProps {
   title: string;
@@ -250,13 +249,7 @@ export function SignupView({ title, description }: SignupViewProps) {
             <div>
               <p className="eyebrow">Step 3 · Account</p>
               <h2 className="mt-2 text-3xl [font-family:var(--font-echo-display)]">Create your private account</h2>
-              <p className="mt-2 text-sm text-[#697168]">Choose Google or create an account with email.</p>
-              <SecureGoogleSignupButton />
-              <div className="my-5 flex items-center gap-3 text-xs text-[#7b8278]">
-                <span className="h-px flex-1 bg-[#526f3520]" />
-                or continue with email
-                <span className="h-px flex-1 bg-[#526f3520]" />
-              </div>
+              <p className="mt-2 text-sm text-[#697168]">Use your email address and a password to create your account.</p>
               <label className="mt-6 block text-sm font-bold">
                 Email address
                 <div className="relative mt-2">
@@ -336,8 +329,8 @@ export function SignupView({ title, description }: SignupViewProps) {
               <p className="eyebrow mt-5">Step 4 · Verify & finish</p>
               <h2 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Check your inbox</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#697168]">
-                If this address can register, a verification link will arrive at <strong>{email}</strong>. Open it,
-                then log in to continue. If you already have an account, sign in or reset your password.
+                If this address can register, a verification link will arrive at <strong>{email}</strong>. Open it to
+                confirm your email and continue setup. If you already have an account, sign in or reset your password.
               </p>
               <Link
                 href="/login"
@@ -345,6 +338,9 @@ export function SignupView({ title, description }: SignupViewProps) {
               >
                 Go to log in <ArrowRight className="size-4" />
               </Link>
+              <p className="mt-4 text-sm text-[#697168]">
+                Used Google before? <Link href="/google-migration" className="font-bold text-[#526f35] underline">Move your existing account to email</Link>
+              </p>
               <button
                 type="button"
                 disabled={busy}

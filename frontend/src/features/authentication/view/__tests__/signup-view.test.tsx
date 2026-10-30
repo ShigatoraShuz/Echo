@@ -69,11 +69,13 @@ describe("SignupView", () => {
     }
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await screen.findByText("Create your private account");
+    expect(screen.queryByRole("button", { name: /continue with google/i })).not.toBeInTheDocument();
     await user.type(screen.getByLabelText(/email address/i), "mira@example.com");
     await user.type(screen.getByLabelText(/^password/i), "SecurePass1");
     await user.type(screen.getByLabelText(/confirm password/i), "SecurePass1");
     await user.click(screen.getByRole("button", { name: /create account/i }));
     await screen.findByText("Check your inbox");
+    expect(screen.getByRole("link", { name: "Move your existing account to email" })).toHaveAttribute("href", "/google-migration");
     expect(registrationApi.email).toHaveBeenCalledWith({
       email: "mira@example.com",
       password: "SecurePass1",

@@ -51,7 +51,7 @@ SUPPORT_PROMPT_COOLDOWN_DAYS=7
 
 Use `PHQ8_INTERVAL_DAYS=3` for a demo. Intervals are server configuration, not UI constants; changing them recalculates due/cooldown eligibility from persisted timestamps. Restart the backend after configuration changes.
 
-Local Supabase now has a Magic Link email template containing `{{ .Token }}` in `supabase/templates/login-code.html`. Hosted projects must separately copy this template into the **Magic Link** Auth email template and verify SMTP delivery. Leave the signup confirmation template and `enable_confirmations` enabled. This configuration was not applied remotely. See [Supabase passwordless email documentation](https://supabase.com/docs/guides/auth/auth-email-passwordless).
+Local Supabase has a Magic Link email template containing `{{ .Token }}` in `supabase/templates/login-code.html`. Hosted projects must separately copy this template into the **Magic Link** Auth email template and verify SMTP delivery. Leave the signup confirmation template and `enable_confirmations` enabled. On 2026-10-30, the linked ECHO UPDATED THESIS2 production project received the branded code template; live delivery and code verification remain untested. See [Supabase passwordless email documentation](https://supabase.com/docs/guides/auth/auth-email-passwordless).
 
 ## Verification results
 

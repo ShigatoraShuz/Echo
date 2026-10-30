@@ -2,10 +2,11 @@
 // PostgREST, or Realtime integration validation.
 import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const database = new PGlite({ extensions: { pgcrypto } });
+const database = new PGlite({ extensions: { pgcrypto, btree_gist } });
 await database.exec(`
  create role anon; create role authenticated; create role service_role bypassrls;
  create role supabase_auth_admin; create role supabase_storage_admin; create role authenticator;

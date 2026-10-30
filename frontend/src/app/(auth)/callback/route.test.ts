@@ -9,6 +9,13 @@ vi.mock("@/infrastructure/supabase/server-client", () => ({
 import { GET } from "./route";
 
 describe("auth callback", () => {
+  it("hands implicit email confirmation fragments to the browser", async () => {
+    const response = await GET(new Request("http://localhost:3000/callback?next=%2Fonboarding"));
+
+    expect(response.headers.get("location")).toBe("http://localhost:3000/callback/finish?next=%2Fonboarding");
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
+  });
+
   it("returns a completed login to a safe internal destination", async () => {
     exchangeCodeForSession.mockResolvedValueOnce({ error: null });
 

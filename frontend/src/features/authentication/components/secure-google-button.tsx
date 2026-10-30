@@ -153,6 +153,11 @@ export function SecureGoogleButton({ intent, successPath }: { intent: "login" | 
           {error}
         </p>
       )}
+      {intent === "login" && clientId && authConfigured ? (
+        <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">
+          Moving to email sign-in? Sign in with Google, then open Security settings to set and verify email access.
+        </p>
+      ) : null}
     </div>
   );
 }

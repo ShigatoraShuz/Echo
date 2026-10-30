@@ -43,9 +43,6 @@ vi.mock("@/services/authentication/reviewer-mfa", () => ({
 vi.mock("@/services/authentication/auth-service.factory", () => ({
   getAuthService: () => ({ getCurrentSession: mocks.getCurrentSession }),
 }));
-vi.mock("@/features/authentication/components/secure-google-login-button", () => ({
-  SecureGoogleLoginButton: ({ successPath }: { successPath: string }) => <p>Login destination: {successPath}</p>,
-}));
 vi.mock("../components/professional-shell", () => ({
   ProfessionalShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
   ProfessionalSkeleton: () => <p>Loading professional access</p>,
@@ -350,7 +347,7 @@ describe("professional auth flow", () => {
     mocks.searchParams = new URLSearchParams("next=%2Fprofessional%2Frequest");
     mocks.getCurrentSession.mockResolvedValue({ success: true, data: { isMockSession: false } });
     render(<ProfessionalLoginView />);
-    expect(screen.getByText("Login destination: /professional/access?next=%2Fprofessional")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Move your account to email/i })).toHaveAttribute("href", "/google-migration");
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/professional/access?next=%2Fprofessional"));
   });
 

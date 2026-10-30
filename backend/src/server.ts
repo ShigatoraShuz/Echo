@@ -14,6 +14,8 @@ import { JournalImagesService } from "./features/journals/journal-images.service
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
+import { createHttpDocumentScanner, quarantineScanner } from "./infrastructure/security/document-scanner.js";
+import { createWindowsDefenderScanner } from "./infrastructure/security/windows-defender-scanner.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
 import { PushSubscriptionsService } from "./features/notifications/push-subscriptions.service.js";
@@ -93,7 +95,15 @@ const experienceService = new ExperienceService(supabaseAdmin, journalService, e
   supportWindowDays: environment.SUPPORT_PROMPT_WINDOW_DAYS,
   supportCooldownDays: environment.SUPPORT_PROMPT_COOLDOWN_DAYS,
 }, () => createRequestUserClient(environment));
-const verificationService = new VerificationService(supabaseAdmin, encryptionService);
+const verificationService = new VerificationService(
+  supabaseAdmin,
+  encryptionService,
+  environment.VERIFICATION_SCANNER_URL && environment.VERIFICATION_SCANNER_TOKEN
+    ? createHttpDocumentScanner(environment.VERIFICATION_SCANNER_URL, environment.VERIFICATION_SCANNER_TOKEN)
+    : environment.VERIFICATION_SCANNER_MODE === "windows_defender"
+      ? createWindowsDefenderScanner(environment.VERIFICATION_PDFINFO_PATH!)
+      : quarantineScanner,
+);
 const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
 const notificationService = new NotificationService(
   () => createRequestUserClient(environment),

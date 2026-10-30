@@ -157,6 +157,13 @@ export const verificationApi = {
       )
     ).data;
   },
+  async adminRescan(verificationId: string): Promise<AdminVerificationDetail> {
+    return (
+      await client.post<ApiEnvelope<AdminVerificationDetail>>(
+        `/admin/verifications/${encodeURIComponent(verificationId)}/rescan`,
+      )
+    ).data;
+  },
   async adminDecide(
     verificationId: string,
     input: {
