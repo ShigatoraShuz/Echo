@@ -24,6 +24,7 @@ interface BuddySessionResponse {
     role: "user" | "buddy";
     content: string;
     timestamp: string;
+    generation?: import("@echo/contracts").GenerationStage;
   }>;
 }
 
@@ -91,6 +92,7 @@ function mapMessages(conversationId: string, messages: BuddySessionResponse["mes
     role: message.role === "user" ? "user" : "buddy",
     content: message.content,
     timestamp: message.timestamp,
+    generation:message.generation,
   }));
 }
 
@@ -105,10 +107,11 @@ export function createBuddyHttpAdapter(): BuddyService {
       try {
         const response = await client.get<ApiEnvelope<VerificationSnapshot>>("/verification", { signal });
         const privacy = response.data.canAccessAi
-          ? await client.get<ApiEnvelope<{ buddyHistoryEnabled: boolean }>>("/buddy/privacy", { signal })
+          ? await client.get<ApiEnvelope<{ buddyHistoryEnabled: boolean; responderState?: "DEMO_FALLBACK" }>>("/buddy/privacy", { signal })
           : null;
         return { success: true, data: { canAccessAi: response.data.canAccessAi, accessRequirement: response.data.accessRequirement,
-          buddyHistoryEnabled: privacy?.data.buddyHistoryEnabled ?? true } };
+          buddyHistoryEnabled: privacy?.data.buddyHistoryEnabled ?? true,
+          ...(privacy?.data.responderState ? { responderState: privacy.data.responderState } : {}) } };
       } catch (error) {
         return { success: false, error: toBuddyError(error) };
       }
@@ -189,7 +192,6 @@ export function createBuddyHttpAdapter(): BuddyService {
         const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string; conversationId?: string;temporarySessionId?:string }>(
           "/buddy/messages",
           { content: input.content, conversationId: input.conversationId,temporarySessionId:input.temporarySessionId },
-          { timeout: 315_000 },
         );
         const messages = mapMessages(response.data.conversationId ?? "temporary", response.data.messages).slice(-2);
         return messages.length === 2

@@ -1,13 +1,13 @@
 "use client";
 
-import { useWorkspaceRefresh } from "@/shared/hooks/use-workspace-refresh";
+import { usePauseProfessionalReads, useProfessionalRefresh } from "./professional-read-scope";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { professionalApi, type Membership, type ProfessionalDashboardSummary, type QueueRequest } from "@/services/professionals/professional-api";
 import { AppError } from "@/shared/errors/app-error";
 import { approvedOrganizations } from "../professional-organizations";
-import { membershipAccessFailure, professionalAccessDestination, professionalAccessFailure, professionalAccessState, professionalLoginDestination, type ProfessionalAccessFailure } from "../professional-access-feedback";
-import { ProfessionalAccessContext } from "../professional-access-context";
+import { membershipAccessFailure, professionalAccessDestination, professionalAccessFailure, professionalAccessState, professionalLoginDestination, reportProfessionalAccessLoss, type ProfessionalAccessFailure } from "../professional-access-feedback";
+import { ProfessionalAccessContext, ProfessionalRevalidateContext } from "../professional-access-context";
 import { isPendingRequest, professionalDashboardOverview } from "../professional-dashboard.model";
 import { professionalClaimFailure, scopedRequestMetadata } from "../professional-request.model";
 
@@ -19,6 +19,8 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
   const query = searchParams.toString();
   const destination = `${basePath}${query ? `?${query}` : ""}`;
   const gateAccess = useContext(ProfessionalAccessContext);
+  const revalidateGate = useContext(ProfessionalRevalidateContext);
+  const pauseReads = usePauseProfessionalReads();
   const initialOrganizations = approvedOrganizations(gateAccess?.memberships ?? []);
   const initialSelection = initialOrganizations.find((item) => item.organizationId === requestedOrganization) ?? initialOrganizations[0];
   const [memberships, setMemberships] = useState<Membership[] | null>(gateAccess?.memberships ?? null);
@@ -48,6 +50,7 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
 
   const reportFailure = useCallback((reason: unknown, claiming = false) => {
     const failure = claiming ? professionalClaimFailure(reason) : professionalAccessFailure(reason);
+    if (failure.conceal) reportProfessionalAccessLoss(reason);
     setSuccess("");
     setError(failure.kind === "validation" ? { ...failure, retry: true } : failure);
     if (failure.kind === "session" || failure.kind === "reauth") router.replace(professionalLoginDestination(destination));
@@ -58,8 +61,8 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
     let active = true;
     scope.current += 1;
     queueRequest.current += 1;
-    // The route gate just verified membership/MFA for this exact navigation.
-    // Explicit refresh still revalidates; no result survives a gate unmount.
+    // The mounted organization gate owns bounded membership/MFA revalidation.
+    // Explicit refresh still revalidates; no data survives its scope unmount.
     if (gateAccess && membershipAttempt === 0) {
       return () => { active = false; scope.current += 1; queueRequest.current += 1; };
     }
@@ -120,7 +123,10 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
         ? readOnce(`dashboard:${userId}:${organizationId}`, () => professionalApi.dashboard(organizationId))
           .then(value => ({ status: "fulfilled" as const, value }), reason => ({ status: "rejected" as const, reason }))
         : null;
-      const result = await readOnce(`queue:${userId}:${organizationId}`, () => professionalApi.queue(organizationId));
+      const mine = basePath === "/professional/my-cases";
+      const result = await readOnce(`queue:${userId}:${organizationId}:${mine}`, () => mine
+        ? professionalApi.queue(organizationId, { assignedTo: userId, sort: "updated", limit: 100 })
+        : professionalApi.queue(organizationId));
       if (current !== queueRequest.current) return false;
       let summary: ProfessionalDashboardSummary | null = null;
       let unavailable = false;
@@ -149,7 +155,7 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
   }, [organizationId, reportFailure, basePath, userId, data, canClaim, readOnce]);
 
   useEffect(() => { void refresh(); return () => { queueRequest.current += 1; }; }, [refresh]);
-  useWorkspaceRefresh(() => { if (!claimInFlight.current && !error) void refresh(true); }, data === "schedule" && canClaim ? userId + ":" + organizationId + ":" + activeMembership?.role : "", () => { queueRequest.current++; pendingReads.current.clear(); setRequests(null); setDashboardSummary(null); setOrganizationId(""); });
+  useProfessionalRefresh(() => { if (!claimInFlight.current && !error) void refresh(true); }, data === "schedule" && canClaim ? userId + ":" + organizationId + ":" + activeMembership?.role : "", () => { queueRequest.current++; pendingReads.current.clear(); setRequests(null); setDashboardSummary(null); setOrganizationId(""); }, "appointments");
   const overview = useMemo(() => professionalDashboardOverview(requests ?? [], organizationId, userId), [requests, organizationId, userId]);
 
   async function claim(id: string) {
@@ -191,6 +197,9 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
 
   function refreshWorkspace() {
     if (claimInFlight.current) return;
+    // The owning gate must also purge badges and all scoped read state when
+    // explicit membership revalidation discovers changed privileges.
+    if (revalidateGate) { void revalidateGate(); return; }
     scope.current += 1; queueRequest.current += 1; pendingReads.current.clear();
     setRequests(null); setMemberships(null); setOrganizationId(""); setSuccess("");
     setDashboardSummary(null); setSummaryUnavailable(false);
@@ -198,6 +207,7 @@ export function useProfessionalWorkspace(basePath = "/professional", data: "queu
   }
   function switchOrganization(id: string) {
     if (id === organizationId || claimInFlight.current || !approvedOrganizations(memberships ?? []).some((item) => item.organizationId === id)) return;
+    pauseReads();
     scope.current += 1; queueRequest.current += 1; pendingReads.current.clear();
     setRequests(null); setMemberships(null); setOrganizationId(""); setSuccess(""); setError(null);
     setDashboardSummary(null); setSummaryUnavailable(false);

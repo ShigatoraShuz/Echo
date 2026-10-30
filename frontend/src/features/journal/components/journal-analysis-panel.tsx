@@ -1,6 +1,8 @@
 "use client";
 import { NativeAnalysis } from "./native-analysis";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+const ModelPipelinePanel=dynamic(()=>import("./model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 
 import {
   Activity,
@@ -203,6 +205,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
   }
 
   const result = analysis.result;
+  if(result?.schemaVersion==="echo-model-pipeline-v2") return <ModelPipelinePanel result={result} />;
   if (!result) {
     return (
       <div className="rounded-[2rem] border border-primary/10 p-6 sm:p-7" style={{ background: panelBg }}>

@@ -35,8 +35,9 @@ export function BuddyMessageBubble({ message, onRetry, onCopy, onFeedback }: Mes
         onMouseLeave={() => setShowActions(false)}
       >
         <p>{message.content}</p>
+        {message.generation ? <p className="mt-2 break-words text-[11px] text-current">{message.generation.executionState === "DEMO_FALLBACK" ? "Guided Support | DEMO_FALLBACK: prewritten support; no LLM or therapy" : message.generation.executionMode==="synthetic" ? "SYNTHETIC E2E FIXTURE — no trained generation" : `Experimental ${message.generation.modelId} @ ${message.generation.modelVersion} — not professional therapy`}</p> : null}
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-[11px] font-medium text-muted-foreground">{message.timestamp}</p>
+          <p className="text-[11px] font-medium text-current">{message.timestamp}</p>
           {showActions && isBuddy && (
             <div className="flex gap-1">
               {onCopy && (

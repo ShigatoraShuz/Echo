@@ -39,6 +39,7 @@ export function createJournalsRouter(
   router.put("/journals/draft", authenticate, controller.saveDraft);
   router.delete("/journals/draft", authenticate, controller.deleteDraft);
   router.get("/journals/:journalId", authenticate, controller.get);
+  router.get("/journals/:journalId/analysis-state", authenticate, controller.analysisAvailability);
   router.patch("/journals/:journalId", authenticate, controller.update);
   router.delete("/journals/:journalId", authenticate, controller.remove);
   router.post('/journals/:journalId/screening/retry',authenticate,requireVerifiedAi,async(req,res)=>{await service.retryScreening(req.auth!.id,String(req.params.journalId));res.json({success:true,data:{updated:true}});});

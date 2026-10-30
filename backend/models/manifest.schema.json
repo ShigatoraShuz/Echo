@@ -1,0 +1,437 @@
+{
+  "$defs": {
+    "Calibration": {
+      "additionalProperties": false,
+      "properties": {
+        "semantics": {
+          "enum": [
+            "softmax",
+            "sigmoid",
+            "structured_generation"
+          ],
+          "title": "Semantics",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "uncalibrated",
+            "temperature",
+            "not_applicable"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "temperature": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "title": "Temperature",
+          "type": "number"
+        },
+        "documentation": {
+          "maxLength": 2000,
+          "minLength": 10,
+          "title": "Documentation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "semantics",
+        "method",
+        "documentation"
+      ],
+      "title": "Calibration",
+      "type": "object"
+    },
+    "Preprocessing": {
+      "additionalProperties": false,
+      "properties": {
+        "normalization": {
+          "enum": [
+            "identity",
+            "unicode_nfc"
+          ],
+          "title": "Normalization",
+          "type": "string"
+        },
+        "max_tokens": {
+          "maximum": 8192,
+          "minimum": 8,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "stride": {
+          "default": 0,
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Stride",
+          "type": "integer"
+        },
+        "max_windows": {
+          "default": 1,
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Max Windows",
+          "type": "integer"
+        },
+        "aggregation": {
+          "default": "mean_probabilities",
+          "enum": [
+            "mean_probabilities",
+            "mean_logits",
+            "max_probabilities"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
+        "truncation": {
+          "default": "reject",
+          "enum": [
+            "reject",
+            "documented_truncate"
+          ],
+          "title": "Truncation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "normalization",
+        "max_tokens"
+      ],
+      "title": "Preprocessing",
+      "type": "object"
+    },
+    "SupportMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_reference": {
+          "maxLength": 500,
+          "minLength": 10,
+          "title": "Approved Reference",
+          "type": "string"
+        },
+        "minimum_probability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimum Probability",
+          "type": "number"
+        },
+        "label_flags": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Label Flags",
+          "type": "object"
+        },
+        "score_strategy": {
+          "default": "top_class",
+          "enum": [
+            "top_class",
+            "max_window_label_probability"
+          ],
+          "title": "Score Strategy",
+          "type": "string"
+        },
+        "window_temperature": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window Temperature"
+        }
+      },
+      "required": [
+        "approved_reference",
+        "minimum_probability",
+        "label_flags"
+      ],
+      "title": "SupportMapping",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "echo-model-manifest-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "enum": [
+        "research_checkpoint",
+        "synthetic_engineering"
+      ],
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "model_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{1,159}$",
+      "title": "Model Id",
+      "type": "string"
+    },
+    "version": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$",
+      "title": "Version",
+      "type": "string"
+    },
+    "task": {
+      "enum": [
+        "peak",
+        "distress",
+        "phq8",
+        "cbt",
+        "face",
+        "base"
+      ],
+      "title": "Task",
+      "type": "string"
+    },
+    "family": {
+      "enum": [
+        "roberta",
+        "xlm_roberta",
+        "sea_lion",
+        "seallms",
+        "echo_face",
+        "synthetic"
+      ],
+      "title": "Family",
+      "type": "string"
+    },
+    "architecture": {
+      "maxLength": 120,
+      "minLength": 3,
+      "title": "Architecture",
+      "type": "string"
+    },
+    "export_format": {
+      "enum": [
+        "hf_safetensors",
+        "echo_e4_safetensors",
+        "peft_safetensors",
+        "synthetic_fixture",
+        "deferred"
+      ],
+      "title": "Export Format",
+      "type": "string"
+    },
+    "inference_spec_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Inference Spec File"
+    },
+    "calibration_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Calibration File"
+    },
+    "research_status": {
+      "anyOf": [
+        {
+          "enum": [
+            "provisional_nonfinal",
+            "research_unvalidated"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Research Status"
+    },
+    "base_model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Model Id"
+    },
+    "base_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Base Version"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 1000,
+      "title": "Files",
+      "type": "array"
+    },
+    "tokenizer_files": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Tokenizer Files",
+      "type": "array"
+    },
+    "labels": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Labels",
+      "type": "array"
+    },
+    "preprocessing": {
+      "$ref": "#/$defs/Preprocessing"
+    },
+    "calibration": {
+      "$ref": "#/$defs/Calibration"
+    },
+    "output_schema": {
+      "maxLength": 120,
+      "minLength": 3,
+      "title": "Output Schema",
+      "type": "string"
+    },
+    "support_mapping": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SupportMapping"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "device": {
+      "enum": [
+        "cpu",
+        "cuda"
+      ],
+      "title": "Device",
+      "type": "string"
+    },
+    "quantization": {
+      "default": "none",
+      "enum": [
+        "none",
+        "nf4"
+      ],
+      "title": "Quantization",
+      "type": "string"
+    },
+    "compute_dtype": {
+      "default": "float16",
+      "enum": [
+        "float16",
+        "bfloat16"
+      ],
+      "title": "Compute Dtype",
+      "type": "string"
+    },
+    "minimum_vram_gb": {
+      "default": 0,
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Minimum Vram Gb",
+      "type": "number"
+    },
+    "frameworks": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Frameworks",
+      "type": "object"
+    },
+    "sha256": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Sha256",
+      "type": "object"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Provenance",
+      "type": "object"
+    },
+    "readiness": {
+      "default": "disabled",
+      "enum": [
+        "disabled",
+        "engineering_only"
+      ],
+      "title": "Readiness",
+      "type": "string"
+    },
+    "safety_review_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Safety Review Reference"
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_kind",
+    "model_id",
+    "version",
+    "task",
+    "family",
+    "architecture",
+    "export_format",
+    "files",
+    "tokenizer_files",
+    "labels",
+    "preprocessing",
+    "calibration",
+    "output_schema",
+    "device",
+    "frameworks",
+    "sha256",
+    "provenance"
+  ],
+  "title": "ModelManifest",
+  "type": "object"
+}

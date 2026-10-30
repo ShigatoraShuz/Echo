@@ -2,9 +2,12 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "jest-axe";
-import CalendarPage from "@/app/(protected)/professional/calendar/page";
-import ResourcesPage from "@/app/(protected)/professional/resources/page";
+import CalendarContent from "@/app/(protected)/professional/(workspace)/calendar/page";
+import ResourcesContent from "@/app/(protected)/professional/(workspace)/resources/page";
+import WorkspaceLayout from "@/app/(protected)/professional/(workspace)/layout";
 import { AppError } from "@/shared/errors/app-error";
+const CalendarPage = () => <WorkspaceLayout><CalendarContent /></WorkspaceLayout>;
+const ResourcesPage = () => <WorkspaceLayout><ResourcesContent /></WorkspaceLayout>;
 
 const api = vi.hoisted(() => ({ memberships: vi.fn(), dashboard: vi.fn(), queue: vi.fn(), caseDetail: vi.fn(), resources: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/professional/calendar", params: new URLSearchParams("organization=org-one"), replace: vi.fn(), refresh: vi.fn() }));

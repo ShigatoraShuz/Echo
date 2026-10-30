@@ -27,6 +27,7 @@ for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1690]) {
 test("uncertain-save recovery fits a narrow case panel", async ({ page }) => {
   const state = await fixtures(page); await page.setViewportSize({ width: 360, height: 800 });
   await page.goto(`/professional/cases/${caseId}`);
+  await page.getByRole("tab", { name: "Notes and care coordination", exact: true }).click();
   await page.getByLabel("New case note").fill("Fictional note for recovery inspection");
   state.faults.addNote = { status: 503, code: "SERVER_ERROR" };
   await page.getByRole("button", { name: "Save note", exact: true }).click();

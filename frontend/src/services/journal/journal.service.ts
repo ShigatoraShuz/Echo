@@ -9,7 +9,7 @@ import type {
   JournalServiceError,
   JournalCreationOutcome,
 } from "@/features/journal/model/journal.model";
-import type { AnalysisFixture, AnalysisProgress } from "@echo/contracts";
+import type { AnalysisFixture, AnalysisProgress, JournalAnalysisAvailability } from "@echo/contracts";
 
 export type JournalServiceResult<T> = { success: true; data: T } | { success: false; error: JournalServiceError };
 
@@ -37,6 +37,7 @@ export interface JournalService {
   deleteDraft(id: string): Promise<JournalServiceResult<void>>;
   requestAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis>>;
   getAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis | null>>;
+  getAnalysisAvailability?(entryId: string): Promise<JournalServiceResult<JournalAnalysisAvailability>>;
   getAnalysisStatus?(jobId: string): Promise<JournalServiceResult<AnalysisProgress>>;
   resolveSupportResources?(
     countryCode: string,

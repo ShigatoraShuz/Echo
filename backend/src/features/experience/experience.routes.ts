@@ -30,6 +30,7 @@ export function createExperienceRouter(
   router.get("/dashboard", authenticate, controller.dashboard);
   router.get("/wellness", authenticate, controller.wellnessStatus);
   router.post("/wellness/phq8", authenticate, aiWriteLimiter, controller.saveAssessment);
+  router.post("/wellness/phq8/self-report", authenticate, aiWriteLimiter, controller.saveSelfReport);
   router.post("/wellness/support-prompt", authenticate, aiWriteLimiter, controller.claimSupportPrompt);
   router.get("/buddy/session", authenticate, requireVerifiedAi, controller.buddySession);
   router.get("/buddy/privacy", authenticate, requireVerifiedAi, controller.buddyPrivacy);

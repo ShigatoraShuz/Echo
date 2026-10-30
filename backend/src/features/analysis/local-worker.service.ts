@@ -134,6 +134,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const journal = await this.journals.get(String(data.userId), String(data.journalId));
     return {
       jobId: data.jobId,
+      userId: data.userId,
       journalId: data.journalId,
       status: data.status,
       leaseToken,
@@ -209,11 +210,13 @@ export class LocalWorkerService implements LocalWorkerProtocol {
   }
   async finalResult(jobId: string, workerId: string, leaseToken: string, key: string | undefined, payload: unknown) {
     this.authenticateIdentity(workerId);
+    const result = this.parse(journalAnalysisResultSchema, payload);
+    if (result.schemaVersion !== "echo-journal-analysis-v1")
+      throw new AuthorizationError("Experimental model callbacks are disconnected.");
     const identity = this.identity(key, payload);
     const receipt = await this.probe("final_result", jobId, workerId, leaseToken, identity);
     if (receipt?.replay) return receipt.outcome;
     await assertAiEnabled();
-    const result = this.parse(journalAnalysisResultSchema, payload);
     const { data, error } = await this.database.schema("ai_analysis").rpc("complete_worker_callback", {
       p_job_id: jobId,
       p_result: this.journals.encryptAnalysisResult(result),

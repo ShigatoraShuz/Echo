@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { LayoutDashboard, MessageCircle, CalendarDays, NotebookPen, History } from "lucide-react";
 const sections = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -27,6 +27,8 @@ export function ProfessionalCaseTabs({
 }) {
   const [local, setLocal] = useState(0);
   const active = activeIndex ?? local;
+  const [visited, setVisited] = useState(() => new Set([active]));
+  useEffect(() => { setVisited(previous => previous.has(active) ? previous : new Set([...previous, active])); }, [active]);
   const setActive = (index: number) => {
     setLocal(index);
     onActiveChange?.(index);
@@ -86,7 +88,7 @@ export function ProfessionalCaseTabs({
           tabIndex={0}
           className="echo-focus-ring min-w-0 space-y-6 rounded-2xl"
         >
-          {panels[id]}
+          {active === index || visited.has(index) ? panels[id] : null}
         </section>
       ))}
     </div>

@@ -9,6 +9,7 @@ for (const width of [390, 1440]) {
     await page.goto("/professional-support/messages");
     const draft = page.getByRole("textbox", { name: "Message your practitioner" });
     await expect(draft).toBeVisible();
+    await expect.poll(() => state.calls.filter(call => call.method === "profileSummary").length).toBe(1);
     await draft.fill("Fictional browser owner reply");
     state.faults.sendMessage = { status: 503, code: "SERVER_ERROR" };
     await page.getByRole("button", { name: "Send", exact: true }).click();

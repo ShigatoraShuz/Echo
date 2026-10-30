@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { JournalEntry, JournalAnalysis } from "../model/journal.model";
+import type { JournalAnalysisAvailability } from "@echo/contracts";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
 interface DetailState {
+  analysisAvailability: JournalAnalysisAvailability | null;
   entry: JournalEntry | null;
   analysis: JournalAnalysis | null;
   isLoading: boolean;
@@ -16,6 +18,7 @@ interface DetailState {
 }
 
 type DetailAction =
+  | { type: "ANALYSIS_AVAILABILITY"; value: JournalAnalysisAvailability | null }
   | { type: "ENTRY_LOAD_START" }
   | { type: "ENTRY_LOAD_SUCCESS"; entry: JournalEntry }
   | { type: "ENTRY_LOAD_ERROR"; error: string; notFound: boolean }
@@ -31,8 +34,9 @@ type DetailAction =
 
 function reducer(state: DetailState, action: DetailAction): DetailState {
   switch (action.type) {
+    case "ANALYSIS_AVAILABILITY": return { ...state, analysisAvailability: action.value };
     case "ENTRY_LOAD_START":
-      return { ...state, isLoading: true, error: null, notFound: false };
+      return { ...state, isLoading: true, error: null, notFound: false, analysis: null, analysisAvailability: null };
     case "ENTRY_LOAD_SUCCESS":
       return { ...state, isLoading: false, entry: action.entry };
     case "ENTRY_LOAD_ERROR":
@@ -54,13 +58,14 @@ function reducer(state: DetailState, action: DetailAction): DetailState {
     case "SHOW_DELETE_DIALOG":
       return { ...state, showDeleteDialog: action.show, error: null };
     case "RETRY":
-      return { ...state, isLoading: true, error: null, notFound: false };
+      return { ...state, isLoading: true, error: null, notFound: false, analysis: null, analysisAvailability: null };
     default:
       return state;
   }
 }
 
 const initialState: DetailState = {
+  analysisAvailability: null,
   entry: null,
   analysis: null,
   isLoading: true,
@@ -75,19 +80,29 @@ export function useJournalDetailViewModel(id: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getJournalService();
   const lastLoadedAt = useRef(0);
+  const loadEpoch = useRef(0);
+  const invalidateLoads = useCallback(() => { ++loadEpoch.current; }, []);
 
   const loadEntry = useCallback(
     async (entryId: string) => {
+      const epoch = ++loadEpoch.current;
       dispatch({ type: "ENTRY_LOAD_START" });
       const result = await service.getEntry(entryId);
+      if (epoch !== loadEpoch.current) return;
       if (result.success) {
         lastLoadedAt.current = Date.now();
         dispatch({ type: "ENTRY_LOAD_SUCCESS", entry: result.data });
 
         if (result.data.analysisConsent) {
           const analysisResult = await service.getAnalysis(entryId);
+          if (epoch !== loadEpoch.current) return;
           if (analysisResult.success) {
             dispatch({ type: "ANALYSIS_LOAD_SUCCESS", analysis: analysisResult.data });
+            if (!analysisResult.data && service.getAnalysisAvailability) {
+              const availability = await service.getAnalysisAvailability(entryId);
+              if (epoch !== loadEpoch.current) return;
+              if (availability.success) dispatch({ type: "ANALYSIS_AVAILABILITY", value: availability.data });
+            }
           }
         }
       } else {
@@ -114,11 +129,12 @@ export function useJournalDetailViewModel(id: string) {
     document.addEventListener("visibilitychange", refreshPhotos);
     const interval = window.setInterval(refreshPhotos, 60_000);
     return () => {
+      invalidateLoads();
       window.removeEventListener("echo:analysis-completed", refresh);
       document.removeEventListener("visibilitychange", refreshPhotos);
       window.clearInterval(interval);
     };
-  }, [id, loadEntry]);
+  }, [id, loadEntry, invalidateLoads]);
 
   const deleteEntry = useCallback(async () => {
     dispatch({ type: "DELETE_START" });
@@ -159,6 +175,7 @@ export function useJournalDetailViewModel(id: string) {
   return {
     entry: state.entry,
     analysis: state.analysis,
+    analysisAvailability: state.analysisAvailability,
     isLoading: state.isLoading,
     isDeleting: state.isDeleting,
     isExporting: state.isExporting,

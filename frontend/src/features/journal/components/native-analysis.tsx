@@ -16,7 +16,7 @@ const criterionLabels: Record<string, string> = {
   concentration: "Concentration",
   psychomotor: "Movement or restlessness",
 };
-type NativeResult = Exclude<JournalAnalysisResult, { schemaVersion: "echo-journal-analysis-v1" }>;
+type NativeResult = Extract<JournalAnalysisResult, { schemaVersion: "echo-journal-analysis-v2" | "echo-journal-analysis-v3" }>;
 export function NativeAnalysis({
   result,
   insights,

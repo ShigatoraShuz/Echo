@@ -13,6 +13,7 @@ test("combined clinical workspace shows only consented snapshots and clears mess
   state.detail.sharedPhq8 = [{ id: "fictional-check-in", label: "Fictional selected PHQ-8", score: 8, severity: "mild", context: "Fictional selected context", completedAt: "2026-10-14T08:00:00Z" }];
   await page.goto(`/professional/cases/${caseId}`);
   await expect(page.getByText("Fictional selected PHQ-8", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Conversation", exact: true }).click();
   await expect(page.getByText("Fictional private conversation", { exact: true })).toBeVisible();
   const hold = pending(); state.holds.sendCaseMessage = hold.promise;
   await page.getByLabel("Case message", { exact: true }).fill("Fictional professional reply");
@@ -151,6 +152,7 @@ test("My Cases opens only assigned records and revoked sharing clears snapshots"
 test("notes and closure show acknowledged success and then enforce read-only state", async ({ page }) => {
   const state = await fixtures(page); const hold = pending(); state.holds.addNote = hold.promise;
   await page.goto(`/professional/cases/${caseId}`);
+  await page.getByRole("tab", { name: "Notes and care coordination", exact: true }).click();
   await page.getByLabel("New case note").fill("Fictional browser note");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
   await expect(page.getByRole("button", { name: "Saving", exact: true })).toBeDisabled();
@@ -158,6 +160,7 @@ test("notes and closure show acknowledged success and then enforce read-only sta
   hold.release();
   await expect(page.getByText("Note saved. The server confirmed receipt.")).toBeVisible();
   expect(state.calls.filter((call) => call.method === "addNote")).toHaveLength(1);
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
   await page.getByRole("button", { name: "Close case", exact: true }).click();
   await page.getByRole("button", { name: "Confirm closure", exact: true }).click();
   await expect(page.getByText("Closure confirmed by the server. Checking the latest case status.")).toBeVisible();
@@ -168,16 +171,18 @@ test("notes and closure show acknowledged success and then enforce read-only sta
 test("appointment proposal, cancellation and referral use their supported workflow", async ({ page }) => {
   const state = await fixtures(page);
   await page.goto(`/professional/cases/${caseId}`);
+  await page.getByRole("tab", { name: "Appointments", exact: true }).click();
   await page.getByLabel("Starts", { exact: true }).fill("2099-10-20T10:00");
   await page.getByLabel("Ends", { exact: true }).fill("2099-10-20T11:00");
   await page.getByRole("button", { name: "Review appointment proposal" }).click();
   expect(state.detail.appointments).toHaveLength(0);
   await page.getByRole("button", { name: "Send proposal", exact: true }).click();
   await expect(page.getByText("Appointment proposal recorded. Waiting for the request owner to respond.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Rescheduling unavailable" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Reschedule appointment", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Cancel appointment", exact: true }).click();
   await page.getByRole("button", { name: "Confirm cancellation", exact: true }).click();
   await expect(page.getByText("Appointment cancellation confirmed. Reloading current case status.")).toBeVisible();
+  await page.getByRole("tab", { name: "Notes and care coordination", exact: true }).click();
   await page.getByLabel("Resource name", { exact: true }).fill("Fictional browser resource");
   await page.getByLabel("Secure website, optional").fill("https://example.invalid/support");
   await page.getByRole("button", { name: "Record referral", exact: true }).click();

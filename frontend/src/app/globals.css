@@ -941,9 +941,9 @@
 
 @media (min-width: 1024px) and (min-height: 700px) {
   .echo-workspace-shell { height: 100dvh; overflow: hidden; }
-  .echo-workspace-content { height: 100%; min-height: 0; }
-  .echo-workspace-main { overflow: hidden; }
-  .echo-workspace-page { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .echo-workspace-shell .echo-workspace-content { height: 100%; min-height: 0; }
+  .echo-workspace-shell .echo-workspace-main { overflow: hidden; }
+  .echo-workspace-shell .echo-workspace-page { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 }
 
 .echo-panel-scroll { scrollbar-width: thin; scrollbar-color: hsl(var(--primary) / .3) transparent; overscroll-behavior: contain; }

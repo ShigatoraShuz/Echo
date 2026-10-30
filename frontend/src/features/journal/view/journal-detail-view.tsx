@@ -22,7 +22,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   const [photoUploadError, setPhotoUploadError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const {
-    entry, analysis, isLoading, isDeleting, isExporting,
+    entry, analysis, analysisAvailability, isLoading, isDeleting, isExporting,
     showDeleteDialog, error, notFound,
     deleteEntry, exportEntry, openDeleteDialog: setShowDeleteDialog, retry,
   } = useJournalDetailViewModel(id);
@@ -133,7 +133,11 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         {analysis ? <>
           <JournalAnalysisPanel analysis={analysis} />
           {analysis.result && analysis.summary && <div className="mt-4 rounded-2xl border border-primary/10 bg-card/80 px-5 py-4 sm:px-6"><h2 className="text-xs font-semibold uppercase tracking-[.14em] text-primary">Narrative summary</h2><p className="mt-2 text-sm leading-7 text-muted-foreground">{analysis.summary}</p></div>}
-        </> : <div className="rounded-2xl border border-primary/10 bg-card/75 px-5 py-5 sm:px-6"><h2 className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles className="h-4 w-4" aria-hidden="true" /> ECHO perspective</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">No completed analysis is available for this entry. Your writing is safely saved; a missing result does not represent a low distress score.</p></div>}
+        </> : <div className="rounded-2xl border border-primary/10 bg-card/75 px-5 py-5 sm:px-6"><h2 className="flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles className="h-4 w-4" aria-hidden="true" /> ECHO perspective</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{!entry.analysisConsent ? "Analysis was not requested when this reflection was saved. Your writing is safely stored; nothing was inferred without your consent. You can choose optional analysis when saving a new reflection."
+  : analysisAvailability?.reason === "PROCESSOR_DISABLED" ? "Your analysis is waiting because processing is unavailable in this environment. Your reflection is saved."
+  : analysisAvailability?.status === "failed" ? "Analysis could not be completed. Your reflection remains saved; a failed result is not a low distress score. After service recovery, a new consented submission can be processed."
+  : analysisAvailability?.jobId ? `Analysis status: ${analysisAvailability.status.replaceAll("_", " ")}. Your reflection is saved; successful results will appear when processing finishes.`
+  : "No completed analysis is available. Your reflection is saved; no mental-health score is inferred from a missing result."}</p>{entry.analysisConsent ? <button type="button" className="mt-3 text-sm font-semibold text-primary underline" onClick={retry}>Check analysis status</button> : null}</div>}
       </section>
 
       <JournalDeleteDialog

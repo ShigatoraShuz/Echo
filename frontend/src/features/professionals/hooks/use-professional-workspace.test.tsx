@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ProfessionalWorkspaceGate } from "../components/professional-workspace-gate";
 import { useProfessionalWorkspace } from "./use-professional-workspace";
 import { AppError } from "@/shared/errors/app-error";
@@ -19,6 +19,7 @@ function Probe() {
   return <div><button onClick={state.refreshWorkspace}>Refresh</button><button onClick={() => state.switchOrganization("org-two")}>Switch</button><span>{state.error ? "denied" : state.requests === null ? "waiting" : state.organizationId + ":" + state.requests.map(r => r.id).join(",")}</span></div>;
 }
 const view = () => <ProfessionalWorkspaceGate><Probe /></ProfessionalWorkspaceGate>;
+afterEach(() => vi.restoreAllMocks());
 beforeEach(() => {
   navigation.pathname = "/professional"; navigation.params = new URLSearchParams("organization=org-one");
   api.memberships.mockResolvedValue({ userId: "actor", mfaRequired: false, memberships: members });
@@ -43,12 +44,36 @@ it("starts the dashboard while the independent queue is still pending", async ()
   expect(screen.getByText("waiting")).toBeVisible();
   await act(async () => read.resolve(queue("org-one"))); await screen.findByText("org-one:org-one-request");
 });
-it("rechecks membership and discards the previous route result on navigation", async () => {
+it("preserves a verified same-organization gate across navigation without redundant membership reads", async () => {
   const mounted = render(view()); await screen.findByText("org-one:org-one-request");
+  navigation.pathname = "/professional/requests";
+  mounted.rerender(view()); expect(screen.queryByText("Checking access")).not.toBeInTheDocument();
+  await screen.findByText("org-one:org-one-request"); expect(api.memberships).toHaveBeenCalledTimes(1); expect(api.dashboard).toHaveBeenCalledTimes(1);
+});
+
+it("expires the UI gate lease before a later navigation and conceals data until revalidated", async () => {
+  const mounted = render(view()); await screen.findByText("org-one:org-one-request");
+  const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now + 15_001);
   navigation.pathname = "/professional/requests"; const check = pending<unknown>(); api.memberships.mockReturnValue(check.promise);
-  mounted.rerender(view()); expect(screen.queryByText("org-one:org-one-request")).not.toBeInTheDocument();
+  mounted.rerender(view()); expect(screen.getByText("Checking access")).toBeVisible();
   await act(async () => check.resolve({ userId: "actor", mfaRequired: false, memberships: members }));
-  await screen.findByText("org-one:org-one-request"); expect(api.memberships).toHaveBeenCalledTimes(2); expect(api.dashboard).toHaveBeenCalledTimes(1);
+  await screen.findByText("org-one:org-one-request"); expect(api.memberships).toHaveBeenCalledTimes(2);
+});
+
+it("rechecks on focus, coalesces visibility events, and conceals revoked membership", async () => {
+  render(view()); await screen.findByText("org-one:org-one-request");
+  api.memberships.mockResolvedValue({ userId: "actor", mfaRequired: false, memberships: members.map(m => ({ ...m, status: "suspended", accessState: "suspended_membership" })) });
+  await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+  expect(screen.queryByText("org-one:org-one-request")).not.toBeInTheDocument();
+  expect(api.memberships).toHaveBeenCalledTimes(2);
+});
+
+it("retains children and drafts when background membership verification is unchanged", async () => {
+  render(view()); await screen.findByText("org-one:org-one-request");
+  const queueCalls = api.queue.mock.calls.length;
+  await act(async () => window.dispatchEvent(new Event("focus")));
+  expect(api.memberships).toHaveBeenCalledTimes(2); expect(api.queue).toHaveBeenCalledTimes(queueCalls);
+  expect(screen.getByText("org-one:org-one-request")).toBeVisible();
 });
 it("clears immediately on organization selection and ignores the old queue and summary", async () => {
   const oldQueue = pending<ReturnType<typeof queue>>(), oldSummary = pending<ReturnType<typeof summary>>();
@@ -64,7 +89,7 @@ it("explicit refresh revalidates membership and never reuses gate approval after
   render(view()); await screen.findByText("org-one:org-one-request");
   api.memberships.mockResolvedValue({ userId: "actor", mfaRequired: false, memberships: members.map(m => ({ ...m, status: "suspended", accessState: "suspended_membership" })) });
   fireEvent.click(screen.getByText("Refresh")); expect(screen.queryByText("org-one:org-one-request")).not.toBeInTheDocument();
-  await screen.findByText("denied"); expect(api.memberships).toHaveBeenCalledTimes(2); expect(api.queue).toHaveBeenCalledTimes(1);
+  await screen.findByRole("alert"); expect(api.memberships).toHaveBeenCalledTimes(2); expect(api.queue).toHaveBeenCalledTimes(1);
 });
 it("clears route-scoped state on logout/account invalidation, including an in-flight load", async () => {
   const read = pending<ReturnType<typeof queue>>(); api.queue.mockReturnValue(read.promise);
@@ -76,7 +101,7 @@ it("clears route-scoped state on logout/account invalidation, including an in-fl
 });
 it.each([401,403,404])("conceals queue data when the concurrent summary denies access (%s)", async statusCode => {
   api.dashboard.mockRejectedValue(new AppError({ code: "AUTHORIZATION_ERROR", statusCode, userMessage: "Private diagnostic" }));
-  render(view()); await screen.findByText("denied"); expect(screen.queryByText("org-one:org-one-request")).not.toBeInTheDocument();
+  render(view()); await screen.findByRole("alert"); expect(screen.queryByText("org-one:org-one-request")).not.toBeInTheDocument();
 });
 it("MFA requirements stop all workspace data requests", async () => {
   api.memberships.mockResolvedValue({ userId: "actor", mfaRequired: true, memberships: members });

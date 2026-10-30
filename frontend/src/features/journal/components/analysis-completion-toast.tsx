@@ -66,10 +66,10 @@ export function AnalysisCompletionToast() {
           <Check className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-primary">Analysis ready</p>
+          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-primary">Processing finished</p>
           <p className="mt-1 truncate text-sm font-semibold">“{toast.title}”</p>
           <Link href={`/journal/${toast.journalId}`} onClick={() => setToast(null)} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
-            View analysis <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            View results and availability <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>
         <button type="button" onClick={() => setToast(null)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-[transform,background-color] duration-150 ease-out hover:bg-secondary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[.97]" aria-label="Dismiss analysis notification">

@@ -17,9 +17,12 @@ beforeEach(() => { vi.resetAllMocks(); mocks.params = new URLSearchParams(); moc
 it("preserves only the agenda period on refresh, resetting it on case navigation", async () => {
   const { rerender } = render(<ProfessionalCaseView id="case-one" />);
   await userEvent.click(await screen.findByRole("tab", {name:"Appointments"})); await userEvent.click(await screen.findByRole("button", { name: "Past" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Notes and care coordination" }));
   fireEvent.change(screen.getByLabelText("Resource name"), { target: { value: "Unsaved fictional referral" } });
+  await userEvent.click(screen.getByRole("tab", { name: "Appointments" }));
   await userEvent.click(screen.getByRole("button", { name: "Refresh case" }));
   expect(await screen.findByRole("button", { name: "Past" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("tab", { name: "Notes and care coordination" }));
   expect(screen.getByLabelText("Resource name")).toHaveValue("");
   mocks.caseDetail.mockResolvedValue({ ...fixture, request: { ...fixture.request, id: "case-two" } });
   rerender(<ProfessionalCaseView id="case-two" />);
@@ -133,7 +136,9 @@ describe("FE-023 real referral recording", () => {
     render(<ProfessionalCaseView id="case-one" />); await reviewProposal(); await userEvent.click(screen.getByRole("button", { name: "Send proposal" }));
     await screen.findByText(/Proposal receipt could not be confirmed/); await userEvent.click(screen.getByRole("button", { name: "Retry" })); await screen.findByLabelText("Starts");
     await submitReferral(); await screen.findByText(/Referral receipt could not be confirmed/); await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByLabelText("Resource name")).toBeDisabled(); expect(screen.getByLabelText("Starts")).toBeDisabled();
+    expect(await screen.findByLabelText("Resource name")).toBeDisabled();
+    await userEvent.click(screen.getByRole("tab", { name: "Appointments" })); expect(screen.getByLabelText("Starts")).toBeDisabled();
+    await userEvent.click(screen.getByRole("tab", { name: "Notes and care coordination" }));
     await userEvent.click(screen.getByRole("button", { name: "I reviewed the referrals; enable a new record" })); expect(screen.getByLabelText("Resource name")).toBeEnabled(); expect(screen.getByLabelText("Starts")).toBeDisabled();
     expect(mocks.proposeAppointment).toHaveBeenCalledTimes(1); expect(mocks.addReferral).toHaveBeenCalledTimes(1);
   });

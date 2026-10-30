@@ -9,8 +9,8 @@ for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1690]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/professional/settings?organization=org-one");
     await expect(page.getByLabel("Display name", { exact: true })).toHaveValue("Fictional account holder");
-    expect(state.calls.filter(call => call.method === "notifications")).toHaveLength(0);
-    await page.locator('button[aria-label="Notifications"]:visible').click();
+    expect(state.calls.filter(call => call.method === "notifications")).toHaveLength(1);
+    await page.locator('button[aria-label^="Notifications"]:visible').click();
     const panel = page.getByRole("dialog", { name: "Notifications", exact: true });
     await expect(panel.getByRole("heading", { name: "Appointment updated" })).toHaveCount(10);
     const box = await panel.boundingBox();
@@ -19,17 +19,17 @@ for (const width of [320, 375, 390, 430, 768, 1024, 1440, 1690]) {
     expect(await panel.locator(".pro-notification-scroll").evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
     expect((await new AxeBuilder({ page }).include('[role="dialog"]').withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
     await page.keyboard.press("Escape");
-    await expect(page.locator('button[aria-label="Notifications"]:visible')).toBeFocused();
+    await expect(page.locator('button[aria-label^="Notifications"]:visible')).toBeFocused();
   });
 }
 
-test("notification reads are lazy, acknowledged once, filtered honestly, and never persisted", async ({ page }) => {
+test("notification discovery and panel coalesce, acknowledge once, filter honestly, and never persist", async ({ page }) => {
   const state = await fixtures(page);
   state.notifications = [{ id: "notice-one", kind: "appointment_changed", caseId, readAt: null, createdAt: "2026-10-20T08:00:00Z" }, { id: "notice-two", kind: "case_updated", caseId, readAt: null, createdAt: "2026-10-19T08:00:00Z" }];
   await page.goto("/professional?organization=org-one");
   await expect(page.getByRole("button", { name: "Accept request", exact: true })).toBeVisible();
-  expect(state.calls.filter(call => call.method === "notifications")).toHaveLength(0);
-  await page.locator('button[aria-label="Notifications"]:visible').click();
+  expect(state.calls.filter(call => call.method === "notifications")).toHaveLength(1);
+  await page.locator('button[aria-label^="Notifications"]:visible').click();
   const panel = page.getByRole("dialog", { name: "Notifications", exact: true });
   await expect(panel.getByText("2 unread", { exact: true })).toBeVisible();
   expect(state.calls.filter(call => call.method === "notifications")).toHaveLength(1);
@@ -43,11 +43,12 @@ test("notification reads are lazy, acknowledged once, filtered honestly, and nev
   await expect(panel.getByRole("heading", { name: "Case updated" })).toBeVisible();
   await expect(panel.getByRole("heading", { name: "Appointment updated" })).toHaveCount(0);
   await panel.getByRole("button", { name: "General", exact: true }).click();
-  await expect(panel.getByText("General updates aren’t available yet")).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Case updated", exact: true })).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Appointment updated", exact: true })).toHaveCount(0);
   await panel.getByRole("button", { name: "All", exact: true }).click();
   await panel.getByRole("link", { name: "Open case", exact: true }).last().focus();
   await page.keyboard.press("Tab");
-  await panel.getByRole("button", { name: "Mark read" }).focus(); await page.keyboard.press("Tab");
+  await panel.getByRole("button", { name: "Refresh updates", exact: true }).focus(); await page.keyboard.press("Tab");
   await expect(panel.getByRole("button", { name: "Close notifications" })).toBeFocused();
   await page.mouse.click(10, 250);
   await expect(panel).toHaveCount(0);
@@ -62,7 +63,7 @@ test("notification responses and private entries are discarded on organization/a
   state.notificationsByOrganization = { "org-one": [...state.notifications], "org-two": [] };
   state.holds["notifications:org-one"] = new Promise<void>(resolve => { release = resolve; });
   await page.goto("/professional?organization=org-one");
-  await page.locator('button[aria-label="Notifications"]:visible').click();
+  await page.locator('button[aria-label^="Notifications"]:visible').click();
   await expect.poll(() => state.calls.filter(call => call.method === "notifications").length).toBe(1);
   // A modal prevents ordinary outside interaction; simulate an external route/
   // organization change while its old request is still in flight.
@@ -70,7 +71,7 @@ test("notification responses and private entries are discarded on organization/a
   await expect(page).toHaveURL(/organization=org-two/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   release(); delete state.holds["notifications:org-one"];
-  await page.locator('button[aria-label="Notifications"]:visible').click();
+  await page.locator('button[aria-label^="Notifications"]:visible').click();
   await expect(page.getByRole("dialog").getByText("No updates here yet")).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event("echo:sensitive-state-cleared")));
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -82,7 +83,7 @@ test("administrators receive neither clinical notifications nor a personal clini
   await page.goto("/professional/my-cases?organization=org-one");
   await expect(page.getByRole("heading", { name: "A workspace for your role" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open case", exact: true })).toHaveCount(0);
-  await page.locator('button[aria-label="Notifications"]:visible').click();
+  await page.locator('button[aria-label^="Notifications"]:visible').click();
   await expect(page.getByText("No administrative notification source yet")).toBeVisible();
   expect(state.calls.filter(call => ["notifications", "caseDetail", "queue"].includes(call.method))).toEqual([]);
 });
@@ -121,7 +122,7 @@ test("notification permission failures conceal entries and settings failure cann
   const state = await fixtures(page);
   state.faults.notifications = { status: 403, code: "AUTHORIZATION_ERROR" };
   await page.goto("/professional?organization=org-one");
-  await page.locator('button[aria-label="Notifications"]:visible').click();
+  // Closed-panel discovery already detects the denied source.
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Open case", exact: true })).toHaveCount(0);
@@ -155,7 +156,7 @@ for (const code of ["MFA_REQUIRED", "RESOURCE_FORBIDDEN"]) {
     await page.getByText("Fictional journal title", { exact: true }).click();
     await expect(page.getByText("Fictional shared snapshot", { exact: true })).toBeVisible();
     state.faults.notifications = { status: 403, code };
-    await page.locator('button[aria-label="Notifications"]:visible').click();
+    await page.evaluate(() => window.dispatchEvent(new Event("echo:notifications-changed")));
     await expect(page.getByRole("alert")).toBeVisible();
     await expect(page.getByText("Fictional shared snapshot", { exact: true })).toHaveCount(0);
     await expect(page.getByLabel("New case note")).toHaveCount(0);

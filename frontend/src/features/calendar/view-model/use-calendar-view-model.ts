@@ -11,6 +11,7 @@ import { getCalendarDays, toLocalDateKey } from "../model/calendar-date";
 
 export function useCalendarViewModel() {
   const sessionActive = useRef(true);
+  const sessionRevision = useRef(0);
   const loadController = useRef<AbortController | null>(null);
   const loadedRange = useRef("");
   const appointmentRead = useRef<AbortController | null>(null);
@@ -27,6 +28,11 @@ export function useCalendarViewModel() {
   const [content, setContent] = useState("");
   const [time, setTime] = useState("");
   const [kind, setKind] = useState<"reminder" | "note">("reminder");
+  useEffect(() => {
+    sessionActive.current = true;
+    const revision = sessionRevision;
+    return () => { sessionActive.current = false; revision.current++; };
+  }, []);
   const days = useMemo(() => getCalendarDays(month), [month]);
   const from = toLocalDateKey(new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate() - 1));
   const last = days[days.length - 1];
@@ -157,6 +163,7 @@ export function useCalendarViewModel() {
     "personal-calendar:" + from + ":" + to,
     () => {
       sessionActive.current = false;
+      sessionRevision.current++;
       loadController.current?.abort();
       appointmentRead.current?.abort();
       setEntries([]);
@@ -164,6 +171,9 @@ export function useCalendarViewModel() {
       setAppointments([]);
       setAnalyses({});
       setContent("");
+      setTime("");
+      setSaving(false);
+      setError(null);
     },
   );
   useEffect(() => {
@@ -191,7 +201,8 @@ export function useCalendarViewModel() {
 
   async function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!content.trim() || saving) return;
+    if (!sessionActive.current || !content.trim() || saving) return;
+    const revision = sessionRevision.current;
     setSaving(true);
     setError(null);
     try {
@@ -201,32 +212,39 @@ export function useCalendarViewModel() {
         kind,
         content: content.trim(),
       });
+      if (!sessionActive.current || revision !== sessionRevision.current) return;
       setItems((current) => [...current, item]);
       setContent("");
       setTime("");
     } catch (cause) {
-      setError(normalizeError(cause).userMessage);
+      if (sessionActive.current && revision === sessionRevision.current) setError(normalizeError(cause).userMessage);
     } finally {
-      setSaving(false);
+      if (sessionActive.current && revision === sessionRevision.current) setSaving(false);
     }
   }
 
   async function toggleItem(item: CalendarItem) {
+    if (!sessionActive.current) return;
+    const revision = sessionRevision.current;
     try {
       const updated = await calendarApi.update(item, !item.completedAt);
+      if (!sessionActive.current || revision !== sessionRevision.current) return;
       setItems((current) => current.map((candidate) => (candidate.id === item.id ? updated : candidate)));
     } catch (cause) {
-      setError(normalizeError(cause).userMessage);
+      if (sessionActive.current && revision === sessionRevision.current) setError(normalizeError(cause).userMessage);
     }
   }
 
   async function removeItem(item: CalendarItem) {
+    if (!sessionActive.current) return;
+    const revision = sessionRevision.current;
     if (!window.confirm(`Delete this ${item.kind}?`)) return;
     try {
       await calendarApi.remove(item.id);
+      if (!sessionActive.current || revision !== sessionRevision.current) return;
       setItems((current) => current.filter((candidate) => candidate.id !== item.id));
     } catch (cause) {
-      setError(normalizeError(cause).userMessage);
+      if (sessionActive.current && revision === sessionRevision.current) setError(normalizeError(cause).userMessage);
     }
   }
 

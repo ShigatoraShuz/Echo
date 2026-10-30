@@ -2,6 +2,7 @@
 
 import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import Link from "next/link";
+import { ProfessionalPreviewEntry } from "@/features/professionals/dev/professional-preview-entry";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bell, Building2, Check, LogOut, Palette, ShieldCheck, UserRound } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -100,7 +101,7 @@ function AccountSettings({ userId, membership }: { userId: string; membership: N
   return <div className="pro-settings-grid">
     <nav className="pro-settings-nav" aria-label="Settings sections">{sections.map(({ id, label, icon: Icon }) => <button key={id} type="button" className="echo-focus-ring" aria-current={section === id ? "page" : undefined} onClick={() => { setSection(id); setSaved(""); }}><Icon size={18} aria-hidden="true" />{label}</button>)}</nav>
     <div className="pro-settings-content">
-      {process.env.NODE_ENV === "development" && membership.role === "org_admin" ? <section aria-label="Clinician demonstration" className="mb-5 rounded-2xl border border-primary/20 bg-secondary/50 p-5"><p className="text-[10px] font-semibold uppercase tracking-[.15em] text-primary">Local development only</p><h2 className="mt-2 text-2xl [font-family:var(--font-echo-display)]">See the care workspace</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Explore fictional clinician screens. Your administrator role and clinical access stay unchanged.</p><Link prefetch={false} href={"/dev/professional-preview?returnOrganization=" + encodeURIComponent(membership.organizationId)} className="echo-focus-ring mt-3 inline-flex min-h-11 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">Preview as Professional</Link></section> : null}
+      <ProfessionalPreviewEntry role={membership.role} organizationId={membership.organizationId} />
       {saved ? <p role="status" className="mb-4 flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm text-primary"><Check size={18} />{saved}</p> : null}
       {error ? <div role="alert" className="mb-4 rounded-2xl border border-border bg-card p-5"><p className="text-sm">{error}</p>{!fields ? <EchoButton variant="outline" size="small" className="mt-3" onClick={() => void load()}>Reload account settings</EchoButton> : null}</div> : null}
       {signingOut ? <p role="status">Signing out of professional workspace…</p> : !fields && !error ? <ProfessionalSkeleton title="Loading account settings" variant="content" /> : fields ? <>

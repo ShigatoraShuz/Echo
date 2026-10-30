@@ -1,11 +1,30 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { composeSignal } from "./abort-signal";
+import { composeSignal, createRequestSignal } from "./abort-signal";
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe("composeSignal", () => {
+  it("uses a timeout reason when a caller signal exists but has not aborted", () => {
+    vi.useFakeTimers();
+    const caller = new AbortController();
+    const request = createRequestSignal(caller.signal, 100);
+    vi.advanceTimersByTime(100);
+    expect(request.signal?.reason.name).toBe("TimeoutError");
+    expect(caller.signal.aborted).toBe(false);
+    request.dispose();
+    vi.useRealTimers();
+  });
+
+  it("does not schedule a deadline for an already canceled request", () => {
+    vi.useFakeTimers();
+    const caller = new AbortController(); caller.abort();
+    const request = createRequestSignal(caller.signal, 100);
+    expect(vi.getTimerCount()).toBe(0);
+    request.dispose();
+    vi.useRealTimers();
+  });
   it("returns undefined when no signal or timeout", () => {
     const result = composeSignal(null, 0);
     expect(result).toBeUndefined();

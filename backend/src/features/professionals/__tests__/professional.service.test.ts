@@ -127,7 +127,7 @@ describe("professional membership access status", () => {
       const query = {
         select: () => query,
         eq: () => query,
-        order: async () => ({ data: rows, error: null }),
+        order: async () => ({ data: rows.map(row => ({ ...row, organization: organizations.find(org => org.id === row.organization_id) })), error: null }),
         in: async () => ({ data: organizations, error: null }),
       };
       expect(["memberships", "organizations"]).toContain(table);

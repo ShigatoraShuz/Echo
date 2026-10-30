@@ -1,0 +1,175 @@
+{
+  "provenance": {
+    "source_report": "provisional-audit-2026-10-29T14-35-15-081Z/compatibility-evidence.json",
+    "source_sha256": "e81a08cdaa8bd552b959c9f06b6935f7f60eb176108b6149e637c134b87c2661",
+    "scope": "Metadata-only extract of archive entry names and exact class order; no checkpoints, predictions or participant records."
+  },
+  "archives": [
+    {
+      "name": "Roberta-Large_EMOTION_DETECT.zip",
+      "entries": [
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_go_validation_metrics.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/e4_config.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/encoder/"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/encoder/config.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/encoder/model.safetensors"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/heads.pt"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/tokenizer.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_model/tokenizer_config.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/best_validation_metrics.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/history.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/run_manifest.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/classification_report.txt"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/confusion_matrix.csv"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/evaluation_manifest.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/go_27_metrics.json"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/go_predictions.csv"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/predictions.csv"
+        },
+        {
+          "name": "E4_C_fresh_roberta_large_seed42/validation/primary_metrics.json"
+        }
+      ],
+      "metadata": []
+    },
+    {
+      "name": "XLM-RoBERTa_V2_len384.zip",
+      "entries": [
+        {
+          "name": "xlmr_v2_len384/"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/config.json"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/model.safetensors"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/tokenizer.json"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/tokenizer_config.json"
+        },
+        {
+          "name": "xlmr_v2_len384/best_model/training_args.bin"
+        },
+        {
+          "name": "xlmr_v2_len384/calibration/"
+        },
+        {
+          "name": "xlmr_v2_len384/calibration/calibration.json"
+        },
+        {
+          "name": "xlmr_v2_len384/calibration/calibration_metrics.json"
+        },
+        {
+          "name": "xlmr_v2_len384/calibration/calibration_predictions.csv"
+        },
+        {
+          "name": "xlmr_v2_len384/checkpoints/"
+        },
+        {
+          "name": "xlmr_v2_len384/checkpoints/trainer_state.json"
+        },
+        {
+          "name": "xlmr_v2_len384/evaluation/"
+        },
+        {
+          "name": "xlmr_v2_len384/evaluation/classification_report.txt"
+        },
+        {
+          "name": "xlmr_v2_len384/evaluation/confusion_matrix.csv"
+        },
+        {
+          "name": "xlmr_v2_len384/evaluation/test_metrics.json"
+        },
+        {
+          "name": "xlmr_v2_len384/evaluation/test_predictions.csv"
+        },
+        {
+          "name": "xlmr_v2_len384/token_length_report.json"
+        },
+        {
+          "name": "xlmr_v2_len384/training_manifest.json"
+        },
+        {
+          "name": "xlmr_v2_len384/train_token_lengths.csv"
+        },
+        {
+          "name": "xlmr_v2_len384/validation_token_lengths.csv"
+        }
+      ],
+      "metadata": [
+        {
+          "path": "calibration.json",
+          "content": {
+            "class_order": [
+              "Others",
+              "Anxious",
+              "Depressed",
+              "Frustrated",
+              "Suicidal"
+            ]
+          }
+        },
+        {
+          "path": "training_manifest.json",
+          "content": {
+            "class_order": [
+              "Others",
+              "Anxious",
+              "Depressed",
+              "Frustrated",
+              "Suicidal"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

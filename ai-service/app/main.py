@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.middleware import rate_limit_middleware, request_id_middleware
-from app.api.routes import analysis, health, model_info, readiness
-from app.api.routes import core
+from app.api.routes import analysis, core, health, model_info, pipeline, readiness
 from app.core.config import get_settings
 from app.core.lifespan import lifespan
 
@@ -22,4 +21,5 @@ app.include_router(health.router)
 app.include_router(readiness.router)
 app.include_router(model_info.router)
 app.include_router(analysis.router)
+app.include_router(pipeline.router)
 app.include_router(core.router)

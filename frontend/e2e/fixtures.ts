@@ -58,6 +58,7 @@ export async function fixtures(page: Page) {
       case "notifications": { const items = state.notificationsByOrganization[args[0] as string] ?? state.notifications; result = { items, total: items.length, hasMore: false, limit: 50 }; break; }
       case "readNotification": { const item = state.notifications.find(item => item.id === args[1]); if (item) item.readAt = "2026-10-20T08:00:00Z"; result = { id: args[1], readAt: item?.readAt }; break; }
       case "settings": result = { profile: state.profile, notifications: state.notificationSettings }; break;
+      case "profileSummary": result = { displayName: state.profile.displayName, avatarPath: null }; break;
       case "updateProfile": state.profile = { ...state.profile, ...args[0] }; result = state.profile; break;
       case "updateNotifications": state.notificationSettings = { ...state.notificationSettings, ...args[0] }; result = state.notificationSettings; break;
       case "resources": result = state.resources; break;

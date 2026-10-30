@@ -1,0 +1,154 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "echo-checkpoint-diagnostic-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "enum": [
+        "research_checkpoint",
+        "synthetic_engineering"
+      ],
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "model_id": {
+      "maxLength": 160,
+      "minLength": 2,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    },
+    "architecture": {
+      "enum": [
+        "RobertaModel",
+        "XLMRobertaForSequenceClassification"
+      ],
+      "title": "Architecture",
+      "type": "string"
+    },
+    "research_status": {
+      "const": "provisional_nonfinal",
+      "title": "Research Status",
+      "type": "string"
+    },
+    "readiness": {
+      "const": "diagnostics_only",
+      "title": "Readiness",
+      "type": "string"
+    },
+    "application_eligible": {
+      "const": false,
+      "title": "Application Eligible",
+      "type": "boolean"
+    },
+    "calibration_applied": {
+      "const": false,
+      "title": "Calibration Applied",
+      "type": "boolean"
+    },
+    "max_tokens": {
+      "maximum": 384,
+      "minimum": 8,
+      "title": "Max Tokens",
+      "type": "integer"
+    },
+    "input_policy": {
+      "const": "literal_text_saved_tokenizer_single_window_reject_overflow",
+      "title": "Input Policy",
+      "type": "string"
+    },
+    "external_preprocessing_verified": {
+      "const": false,
+      "title": "External Preprocessing Verified",
+      "type": "boolean"
+    },
+    "class_labels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Class Labels",
+      "type": "array"
+    },
+    "head_labels": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Head Labels",
+      "type": "object"
+    },
+    "original_weight_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Original Weight Sha256",
+      "type": "string"
+    },
+    "calibration_expected_weight_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Calibration Expected Weight Sha256"
+    },
+    "calibration_binding": {
+      "enum": [
+        "mismatch_unresolved",
+        "unverified",
+        "not_available"
+      ],
+      "title": "Calibration Binding",
+      "type": "string"
+    },
+    "source_reference": {
+      "maxLength": 1000,
+      "minLength": 10,
+      "title": "Source Reference",
+      "type": "string"
+    },
+    "files": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 40,
+      "minProperties": 5,
+      "title": "Files",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_kind",
+    "model_id",
+    "version",
+    "architecture",
+    "research_status",
+    "readiness",
+    "application_eligible",
+    "calibration_applied",
+    "max_tokens",
+    "input_policy",
+    "external_preprocessing_verified",
+    "class_labels",
+    "head_labels",
+    "original_weight_sha256",
+    "calibration_expected_weight_sha256",
+    "calibration_binding",
+    "source_reference",
+    "files"
+  ],
+  "title": "DiagnosticManifest",
+  "type": "object"
+}

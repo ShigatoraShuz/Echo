@@ -54,12 +54,14 @@ const nextConfig: NextConfig = {
   // Defense in depth: neither clinician demo nor the legacy fixture laboratory
   // can enter a production client/server graph, even if a route imports them.
   turbopack: { resolveAlias: process.env.NODE_ENV === "production" ? {
+    "@/features/professionals/dev/professional-preview-entry": "./src/features/professionals/dev/production-preview-disabled.tsx",
     "@/features/professionals/dev/professional-clinician-preview": "./src/features/professionals/dev/production-preview-disabled.tsx",
     "@/features/professionals/dev/professional-preview": "./src/features/professionals/dev/production-preview-disabled.tsx",
   } : {} },
   webpack(config, { dev }) {
     if (!dev) {
       config.resolve.alias = { ...config.resolve.alias,
+        "@/features/professionals/dev/professional-preview-entry$": path.join(__dirname, "src/features/professionals/dev/production-preview-disabled.tsx"),
         "@/features/professionals/dev/professional-clinician-preview$": path.join(__dirname, "src/features/professionals/dev/production-preview-disabled.tsx"),
         "@/features/professionals/dev/professional-preview$": path.join(__dirname, "src/features/professionals/dev/production-preview-disabled.tsx"),
       };

@@ -6,6 +6,8 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   phq8SubmissionSchema,
+  selfReportedPhq8SubmissionSchema, summarizeSelfReportedPhq8,
+  type SelfReportedPhq8Submission, type SelfReportedPhq8,
   scorePhq8,
   type Phq8Assessment,
   type Phq8Submission,
@@ -44,6 +46,12 @@ export class WellnessService {
     if (!this.encryption) throw unavailable();
     try {
       const payload = JSON.parse(decryptText(row.assessment_ciphertext, this.encryption)) as Record<string, unknown>;
+      if (payload.format === "echo-phq8-self-report-v2") {
+        if (payload.userId !== userId || payload.submissionId !== row.submission_id) throw unavailable();
+        const summary = summarizeSelfReportedPhq8(payload.responses as Array<number | null>);
+        return { responses: summary.responses, assessment: null,
+          selfReport: { ...summary, id: String(row.id), completedAt: String(row.completed_at) } };
+      }
       if (payload.format !== "echo-phq8-v1" || payload.userId !== userId || payload.submissionId !== row.submission_id)
         throw unavailable();
       const calculated = scorePhq8(payload.responses as number[]);
@@ -51,6 +59,7 @@ export class WellnessService {
       return {
         responses: payload.responses as number[],
         assessment: { id: String(row.id), ...calculated, completedAt: String(row.completed_at) },
+        selfReport: { ...summarizeSelfReportedPhq8(payload.responses as number[]), id: String(row.id), completedAt: String(row.completed_at) },
       };
     } catch {
       throw unavailable();
@@ -87,14 +96,16 @@ export class WellnessService {
         .maybeSingle(),
     ]);
     if ([history, count, state, urgent].some((result) => result.error)) throw unavailable();
-    const records = (history.data ?? []).map((row) => this.openAssessment(row, userId).assessment);
-    const completedAt = records[0]?.completedAt ?? null;
+    const opened = (history.data ?? []).map((row) => this.openAssessment(row, userId));
+    const records = opened.flatMap(row => row.assessment ? [row.assessment] : []);
+    const completedAt = opened[0]?.selfReport.completedAt ?? null;
     return {
       assessment: {
         due: isAssessmentDue(completedAt, this.schedule.phq8IntervalDays),
         dueAt: assessmentDueAt(completedAt, this.schedule.phq8IntervalDays),
         intervalDays: this.schedule.phq8IntervalDays,
         history: records,
+        selfReports: opened.map(row => row.selfReport),
       },
       support: {
         eligible:
@@ -129,7 +140,30 @@ export class WellnessService {
       JSON.stringify(opened.responses) !== JSON.stringify(parsed.data.responses)
     )
       throw new ConflictError("SUBMISSION_CONFLICT", "This check-in was already submitted with different answers.");
+    if (!opened.assessment) throw unavailable();
     return opened.assessment;
+  }
+  async saveSelfReport(userId: string, input: SelfReportedPhq8Submission): Promise<SelfReportedPhq8> {
+    const parsed = selfReportedPhq8SubmissionSchema.safeParse(input);
+    if (!parsed.success) throw new ValidationError({ responses: ["Use 0–3 or leave an item unanswered."] });
+    const summary = summarizeSelfReportedPhq8(parsed.data.responses);
+    // Complete submissions retain the existing sharing, scoring and schedule contract.
+    if (!this.encryption) throw unavailable();
+    const payload = summary.complete
+      ? { format: "echo-phq8-v1", userId, ...parsed.data, ...scorePhq8(summary.responses as number[]) }
+      : { format: "echo-phq8-self-report-v2", userId, ...parsed.data };
+    const ciphertext = encryptText(JSON.stringify(payload), this.encryption);
+    const { data, error } = await this.database.schema("insights_service").rpc("save_encrypted_phq8", {
+      p_user_id: userId, p_submission_id: parsed.data.submissionId, p_ciphertext: ciphertext,
+      p_interval_days: this.schedule.phq8IntervalDays,
+    });
+    if (error || !data) throw unavailable();
+    const opened = this.openAssessment(data, userId);
+    if (data.submission_id !== parsed.data.submissionId)
+      throw new ConflictError("CHECKIN_NOT_DUE", "Your previous check-in is saved. The existing check-in interval still applies; these new answers were not saved.");
+    if (data.submission_id === parsed.data.submissionId && JSON.stringify(opened.responses) !== JSON.stringify(summary.responses))
+      throw new ConflictError("SUBMISSION_CONFLICT", "This check-in was already saved with different answers.");
+    return opened.selfReport;
   }
   async claimSupportPrompt(userId: string): Promise<{ show: boolean }> {
     const { data, error } = await this.database.schema("insights_service").rpc("claim_support_prompt", {

@@ -1,7 +1,9 @@
 "use client";
 
 import { Activity, ChevronDown, HeartPulse, Radar } from "lucide-react";
-import type { DashboardInsights, JournalAnalysisResult } from "@echo/contracts";
+import type { DashboardInsights, LegacyJournalAnalysisResult as JournalAnalysisResult } from "@echo/contracts";
+import dynamic from "next/dynamic";
+const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 import { AnalysisBuddyAction } from "./analysis-buddy-action";
 import { NativeAnalysis } from "@/features/journal/components/native-analysis";
 
@@ -19,6 +21,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
       </section>
     );
   const result = insights.latest;
+  if(result.schemaVersion==="echo-model-pipeline-v2") return <div className="min-w-0 xl:col-span-3"><ModelPipelinePanel result={result} /></div>;
   if (result.schemaVersion !== "echo-journal-analysis-v1") return <NativeAnalysis result={result} insights={insights} />;
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (

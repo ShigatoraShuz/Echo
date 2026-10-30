@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
+const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 import { AlertTriangle } from "lucide-react";
 import { useInsightsViewModel } from "../view-model/use-insights-view-model";
 import { RiskBadge } from "@/shared/components/data-display";
@@ -34,7 +36,7 @@ export function RiskInsightsView() {
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
           <EchoCard title="Latest reported band" description="From your latest completed journal analysis.">
-            {latest ? (
+            {latest?.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={latest} /> : latest ? (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
                   {latest.schemaVersion !== "echo-journal-analysis-v1" ? <span>{latest.distressCategory} category · clinical severity unavailable</span> : <RiskBadge band={latest.distressBand} />}

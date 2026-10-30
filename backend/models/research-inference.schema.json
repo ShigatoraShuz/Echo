@@ -1,0 +1,203 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "echo-research-inference-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "architecture": {
+      "enum": [
+        "EchoE4RobertaMultiHead",
+        "XLMRobertaForSequenceClassification"
+      ],
+      "title": "Architecture",
+      "type": "string"
+    },
+    "verification": {
+      "enum": [
+        "training_source_reviewed",
+        "researcher_confirmed"
+      ],
+      "title": "Verification",
+      "type": "string"
+    },
+    "source_reference": {
+      "maxLength": 500,
+      "minLength": 10,
+      "title": "Source Reference",
+      "type": "string"
+    },
+    "evidence_files": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 1,
+      "title": "Evidence Files",
+      "type": "array"
+    },
+    "normalization": {
+      "enum": [
+        "identity",
+        "unicode_nfc"
+      ],
+      "title": "Normalization",
+      "type": "string"
+    },
+    "max_tokens": {
+      "maximum": 8192,
+      "minimum": 8,
+      "title": "Max Tokens",
+      "type": "integer"
+    },
+    "stride": {
+      "maximum": 8192,
+      "minimum": 0,
+      "title": "Stride",
+      "type": "integer"
+    },
+    "stride_semantics": {
+      "enum": [
+        "overlap_tokens",
+        "step_tokens"
+      ],
+      "title": "Stride Semantics",
+      "type": "string"
+    },
+    "special_tokens": {
+      "const": "tokenizer_defined_per_window",
+      "title": "Special Tokens",
+      "type": "string"
+    },
+    "window_weighting": {
+      "const": "uniform",
+      "title": "Window Weighting",
+      "type": "string"
+    },
+    "aggregation": {
+      "enum": [
+        "mean_logits",
+        "mean_probabilities",
+        "max_probabilities"
+      ],
+      "title": "Aggregation",
+      "type": "string"
+    },
+    "batch_size": {
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "padding_side": {
+      "const": "right",
+      "title": "Padding Side",
+      "type": "string"
+    },
+    "truncation_side": {
+      "const": "right",
+      "title": "Truncation Side",
+      "type": "string"
+    },
+    "empty_input": {
+      "const": "reject",
+      "title": "Empty Input",
+      "type": "string"
+    },
+    "pooling": {
+      "anyOf": [
+        {
+          "enum": [
+            "cls_token",
+            "masked_mean",
+            "pooler_output"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Pooling"
+    },
+    "head_kind": {
+      "anyOf": [
+        {
+          "const": "linear",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Head Kind"
+    },
+    "encoder_pooler": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Encoder Pooler"
+    },
+    "heads": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Heads"
+    },
+    "support_flag_temperature": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Support Flag Temperature"
+    }
+  },
+  "required": [
+    "schema_version",
+    "architecture",
+    "verification",
+    "source_reference",
+    "evidence_files",
+    "normalization",
+    "max_tokens",
+    "stride",
+    "stride_semantics",
+    "special_tokens",
+    "window_weighting",
+    "aggregation",
+    "batch_size",
+    "padding_side",
+    "truncation_side",
+    "empty_input",
+    "pooling",
+    "head_kind",
+    "encoder_pooler",
+    "heads"
+  ],
+  "title": "InferenceSpec",
+  "type": "object"
+}

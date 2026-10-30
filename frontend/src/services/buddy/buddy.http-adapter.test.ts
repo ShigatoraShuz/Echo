@@ -155,6 +155,23 @@ describe("buddy HTTP adapter", () => {
     }));
   });
 
+  it("uses the shared 30-second request deadline for Buddy messages", async () => {
+    const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      vi.stubGlobal("fetch", vi.fn((_input: unknown, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => { aborted = true; reject(new DOMException("Aborted", "AbortError")); });
+      })));
+      const pending = createBuddyHttpAdapter().sendMessage({ content: "Fictional test" });
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(await pending).toMatchObject({ success: false });
+      expect(aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("persists a pinned conversation through the authenticated API", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ success: true, data: { pinned_at: "2026-10-12T00:00:00Z" } })));
     const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");

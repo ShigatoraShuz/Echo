@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { modelPipelineResultSchema } from "./model-pipeline.js";
 
 export const analysisStatuses = [
   "queued",
@@ -16,6 +17,12 @@ export const analysisStatuses = [
 ] as const;
 
 export const analysisStatusSchema = z.enum(analysisStatuses);
+export const journalAnalysisAvailabilitySchema = z.object({
+  journalId: z.string().uuid(), jobId: z.string().uuid().nullable(),
+  status: z.union([analysisStatusSchema, z.literal("not_requested"), z.literal("unavailable")]),
+  reason: z.enum(["NOT_REQUESTED", "PROCESSOR_DISABLED", "NO_REQUEST_FOUND", "PROCESSING_FAILED"]).nullable(),
+}).strict();
+export type JournalAnalysisAvailability = z.infer<typeof journalAnalysisAvailabilitySchema>;
 export const analysisModeSchema = z.enum(["disabled", "development_stub", "local_worker", "local_json"]);
 export const analysisFixtureSchema = z.enum([
   "standard_low_distress",
@@ -382,8 +389,11 @@ export const journalAnalysisResultSchema = z.union([
   journalAnalysisV1ResultSchema,
   journalAnalysisV2ResultSchema,
   journalAnalysisV3ResultSchema,
+  modelPipelineResultSchema,
 ]);
 
+export const legacyJournalAnalysisResultSchema = journalAnalysisV1ResultSchema;
+export type LegacyJournalAnalysisResult = z.infer<typeof journalAnalysisV1ResultSchema>;
 export const journalSubmissionResponseSchema = z.object({
   storage: z.enum(["local_json", "supabase"]).optional(),
   journalId: z.string().uuid(),

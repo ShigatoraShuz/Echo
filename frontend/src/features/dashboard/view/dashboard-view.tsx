@@ -114,7 +114,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   } = data;
 
   const latestAnalysis = data.analysisInsights?.latest;
-  const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && (latestAnalysis.schemaVersion !== "echo-journal-analysis-v1" ? latestAnalysis.supportReviewRequired : ["moderate", "high", "severe"].includes(latestAnalysis.distressBand));
+  const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && (latestAnalysis.schemaVersion === "echo-journal-analysis-v1" ? ["moderate", "high", "severe"].includes(latestAnalysis.distressBand) : latestAnalysis.schemaVersion === "echo-model-pipeline-v2" ? false : latestAnalysis.supportReviewRequired);
 
   const recentEntries = journalEntries.slice(0, 3);
 
@@ -171,7 +171,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
             <div className="mt-3 flex items-end gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.06em]">
-                {latestAnalysis?.isSimulated ? "Sample only" : latestAnalysis?.distressBand ?? "Not available"}
+                {latestAnalysis?.isSimulated ? "Sample only" : latestAnalysis?.schemaVersion === "echo-journal-analysis-v1" ? latestAnalysis.distressBand : "Not assessed"}
               </span>
 
               <span className="pb-1 text-sm text-muted-foreground">

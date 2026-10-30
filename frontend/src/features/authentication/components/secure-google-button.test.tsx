@@ -189,4 +189,13 @@ describe("secure Google button flow", () => {
     expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.loginNonce).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, "", "   "])("fails safely when the Google public client ID is %s", (clientId) => {
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", clientId);
+    render(<SecureGoogleButton intent="login" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Google sign-in is not configured.");
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.loginNonce).not.toHaveBeenCalled();
+    expect(mocks.signIn).not.toHaveBeenCalled();
+  });
 });

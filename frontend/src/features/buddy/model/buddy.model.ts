@@ -17,6 +17,7 @@ export interface BuddyMessage {
   conversationId: string;
   role: "user" | "buddy";
   content: string;
+  generation?: import("@echo/contracts").GenerationStage;
   timestamp: string;
   isStreaming?: boolean;
   isError?: boolean;

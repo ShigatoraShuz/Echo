@@ -96,6 +96,12 @@ describe("BuddyView", () => {
     window.history.replaceState(null, "", "/buddy");
   });
 
+  it("makes overflowing conversation text reachable with the keyboard", () => {
+    vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+    render(<BuddyView />);
+    expect(screen.getByRole("log", { name: "Conversation messages" })).toHaveAttribute("tabindex", "0");
+  });
+
   it("reopens a previous chat and keeps its URL for reload and browser back", async () => {
     const user = userEvent.setup();
     const mock = setupMock();

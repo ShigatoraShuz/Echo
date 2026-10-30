@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { phq8SubmissionSchema } from "@echo/contracts";
+import { phq8SubmissionSchema, selfReportedPhq8SubmissionSchema } from "@echo/contracts";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { ExperienceService } from "./experience.service.js";
@@ -45,6 +45,9 @@ export function createExperienceController(service: ExperienceService) {
     },
     async saveAssessment(request: Request, response: Response) {
       sendSuccess(response, await service.wellness.save(authenticatedUserId(request), parse(phq8SubmissionSchema, request.body)));
+    },
+    async saveSelfReport(request: Request, response: Response) {
+      sendSuccess(response, await service.wellness.saveSelfReport(authenticatedUserId(request), parse(selfReportedPhq8SubmissionSchema, request.body)));
     },
     async claimSupportPrompt(request: Request, response: Response) {
       sendSuccess(response, await service.wellness.claimSupportPrompt(authenticatedUserId(request)));

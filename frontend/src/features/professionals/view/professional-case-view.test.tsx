@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaseDetail } from "@/services/professionals/professional-api";
@@ -19,6 +19,16 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 beforeEach(() => { vi.resetAllMocks(); mocks.params = new URLSearchParams(); mocks.caseDetail.mockResolvedValue(structuredClone(fixture)); });
 
 describe("FE-013 case workspace", () => {
+  it("corrects an outdated organization deep link before rendering any clinical details", async () => {
+    mocks.params = new URLSearchParams("organization=org-two");
+    const id = "fe000000-0000-4000-8000-000000000001";
+    mocks.caseDetail.mockResolvedValue({ ...fixture, request: { ...fixture.request, id } });
+    render(<ProfessionalCaseView id={id} />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(`/professional/cases/${id}?organization=org-one`));
+    expect(screen.queryByText("Synthetic shared message")).not.toBeInTheDocument();
+    expect(screen.queryByText("Synthetic private snapshot")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
   it("collects an optional closure reason only with backend support and clears it when dismissed", async () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, closureReasonAvailable: true }); mocks.close.mockResolvedValue({});
     render(<ProfessionalCaseView id="case-one" />);
@@ -36,6 +46,7 @@ describe("FE-013 case workspace", () => {
     mocks.caseDetail.mockResolvedValue({ ...fixture, notesLifecycleAvailable: true, notes: [{ id: "draft", body: "Synthetic draft", state: "draft", createdAt: fixture.request.createdAt }] });
     mocks.addNote.mockResolvedValue({ noteId: "final-note" });
     render(<ProfessionalCaseView id="case-one" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" }));
     expect(await screen.findByText("Draft · not finalized")).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" })); const editor = screen.getByLabelText("New case note"); fireEvent.change(editor, { target: { value: "Synthetic final note" } }); fireEvent.submit(editor.closest("form")!);
     await screen.findByText("Note saved. The server confirmed receipt.");
@@ -84,16 +95,21 @@ describe("FE-016 consent and sensitive-state clearing", () => {
   });
   it("clears drafts and content when hidden and reauthorizes on return", async () => {
     render(<ProfessionalCaseView id="case-one" />); await screen.findByText("Synthetic shared message");
+    await userEvent.click(screen.getByRole("tab", { name: "Notes and care coordination" }));
     fireEvent.change(screen.getByLabelText("New case note"), { target: { value: "Sensitive unsaved draft" } });
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
     fireEvent(document, new Event("visibilitychange")); expect(screen.queryByText("Synthetic shared message")).not.toBeInTheDocument();
     visibility.mockReturnValue("visible"); fireEvent(document, new Event("visibilitychange"));
-    await screen.findByText("Synthetic shared message"); expect(screen.getByLabelText("New case note")).toHaveValue("");
+    expect(await screen.findByLabelText("New case note")).toHaveValue("");
+    await userEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    await screen.findByText("Synthetic shared message");
     expect(mocks.caseDetail).toHaveBeenCalledTimes(2); visibility.mockRestore();
   });
   it("clears every private region when refresh loses permission", async () => {
     mocks.caseDetail.mockResolvedValueOnce({ ...fixture, notes: [{ id: "note", body: "Sensitive saved note", createdAt: fixture.request.createdAt }] }).mockRejectedValue(failure(403));
-    render(<ProfessionalCaseView id="case-one" />); await screen.findByText("Sensitive saved note");
+    render(<ProfessionalCaseView id="case-one" />);
+    await userEvent.click(await screen.findByRole("tab", { name: "Notes and care coordination" }));
+    await screen.findByText("Sensitive saved note");
     await userEvent.click(screen.getByRole("button", { name: "Refresh case" })); await screen.findByRole("alert");
     expect(screen.queryByText(/Synthetic shared message|Sensitive saved note|Synthetic private snapshot/)).not.toBeInTheDocument();
   });

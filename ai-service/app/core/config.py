@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -16,12 +17,22 @@ class Settings(BaseSettings):
     lora_adapter_path: str = "/models/echo-adapter"
     model_version: str = "phi4-mini-echo-v1"
     max_input_tokens: int = Field(default=384, ge=32, le=4096)
-    max_new_tokens: int = Field(default=64, ge=1, le=512)
+    max_new_tokens: int = Field(default=256, ge=1, le=512)
     device: str = "cuda"
     torch_dtype: str = "bfloat16"
     log_level: str = "INFO"
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    echo_models_dir: Path = Path(__file__).resolve().parents[3] / "backend" / "models"
+    echo_execution_mode: Literal["real", "synthetic"] = "real"
+    echo_active_models: dict[str, str] = Field(default_factory=dict)
+    echo_stage_timeout_seconds: int = Field(default=45, ge=1, le=180)
+    echo_queue_capacity: int = Field(default=2, ge=1, le=8)
+    echo_cpu_threads: int = Field(default=2, ge=1, le=4)
+    echo_consultation_demo: bool = False
+    echo_local_research: bool = False
+    echo_research_diagnostic_id: str = ""
+    echo_diagnostic_models_dir: Path = Path(__file__).resolve().parents[3] / "backend" / "models"
     core_models_enabled: bool = False
     models_root: str = "../../models"
     backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
@@ -31,6 +42,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":
+        if self.echo_local_research and (
+            self.app_env != "development" or self.echo_execution_mode != "real"
+            or len(self.ai_service_token) < 32
+        ):
+            raise ValueError("Local research requires authenticated real-mode development.")
+        if self.echo_consultation_demo and (
+            self.app_env != "test" or self.echo_execution_mode != "real"
+        ):
+            raise ValueError("Consultation diagnostics require isolated real-mode tests.")
+        if self.echo_execution_mode == "synthetic" and self.app_env != "test":
+            raise ValueError("Synthetic adapters are restricted to the isolated test runtime.")
         if self.app_env == "production" and len(self.ai_service_token) < 32:
             raise ValueError("AI_SERVICE_TOKEN must contain at least 32 characters in production.")
         return self

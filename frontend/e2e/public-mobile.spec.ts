@@ -128,8 +128,16 @@ test("mobile navigation reaches How it works from About", async ({ page }, testI
   await expect.poll(async () => (await heading.boundingBox())?.y ?? Infinity).toBeLessThan(page.viewportSize()!.height / 2);
 });
 
-test("public dashboard preview has a usable phone menu without private destinations", async ({ page }) => {
-  await page.goto("/dashboard-preview");
+test("public dashboard preview has a usable phone menu without private destinations", async ({ page }, testInfo) => {
+  const response = await page.goto("/dashboard-preview");
+  if (testInfo.project.metadata.buildMode === "production") {
+    // Next's documented streamed notFound response can retain HTTP 200.
+    expect([200, 404]).toContain(response?.status());
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute("content", "noindex");
+    await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
+    return;
+  }
   const trigger = page.getByRole("button", { name: "Open navigation" });
   await trigger.click();
   const menu = page.getByRole("dialog", { name: "App navigation" });

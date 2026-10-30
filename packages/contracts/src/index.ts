@@ -1,4 +1,5 @@
 export * from "./analysis.js";
+export * from "./model-pipeline.js";
 export * from "./api-error.js";
 export * from "./consent.js";
 export * from "./journal.js";

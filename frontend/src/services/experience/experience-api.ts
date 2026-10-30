@@ -1,5 +1,5 @@
 import { env } from "@/config/environment";
-import type { WellnessStatus, Phq8Assessment, Phq8Submission } from "@echo/contracts";
+import type { WellnessStatus, Phq8Assessment, Phq8Submission, SelfReportedPhq8, SelfReportedPhq8Submission } from "@echo/contracts";
 import type { ChatMessage } from "@/shared/types";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -52,6 +52,9 @@ const client = createApiClient({
 });
 
 export const experienceApi = {
+  async saveSelfReportedPhq8(input: SelfReportedPhq8Submission): Promise<SelfReportedPhq8> {
+    return (await client.post<ApiEnvelope<SelfReportedPhq8>, SelfReportedPhq8Submission>("/wellness/phq8/self-report", input)).data;
+  },
   async getWellnessStatus(): Promise<WellnessStatus> {
     return (await client.get<ApiEnvelope<WellnessStatus>>("/wellness")).data;
   },

@@ -89,11 +89,13 @@ function MessageThread({ caseId, organizationId, userId, onBack, onClose }: Scop
       if (current !== generation.current) return;
       setAvailable(result.eligibility.available);
       if (!result.messages) return;
-      // Acknowledgement is only made for the currently selected, visible thread.
+      setPage(result.messages); setWritable(result.eligibility.writable);
+      // Receipt is acknowledged after making this authorized thread visible;
+      // its write latency must not delay displaying the already-authorized page.
       const acknowledgement = await professionalApi.markCaseMessagesRead(caseId);
       if (current !== generation.current) return;
       if (!acknowledgement.read) throw new Error("Read acknowledgement unavailable");
-      setPage(result.messages); setWritable(result.eligibility.writable);
+      window.dispatchEvent(new Event("echo:notifications-changed"));
     } catch (reason) { if (current === generation.current) { setPage(null); setWritable(false); setError(reportProfessionalAccessLoss(reason).message); } }
   }, [caseId, organizationId, userId]);
   useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; generation.current += 1; attempt.current = null; }; }, [load]);

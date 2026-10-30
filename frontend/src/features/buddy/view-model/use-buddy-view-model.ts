@@ -4,6 +4,7 @@ import { getBuddyService } from "@/services/buddy/buddy-service.factory";
 import type { BuddyConversation, BuddyMessage, BuddyPagination } from "../model/buddy.model";
 
 interface BuddyState {
+  responderState?: "DEMO_FALLBACK";
   historyEnabled: boolean;
   accessStatus: "loading" | "allowed" | "verification" | "trusted_contact" | "error";
   conversations: BuddyConversation[];
@@ -20,7 +21,7 @@ interface BuddyState {
 }
 
 type BuddyAction =
-  | { type: "SET_ACCESS_STATUS"; status: BuddyState["accessStatus"]; historyEnabled?: boolean; error?: string }
+  | { type: "SET_ACCESS_STATUS"; status: BuddyState["accessStatus"]; historyEnabled?: boolean; error?: string; responderState?: "DEMO_FALLBACK" }
   | { type: "LOAD_CONVERSATIONS_START" }
   | { type: "LOAD_CONVERSATIONS_SUCCESS"; conversations: BuddyConversation[]; pagination: BuddyPagination }
   | { type: "LOAD_CONVERSATIONS_ERROR"; error: string }
@@ -60,7 +61,7 @@ const initialState: BuddyState = {
 
 function reducer(state: BuddyState, action: BuddyAction): BuddyState {
   switch (action.type) {
-    case "SET_ACCESS_STATUS": return { ...state, accessStatus: action.status, historyEnabled: action.historyEnabled ?? state.historyEnabled, error: action.error ?? null };
+    case "SET_ACCESS_STATUS": return { ...state, accessStatus: action.status, historyEnabled: action.historyEnabled ?? state.historyEnabled, error: action.error ?? null, responderState: action.responderState };
     case "LOAD_CONVERSATIONS_START": return { ...state, isLoadingList: true, error: null };
     case "LOAD_CONVERSATIONS_SUCCESS": return { ...state, conversations: action.conversations, pagination: action.pagination, isLoadingList: false };
     case "LOAD_CONVERSATIONS_ERROR": return { ...state, isLoadingList: false, error: action.error };
@@ -234,7 +235,7 @@ const retryMessage = useCallback(async (conversationId: string) => {
     void service.getAccessStatus().then((result) => {
       if (!active) return;
       dispatch(result.success
-        ? { type: "SET_ACCESS_STATUS", status: result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification", historyEnabled: result.data.buddyHistoryEnabled ?? true }
+        ? { type: "SET_ACCESS_STATUS", status: result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification", historyEnabled: result.data.buddyHistoryEnabled ?? true, responderState: result.data.responderState }
         : { type: "SET_ACCESS_STATUS", status: "error", error: result.error.message });
     });
     return () => { active = false; };

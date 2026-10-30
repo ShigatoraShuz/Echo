@@ -221,7 +221,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             </span>
             <div>
               <h3 className="text-sm font-semibold text-foreground">Optional facial expression capture</h3>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">A live mesh is prepared for your private analysis.</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">UNAVAILABLE: automated emotion inference has no verified model. Optional on-device mesh preview is separate from emotion analysis; manual mood remains available.</p>
             </div>
           </div>
           {active ? (

@@ -79,6 +79,27 @@ describe("backend-owned analysis progress", () => {
     });
     expect(api.getAnalysisStatus).toHaveBeenCalledTimes(2);
   });
+  it("pauses bounded polling after five minutes and permits an explicit status check",async()=>{
+    api.getAnalysisStatus.mockResolvedValue(status("waiting_for_provider",0));
+    await act(async()=>{render(<AnalysisStatusExperience initialSubmission={submission}/>);});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(300_000);});
+    const count=api.getAnalysisStatus.mock.calls.length;
+    expect(screen.getByText(/Automatic status checks paused/)).toBeInTheDocument();
+    await act(async()=>{await vi.advanceTimersByTimeAsync(30_000);});
+    expect(api.getAnalysisStatus).toHaveBeenCalledTimes(count);
+    await act(async()=>{screen.getByRole("button",{name:"Check status again"}).click();});
+    expect(api.getAnalysisStatus).toHaveBeenCalledTimes(count+1);
+  });
+  it("deduplicates a status read while the previous request is still pending",async()=>{
+    let complete:((value:unknown)=>void)|undefined;
+    api.getAnalysisStatus.mockImplementation(()=>new Promise(resolve=>{complete=resolve;}));
+    await act(async()=>{render(<AnalysisStatusExperience initialSubmission={submission}/>);});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(15_000);});
+    expect(api.getAnalysisStatus).toHaveBeenCalledTimes(1);
+    await act(async()=>{complete?.(status("safety_checking",10));});
+    await act(async()=>{await vi.advanceTimersByTimeAsync(5_000);});
+    expect(api.getAnalysisStatus).toHaveBeenCalledTimes(2);
+  });
   it("keeps a closed pending analysis hidden after navigation while polling continues", async () => {
     api.getAnalysisStatus.mockResolvedValue(status("waiting_for_provider", 0));
     const view = render(<AnalysisStatusExperience />);

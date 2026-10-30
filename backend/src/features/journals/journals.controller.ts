@@ -81,6 +81,9 @@ function normalizeJournalPayload(input: unknown): unknown {
 
 export function createJournalsController(service: JournalService) {
   return {
+    async analysisAvailability(request: Request, response: Response) {
+      sendSuccess(response, await service.analysisAvailability(userId(request), requireUuidParam(request, "journalId")));
+    },
     async uploadImage(request: Request, response: Response) {
       if (!Buffer.isBuffer(request.body)) throw new ValidationError({image:["An image file is required."]});
       sendSuccess(response, await service.uploadImage(userId(request),requireUuidParam(request,"journalId"),requireUuidParam(request,"imageId"),request.body,request.header("content-type") ?? ""));

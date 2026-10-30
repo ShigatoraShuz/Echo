@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HeartHandshake, Leaf, Sparkles, X } from "lucide-react";
 
-import { scorePhq8, type Phq8Assessment, type WellnessStatus } from "@echo/contracts";
+import { summarizeSelfReportedPhq8, type SelfReportedPhq8, type WellnessStatus } from "@echo/contracts";
 import { experienceApi } from "@/services/experience/experience-api";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 
@@ -66,7 +66,7 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
 
   const [answers, setAnswers] = useState<number[]>(Array(8).fill(-1));
 
-  const [saved, setSaved] = useState<Phq8Assessment | null>(null);
+  const [saved, setSaved] = useState<SelfReportedPhq8 | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -180,7 +180,7 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
   }, [openWelcomeIfNeeded, preview, refresh]);
 
   async function save() {
-    if (busy || answers.some((answer) => answer < 0)) {
+    if (busy) {
       return;
     }
 
@@ -192,9 +192,9 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
     try {
       if (preview) {
         const completedAt = new Date().toISOString();
-        const assessment: Phq8Assessment = {
+        const assessment: SelfReportedPhq8 = {
           id: submissionId.current,
-          ...scorePhq8(answers),
+          ...summarizeSelfReportedPhq8(answers.map(answer => answer < 0 ? null : answer)),
           completedAt,
         };
         setSaved(assessment);
@@ -204,15 +204,15 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
             due: false,
             dueAt: new Date(Date.parse(completedAt) + 7 * 86_400_000).toISOString(),
             intervalDays: 7,
-            history: [assessment],
+            history: [], selfReports: [assessment],
           },
         });
         return;
       }
 
-      const result = await experienceApi.savePhq8({
+      const result = await experienceApi.saveSelfReportedPhq8({
         submissionId: submissionId.current,
-        responses: answers,
+        responses: answers.map(answer => answer < 0 ? null : answer),
       });
 
       setSaved(result);
@@ -359,6 +359,16 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
 
             {error ? <p className="mt-3 text-xs text-destructive" role="alert">{error}</p> : null}
 
+            {(status.assessment.selfReports?.length ?? 0) > 0 ? (
+              <details className="mt-4 text-sm">
+                <summary>Self-reported PHQ-8 history</summary>
+                <ul className="mt-2 space-y-2">{status.assessment.selfReports!.map(item => (
+                  <li key={item.id}><button type="button" className="text-left underline underline-offset-2" onClick={() => { setSaved(item); closeDock(); setPrompt("phq8"); }}>
+                    {new Date(item.completedAt).toLocaleDateString()} | {item.scored_symptom_count}/8 answered | {item.complete ? `Total ${item.total}/24` : `Partial subtotal ${item.subtotal}`}
+                  </button></li>
+                ))}</ul>
+              </details>
+            ) : null}
             {status.assessment.history.length > 0 ? (
               <details className="mt-4 text-sm">
                 <summary className="cursor-pointer text-muted-foreground">Your screening history</summary>
@@ -389,19 +399,19 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
         open={prompt === "phq8"}
         onClose={close}
         title={saved ? (preview ? "Preview check-in complete" : "Your check-in is saved") : "How have the last two weeks felt?"}
-        description="PHQ-8 is a screening tool, not a diagnosis. You can pause and return from your dashboard."
+        description="SELF-REPORTED PHQ-8 | DEMO_FALLBACK for the unavailable AI estimate. Your own answers, never AI predictions. Screening is not a diagnosis."
         size="large"
         className={saved ? undefined : "md:max-w-4xl"}
       >
         {saved ? (
           <div className="space-y-4">
             <p className="font-serif text-3xl">
-              {saved.score}
-              <span className="text-base text-muted-foreground"> / 24</span>
+              {saved.complete ? saved.total : saved.subtotal}
+              <span className="text-base text-muted-foreground">{saved.complete ? " / 24" : " partial subtotal"}</span>
             </p>
 
             <p>
-              Screening band: <strong>{saved.severity.replaceAll("_", " ")}</strong>.
+              {saved.scored_symptom_count} of 8 symptoms answered. {saved.complete ? "Complete self-reported total." : "No complete total or severity is calculated."}
             </p>
 
             <p className="text-sm text-muted-foreground">
@@ -409,6 +419,9 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
               you.
             </p>
 
+            <dl className="space-y-1 text-sm" aria-label="Saved self-report answers">{saved.responses.map((value, index) => (
+              <div key={questions[index]} className="flex justify-between gap-3"><dt>{questions[index]}</dt><dd>{value === null ? "Unanswered" : choices[value]}</dd></div>
+            ))}</dl>
             <Link href="/support/find-help" className="echo-button-secondary">
               Find Help
             </Link>
@@ -467,7 +480,6 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
                         name={`phq8-${index}`}
                         value={value}
                         checked={answers[index] === value}
-                        required
                         onChange={() => {
                           submissionId.current = null;
 
@@ -485,7 +497,7 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
             <p className="mt-3 text-xs leading-5 text-muted-foreground">
               {preview
                 ? "Preview only: your answers stay on this page and are not saved. This questionnaire does not assess immediate safety."
-                : "When you save, your answers are stored privately with your account. This questionnaire does not assess immediate safety."}
+                : "When you save, your selected answers and unanswered items are stored privately as a check-in snapshot. The existing weekly check-in schedule applies, including partial snapshots. This questionnaire does not assess immediate safety."}
             </p>
 
             {error ? (
@@ -495,7 +507,7 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
             ) : null}
 
             <div className="sticky bottom-[-1.5rem] z-10 -mx-6 -mb-6 mt-4 flex flex-wrap items-center gap-2 border-t border-border bg-card px-6 pb-6 pt-3 md:bottom-0 md:mx-0 md:mb-0 md:px-0 md:pb-3">
-              <button className="echo-button-primary" disabled={busy || answers.some((answer) => answer < 0)}>
+              <button className="echo-button-primary" disabled={busy}>
                 {busy ? "Saving…" : "Save check-in"}
               </button>
 

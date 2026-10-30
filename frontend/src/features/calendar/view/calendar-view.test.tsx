@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CalendarView } from "./calendar-view";
 
@@ -143,6 +143,20 @@ describe("CalendarView", () => {
   });
 });
 
-it('refreshes only appointments on focus without rereading journals or their analysis',async()=>{
- mocks.listItems.mockResolvedValue([]);mocks.listEntries.mockResolvedValue({success:true,data:{entries:[],pagination:{totalPages:1}}});mocks.listAppointments.mockResolvedValue({appointments:[]});render(<CalendarView/>);await waitFor(()=>expect(screen.getByText(/0 reflections/)).toBeInTheDocument());const journals=mocks.listEntries.mock.calls.length,analysis=mocks.getAnalysis.mock.calls.length;window.dispatchEvent(new Event('focus'));await waitFor(()=>expect(mocks.listAppointments).toHaveBeenCalledTimes(2));expect(mocks.listEntries).toHaveBeenCalledTimes(journals);expect(mocks.getAnalysis).toHaveBeenCalledTimes(analysis);
+it("refreshes only appointments on focus without rereading journals or their analysis", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  mocks.listItems.mockResolvedValue([]);
+  mocks.listEntries.mockResolvedValue({ success: true, data: { entries: [], pagination: { totalPages: 1 } } });
+  mocks.listAppointments.mockResolvedValue({ appointments: [] });
+  const { container } = render(<CalendarView />);
+  await waitFor(() => expect(container.querySelector("[aria-busy]")).toHaveAttribute("aria-busy", "false"));
+  // The refresh observer updates its callback in a passive effect after this commit.
+  await act(async () => {});
+  expect(mocks.listAppointments).toHaveBeenCalledTimes(1);
+  const journals = mocks.listEntries.mock.calls.length;
+  const analysis = mocks.getAnalysis.mock.calls.length;
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await waitFor(() => expect(mocks.listAppointments).toHaveBeenCalledTimes(2));
+  expect(mocks.listEntries).toHaveBeenCalledTimes(journals);
+  expect(mocks.getAnalysis).toHaveBeenCalledTimes(analysis);
 });

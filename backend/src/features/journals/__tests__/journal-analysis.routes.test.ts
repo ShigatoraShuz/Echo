@@ -30,6 +30,18 @@ function appWith(create: ReturnType<typeof vi.fn>, status = vi.fn(), dashboardIn
 }
 
 describe("journal analysis submission routes", () => {
+  it("authenticates and validates owned analysis availability requests", async () => {
+    const analysisAvailability = vi.fn().mockResolvedValue({ status: "unavailable", reason: "NO_REQUEST_FOUND" });
+    const app = express();
+    app.use(createJournalsRouter({ analysisAvailability } as unknown as JournalService, verifier, verification as never));
+    app.use(errorMiddleware);
+    const id = "00000000-0000-4000-8000-000000000002";
+    expect((await request(app).get(`/journals/${id}/analysis-state`)).status).toBe(401);
+    expect((await request(app).get("/journals/invalid/analysis-state").set("Authorization", "Bearer token")).status).toBe(400);
+    expect(analysisAvailability).not.toHaveBeenCalled();
+    expect((await request(app).get(`/journals/${id}/analysis-state`).set("Authorization", "Bearer token")).status).toBe(200);
+    expect(analysisAvailability).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", id);
+  });
   it("returns the canonical 202 response and forwards protected development fixture selection", async () => {
     const create = vi.fn().mockResolvedValue({
       kind: "analysis",

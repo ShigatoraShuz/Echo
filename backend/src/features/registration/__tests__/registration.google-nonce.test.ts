@@ -50,4 +50,14 @@ describe("Google signed nonce verification", () => {
     await expect(service.googleLoginStatus("signed-google-token", raw)).rejects.toThrow();
     expect(rpc).not.toHaveBeenCalled();
   });
+
+  it("rejects missing configuration before token verification or database access", async () => {
+    const verify = vi.spyOn(OAuth2Client.prototype, "verifyIdToken").mockClear();
+    const rpc = vi.fn();
+    const db = { rpc } as unknown as SupabaseClient;
+    const service = new RegistrationService(db, db, "test-signup-secret", "", "http://localhost:3000");
+    await expect(service.googleLoginStatus("signed-google-token", raw)).rejects.toThrow("Google authentication is not configured.");
+    expect(verify).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });

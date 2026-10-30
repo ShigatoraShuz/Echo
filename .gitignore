@@ -56,7 +56,26 @@ ai-service/model-artifacts/*
 *.pth
 *.ckpt
 
+# Installed model bundles and local synthetic/random-weight engineering artifacts.
+backend/models/*/final/*
+!backend/models/*/final/.gitkeep
+backend/models/.engineering/
+# Immutable local research archives, original heads and provisional installations.
+backend/models/.archives/
+backend/models/.sources/
+backend/models/.local/
+backend/.local-development/
+backend/models/CBT_DropIn_Verification/
+# Researcher-dropped artifacts are private; keep only exporter schemas/docs/placeholders.
+backend/models/**
+!backend/models/**/
+!backend/models/README.md
+!backend/models/*.schema.json
+!backend/models/**/.gitkeep
+backend/models/*/provisional-*/
+
 # Local tooling and QA artefacts
+artifacts/model-integration/selective-rollback-backup-*/
 .playwright-mcp/
 **/playwright-report/
 **/test-results/
@@ -74,3 +93,7 @@ frontend/assets/auth-grid-background.png
 frontend/assets/e2d821df-*.png
 
 /local-data/
+
+# Isolated integration scratch, before-copies and test caches (never source).
+.integration-verification/
+**/.integration-cache/

@@ -268,7 +268,7 @@ export class JournalService {
     const latest=visible.at(-1);
     return {latestResultId:latest?.id??null,latest:latest?this.readAnalysisResult({ciphertext:latest.result_ciphertext}):null,
       recommendation:latest?this.localRecommendation(latest):null,
-      emotionTrend:[...new Map(visible.map(x=>[x.created_at.slice(0,10),x])).values()].map(row=>{const result=this.readAnalysisResult({ciphertext:row.result_ciphertext});return {date:row.created_at.slice(0,10),values:Object.fromEntries(result.emotionDistribution.map(x=>[x.emotion,x.value])),isSimulated:result.isSimulated,schemaVersion:result.schemaVersion};}),
+      emotionTrend:[...new Map(visible.map(x=>[x.created_at.slice(0,10),x])).values()].flatMap(row=>{const result=this.readAnalysisResult({ciphertext:row.result_ciphertext});if(result.schemaVersion === "echo-model-pipeline-v2")return [];return [{date:row.created_at.slice(0,10),values:Object.fromEntries(result.emotionDistribution.map(x=>[x.emotion,x.value])),isSimulated:result.isSimulated,schemaVersion:result.schemaVersion}];}),
       journalScreeningTrend:visible.flatMap(row=>{const r=this.readAnalysisResult({ciphertext:row.result_ciphertext});return r.schemaVersion==='echo-journal-analysis-v3'?[{date:row.created_at.slice(0,10),status:r.journalScreening.status,coverage:r.journalScreening.coverage,subtotal:r.journalScreening.subtotal,total:r.journalScreening.total}]:[];}),
       distressTrend:[],facialStatus:latest?.facial_status??'not_requested',period:{range:input.range,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10),analyzedReflectionCount:visible.length}};
   }
@@ -277,7 +277,7 @@ export class JournalService {
 
   encryptAnalysisResult(value: unknown) { return sealAnalysisResult(value, this.encryption); }
 
-  private readAnalysisResult(value: unknown) { if(this.localResults && value && typeof value === "object" && "ciphertext" in value)return journalAnalysisResultSchema.parse(JSON.parse(String(value.ciphertext)));
+  private readAnalysisResult(value: unknown) { if(this.localResults && value && typeof value === "object" && "ciphertext" in value && typeof value.ciphertext === "string" && !value.ciphertext.startsWith("echo:encrypted:v1:"))return journalAnalysisResultSchema.parse(JSON.parse(value.ciphertext));
     return openAnalysisResult(value, this.encryption); }
 
   private async hasGlobalFacialConsent(userId: string): Promise<boolean> {
@@ -364,7 +364,7 @@ export class JournalService {
   private toJournalResponse(row: JournalRow, analysis: AnalysisRow | null): JournalResponse {
     const journal = this.decryptJournal(row);
     const structured = analysis?.result_payload ? this.readAnalysisResult(analysis.result_payload) : null;
-    const score = structured?.depressiveSymptomRange ? Math.round((structured.depressiveSymptomRange.lower + structured.depressiveSymptomRange.upper) / 2) : null;
+    const score = structured?.schemaVersion === "echo-journal-analysis-v1" ? Math.round((structured.depressiveSymptomRange.lower + structured.depressiveSymptomRange.upper) / 2) : null;
     const severity = analysis?.severity;
     return {
       id: asString(row.id),
@@ -378,10 +378,12 @@ export class JournalService {
       analysis_consent: this.localResults ? Boolean(this.localResults.journal(asString(row.user_id),asString(row.id))) : row.analysis_consent === true,
       risk_score: score !== null ? Math.round((score / 24) * 100) : null,
       risk_band: analysis && structured?.schemaVersion === "echo-journal-analysis-v1" ? riskBand(severity) : null,
-      summary: analysis
+      summary: structured?.schemaVersion === "echo-model-pipeline-v2"
+        ? `${structured.isSimulated ? "Synthetic engineering" : "Experimental"} model stages: ${structured.overallStatus}. Not a clinical assessment.`
+        : analysis
         ? `${analysis.is_simulated ? "Simulated analysis" : "Analysis"} is available. It is not a clinical assessment.`
         : "No analysis result is available.",
-      perspective: analysis ? "This estimate is not a diagnosis or completed PHQ-8 assessment." : null,
+      perspective: structured?.schemaVersion === "echo-model-pipeline-v2" ? "Model outputs are separate from self-reported PHQ-8 and do not assess clinical risk." : analysis ? "This estimate is not a diagnosis or completed PHQ-8 assessment." : null,
       created_at: asString(row.created_at),
       updated_at: asString(row.updated_at),
     };
@@ -488,6 +490,23 @@ export class JournalService {
       new JournalImagesService(this.database).list(userId, journalId),
     ]);
     return { ...this.toJournalResponse(row, analysis), images };
+  }
+
+  async analysisAvailability(userId: string, journalId: string) {
+    const owned = await this.reader.schema("journal_service").from("journals")
+      .select("id,analysis_consent").eq("id", journalId).eq("user_id", userId).is("deleted_at", null).maybeSingle();
+    if (owned.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Analysis status could not be checked.");
+    if (!owned.data) throw new NotFoundError("The journal entry was not found.");
+    if (!owned.data.analysis_consent) return { journalId, jobId: null, status: "not_requested" as const, reason: "NOT_REQUESTED" as const };
+    const job = await this.reader.schema("public").from("analysis_status_projection")
+      .select("job_id,status").eq("user_id", userId).eq("journal_id", journalId)
+      .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (job.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Analysis status could not be checked.");
+    if (!job.data) return { journalId, jobId: null, status: "unavailable" as const, reason: "NO_REQUEST_FOUND" as const };
+    const status = job.data.status as AnalysisStatus;
+    return { journalId, jobId: String(job.data.job_id), status,
+      reason: status === "failed" ? "PROCESSING_FAILED" as const
+        : status === "waiting_for_provider" && this.runtime.mode === "disabled" ? "PROCESSOR_DISABLED" as const : null };
   }
 
   async uploadImage(userId:string,journalId:string,imageId:string,bytes:Buffer,mime:string) {
@@ -1088,6 +1107,19 @@ export class JournalService {
     if (!data) throw new NotFoundError("The analysis job was not found.");
     const status = data.status as AnalysisStatus;
     const facialStatus = asString(data.facial_status, "not_requested") as FacialAnalysisStatus;
+    const checks=analysisChecksFor(status,facialStatus,data.progress);
+    if(status==="completed") {
+      const latest=await this.latestAnalysis(String(data.journal_id),userId);
+      const result=latest?.result_payload ? this.readAnalysisResult(latest.result_payload) : undefined;
+      if(result?.schemaVersion==="echo-model-pipeline-v2") {
+        const mapping={emotion:"peak",distress:"distress",phq8:"phq8",facial:"face"} as const;
+        for(const check of checks) if(check.id!=="safety_crisis") {
+          const stage=result.stages[mapping[check.id]];
+          check.state=stage.status==="completed" ? "complete" : stage.status==="failed" ? "failed" : "partial";
+          check.detail=stage.status==="completed" ? "Model stage completed" : "Model unavailable; other outputs preserved";
+        }
+      }
+    }
     return {
       userId: data.user_id,
       journalId: data.journal_id,
@@ -1095,8 +1127,7 @@ export class JournalService {
       status,
       progress: data.progress,
       facialStatus,
-      checks: analysisChecksFor(status, facialStatus, data.progress).map(check => this.runtime.mode === "local_worker" && check.id === "phq8"
-        ? { ...check, state: "skipped" as const, detail: "Screening estimate unavailable; questionnaire check-ins stay separate" } : check),
+      checks,
       updatedAt: data.updated_at,
     };
   }
@@ -1185,7 +1216,7 @@ export class JournalService {
       recommendation,
       emotionTrend: dailyRows.flatMap((row) => {
         const parsed = this.readAnalysisResult(row.result_payload);
-        if (parsed.schemaVersion !== latest?.schemaVersion) return [];
+        if (parsed.schemaVersion === "echo-model-pipeline-v2" || parsed.schemaVersion !== latest?.schemaVersion) return [];
         return [{
           date: asString(row.created_at).slice(0, 10),
           values: Object.fromEntries(parsed.emotionDistribution.map((item) => [item.emotion, item.value])),
@@ -1335,8 +1366,8 @@ export class JournalService {
         analysis_result_id: analysisResultId,
         recommendation_selection_id: selection.id,
         approved_context: {
-          dominantEmotion: parsed.dominantEmotion,
-          ...(parsed.schemaVersion !== "echo-journal-analysis-v1" ? { distressCategory: parsed.distressCategory } : { distressBand: parsed.distressBand }),
+          ...(parsed.schemaVersion === "echo-model-pipeline-v2" ? {} : { dominantEmotion: parsed.dominantEmotion,
+            ...(parsed.schemaVersion === "echo-journal-analysis-v1" ? {distressBand: parsed.distressBand} : {distressCategory: parsed.distressCategory}) }),
           recommendationFeatures: parsed.recommendationFeatures,
         },
         expires_at: new Date(Date.now() + 90 * 86_400_000).toISOString(),
@@ -1426,6 +1457,17 @@ export class JournalService {
 
   private toAnalysisResponse(row: AnalysisRow): AnalysisResponse {
     const result = row.result_payload ? this.readAnalysisResult(row.result_payload) : undefined;
+    if (result?.schemaVersion === "echo-model-pipeline-v2") return {
+      id:asString(row.id), entry_id:asString(row.journal_id),
+      summary:`Independent model stages: ${result.overallStatus}.`,
+      perspective:result.isSimulated ? "SYNTHETIC E2E FIXTURE — no trained inference or clinical interpretation." :
+        "Experimental model outputs, not a diagnosis, risk assessment or self-reported PHQ-8.",
+      mood_insight:result.stages.peak.result?.topFive[0]?.label ?? "Unavailable",
+      risk_indication:"Not assessed",is_demo_data:result.isSimulated,
+      created_at:asString(row.created_at),status:asString(row.status),phq8_score:null,severity:null,
+      urgent_language_detected:row.urgent_language_detected===true,provider:result.providerName,
+      facial_status:"unavailable",result,
+    };
     return {
       id: asString(row.id),
       entry_id: asString(row.journal_id),

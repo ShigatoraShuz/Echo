@@ -10,7 +10,7 @@ for (const width of [1440, 390]) {
         await page.getByRole("dialog").getByRole("link", { name, exact: true }).click();
       } else await page.getByRole("navigation", { name: width < 1024 ? "Professional mobile navigation" : "Professional workspace", exact: true }).getByRole("link", { name, exact: true }).click();
     };
-    test("one membership call per route, parallel Today reads, fresh organization scope", async ({ page }) => {
+    test("one bounded membership check across same-organization routes, parallel Today reads, fresh organization scope", async ({ page }) => {
       const state = await fixtures(page); state.paginatedQueue = true;
       const hold = pending(); state.holds.queue = hold.promise;
       await page.goto("/professional?organization=org-one");
@@ -19,13 +19,12 @@ for (const width of [1440, 390]) {
       expect(state.calls.filter(c => c.method === "memberships")).toHaveLength(1);
       hold.release(); delete state.holds.queue;
       await expect(page.getByRole("link", { name: "Open case", exact: true })).toBeVisible();
-      let checks = 1;
+      const checks = 1;
       for (const name of ["Requests", "My cases", "Calendar", "Resources", "Today"]) {
         await navigate(page, name);
         if (name === "Calendar") await expect(page.getByText("No upcoming appointments", { exact: true })).toBeVisible();
         else if (name === "Resources") await expect(page.getByText(/No reviewed crisis resources are available in this response/)).toBeVisible();
         else await expect(page.getByRole("link", { name: "Open case", exact: true })).toBeVisible();
-        checks++;
         expect(state.calls.filter(c => c.method === "memberships")).toHaveLength(checks);
       }
       const delayed = pending(); state.holds["queue:org-two"] = delayed.promise;
@@ -38,13 +37,13 @@ for (const width of [1440, 390]) {
       expect(state.calls.filter(c => c.method === "memberships")).toHaveLength(checks + 1);
       expect(state.calls.filter(c => c.method === "caseDetail")).toHaveLength(0);
     });
-    test("navigation checks revoked access instead of reusing prior approval", async ({ page }) => {
+    test("focus revalidation clears revoked access before further navigation", async ({ page }) => {
       const state = await fixtures(page);
       await page.goto("/professional/requests?organization=org-one");
       await expect(page.getByRole("link", { name: "Open case", exact: true })).toBeVisible();
       state.memberships = state.memberships.map(m => ({ ...m, status: "suspended", accessState: "suspended_membership" }));
       const queues = state.calls.filter(c => c.method === "queue").length;
-      await navigate(page, "My cases");
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       await expect(page).toHaveURL(/professional.access/);
       await expect(page.getByText("Professional access suspended", { exact: true })).toHaveCount(state.memberships.length);
       await expect(page.getByRole("heading", { name: "Access is not active yet", exact: true })).toBeVisible();

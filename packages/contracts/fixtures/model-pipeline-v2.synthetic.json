@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "echo-model-pipeline-v2",
+  "thresholdVersion": "no-clinical-thresholds-v1",
+  "providerName": "echo-local-model-registry",
+  "modelVersion": "staged-v2",
+  "isSimulated": true,
+  "overallStatus": "completed",
+  "stages": {
+    "peak": {
+      "status": "completed",
+      "modelId": "echo-synthetic-peak",
+      "modelVersion": "fixture-v1",
+      "executionMode": "synthetic",
+      "timestamp": "2026-10-29T05:33:59.948446+00:00",
+      "result": {
+        "scores": [
+          {
+            "label": "fixture_emotion_a",
+            "probability": 0.4
+          },
+          {
+            "label": "fixture_emotion_b",
+            "probability": 0.25
+          },
+          {
+            "label": "fixture_emotion_c",
+            "probability": 0.15
+          },
+          {
+            "label": "fixture_emotion_d",
+            "probability": 0.12
+          },
+          {
+            "label": "fixture_emotion_e",
+            "probability": 0.08
+          }
+        ],
+        "topFive": [
+          {
+            "label": "fixture_emotion_a",
+            "probability": 0.4
+          },
+          {
+            "label": "fixture_emotion_b",
+            "probability": 0.25
+          },
+          {
+            "label": "fixture_emotion_c",
+            "probability": 0.15
+          },
+          {
+            "label": "fixture_emotion_d",
+            "probability": 0.12
+          },
+          {
+            "label": "fixture_emotion_e",
+            "probability": 0.08
+          }
+        ],
+        "semantics": "softmax",
+        "calibration": "Fixed synthetic probabilities; no trained inference.",
+        "supportFlags": null,
+        "supportMappingReference": null,
+        "windowsProcessed": 1,
+        "truncated": false
+      },
+      "errorCode": null,
+      "durationMs": 1
+    },
+    "distress": {
+      "status": "completed",
+      "modelId": "echo-synthetic-distress",
+      "modelVersion": "fixture-v1",
+      "executionMode": "synthetic",
+      "timestamp": "2026-10-29T05:33:59.949954+00:00",
+      "result": {
+        "scores": [
+          {
+            "label": "fixture_class_0",
+            "probability": 0.4
+          },
+          {
+            "label": "fixture_class_1",
+            "probability": 0.25
+          },
+          {
+            "label": "fixture_class_2",
+            "probability": 0.15
+          },
+          {
+            "label": "fixture_class_3",
+            "probability": 0.12
+          },
+          {
+            "label": "fixture_class_4",
+            "probability": 0.08
+          }
+        ],
+        "topFive": [
+          {
+            "label": "fixture_class_0",
+            "probability": 0.4
+          },
+          {
+            "label": "fixture_class_1",
+            "probability": 0.25
+          },
+          {
+            "label": "fixture_class_2",
+            "probability": 0.15
+          },
+          {
+            "label": "fixture_class_3",
+            "probability": 0.12
+          },
+          {
+            "label": "fixture_class_4",
+            "probability": 0.08
+          }
+        ],
+        "semantics": "softmax",
+        "calibration": "Fixed synthetic probabilities; no trained inference.",
+        "supportFlags": null,
+        "supportMappingReference": null,
+        "windowsProcessed": 1,
+        "truncated": false
+      },
+      "errorCode": null,
+      "durationMs": 0
+    },
+    "phq8": {
+      "status": "completed",
+      "modelId": "echo-synthetic-phq8",
+      "modelVersion": "fixture-v1",
+      "executionMode": "synthetic",
+      "timestamp": "2026-10-29T05:33:59.949954+00:00",
+      "result": {
+        "items": {
+          "anhedonia": 2,
+          "depressed_mood": 1,
+          "sleep": null,
+          "fatigue": 2,
+          "appetite": null,
+          "worthlessness_guilt": null,
+          "concentration": 1,
+          "psychomotor": null
+        },
+        "scored_symptom_count": 4,
+        "subtotal": 6,
+        "complete": false,
+        "total": null,
+        "timeFrame": "Text does not establish the PHQ-8 two-week symptom frequency.",
+        "experimental": true
+      },
+      "errorCode": null,
+      "durationMs": 2
+    },
+    "cbt": {
+      "status": "completed",
+      "modelId": "echo-synthetic-cbt",
+      "modelVersion": "fixture-v1",
+      "executionMode": "synthetic",
+      "timestamp": "2026-10-29T05:33:59.952965+00:00",
+      "result": {
+        "text": "Synthetic test response: consider one small, kind action today.",
+        "disclaimer": "SYNTHETIC E2E FIXTURE — no trained model generated this response."
+      },
+      "errorCode": null,
+      "durationMs": 0
+    },
+    "face": {
+      "status": "unavailable",
+      "modelId": null,
+      "modelVersion": null,
+      "executionMode": "synthetic",
+      "timestamp": "2026-10-29T05:33:59.952965+00:00",
+      "result": null,
+      "errorCode": "MODEL_NOT_ENABLED",
+      "durationMs": 0
+    }
+  },
+  "recommendationFeatures": [
+    "grounding"
+  ],
+  "staticResourceOnly": true
+}

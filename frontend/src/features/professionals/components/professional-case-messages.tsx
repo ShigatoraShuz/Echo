@@ -18,6 +18,7 @@ export function ProfessionalCaseMessages({ caseId, readOnly, onFailure, active =
   const [feedback, setFeedback] = useState("");
   const generation = useRef(0);
   const pending = useRef(false);
+  const pendingReads = useRef(new Map<string, ReturnType<typeof professionalApi.caseMessages>>());
   const visible = useRef(active);
   useEffect(() => { visible.current = active; }, [active]);
   const failure = useRef(onFailure);
@@ -25,13 +26,25 @@ export function ProfessionalCaseMessages({ caseId, readOnly, onFailure, active =
   const load = useCallback(async (before?: string) => {
     const current = ++generation.current;
     try {
-      const result = await professionalApi.caseMessages(caseId, before);
+      const key = caseId + ":" + (before ?? "latest");
+      let read = pendingReads.current.get(key);
+      if (!read) {
+        read = professionalApi.caseMessages(caseId, before);
+        pendingReads.current.set(key, read);
+        const currentRead = read;
+        void read.finally(() => { if (pendingReads.current.get(key) === currentRead) pendingReads.current.delete(key); }).catch(() => {});
+      }
+      const result = await read;
       if (current !== generation.current) return;
       if (result.messages.some((item) => item.requestId !== caseId)) throw new Error("Case message scope could not be confirmed.");
-      if (visible.current) await professionalApi.markCaseMessagesRead(caseId);
-      if (current !== generation.current) return;
       setMessages((previous) => before ? [...result.messages, ...(previous ?? [])].filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index) : result.messages);
       setCursor(result.nextCursor);
+      if (visible.current) {
+        const acknowledgement = await professionalApi.markCaseMessagesRead(caseId);
+        if (current !== generation.current) return;
+        if (!acknowledgement.read) throw new Error("Read acknowledgement unavailable");
+        window.dispatchEvent(new Event("echo:notifications-changed"));
+      }
     } catch (reason) {
       if (current === generation.current) { setMessages(null); failure.current(reason); }
     }

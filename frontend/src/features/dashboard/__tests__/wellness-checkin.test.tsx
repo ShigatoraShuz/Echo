@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WellnessStatus } from "@echo/contracts";
+import { summarizeSelfReportedPhq8, type WellnessStatus } from "@echo/contracts";
 import { WellnessCheckin } from "../components/wellness-checkin";
 
 const api = vi.hoisted(() => ({
   getWellnessStatus: vi.fn(),
   savePhq8: vi.fn(),
+  saveSelfReportedPhq8: vi.fn(),
   claimSupportPrompt: vi.fn(),
 }));
 
@@ -43,6 +44,19 @@ beforeEach(() => {
 });
 
 describe("dashboard check-in order", () => {
+  it("saves a partial self-report without converting missing answers to zero or inventing a total", async () => {
+    const responses = [1, null, null, null, null, null, null, null];
+    api.saveSelfReportedPhq8.mockResolvedValue({ id: "partial", completedAt: new Date().toISOString(), ...summarizeSelfReportedPhq8(responses) });
+    render(<WellnessCheckin />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open check-in panel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Take the check-in" }));
+    fireEvent.click(screen.getAllByRole("radio", { name: "Several days" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Save check-in" }));
+    await screen.findByText(/No complete total or severity is calculated/);
+    expect(api.saveSelfReportedPhq8).toHaveBeenCalledWith(expect.objectContaining({ responses }));
+    expect(screen.getAllByText("Unanswered")).toHaveLength(7);
+    expect(screen.getByText(/SELF-REPORTED PHQ-8/)).toBeInTheDocument();
+  });
   it("keeps the dashboard preview interactive without contacting the backend", () => {
     render(<WellnessCheckin preview />);
 
@@ -54,7 +68,7 @@ describe("dashboard check-in order", () => {
     expect(screen.getByRole("dialog")).toHaveAccessibleName("How have the last two weeks felt?");
     expect(screen.getByText(/your answers stay on this page/i)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 of 8 answered");
-    expect(screen.getByRole("button", { name: "Save check-in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save check-in" })).toBeEnabled();
 
     fireEvent.click(
       within(screen.getByRole("group", { name: "1. Little interest or pleasure in doing things" })).getByRole(
@@ -74,7 +88,7 @@ describe("dashboard check-in order", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save check-in" }));
 
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Preview check-in complete");
-    expect(api.savePhq8).not.toHaveBeenCalled();
+    expect(api.saveSelfReportedPhq8).not.toHaveBeenCalled();
   });
 
   it("slides the edge tab open on hover and focus, and keeps closed actions out of the tab order", () => {
@@ -133,7 +147,7 @@ describe("dashboard check-in order", () => {
       screen.getByRole("button", {
         name: "Save check-in",
       }),
-    ).toBeDisabled();
+    ).toBeEnabled();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -317,7 +331,7 @@ describe("dashboard check-in order", () => {
   });
 
   it("retains all answers and submission identity after a failed save", async () => {
-    api.savePhq8.mockRejectedValue(new Error("offline"));
+    api.saveSelfReportedPhq8.mockRejectedValue(new Error("offline"));
 
     render(<WellnessCheckin />);
 
@@ -350,8 +364,8 @@ describe("dashboard check-in order", () => {
       ),
     );
 
-    expect(api.savePhq8.mock.calls[0][0]).toEqual(api.savePhq8.mock.calls[1][0]);
+    expect(api.saveSelfReportedPhq8.mock.calls[0][0]).toEqual(api.saveSelfReportedPhq8.mock.calls[1][0]);
 
-    expect(api.savePhq8.mock.calls[0][0].responses).toEqual(Array(8).fill(1));
+    expect(api.saveSelfReportedPhq8.mock.calls[0][0].responses).toEqual(Array(8).fill(1));
   });
 });

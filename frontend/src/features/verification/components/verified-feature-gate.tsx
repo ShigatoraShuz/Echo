@@ -13,6 +13,7 @@ export function VerifiedFeatureGate({
   featureName: string;
 }) {
   const [access, setAccess] = useState<"loading" | "allowed" | "verification" | "trusted_contact" | "error">("loading");
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -26,7 +27,7 @@ export function VerifiedFeatureGate({
     return () => {
       active = false;
     };
-  }, []);
+  }, [retry]);
 
   if (access === "loading") {
     return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70 motion-reduce:animate-none" />;
@@ -44,6 +45,7 @@ export function VerifiedFeatureGate({
         <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
           {failed ? "Your access status could not be checked. Please try again shortly." : needsContact ? "Your account is verified. Add a valid trusted support contact and confirm their permission before using AI-supported features." : "This feature uses AI-supported processing. It unlocks after an administrator approves your identity and age verification and you add a permitted trusted support contact."}
         </p>
+        {failed ? <button type="button" className="echo-button-secondary mt-4" onClick={() => { setAccess("loading"); setRetry(value => value + 1); }}>Retry access check</button> : null}
         <Link href={needsContact ? "/settings/trusted-contacts" : failed ? "/settings" : "/settings/verification"} className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-transform active:scale-[0.97]">
           <BadgeCheck className="h-4 w-4" aria-hidden="true" /> {needsContact ? "Manage trusted contacts" : failed ? "Open settings" : "Open verification"}
         </Link>

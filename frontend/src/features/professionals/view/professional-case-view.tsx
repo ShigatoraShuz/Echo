@@ -83,6 +83,7 @@ function CaseWorkspace({ id }: { id: string }) {
     setCoordinationError("");
   }, []);
   const destination = `/professional/cases/${id}`;
+  const requestedOrganization = searchParams.get("organization");
   const reportFailure = useCallback(
     (reason: unknown) => {
       const failure = professionalAccessFailure(reason);
@@ -117,6 +118,12 @@ function CaseWorkspace({ id }: { id: string }) {
             });
             return;
           }
+          if (requestedOrganization && result.request.organizationId !== requestedOrganization) {
+            // Canonicalize an outdated deep link without projecting clinical
+            // data into its old organization. The new gate verifies that scope.
+            router.replace(professionalOrganizationDestination(destination, result.request.organizationId));
+            return;
+          }
           setDetail(consentLimitedCase(result));
           setDetailRevision(current);
         }
@@ -124,7 +131,7 @@ function CaseWorkspace({ id }: { id: string }) {
         if (mounted.current && current === request.current) reportFailure(reason);
       }
     },
-    [id, reportFailure, clearDrafts],
+    [id, reportFailure, clearDrafts, requestedOrganization, router, destination],
   );
   useEffect(() => {
     mounted.current = true;

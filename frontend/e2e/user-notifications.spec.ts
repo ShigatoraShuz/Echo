@@ -30,6 +30,7 @@ async function fixture(page: Page) {
     } else if (method === "userNotificationsReadAll") {
       items.forEach(item => { item.readAt ??= new Date().toISOString(); }); result = { notifications: items.slice(0,20), unreadCount: 0 };
     } else if (method === "settings") result = { notifications: { inAppEnabled: true } };
+    else if (method === "profileSummary") result = { displayName: "Fictional student", avatarPath: null };
     else return route.fulfill({ status: 400, json: { code: "UNEXPECTED_FIXTURE_CALL" } });
     return route.fulfill({ json: result });
   });

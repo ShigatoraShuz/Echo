@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ProfessionalNotificationBell } from "./professional-notification-bell";
 import { clearNotificationSound, enableNotificationSound } from "@/services/notifications/notification-sound";
 import { settingsService } from "@/services/settings/settings.service";
+import { ProfessionalReadScope } from "../hooks/professional-read-scope";
+import { StrictMode } from "react";
 const api = vi.hoisted(() => ({ notifications: vi.fn() }));
 vi.mock("@/services/professionals/professional-api", () => ({ professionalApi: api }));
 vi.mock("@/services/settings/settings.service", () => ({ settingsService: { get: vi.fn() } }));
@@ -21,6 +23,24 @@ beforeEach(() => {
   api.notifications.mockResolvedValue(page("first"));
 });
 afterEach(() => { clearNotificationSound(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+it("adopts a pending discovery during Strict Mode replay without losing the unread state or duplicating HTTP", async () => {
+  render(<StrictMode><ProfessionalReadScope><ProfessionalNotificationBell userId="actor" organizationId="one" role="counselor" /></ProfessionalReadScope></StrictMode>);
+  await screen.findByRole("button", { name: "Notifications, 1 unread" });
+  expect(api.notifications).toHaveBeenCalledTimes(1);
+});
+it("performs one trailing refresh when an event arrives during an older in-flight discovery", async () => {
+  let finish!: (value: ReturnType<typeof page>) => void;
+  api.notifications.mockReturnValueOnce(new Promise(resolve => { finish = resolve; })).mockResolvedValue({ ...page("fresh"), unreadCount: 2 });
+  render(<ProfessionalReadScope><ProfessionalNotificationBell userId="actor" organizationId="one" role="counselor" /></ProfessionalReadScope>);
+  await waitFor(() => expect(api.notifications).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    window.dispatchEvent(new Event("echo:appointments-changed"));
+    window.dispatchEvent(new Event("echo:notifications-changed"));
+  });
+  await act(async () => finish(page("old")));
+  await screen.findByRole("button", { name: "Notifications, 2 unread" });
+  expect(api.notifications).toHaveBeenCalledTimes(2);
+});
 it("discovers updates while closed without loading the clinical panel", async () => {
   render(<ProfessionalNotificationBell userId="actor" organizationId="one" role="counselor" />);
   await screen.findByRole("button", { name: "Notifications, 1 unread" });

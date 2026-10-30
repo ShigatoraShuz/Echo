@@ -16,7 +16,7 @@ export type ReviewerFactor = { id: string };
 export const prepareReviewerMfa = () => rpc("prepareMfa", []);
 export const verifyReviewerMfa = (...args: unknown[]) => rpc("verifyMfa", args);
 
-export const settingsService = { get: () => rpc("settings", []), updateProfile: (...args: unknown[]) => rpc("updateProfile", args), updateNotifications: (...args: unknown[]) => rpc("updateNotifications", args) };
+export const settingsService = { get: () => rpc("settings", []), getProfileSummary: () => rpc("profileSummary", []), updateProfile: (...args: unknown[]) => rpc("updateProfile", args), updateNotifications: (...args: unknown[]) => rpc("updateNotifications", args) };
 
 export const notificationsService = {
   list: (...args: unknown[]) => userNotificationsFixture() ? rpc("userNotifications", args) : Promise.resolve({ notifications: [], unreadCount: 0 }),

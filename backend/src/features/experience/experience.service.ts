@@ -2,6 +2,7 @@ import { AuthorizationError } from "../../shared/errors/app-error.js";
 import { assertAiEnabled as assertVoiceEnabled } from "../../infrastructure/security/runtime-controls.js";
 import { LocalBuddyStore } from "../../infrastructure/analysis/local-buddy-store.js";
 import { randomUUID } from "node:crypto";
+import { generationStageSchema } from "@echo/contracts";
 import { WellnessService, defaultWellnessSchedule, type WellnessSchedule } from "./wellness.service.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JournalService } from "../journals/journals.service.js";
@@ -12,15 +13,6 @@ import { ConflictError, ExternalServiceError, NotFoundError } from "../../shared
 import type { CoreClient, ChatTurn } from "../../infrastructure/analysis/core-client.js";
 
 type DatabaseRow = Record<string, unknown>;
-
-const moodScores: Record<string, number> = {
-  calm: 82,
-  happy: 92,
-  neutral: 62,
-  sad: 38,
-  anxious: 32,
-  angry: 26,
-};
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
@@ -140,7 +132,8 @@ export class ExperienceService {
   }
 
   async buddyPrivacy(userId: string) {
-    return { buddyHistoryEnabled: await this.historyEnabled(userId) };
+    return { buddyHistoryEnabled: await this.historyEnabled(userId),
+      responderState: "DEMO_FALLBACK" as const };
   }
 
   private titleOf(row: DatabaseRow): string {
@@ -159,7 +152,7 @@ export class ExperienceService {
     };
   }
 
-  async dashboard(userId: string, range = "7d") {
+  async dashboard(userId: string, _range = "7d") {
     const [entries, analysisInsights, profileResult, preferenceResult] = await Promise.all([
       this.journals.listSummaries(userId),
       this.journals.dashboardInsights(userId),
@@ -195,53 +188,9 @@ export class ExperienceService {
     const preferences = preferenceResult.data;
     const recentTitles = await this.journals.getJournalTitles(userId, entries.slice(0, 3).map((entry) => entry.id));
 
-    const today = startOfUtcDay(new Date());
-    let moodTrend: Array<{ label: string; value: number }>;
-
-    if (range === "30d" || range === "month") {
-      // 4 clean weekly buckets over the 30-day period
-      moodTrend = Array.from({ length: 4 }, (_, index) => {
-        const weekEnd = new Date(today);
-        weekEnd.setUTCDate(weekEnd.getUTCDate() - (3 - index) * 7);
-        const weekStart = new Date(weekEnd);
-        weekStart.setUTCDate(weekStart.getUTCDate() - 6);
-        const matching = entries.filter((entry) => {
-          const entryDate = new Date(entry.created_at);
-          return entryDate >= weekStart && entryDate <= weekEnd;
-        });
-        const value = matching.length
-          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-          : 0;
-        return { label: `Week ${index + 1}`, value };
-      });
-    } else if (range === "90d") {
-      // 3 monthly intervals over 90 days
-      moodTrend = Array.from({ length: 3 }, (_, index) => {
-        const periodEnd = new Date(today);
-        periodEnd.setUTCDate(periodEnd.getUTCDate() - (2 - index) * 30);
-        const periodStart = new Date(periodEnd);
-        periodStart.setUTCDate(periodStart.getUTCDate() - 29);
-        const matching = entries.filter((entry) => {
-          const entryDate = new Date(entry.created_at);
-          return entryDate >= periodStart && entryDate <= periodEnd;
-        });
-        const value = matching.length
-          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-          : 0;
-        const monthLabel = periodEnd.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-        return { label: monthLabel, value };
-      });
-    } else {
-      moodTrend = Array.from({ length: 7 }, (_, index) => {
-        const day = new Date(today);
-        day.setUTCDate(day.getUTCDate() - (6 - index));
-        const matching = entries.filter((entry) => dateKey(entry.created_at) === dateKey(day));
-        const value = matching.length
-          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-          : 0;
-        return { label: day.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }), value };
-      });
-    }
+    // Categorical self-reported moods are not numerical mental-health scores.
+    // Keep the existing empty-chart contract instead of inventing a scalar trend.
+    const moodTrend: Array<{ label: string; value: number }> = [];
 
     const moodCounts = new Map<string, number>();
     for (const entry of entries) moodCounts.set(entry.mood, (moodCounts.get(entry.mood) ?? 0) + 1);
@@ -283,7 +232,16 @@ export class ExperienceService {
   }
 
   private messageContent(row: DatabaseRow): string {
-    return decryptText(row.content, this.encryption);
+    return this.messageEnvelope(row).text;
+  }
+  private messageEnvelope(row:DatabaseRow):{text:string;generation?:import("@echo/contracts").GenerationStage} {
+    const raw=decryptText(row.content,this.encryption);
+    if(row.role!=="user") {
+      try {const value=JSON.parse(raw); if(value?.schemaVersion==="echo-buddy-model-v1")
+        return {text:value.text,generation:generationStageSchema.parse(value.generation)};
+      } catch { /* Old encrypted text remains readable. */ }
+    }
+    return {text:raw};
   }
 
   async createBuddyConversation(userId: string) {
@@ -355,6 +313,7 @@ export class ExperienceService {
       id: asString(row.id),
       role: row.role === "user" ? "user" : "buddy",
       content: this.messageContent(row),
+      generation:this.messageEnvelope(row).generation,
       timestamp: new Date(asString(row.created_at)).toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
@@ -362,6 +321,7 @@ export class ExperienceService {
     }));
     if (messages.length === 0) {
       messages.push({
+        generation:undefined,
         id: "welcome",
         role: "buddy",
         content: "I am here with you. What feels most present right now?",
@@ -375,6 +335,8 @@ export class ExperienceService {
     const temporaryKey=userId+':'+(temporarySessionId??'legacy');
     const saving = await this.historyEnabled(userId);
     if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
+    // Preserve ownership verification before either model or prewritten support.
+    if (selectedConversationId) await this.ownedConversation(userId, selectedConversationId);
     let urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm|want to die)\b/i.test(content);
     let provenance:Record<string,unknown>|undefined;
     let reply: string;
@@ -449,24 +411,13 @@ export class ExperienceService {
       mood,
       value: Math.round(((counts.get(mood) ?? 0) / total) * 100),
     }));
-    const today = startOfUtcDay(new Date());
-    const moodTrend = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(today);
-      day.setUTCDate(day.getUTCDate() - (6 - index));
-      const matching = entries.filter((entry) => dateKey(entry.created_at) === dateKey(day));
-      return {
-        label: day.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
-        value: matching.length
-          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-          : 0,
-      };
-    });
+    const moodTrend: Array<{ label: string; value: number }> = [];
     const strongest = [...emotionWheel].sort((a, b) => b.value - a.value)[0];
     return {
       emotionWheel,
       moodTrend,
       summary: entries.length
-        ? `${strongest.label} is the most frequent signal across ${entries.length} recent reflection${entries.length === 1 ? "" : "s"}.`
+        ? `${strongest.label} is the most frequent self-reported mood across ${entries.length} recent reflection${entries.length === 1 ? "" : "s"}.`
         : "No patterns are shown until you save a reflection.",
     };
   }

@@ -5,6 +5,7 @@ declare
   owner_id uuid := 'fe000000-0000-4000-8000-000000000001';
   counselor_id uuid := 'fe000000-0000-4000-8000-000000000002';
   other_id uuid := 'fe000000-0000-4000-8000-000000000003';
+  reviewer_id uuid := 'fe000000-0000-4000-8000-000000000005';
   organization_id uuid := 'fe000000-0000-4000-8000-000000000004';
   request_id uuid;
   appointment_id uuid;
@@ -18,21 +19,23 @@ begin
   insert into auth.users(id,email) values
     (owner_id,'professional-owner@example.test'),
     (counselor_id,'professional-counselor@example.test'),
-    (other_id,'professional-other@example.test');
+    (other_id,'professional-other@example.test'),
+    (reviewer_id,'synthetic-independent-reviewer@example.test');
   insert into user_service.profiles(user_id,account_status,eligible_18_plus,onboarding_completed)
     values(owner_id,'active',true,true),(counselor_id,'active',true,true)
     on conflict(user_id) do update set account_status='active',eligible_18_plus=true,onboarding_completed=true;
   insert into professional_service.organizations(id,slug,name,status,verified_at)
     values(organization_id,'test-partner','Test Partner','active',now());
-  insert into verification_service.verification_admins(user_id,is_active) values(owner_id,true);
+  -- Isolated fixture only: exercise the real independent credential-review
+  -- functions instead of bypassing the active-membership approval trigger.
+  insert into verification_service.verification_admins(user_id,is_active) values(reviewer_id,true);
   perform set_config('request.jwt.claim.role','service_role',true);
-  select id into credential_id from professional_service.submit_credential(
-    organization_id,counselor_id,'counselor','Reviewed credential',current_date+30,'echo:encrypted:v1:example');
-  perform professional_service.review_credential(organization_id,credential_id,owner_id,'approved',null);
+  select id into credential_id from professional_service.submit_credential(organization_id,counselor_id,
+    'counselor','Synthetic fixture credential',current_date+30,'echo:encrypted:v1:synthetic-fixture');
+  perform professional_service.review_credential(organization_id,credential_id,reviewer_id,'approved',null);
   insert into professional_service.memberships(organization_id,user_id,role,status,display_name,
     credential_label,credential_expires_at,approved_at,approved_by,approved_credential_id)
-    values(organization_id,counselor_id,'counselor','active','Test Counselor','Reviewed credential',current_date+30,now(),owner_id,credential_id);
-  perform set_config('request.jwt.claim.role','service_role',true);
+    values(organization_id,counselor_id,'counselor','active','Test Counselor','Synthetic fixture credential',current_date+30,now(),reviewer_id,credential_id);
 
   begin
     perform professional_service.create_request(organization_id,other_id,'echo:encrypted:v1:example','echo:encrypted:v1:example',

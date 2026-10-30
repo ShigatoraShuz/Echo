@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ExperienceService } from "../experience.service.js";
 import type { JournalService } from "../../journals/journals.service.js";
 import type { EncryptionService } from "../../../infrastructure/encryption/encryption.service.js";
+import { createEncryptionService, encryptText } from "../../../infrastructure/encryption/encryption.service.js";
 
 function createChain() {
   const chain: any = {
@@ -91,6 +92,29 @@ describe("ExperienceService.buddyHistory", () => {
 });
 
 describe("ExperienceService.Buddy privacy", () => {
+  it("reads encrypted original and historical model replies without a running model", async () => {
+    const encryption = createEncryptionService(Buffer.alloc(32, 7).toString("base64"), 1, {});
+    const generation = {
+      status: "completed", modelId: "fictional-historical-model", modelVersion: "test-v1",
+      executionMode: "synthetic", timestamp: "2026-10-01T00:00:00.000Z", durationMs: 0,
+      errorCode: null, result: { text: "Fictional historical reply", disclaimer: "Synthetic test only" },
+    };
+    const rows = [
+      { id: "original", role: "buddy", content: encryptText("Fictional original reply", encryption), created_at: "2026-10-01T00:00:00.000Z" },
+      { id: "historical", role: "buddy", content: encryptText(JSON.stringify({ schemaVersion: "echo-buddy-model-v1", text: generation.result.text, generation }), encryption), created_at: "2026-10-01T00:01:00.000Z" },
+    ];
+    const messages = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), then: (resolve: (value: unknown) => unknown) => resolve({ data: rows, error: null }) };
+    messages.select.mockReturnValue(messages); messages.eq.mockReturnValue(messages); messages.order.mockReturnValue(messages);
+    const conversation = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: { id: "owned", user_id: "owner" }, error: null })) };
+    conversation.select.mockReturnValue(conversation); conversation.eq.mockReturnValue(conversation);
+    const database = { schema: vi.fn(() => ({ from: vi.fn((table: string) => table === "buddy_messages" ? messages : conversation) })) };
+    const service = new ExperienceService(database as never, {} as JournalService, encryption);
+    const session = await service.buddySession("owner", "owned");
+    expect(session.messages.map(message => message.content)).toEqual(["Fictional original reply", "Fictional historical reply"]);
+    expect(session.messages[1].generation).toEqual(generation);
+    expect(conversation.eq).toHaveBeenCalledWith("user_id", "owner");
+    expect(messages.eq).toHaveBeenCalledWith("user_id", "owner");
+  });
   it("orders tied exchange timestamps with the user message before Buddy's reply", async () => {
     const messages = {
       select: vi.fn(), eq: vi.fn(), order: vi.fn(),
@@ -138,6 +162,8 @@ describe("ExperienceService.Buddy privacy", () => {
     expect(result).toMatchObject({ conversationId: null, persisted: false });
     expect(result.messages).toHaveLength(2);
     expect(from).toHaveBeenCalledTimes(1);
+    expect(result.messages[1].content).toContain("What part of that feels most present");
+    expect(result.messages[1]).not.toHaveProperty("generation");
   });
 
   it("refuses to append to a saved chat when saving is off", async () => {

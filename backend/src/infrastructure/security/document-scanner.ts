@@ -49,7 +49,7 @@ export async function inspectDocument(scanner: DocumentScanner, bytes: Buffer, m
       scanner.inspect(bytes, mime, controller.signal),
       new Promise<never>((_resolve, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error("Scanner timed out.")); }, 15_000); }),
     ]);
-    if (result.status === "rejected") throw new ValidationError({ document: ["This document was rejected by the security scan."] });
+    if (result.status === "rejected") throw new ValidationError({ document: ["This document failed document validation."] });
     const validDimensions = mime === "application/pdf" ? Number.isInteger(result.pages) && result.pages! > 0 && result.pages! <= 20 :
       Number.isInteger(result.width) && Number.isInteger(result.height) && result.width! > 0 && result.height! > 0 && result.width! * result.height! <= 40_000_000;
     if (result.status === "clean" && result.sha256 === sha256 && result.scannerVersion && result.scannerVersion.length <= 100 && validDimensions)

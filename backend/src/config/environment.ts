@@ -92,6 +92,11 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
     throw new Error(`Invalid backend environment configuration: ${fields}`);
   }
 
+  // Quarantine the new core-backed persistence path until encrypted storage,
+  // retention, account scoping, and consent-race handling are approved.
+  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || parsed.data.AI_SERVICE_URL)
+    throw new Error("Core-backed application storage is pending privacy approval; use the standard application profile.");
+
   if (parsed.data.NODE_ENV === "production" && parsed.data.AI_ANALYSIS_MODE === "development_stub")
     throw new Error("Development stub analysis is not permitted in production.");
   if (parsed.data.AI_ANALYSIS_MODE === "local_worker" && !parsed.data.AI_WORKER_TOKEN)

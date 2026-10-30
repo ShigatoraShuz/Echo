@@ -17,7 +17,9 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import type { DashboardInsights, JournalAnalysisResult } from "@echo/contracts";
+import type { DashboardInsights, LegacyJournalAnalysisResult as JournalAnalysisResult } from "@echo/contracts";
+import dynamic from "next/dynamic";
+const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 import { VerifiedFeatureGate } from "@/features/verification";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { useInsightsViewModel } from "../view-model/use-insights-view-model";
@@ -227,8 +229,8 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
   const [customTo, setCustomTo] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
   const insights = vm.overview;
-  const latest = insights?.latest?.schemaVersion === "echo-journal-analysis-v1" ? insights.latest : null;
-  const native = insights?.latest && insights.latest.schemaVersion !== "echo-journal-analysis-v1" ? insights.latest : null;
+  const latest = insights?.latest?.schemaVersion === "echo-journal-analysis-v1" || insights?.latest?.schemaVersion === "echo-model-pipeline-v2" ? insights.latest : null;
+  const native = insights?.latest?.schemaVersion === "echo-journal-analysis-v2" || insights?.latest?.schemaVersion === "echo-journal-analysis-v3" ? insights.latest : null;
   const period = insights?.period;
   const distressStart = insights?.distressTrend[0]?.value;
   const distressEnd = insights?.distressTrend.at(-1)?.value;
@@ -288,7 +290,7 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
         </header>
 
         {vm.error ? <div role="alert" className="flex items-center justify-between gap-4 rounded-xl border border-danger/20 bg-crisis-soft px-4 py-3 text-sm text-foreground"><span>{vm.error}</span><button type="button" onClick={vm.retry} className="font-bold text-primary">Retry</button></div> : null}
-        {vm.isLoading && !insights ? <LoadingState /> : !latest || !insights ? <EmptyState retry={vm.retry} /> : (
+        {vm.isLoading && !insights ? <LoadingState /> : !latest || !insights ? <EmptyState retry={vm.retry} /> : latest.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={latest} /> : (
           <>
             <section className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4" aria-label="Analysis summary">
               <Metric icon={HeartPulse} label="Dominant emotion" value={titleCase((latest.combinedEmotionAnalysis ?? latest).dominantEmotion)} detail="Most present model signal" delay={60} />

@@ -45,7 +45,7 @@ const stageLabels: Record<string, string> = {
   generating_recommendation: "Preparing your reflection",
   aggregating_week: "Updating your dashboard",
   retrying: "Trying again safely",
-  completed: "Your analysis is ready",
+  completed: "Analysis processing finished",
   failed: "Analysis could not be completed",
 };
 
@@ -124,6 +124,8 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [pollingPaused,setPollingPaused]=useState(false);
+  const [pollingEpoch,setPollingEpoch]=useState(0);
   const [country, setCountry] = useState("PH");
   const [resources, setResources] = useState<
     Array<{
@@ -190,6 +192,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
       setProgress(null);
       currentProgress.current = null;
       setSubmission((event as CustomEvent<JournalSubmissionResponse>).detail);
+      setPollingPaused(false);
       setDismissed(false);
       setMinimized(false);
     };
@@ -217,9 +220,16 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   useEffect(() => {
     if (!submission) return;
     let cancelled = false;
+    let inFlight=false;
+    const deadline=Date.now()+5*60_000;
     const service = getJournalService();
     const poll = async () => {
-      const result = await service.getAnalysisStatus?.(submission.analysisJobId);
+      if(inFlight || cancelled || Date.now()>=deadline)return;
+      inFlight=true;
+      let result:Awaited<ReturnType<NonNullable<typeof service.getAnalysisStatus>>>|undefined;
+      try {result = await service.getAnalysisStatus?.(submission.analysisJobId);}
+      catch {return;}
+      finally {inFlight=false;}
       if (cancelled) return;
       if (result?.success) update(result.data);
       else if (result && ["NOT_FOUND", "UNAUTHORIZED", "FORBIDDEN"].includes(result.error.code)) {
@@ -231,6 +241,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
     };
     void poll();
     const interval = window.setInterval(() => {
+      if(Date.now()>=deadline){clearInterval(interval);setPollingPaused(true);return;}
       if (!["completed", "failed"].includes(currentProgress.current?.status ?? "")) void poll();
     }, 5_000);
     let channel: ReturnType<ReturnType<typeof createBrowserSupabaseClient>["channel"]> | undefined;
@@ -258,7 +269,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
       clearInterval(interval);
       if (channel) void createBrowserSupabaseClient().removeChannel(channel);
     };
-  }, [submission, update]);
+  }, [submission, update,pollingEpoch]);
 
   useEffect(() => {
     if (progress?.status !== "safety_action_required") return;
@@ -445,10 +456,11 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
               ) : null}
             </div>
           ) : null}
+          {pollingPaused && !complete && !failed && !safety ? <p role="status" className="mt-3 text-xs text-muted-foreground">Automatic status checks paused after five minutes. Your journal is saved. <button type="button" className="font-semibold text-primary underline" onClick={()=>{setPollingPaused(false);setPollingEpoch(epoch=>epoch+1);}}>Check status again</button></p> : null}
           {complete ? (
             <>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Your private reflection is ready. Any unavailable optional signal is labeled clearly.
+                Processing is complete. Open your saved reflection to see available results and model limitations.
               </p>
               <div className="mt-6">
                 <Link

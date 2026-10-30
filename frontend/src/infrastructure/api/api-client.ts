@@ -2,7 +2,7 @@ import { AppError } from "@/shared/errors/app-error";
 import type { AuthTokenProvider } from "@/infrastructure/api/auth-token-provider";
 import { nullTokenProvider } from "@/infrastructure/api/auth-token-provider";
 import { normalizeError } from "@/shared/errors/normalize-error";
-import { composeSignal } from "@/shared/utils/abort-signal";
+import { createRequestSignal } from "@/shared/utils/abort-signal";
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -180,23 +180,24 @@ export function createApiClient(options: ApiClientOptions) {
   ): Promise<TResponse> {
     const url = joinUrl(baseUrl, path);
     const timeoutMs = opts?.timeout ?? defaultTimeout;
-    const combinedSignal = composeSignal(opts?.signal, timeoutMs);
+    const { signal: combinedSignal, dispose, abort } = createRequestSignal(opts?.signal, timeoutMs, true);
+    const invalidate = () => abort(new DOMException("Session changed", "AbortError"));
+    if (typeof window !== "undefined") window.addEventListener("echo:sensitive-state-cleared", invalidate, { once: true });
 
     const headers: Record<string, string> = {
       "X-Request-Id": requestId,
       ...opts?.headers,
     };
 
-    const token = accessToken ?? await tokenProvider.getAccessToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
     if (body !== undefined && !(body instanceof FormData) && !(body instanceof Blob)) {
       headers["Content-Type"] = "application/json";
     }
 
     try {
+      combinedSignal?.throwIfAborted();
+      const token = accessToken ?? await tokenProvider.getAccessToken();
+      combinedSignal?.throwIfAborted();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch(url, {
         method,
         headers,
@@ -207,6 +208,7 @@ export function createApiClient(options: ApiClientOptions) {
           : undefined,
         signal: combinedSignal,
       });
+      combinedSignal?.throwIfAborted();
 
       if (response.status === 204) {
         return undefined as TResponse;
@@ -226,17 +228,24 @@ export function createApiClient(options: ApiClientOptions) {
         const blob = await response.blob();
         responseBody = blob;
       }
+      combinedSignal?.throwIfAborted();
 
       if (!response.ok) {
         if (response.status === 401 && !retried) {
+          combinedSignal?.throwIfAborted();
           const refreshedToken = await (refreshInFlight ??= tokenProvider
             .refreshAccessToken()
             .finally(() => {
               refreshInFlight = null;
             }));
+          combinedSignal?.throwIfAborted();
           if (refreshedToken) {
             return requestWithRetry<TResponse>(requestId, method, path, body, opts, true, refreshedToken);
           }
+          await tokenProvider.clearSession();
+        } else if (response.status === 401) {
+          // A refreshed token can also be revoked. Fail closed rather than
+          // leaving mounted private state behind after the bounded retry.
           await tokenProvider.clearSession();
         }
 
@@ -288,6 +297,9 @@ export function createApiClient(options: ApiClientOptions) {
         (normalized as { requestId?: string }).requestId = requestId;
       }
       throw normalized;
+    } finally {
+      dispose();
+      if (typeof window !== "undefined") window.removeEventListener("echo:sensitive-state-cleared", invalidate);
     }
   }
 

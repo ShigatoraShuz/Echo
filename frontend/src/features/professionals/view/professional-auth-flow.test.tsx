@@ -88,7 +88,7 @@ describe("professional auth flow", () => {
   });
 
   it("keeps approved case organization context in the shell and request-queue return link", async () => {
-    mocks.searchParams = new URLSearchParams("organization=wrong-context");
+    mocks.searchParams = new URLSearchParams("organization=approved-case-org");
     mocks.caseDetail.mockResolvedValue({ ...caseData, request: { ...caseData.request, organizationId: "approved-case-org" } });
     render(<ProfessionalCaseView id={caseId} />);
     await screen.findByText(caseData.request.summary);

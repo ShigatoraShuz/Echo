@@ -236,6 +236,12 @@ export function createJournalHttpAdapter(): JournalService {
         return { success: false, error: toServiceError(error) };
       }
     },
+    async getAnalysisAvailability(entryId) {
+      try {
+        const response = await client.get<{ success: true; data: import("@echo/contracts").JournalAnalysisAvailability }>(`/journals/${entryId}/analysis-state`);
+        return { success: true, data: response.data };
+      } catch (error) { return { success: false, error: toServiceError(error) }; }
+    },
     async getAnalysisStatus(jobId) {
       try {
         const response = await client.get<{ success: true; data: AnalysisProgress }>(`/analysis-jobs/${jobId}/status`);

@@ -16,6 +16,7 @@ import { JournalImagesService } from "./features/journals/journal-images.service
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
+import { basicDocumentValidator } from "./infrastructure/security/basic-document-validator.js";
 import { createHttpDocumentScanner, quarantineScanner } from "./infrastructure/security/document-scanner.js";
 import { createWindowsDefenderScanner } from "./infrastructure/security/windows-defender-scanner.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
@@ -33,10 +34,10 @@ import { CalendarService } from "./features/calendar/calendar.service.js";
 import { ProfessionalEventService } from "./features/professionals/professional-events.service.js";
 import { startProfessionalEventProcessor } from "./features/professionals/professional-event-processor.js";
 
-const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 import { CoreClient } from "./infrastructure/analysis/core-client.js";
 
 const environment = loadEnvironment();
+const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const localResults=environment.AI_ANALYSIS_MODE==="local_json"?new LocalAnalysisStore(environment.LOCAL_DATA_DIR):undefined;
 const localBuddy=localResults?new LocalBuddyStore(environment.LOCAL_DATA_DIR):undefined;
 const coreClient = environment.AI_SERVICE_URL ? new CoreClient(environment.AI_SERVICE_URL, environment.AI_SERVICE_TOKEN!) : undefined;
@@ -110,7 +111,7 @@ const verificationService = new VerificationService(
     ? createHttpDocumentScanner(environment.VERIFICATION_SCANNER_URL, environment.VERIFICATION_SCANNER_TOKEN)
     : environment.VERIFICATION_SCANNER_MODE === "windows_defender"
       ? createWindowsDefenderScanner(environment.VERIFICATION_PDFINFO_PATH!)
-      : quarantineScanner,
+      : environment.NODE_ENV === "development" ? basicDocumentValidator : quarantineScanner,
 );
 const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
 const notificationService = new NotificationService(

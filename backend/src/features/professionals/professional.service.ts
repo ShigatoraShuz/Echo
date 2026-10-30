@@ -184,7 +184,7 @@ export class ProfessionalService {
     const { data, error } = await this.database
       .schema("professional_service")
       .from("memberships")
-      .select("id,organization_id,role,status,display_name,credential_label,credential_expires_at")
+      .select("id,organization_id,role,status,display_name,credential_label,credential_expires_at,organization:organizations(id,slug,name,description,service_hours,status)")
       .eq("user_id", userId)
       .order("created_at");
 
@@ -196,26 +196,14 @@ export class ProfessionalService {
     const memberships = (data ?? []) as Row[];
     if (memberships.length === 0) return { userId, memberships: [] };
 
-    const { data: organizations, error: organizationError } = await this.database
-      .schema("professional_service")
-      .from("organizations")
-      .select("id,slug,name,description,service_hours,status")
-      .in(
-        "id",
-        memberships.map((item) => value(item, "organization_id")),
-      );
-
-    if (organizationError) {
-      logDatabaseError("memberships.organizations", organizationError);
-      throw databaseError("Organizations could not be loaded.");
-    }
-
-    const byId = new Map(
-      ((organizations ?? []) as Row[]).map((item) => [
-        value(item, "id"),
-        mapOrganization(item),
-      ]),
-    );
+    // Existing FK embedding makes access + organization status one scoped DB
+    // read. Missing/malformed organizations still fail closed as unavailable.
+    const byId = new Map(memberships.flatMap(item => {
+      const organization = item.organization;
+      if (!organization || typeof organization !== "object" || Array.isArray(organization) ||
+        value(organization as Row, "id") !== value(item, "organization_id")) return [];
+      return [[value(item, "organization_id"), mapOrganization(organization as Row)] as const];
+    }));
 
     return {
       userId,
@@ -651,10 +639,17 @@ export class ProfessionalService {
     }
     // Older authorized snapshots omit replacement links. Read only these IDs,
     // within this request, and retain the final access recheck before projection.
-    if (snapshot.appointments.some(item => !Object.hasOwn(item, "replaces_appointment_id"))) {
-      const links = await this.database.schema("professional_service").from("appointments")
+    const [links, latest] = await Promise.all([
+      snapshot.appointments.some(item => !Object.hasOwn(item, "replaces_appointment_id"))
+        ? this.database.schema("professional_service").from("appointments")
         .select("id,replaces_appointment_id").eq("request_id", requestId)
-        .in("id", snapshot.appointments.map(item => value(item, "id")));
+        .in("id", snapshot.appointments.map(item => value(item, "id"))) : null,
+      snapshot.sharedRecords?.length
+        ? this.database.schema("professional_service").from("case_shared_records")
+        .select("id,expires_at,revoked_at").eq("request_id", requestId).eq("owner_user_id", initial.user_id)
+        .in("id", snapshot.sharedRecords.map(item => value(item, "id"))) : null,
+    ]);
+    if (links) {
       if (links.error) throw databaseError("Appointment replacement details could not be confirmed.");
       snapshot.appointments = snapshot.appointments.map(item => ({ ...item,
         replaces_appointment_id: ((links.data ?? []) as Row[]).find(link => link.id === item.id)?.replaces_appointment_id ?? null,
@@ -663,10 +658,7 @@ export class ProfessionalService {
     // Revocation or permission loss may commit after the RPC returns. Recheck
     // before decrypting; already delivered data cannot be recalled.
     let currentShares: Row[] | undefined;
-    if (snapshot.sharedRecords?.length) {
-      const latest = await this.database.schema("professional_service").from("case_shared_records")
-        .select("id,expires_at,revoked_at").eq("request_id", requestId).eq("owner_user_id", initial.user_id)
-        .in("id", snapshot.sharedRecords.map((item) => value(item, "id")));
+    if (latest) {
       if (latest.error) throw databaseError("Current sharing permissions could not be confirmed.");
       currentShares = (latest.data ?? []) as Row[];
     }
@@ -1128,11 +1120,11 @@ export class ProfessionalService {
       if (profileError) throw databaseError("Assigned professionals could not be loaded.");
       const profileByMember = new Map(((profiles ?? []) as Row[]).map((item) => [value(item, "membership_id"), item]));
       const organizationById = new Map(organizations.map((item) => [item.id, item]));
-      const assignedByUser = new Map(memberRows.flatMap((member) => {
+      const assignedByScope = new Map(memberRows.flatMap((member) => {
         const profile = profileByMember.get(value(member, "id"));
         const organization = organizationById.get(value(member, "organization_id"));
         if (!profile || !organization) return [];
-        return [[value(member, "user_id"), {
+        return [[`${value(member, "user_id")}:${organization.id}`, {
           id: value(profile, "id"), organizationId: organization.id, organizationName: organization.name,
           displayName: value(member, "display_name"), role: value(member, "role"), credentialLabel: optional(member, "credential_label"),
           bio: value(profile, "bio"), specialties: strings(profile, "specialties"), serviceTypes: strings(profile, "service_types"),
@@ -1140,7 +1132,7 @@ export class ProfessionalService {
           responseHours: value(profile, "response_hours"), acceptingRequests: Boolean(profile.accepting_requests),
         }] as const];
       }));
-      active = active.map((item) => ({ ...item, assignedProfessional: item.assignedTo ? assignedByUser.get(item.assignedTo) ?? null : null }));
+      active = active.map((item) => ({ ...item, assignedProfessional: item.assignedTo ? assignedByScope.get(`${item.assignedTo}:${item.organizationId}`) ?? null : null }));
     }
     const requestIds = active.map((item) => item.id);
     let appointments: Array<Record<string, unknown>> = [];

@@ -17,8 +17,10 @@ for (const name of (await readdir(tests)).filter(
   }
 }
 console.info(`Supplemental PostgreSQL migration validation: ${fileURLToPath(directory)}`);
-if (process.argv.includes("--catalog") && !process.exitCode) {
-  const schemas = "('public','user_service','journal_service','buddy_service','verification_service','notification_service','grounding_service','insights_service','ai_analysis','auth_provisioning')";
+const catalogOutputIndex = process.argv.indexOf("--catalog-output");
+if ((process.argv.includes("--catalog") || catalogOutputIndex >= 0) && !process.exitCode) {
+  if (catalogOutputIndex >= 0 && !process.argv[catalogOutputIndex + 1]) throw new Error("--catalog-output requires a local output path.");
+  const schemas = "('public','user_service','journal_service','buddy_service','verification_service','notification_service','grounding_service','insights_service','ai_analysis','auth_provisioning','professional_service')";
   const reports = {
     tables: `select n.nspname as schema,c.relname as name,c.relkind,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ${schemas} and c.relkind in ('r','p','v','m') order by 1,2`,
     columns: `select table_schema,table_name,column_name,data_type,is_nullable from information_schema.columns where table_schema in ${schemas} order by table_schema,table_name,ordinal_position`,
@@ -33,7 +35,8 @@ if (process.argv.includes("--catalog") && !process.exitCode) {
   };
   const catalog = { source: "Isolated synthetic PostgreSQL after repository migrations; NOT a deployed project snapshot" };
   for (const [name, sql] of Object.entries(reports)) catalog[name] = (await database.query(sql)).rows;
-  await writeFile(new URL("../../docs/security/DATABASE_CATALOG.json", import.meta.url), JSON.stringify(catalog, null, 2) + "\n");
+  const output = catalogOutputIndex >= 0 ? process.argv[catalogOutputIndex + 1] : new URL("../../docs/security/DATABASE_CATALOG.json", import.meta.url);
+  await writeFile(output, JSON.stringify(catalog, null, 2) + "\n");
   console.info("Wrote isolated schema/policy/grant/function/trigger/constraint catalog.");
 }
 await database.close();

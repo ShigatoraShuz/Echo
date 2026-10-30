@@ -3,8 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "@/shared/errors/app-error";
 import { ProfessionalMyCasesView, ProfessionalRequestsView } from "./professional-requests-view";
-import MyCasesPage from "@/app/(protected)/professional/my-cases/page";
-import RequestsPage from "@/app/(protected)/professional/requests/page";
+import MyCasesContent from "@/app/(protected)/professional/(workspace)/my-cases/page";
+import RequestsContent from "@/app/(protected)/professional/(workspace)/requests/page";
+import WorkspaceLayout from "@/app/(protected)/professional/(workspace)/layout";
+const MyCasesPage = () => <WorkspaceLayout><MyCasesContent /></WorkspaceLayout>;
+const RequestsPage = () => <WorkspaceLayout><RequestsContent /></WorkspaceLayout>;
 
 const mocks = vi.hoisted(() => ({ memberships: vi.fn(), queue: vi.fn(), claim: vi.fn(), caseDetail: vi.fn(), directory: vi.fn(), assign: vi.fn(), replace: vi.fn(), refresh: vi.fn(), searchParams: new URLSearchParams(), pathname: "/professional/my-cases" }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks, useSearchParams: () => mocks.searchParams, usePathname: () => mocks.pathname }));
@@ -116,7 +119,7 @@ describe("FE-012 My Cases", () => {
     await screen.findByRole("heading", { name: "Case NEWORG01" });
     expect(screen.getByRole("searchbox")).toHaveValue("");
     expect(screen.getByLabelText("Submitted from")).toHaveValue("");
-    expect(mocks.queue).toHaveBeenLastCalledWith("org-two");
+    expect(mocks.queue).toHaveBeenLastCalledWith("org-two", { assignedTo: "me", sort: "updated", limit: 100 });
     expect(screen.getByRole("link", { name: "Open case" })).toHaveAttribute("href", "/professional/cases/NEWORG01?organization=org-two");
   });
 
@@ -125,7 +128,7 @@ describe("FE-012 My Cases", () => {
     mocks.memberships.mockResolvedValue({ userId: "me", mfaRequired: false, memberships: [membership, { ...membership, organizationId: "org-two" }] });
     mocks.queue.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; })).mockResolvedValue({ requests: [{ ...rows[0], id: "NEWORG01", organizationId: "org-two" }] });
     const { rerender } = render(<ProfessionalMyCasesView />);
-    await waitFor(() => expect(mocks.queue).toHaveBeenCalledWith("org-one"));
+    await waitFor(() => expect(mocks.queue).toHaveBeenCalledWith("org-one", { assignedTo: "me", sort: "updated", limit: 100 }));
     mocks.searchParams = new URLSearchParams("organization=org-two");
     rerender(<ProfessionalMyCasesView />);
     await screen.findByRole("heading", { name: "Case NEWORG01" });

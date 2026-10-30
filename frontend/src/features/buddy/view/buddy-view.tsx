@@ -270,7 +270,7 @@ export function BuddyView() {
           </button>
           <div className="min-w-0 flex-1 px-1 sm:px-2">
             <h1 className="truncate text-sm font-semibold text-[var(--landing-ink)] sm:text-base">{activeConversation?.title ?? (vm.activeConversationId ? "Conversation" : "New conversation")}</h1>
-            <p className="truncate text-[11px] text-[var(--landing-muted)]">Buddy · reflective support</p>
+            <p className="text-[11px] text-[var(--landing-muted)]">{vm.responderState === "DEMO_FALLBACK" ? "DEMO_FALLBACK · prewritten guided support; no LLM or therapy" : "Buddy · reflective support"}</p>
           </div>
           <button type="button" onClick={startConversation} aria-label="New conversation" title="New conversation" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
             <Plus className="h-5 w-5" aria-hidden="true" />
@@ -285,9 +285,10 @@ export function BuddyView() {
         <div
           ref={conversationScrollRef}
           role="log"
+          tabIndex={0}
           aria-label="Conversation messages"
           aria-busy={vm.isLoadingMessages || vm.isSending}
-          className="echo-panel-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5 sm:px-6 lg:px-8"
+          className="echo-panel-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-primary)] sm:px-6 lg:px-8"
         >
           <div className="mx-auto max-w-3xl space-y-5">
             {vm.isLoadingMessages && vm.messages.length === 0 && <p role="status" className="py-16 text-center text-sm text-[var(--landing-muted)]">Opening your private conversation…</p>}

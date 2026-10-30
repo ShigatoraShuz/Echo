@@ -1,52 +1,29 @@
-export function composeSignal(
-  externalSignal: AbortSignal | undefined | null,
-  timeoutMs: number
-): AbortSignal | undefined {
+/** One request owns its timeout/listener and must dispose them when it settles. */
+export function createRequestSignal(externalSignal: AbortSignal | undefined | null, timeoutMs: number, required = false) {
+  if (!required && !externalSignal && !(timeoutMs > 0 && timeoutMs < Infinity)) {
+    return { signal: undefined, dispose: () => {}, abort: () => {} };
+  }
   const controller = new AbortController();
-  const signal = controller.signal;
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  let cleanup: (() => void) | undefined;
-
-  const onAbort = () => {
-    if (externalSignal) {
-      controller.abort(externalSignal.reason);
-    } else {
-      controller.abort(new DOMException("Timeout", "TimeoutError"));
-    }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onExternalAbort = () => controller.abort(externalSignal?.reason);
+  const dispose = () => {
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+    externalSignal?.removeEventListener("abort", onExternalAbort);
+    controller.signal.removeEventListener("abort", dispose);
   };
-
-  if (timeoutMs > 0 && timeoutMs < Infinity) {
-    timeoutId = setTimeout(onAbort, timeoutMs);
-  }
-
-  if (externalSignal) {
-    if (externalSignal.aborted) {
-      controller.abort(externalSignal.reason);
-    } else {
-      const onExternalAbort = () => controller.abort(externalSignal.reason);
-      externalSignal.addEventListener("abort", onExternalAbort, { once: true });
-      cleanup = () => externalSignal.removeEventListener("abort", onExternalAbort);
+  controller.signal.addEventListener("abort", dispose, { once: true });
+  if (externalSignal?.aborted) {
+    controller.abort(externalSignal.reason);
+  } else {
+    externalSignal?.addEventListener("abort", onExternalAbort, { once: true });
+    if (timeoutMs > 0 && timeoutMs < Infinity) {
+      timer = setTimeout(() => controller.abort(new DOMException("Timeout", "TimeoutError")), timeoutMs);
     }
   }
+  return { signal: controller.signal, dispose, abort: (reason?: unknown) => controller.abort(reason) };
+}
 
-  if (!externalSignal && !timeoutId) {
-    return undefined;
-  }
-
-  const originalFetch = signal.addEventListener.bind(signal);
-  signal.addEventListener = function (
-    type: string,
-    listener: EventListenerOrEventListenerObject,
-    options?: boolean | AddEventListenerOptions
-  ) {
-    originalFetch(type, listener, options);
-  } as typeof signal.addEventListener;
-
-  signal.addEventListener("abort", () => {
-    if (timeoutId) clearTimeout(timeoutId);
-    if (cleanup) cleanup();
-  }, { once: true });
-
-  return signal;
+/** Compatibility for callers that only need an aborting signal. Prefer the disposable scope. */
+export function composeSignal(externalSignal: AbortSignal | undefined | null, timeoutMs: number): AbortSignal | undefined {
+  return createRequestSignal(externalSignal, timeoutMs).signal;
 }

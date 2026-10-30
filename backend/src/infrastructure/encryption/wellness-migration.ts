@@ -1,4 +1,4 @@
-import { phq8SubmissionSchema, scorePhq8 } from "@echo/contracts";
+import { phq8SubmissionSchema, scorePhq8, selfReportedPhq8SubmissionSchema } from "@echo/contracts";
 import { decryptText, encryptText, type EncryptionService } from "./encryption.service.js";
 export interface AssessmentMigrationRow {
   id: string;
@@ -32,7 +32,7 @@ export async function migrateAssessments(
         if (row.assessment_ciphertext !== null) {
           payload = JSON.parse(decryptText(row.assessment_ciphertext, encryption)) as Record<string, unknown>;
           if (
-            payload.format !== "echo-phq8-v1" ||
+            !["echo-phq8-v1", "echo-phq8-self-report-v2"].includes(String(payload.format)) ||
             payload.userId !== row.user_id ||
             payload.submissionId !== row.submission_id ||
             row.responses !== null ||
@@ -50,10 +50,15 @@ export async function migrateAssessments(
             severity: row.severity,
           };
         }
-        const parsed = phq8SubmissionSchema.parse({ submissionId: payload.submissionId, responses: payload.responses });
-        const scored = scorePhq8(parsed.responses);
-        if (scored.score !== payload.score || scored.severity !== payload.severity)
-          throw new Error("Inconsistent score");
+        if (payload.format === "echo-phq8-self-report-v2") {
+          selfReportedPhq8SubmissionSchema.parse({ submissionId: payload.submissionId, responses: payload.responses });
+          if ("score" in payload || "severity" in payload) throw new Error("Partial self-report must not invent scores");
+        } else {
+          const parsed = phq8SubmissionSchema.parse({ submissionId: payload.submissionId, responses: payload.responses });
+          const scored = scorePhq8(parsed.responses);
+          if (scored.score !== payload.score || scored.severity !== payload.severity)
+            throw new Error("Inconsistent score");
+        }
         if (row.assessment_ciphertext !== null) {
           const envelope = JSON.parse(
             Buffer.from(row.assessment_ciphertext.slice("echo:encrypted:v1:".length), "base64").toString("utf8"),

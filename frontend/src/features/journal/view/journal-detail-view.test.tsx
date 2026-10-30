@@ -12,6 +12,26 @@ vi.mock("../components/journal-analysis-panel", () => ({ JournalAnalysisPanel: (
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => ({ uploadImage }) }));
 
 describe("JournalDetailView", () => {
+  it.each([
+    ["PROCESSOR_DISABLED", "waiting_for_provider", /processing is unavailable in this environment/i],
+    ["PROCESSING_FAILED", "failed", /failed result is not a low distress score/i],
+  ] as const)("shows an actionable %s state without inventing a result", async (reason, status, text) => {
+    const retry = vi.fn();
+    vi.mocked(useJournalDetailViewModel).mockReturnValue({
+      entry: { id: "entry-1", title: "Fictional reflection", body: "Fictional text", excerpt: "Fictional text",
+        mood: "calm", emotions: [], tags: [], privacyStatus: "private", analysisConsent: true,
+        riskScore: null, riskBand: null, summary: "", perspective: null,
+        createdAt: "2026-10-12T08:00:00.000Z", updatedAt: "2026-10-12T08:00:00.000Z" },
+      analysis: null, analysisAvailability: { journalId: "entry-1", jobId: "job", status, reason },
+      isLoading: false, isDeleting: false, isExporting: false, showDeleteDialog: false, error: null, notFound: false,
+      deleteEntry: vi.fn(), exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry,
+    });
+    render(<JournalDetailView id="entry-1" />);
+    expect(screen.getByText(text)).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Check analysis status" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/low distress signal/i)).not.toBeInTheDocument();
+  });
   it("keeps the entry open when deletion fails and navigates only after success", async () => {
     const deleteEntry = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     vi.mocked(useJournalDetailViewModel).mockReturnValue({
@@ -21,7 +41,7 @@ describe("JournalDetailView", () => {
         riskScore: null, riskBand: null, summary: "", perspective: null,
         createdAt: "2026-10-12T08:00:00.000Z", updatedAt: "2026-10-12T08:00:00.000Z",
       },
-      analysis: null, isLoading: false, isDeleting: false, isExporting: false,
+      analysis: null, analysisAvailability: null, isLoading: false, isDeleting: false, isExporting: false,
       showDeleteDialog: true, error: null, notFound: false,
       deleteEntry, exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry: vi.fn(),
     });
@@ -45,7 +65,7 @@ describe("JournalDetailView", () => {
         riskScore: null, riskBand: null, summary: "", perspective: null,
         createdAt: "2026-10-12T08:00:00.000Z", updatedAt: "2026-10-12T08:00:00.000Z",
       },
-      analysis: null, isLoading: false, isDeleting: false, isExporting: false,
+      analysis: null, analysisAvailability: null, isLoading: false, isDeleting: false, isExporting: false,
       showDeleteDialog: false, error: null, notFound: false,
       deleteEntry: vi.fn(), exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry,
     });
