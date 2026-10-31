@@ -1,5 +1,6 @@
-param([string]$Python = 'E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe', [switch]$EnableWorker)
+param([string]$Python = 'E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe', [switch]$EnableWorker, [switch]$EnableRealtimeTalk)
 $ErrorActionPreference = 'Stop'
+Write-Host 'Starting the complete ECHO application: Python models, frontend (3000), and backend (4200). Do not run npm run dev in another terminal.'
 $echoRoot = Split-Path $PSScriptRoot -Parent
 $codexRoot = Split-Path $echoRoot -Parent
 $aiRoot = Join-Path $echoRoot 'ai-service'
@@ -24,7 +25,14 @@ if ($EnableWorker) {
     $databaseUrl = ($backendEnvironment | Where-Object { $_ -match '^SUPABASE_URL=' }) -replace '^SUPABASE_URL=', ''
     if (([Uri]$databaseUrl.Trim('"', "'")).Host -notin @('localhost','127.0.0.1','[::1]')) { throw 'Worker startup is restricted to a disposable local Supabase project.' }
 }
+$env:NO_PROXY = ($env:NO_PROXY + ',localhost,127.0.0.1,::1').Trim(',')
+$env:ECHO_REALTIME_TALK = if ($EnableRealtimeTalk) { 'true' } else { 'false' }
+$env:REALTIME_TALK_ENABLED = $env:ECHO_REALTIME_TALK
+$env:NEXT_PUBLIC_REALTIME_TALK = $env:ECHO_REALTIME_TALK
+$env:FACE_PYTHON = Join-Path $codexRoot 'face-venv/Scripts/python.exe'
 $env:SPEECH_PYTHON = Join-Path $codexRoot 'speech-venv/Scripts/python.exe'
+$env:TALK_PYTHON = $env:SPEECH_PYTHON
+if ($EnableRealtimeTalk) { Write-Host 'Experimental hands-free Talk enabled. The 10-second response target has not passed; text chat and manual Talk remain available.' }
 $env:CORE_MODELS_ENABLED = 'true'
 $env:MODELS_ROOT = Join-Path $codexRoot 'models'
 $env:AI_SERVICE_TOKEN = $secrets.serviceToken

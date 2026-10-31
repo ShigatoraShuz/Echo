@@ -38,7 +38,7 @@ npm run check:contracts
 npm run dev
 ```
 
-Normal development uses the existing `frontend/.env*` and `backend/.env` configuration: Next.js on **3000** and Express on the configured `PORT` (currently **4200**). Google authentication and Supabase use those existing application settings. Stop both owned workspace processes with **Ctrl+C**.
+Normal development uses the existing `frontend/.env*` and `backend/.env` configuration: Next.js on **3000** and Express on the configured `PORT` (currently **4200**). Email/password authentication and Supabase use those existing application settings. Google login is retired, as requested for this integration. Stop both owned workspace processes with **Ctrl+C**.
 
 No Python service, Docker model stack, checkpoint selection or inference worker is required to start the app. Both research and native model implementations are preserved. Native service/worker activation and core-backed persistence fail closed pending privacy-safe transport and compatible environments; existing model files remain unused by normal startup. Buddy's pre-existing prewritten support remains available; it is not trained AI generation. Optional Journal analysis stays explicitly unavailable when `AI_ANALYSIS_MODE=disabled`.
 
@@ -89,3 +89,5 @@ generate replacement keys for it. Use `AI_ANALYSIS_MODE=disabled`, leave
 `AI_SERVICE_URL` unset, and leave native model/worker flags disabled. No live service
 is contacted by the build/unit verification. Starting the normal backend later can
 perform database maintenance; this verification does not authorize shared-data changes.
+
+Leo's full [model/environment handover](docs/MODEL-INTEGRATION-HANDOVER.md) and new Talk/face/speech source are retained. Its native launch/storage instructions are research context: this integration keeps native, worker and Talk activation blocked. Ordinary `npm run dev` uses `scripts/run-local-dev.mjs` to start only Next.js and Express, with occupied-port checks and process-local loopback proxy exclusions.

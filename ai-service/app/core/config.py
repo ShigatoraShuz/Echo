@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -33,6 +34,7 @@ class Settings(BaseSettings):
     echo_local_research: bool = False
     echo_research_diagnostic_id: str = ""
     echo_diagnostic_models_dir: Path = Path(__file__).resolve().parents[3] / "backend" / "models"
+    realtime_talk_enabled: bool = False
     core_models_enabled: bool = False
     models_root: str = "../../models"
     backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
@@ -60,4 +62,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings(_env_file=None) if os.environ.get("ECHO_ISOLATED_TEST") == "true" else Settings()

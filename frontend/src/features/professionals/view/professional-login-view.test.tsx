@@ -32,7 +32,7 @@ async function passwordForm() {
 }
 
 describe("professional login presentation and authentication", () => {
-  it.each(["sign_in_session_expired", "access_check_unavailable", "login_required"])("does not loop a cached session through a failing gateway after %s", async (error) => {
+  it.each(["sign_in_session_expired", "access_check_unavailable", "access_service_unavailable", "login_required"])("does not loop a cached session through a failing gateway after %s", async (error) => {
     mocks.searchParams = new URLSearchParams({ error, next: "/professional?organization=synthetic" });
     mocks.getCurrentSession.mockResolvedValue({ success: true, data: session });
     render(<ProfessionalLoginView />);

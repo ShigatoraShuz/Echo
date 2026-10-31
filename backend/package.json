@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/server.ts",
+    "dev": "node ../scripts/run-local-dev.mjs backend",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
@@ -41,6 +41,7 @@
     "pdf-lib": "1.17.1",
     "sharp": "^0.35.5",
     "web-push": "^3.6.7",
+    "ws": "8.22.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -52,6 +53,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.3",
     "@types/web-push": "^3.6.4",
+    "@types/ws": "8.18.2",
     "@vitest/coverage-v8": "^4.1.12",
     "globals": "^14.0.0",
     "supertest": "^7.1.4",

@@ -24,7 +24,10 @@ interface LoginViewProps {
 const loginRouteMessages: Record<string, string> = {
   login_required: "Please log in to continue. This page is only available to signed-in users.",
   auth_not_configured: "Sign-in is temporarily unavailable because authentication is not configured.",
-  access_check_unavailable: "We could not verify access to your account. Please log in again.",
+  access_service_unavailable:
+    "Account access is temporarily unavailable. Your session may still be valid. Retry access in a moment.",
+  access_check_unavailable:
+    "Account access is temporarily unavailable. Your session may still be valid. Retry access in a moment.",
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before logging in.",
   sign_in_session_expired: "Your sign-in session expired. Please log in again.",
@@ -89,6 +92,11 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
             <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
           ) : null}
 
+          {["access_service_unavailable", "access_check_unavailable"].includes(routeError ?? "") && (
+            <Link href={next} prefetch={false} className="mt-3 inline-block text-sm font-semibold underline">
+              Retry account access
+            </Link>
+          )}
           <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
             <AuthStatusMessage status={routeMessage && status === "success" ? "idle" : status} error={error} />
 
@@ -164,7 +172,10 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
             </p>
             <p className="mt-2 text-xs text-[var(--landing-muted)]">
               {destination ? "Looking for your personal ECHO space?" : "Approved professional?"}{" "}
-              <Link href={destination ? "/login" : "/professional/login"} className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline">
+              <Link
+                href={destination ? "/login" : "/professional/login"}
+                className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline"
+              >
                 {destination ? "Personal sign in" : "Professional sign in"}
               </Link>
             </p>

@@ -1,6 +1,6 @@
 # Journal PHQ-8 integration
 
-Current focus: journal screening. MOSS integration is deferred at the user's request. Existing voice work and copied assets remain in the workspace; this report does not claim that work is complete.
+This report covers journal screening. Buddy speech work has since resumed; see [local speech integration](speech-environment.md) for its current status and verification.
 
 ## What runs
 

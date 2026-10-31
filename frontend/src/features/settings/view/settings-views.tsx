@@ -1,7 +1,7 @@
 "use client";
 
-import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import { LocalDataControls } from "../components/local-data-controls";
+import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {

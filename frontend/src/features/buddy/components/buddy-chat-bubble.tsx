@@ -24,6 +24,7 @@ export function BuddyChatBubble({ message }: { message: BuddyMessage }) {
       >
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--landing-primary)]">{isBuddy ? "Buddy" : "You"}</p>
         <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        {message.playbackInterrupted && <p className="mt-1 text-xs opacity-75">Playback interrupted; the full reply is shown above.</p>}
         {message.generation ? <p className="mt-2 break-words text-[11px] text-[var(--landing-primary)]">{message.generation.executionState === "DEMO_FALLBACK" ? "Guided Support | DEMO_FALLBACK: prewritten support; no LLM or therapy" : message.generation.executionMode==="synthetic" ? "SYNTHETIC E2E FIXTURE — no trained generation" : `Experimental ${message.generation.modelId} @ ${message.generation.modelVersion} — not professional therapy`}</p> : null}
         <p className="mt-2 text-[11px] font-medium text-[var(--landing-primary)]">{message.timestamp}</p>
       </div>

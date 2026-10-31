@@ -1,6 +1,7 @@
 // Supplemental PostgreSQL/WASM checks. This does not replace local Supabase,
 // PostgREST, or Realtime integration validation.
 import { PGlite } from "@electric-sql/pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { readFile, readdir } from "node:fs/promises";

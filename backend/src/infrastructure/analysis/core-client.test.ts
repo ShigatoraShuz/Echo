@@ -31,3 +31,9 @@ describe("native core HTTP ownership", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
+
+
+it("preserves the sanitized Talk-busy signal so Journal can wait without losing a valid job", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: { code: "TALK_BUSY" } }), { status: 503 })));
+  await expect(new CoreClient("http://127.0.0.1:8000", token).analyze("Fictional")).rejects.toMatchObject({ code: "TALK_BUSY", statusCode: 503 });
+});

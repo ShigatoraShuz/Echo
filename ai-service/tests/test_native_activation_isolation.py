@@ -8,9 +8,9 @@ import pytest
 lifecycle = import_module("app.core.lifespan")
 
 
-@pytest.mark.parametrize("core,worker", [(True, False), (False, True), (True, True)])
-def test_unapproved_native_profile_cannot_start(core, worker, monkeypatch):
-    settings = SimpleNamespace(core_models_enabled=core, worker_enabled=worker)
+@pytest.mark.parametrize("core,worker,talk", [(True, False, False), (False, True, False), (True, True, False), (False, False, True)])
+def test_unapproved_native_profile_cannot_start(core, worker, talk, monkeypatch):
+    settings = SimpleNamespace(core_models_enabled=core, worker_enabled=worker, realtime_talk_enabled=talk)
     monkeypatch.setattr(lifecycle, "get_settings", lambda: settings)
 
     def forbidden(*args, **kwargs):

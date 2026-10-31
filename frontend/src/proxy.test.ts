@@ -103,12 +103,15 @@ describe("authentication proxy", () => {
     expect(location.searchParams.get("next")).toBe(casePath);
   });
 
-  it.each(["/", "/login", "/signup", "/professional/login", "/privacy", "/about"])("keeps public route %s available", async (path) => {
-    const response = await proxy(request(path));
+  it.each(["/", "/login", "/signup", "/professional/login", "/privacy", "/about"])(
+    "keeps public route %s available",
+    async (path) => {
+      const response = await proxy(request(path));
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("location")).toBeNull();
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+    },
+  );
 
   it("fails closed on authenticated routes when Supabase configuration is missing", async () => {
     mocks.getConfig.mockReturnValue(null);
@@ -125,15 +128,17 @@ describe("authentication proxy", () => {
   it("bounds a stalled access check and fails closed", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://api.example.test/api/v1");
     mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "account-a" } } });
-    mocks.createClient.mockReturnValue({ auth: {
-      getClaims: mocks.getClaims,
-      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "token" } } }),
-    } });
+    mocks.createClient.mockReturnValue({
+      auth: {
+        getClaims: mocks.getClaims,
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "token" } } }),
+      },
+    });
     const fetchMock = vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError"));
     vi.stubGlobal("fetch", fetchMock);
     try {
       const response = await proxy(request("/dashboard"));
-      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("access_check_unavailable");
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("access_service_unavailable");
       expect(fetchMock).toHaveBeenCalledWith(
         "http://api.example.test/api/v1/access/status",
         expect.objectContaining({ signal: expect.any(AbortSignal), cache: "no-store" }),
@@ -196,3 +201,77 @@ describe("authentication proxy", () => {
     }
   });
 });
+
+describe("account access decisions and diagnostics", () => {
+  function setup() {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://127.0.0.1:4200/api/v1");
+    mocks.getConfig.mockReturnValue({ url: "https://example.supabase.co", publishableKey: "synthetic" });
+    mocks.createClient.mockReturnValue({
+      auth: {
+        getClaims: async () => ({ data: { claims: { sub: "private-account" } } }),
+        getSession: async () => ({ data: { session: { access_token: "private-token" } } }),
+      },
+    });
+  }
+  it.each([
+    [401, "login_required"],
+    [403, "access_service_unavailable"],
+    [503, "access_service_unavailable"],
+  ])("handles HTTP %i without bypassing the gate", async (status, error) => {
+    setup();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status })));
+    try {
+      const response = await proxy(request("/dashboard"));
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe(error);
+      const logs = JSON.stringify(warn.mock.calls);
+      expect(logs).not.toContain("private-token");
+      expect(logs).not.toContain("private-account");
+      expect(logs).toContain("requestId");
+      expect(logs).toContain("httpStatus");
+    } finally {
+      warn.mockRestore();
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+  it.each([{}, { data: {} }, { data: { decision: "UNKNOWN" } }, { data: { decision: "__proto__" } }])(
+    "fails closed on malformed access results %j",
+    async (body) => {
+      setup();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body))));
+      try {
+        const response = await proxy(request("/dashboard"));
+        expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("access_service_unavailable");
+        expect(JSON.stringify(warn.mock.calls)).toContain("malformed_response");
+      } finally {
+        warn.mockRestore();
+        vi.unstubAllGlobals();
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+  it.each([
+    ["ACCESS_GRANTED", null],
+    ["AGE_VERIFICATION_REQUIRED", "/onboarding/age"],
+    ["POLICY_REVIEW_REQUIRED", "/onboarding/policies"],
+    ["ONBOARDING_REQUIRED", "/onboarding"],
+    ["DELETION_PENDING", "/deletion"],
+    ["ACCOUNT_UNAVAILABLE", "/login"],
+    ["EMAIL_VERIFICATION_REQUIRED", "/login"],
+  ])("preserves %s routing", async (decision, path) => {
+    setup();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { decision } }))));
+    try {
+      const response = await proxy(request("/dashboard"));
+      if (path) expect(new URL(response.headers.get("location")!).pathname).toBe(path);
+      else expect(response.headers.get("location")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+it('permits local WASM only with the experimental Talk flag',async()=>{vi.stubEnv('NODE_ENV','production');try{vi.stubEnv('NEXT_PUBLIC_REALTIME_TALK','false');expect((await proxy(request('/login'))).headers.get('content-security-policy')).not.toContain('wasm-unsafe-eval');vi.stubEnv('NEXT_PUBLIC_REALTIME_TALK','true');expect((await proxy(request('/login'))).headers.get('content-security-policy')).toContain('wasm-unsafe-eval');}finally{vi.unstubAllEnvs();}});

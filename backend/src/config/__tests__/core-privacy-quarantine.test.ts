@@ -15,6 +15,7 @@ it("preserves the standard application configuration", () => {
 });
 
 it.each([
+  { ECHO_REALTIME_TALK: "true" },
   { AI_ANALYSIS_MODE: "local_json" },
   { AI_SERVICE_URL: "http://127.0.0.1:8000", AI_SERVICE_TOKEN: "x".repeat(32) },
   { AI_ANALYSIS_MODE: "local_worker", AI_WORKER_TOKEN: "x".repeat(32),

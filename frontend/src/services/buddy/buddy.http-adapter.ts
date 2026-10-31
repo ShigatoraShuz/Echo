@@ -25,6 +25,7 @@ interface BuddySessionResponse {
     content: string;
     timestamp: string;
     generation?: import("@echo/contracts").GenerationStage;
+    delivery?:{state:string};
   }>;
 }
 
@@ -93,6 +94,7 @@ function mapMessages(conversationId: string, messages: BuddySessionResponse["mes
     content: message.content,
     timestamp: message.timestamp,
     generation:message.generation,
+    playbackInterrupted:message.delivery?.state==='interrupted',
   }));
 }
 

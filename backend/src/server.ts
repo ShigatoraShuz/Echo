@@ -1,6 +1,7 @@
-import { httpOnlyMode } from "./config/http-only-mode.js";
+import {RealtimeTalkHub} from "./features/experience/realtime-talk.js";
 import { LocalAnalysisStore } from "./infrastructure/analysis/local-analysis-store.js";
 import { LocalBuddyStore } from "./infrastructure/analysis/local-buddy-store.js";
+import { httpOnlyMode } from "./config/http-only-mode.js";
 import { DataExportService } from "./features/settings/data-export.service.js";
 import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
@@ -37,10 +38,10 @@ import { startProfessionalEventProcessor } from "./features/professionals/profes
 import { CoreClient } from "./infrastructure/analysis/core-client.js";
 
 const environment = loadEnvironment();
-const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const localResults=environment.AI_ANALYSIS_MODE==="local_json"?new LocalAnalysisStore(environment.LOCAL_DATA_DIR):undefined;
 const localBuddy=localResults?new LocalBuddyStore(environment.LOCAL_DATA_DIR):undefined;
 const coreClient = environment.AI_SERVICE_URL ? new CoreClient(environment.AI_SERVICE_URL, environment.AI_SERVICE_TOKEN!) : undefined;
+const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const supabaseAdmin = createSupabaseAdminClient(environment);
 const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
@@ -128,6 +129,11 @@ const accessService = new AccessService(supabaseAdmin, () => createRequestUserCl
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
 const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService, experienceService);
 const calendarService = new CalendarService(supabaseAdmin, encryptionService);
+if(process.env.ECHO_REALTIME_TALK==='true'&&localResults&&coreClient){
+  const origins=new Set([new URL(environment.FRONTEND_URL).origin]);
+  if(environment.NODE_ENV==='development')for(const origin of ['http://localhost:3000','http://127.0.0.1:3000'])origins.add(origin);
+  experienceService.realtime=new RealtimeTalkHub(experienceService,coreClient,verifier,verificationService,origins,accessService);
+}
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
@@ -184,6 +190,7 @@ app.locals.checkReadiness = async () => {
 const server = app.listen(environment.PORT, httpOnly ? "127.0.0.1" : "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
 });
+experienceService.realtime?.attach(server);
 const professionalEvents = startProfessionalEventProcessor(new ProfessionalEventService(supabaseAdmin), {
   enabled: environment.PROFESSIONAL_EVENTS_ENABLED,
   httpOnly,
@@ -214,6 +221,8 @@ if (environment.AI_ANALYSIS_MODE === "local_worker") void localWorkerService.rec
 
 function shutdown(signal: string): void {
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
+  void experienceService.realtime?.shutdown();
+  journalService.stopLocalFaceProcessing();
   developmentRunner.stop();
   void professionalEvents.stop();
   if (maintenanceTimer) clearInterval(maintenanceTimer);

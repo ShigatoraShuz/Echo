@@ -93,7 +93,7 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
 
   // Quarantine the new core-backed persistence path until encrypted storage,
   // retention, account scoping, and consent-race handling are approved.
-  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || parsed.data.AI_SERVICE_URL)
+  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || parsed.data.AI_SERVICE_URL || source.ECHO_REALTIME_TALK === "true")
     throw new Error("Core-backed application storage is pending privacy approval; use the standard application profile.");
 
   if (parsed.data.NODE_ENV === "production" && parsed.data.AI_ANALYSIS_MODE === "development_stub")

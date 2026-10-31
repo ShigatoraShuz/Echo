@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllEnvs(); rmSync(directory, { recursive: true, force: true }); });
 
-describe("standard development Google configuration", () => {
+describe("retained research-only Google configuration helper", () => {
   it("loads the public audience only, preserving dotenv files and the parent environment", () => {
     const content = `NEXT_PUBLIC_GOOGLE_CLIENT_ID=" ${audience} "\nGOOGLE_CLIENT_SECRET=fictional-private\nSUPABASE_SERVICE_ROLE_KEY=fictional-private-service\nSUPABASE_URL=https://unintended.invalid\n`;
     writeFileSync(resolve(frontend, ".env"), content);
@@ -52,7 +52,7 @@ describe("standard development Google configuration", () => {
 
   it("keeps the retained research configuration isolated from ordinary workspace startup", () => {
     const repository = resolve(import.meta.dirname, "../..");
-    expect(JSON.parse(readFileSync(resolve(repository, "package.json"), "utf8")).scripts.dev).toBe('concurrently --kill-others "npm run dev -w frontend" "npm run dev -w backend"');
+    expect(JSON.parse(readFileSync(resolve(repository, "package.json"), "utf8")).scripts.dev).toBe("node scripts/run-local-dev.mjs all");
     expect(readFileSync(resolve(repository, "backend/scripts/model-local-demo.mts"), "utf8")).toContain("developmentConfiguration(root)");
     expect(readFileSync(resolve(repository, "backend/scripts/model-local-app.mts"), "utf8")).toContain('if (mode === "development")');
     mkdirSync(resolve(directory, "backend/.local-development"), { recursive: true });

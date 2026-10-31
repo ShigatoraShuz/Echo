@@ -16,7 +16,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Native speech writes plaintext subprocess payloads; native core also has
     # incompatible, non-portable dependency locks. Do not import/load models or
     # start an outbound worker until that runtime has a reviewed privacy profile.
-    if settings.core_models_enabled or settings.worker_enabled:
+    if settings.core_models_enabled or settings.worker_enabled or settings.realtime_talk_enabled:
         raise ValueError(
             "Native core and worker activation is unavailable pending privacy-safe "
             "subprocess transport and reproducible service-specific environments."
@@ -25,5 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.pipeline_registry = ModelRegistry(settings)
     yield
     app.state.pipeline_registry.close()
+    if hasattr(app.state.model_runtime, "talk"):
+        app.state.model_runtime.talk.close()
     if hasattr(app.state.model_runtime, "release"):
         app.state.model_runtime.release()

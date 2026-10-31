@@ -23,7 +23,7 @@ export function FacialAnalysisOptIn({ enabled, onToggle }: FacialAnalysisOptInPr
       </div>
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-secondary/30 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <p>Facial analysis is entirely optional. All processing happens locally in your browser. No images are uploaded or stored.</p>
+        <p>Facial analysis is entirely optional. A single camera still is sent only to this installation's local inference service and deleted after processing. Only experimental expression results are saved locally. No image is sent to Supabase.</p>
       </div>
     </div>
   );
