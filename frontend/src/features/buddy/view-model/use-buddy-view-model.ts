@@ -20,6 +20,8 @@ interface BuddyState {
 }
 
 type BuddyAction =
+  | {type:"TALK_MESSAGE";message:BuddyMessage;conversationId:string|null}
+  | {type:"TALK_DELIVERY";id:string;interrupted:boolean}
   | { type: "SET_ACCESS_STATUS"; status: BuddyState["accessStatus"]; historyEnabled?: boolean; error?: string }
   | { type: "LOAD_CONVERSATIONS_START" }
   | { type: "LOAD_CONVERSATIONS_SUCCESS"; conversations: BuddyConversation[]; pagination: BuddyPagination }
@@ -60,6 +62,8 @@ const initialState: BuddyState = {
 
 function reducer(state: BuddyState, action: BuddyAction): BuddyState {
   switch (action.type) {
+    case "TALK_MESSAGE":return {...state,activeConversationId:action.conversationId,messages:[...state.messages.filter(m=>m.id!==action.message.id),action.message]};
+    case "TALK_DELIVERY":return {...state,messages:state.messages.map(m=>m.id===action.id?{...m,playbackInterrupted:action.interrupted}:m)};
     case "SET_ACCESS_STATUS": return { ...state, accessStatus: action.status, historyEnabled: action.historyEnabled ?? state.historyEnabled, error: action.error ?? null };
     case "LOAD_CONVERSATIONS_START": return { ...state, isLoadingList: true, error: null };
     case "LOAD_CONVERSATIONS_SUCCESS": return { ...state, conversations: action.conversations, pagination: action.pagination, isLoadingList: false };
@@ -242,8 +246,12 @@ const retryMessage = useCallback(async (conversationId: string) => {
 
   useEffect(() => { if (state.accessStatus === "allowed") void loadConversations(); }, [state.accessStatus, loadConversations]);
 
+  const getTemporarySessionId=useCallback(()=>temporarySession.current??=crypto.randomUUID(),[]);
+  const applyTalkMessage=useCallback((message:BuddyMessage,conversationId:string|null)=>{activeConversationIdRef.current=conversationId;dispatch({type:'TALK_MESSAGE',message,conversationId});if(message.role==='buddy')void loadConversations();},[loadConversations]);
+  const applyTalkDelivery=useCallback((id:string,interrupted:boolean)=>dispatch({type:'TALK_DELIVERY',id,interrupted}),[]);
   return {
     ...state,
+    getTemporarySessionId,applyTalkMessage,applyTalkDelivery,
     loadConversations,
     selectConversation,
     sendMessage,

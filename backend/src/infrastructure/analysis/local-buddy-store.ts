@@ -1,9 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import {talkDeliverySchema} from "@echo/contracts";
 import { z } from "zod";
 import { NotFoundError } from "../../shared/errors/app-error.js";
-const schema = z.object({ provenance: z.array(z.record(z.string(), z.unknown())).default([]), id: z.string().uuid(), user_id: z.string().uuid(), title: z.string(), preview: z.string(), archived: z.boolean(), pinned_at: z.string().nullable(), last_message_at: z.string().nullable(), created_at: z.string(), supportRequired: z.boolean(), messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'buddy']), content: z.string(), timestamp: z.string() })) });
+const schema = z.object({ provenance: z.array(z.record(z.string(), z.unknown())).default([]), id: z.string().uuid(), user_id: z.string().uuid(), title: z.string(), preview: z.string(), archived: z.boolean(), pinned_at: z.string().nullable(), last_message_at: z.string().nullable(), created_at: z.string(), supportRequired: z.boolean().default(false), messages: z.array(z.object({ id: z.string(), role: z.enum(['user', 'buddy']), delivery:talkDeliverySchema.optional(), content: z.string(), timestamp: z.string() })) });
 export class LocalBuddyStore {
     constructor(readonly root: string) { }
     private dir(user: string) { z.string().uuid().parse(user); const dir = join(this.root, user, 'buddy'); mkdirSync(dir, { recursive: true }); return dir; }

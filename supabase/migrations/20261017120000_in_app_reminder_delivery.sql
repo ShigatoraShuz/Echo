@@ -96,6 +96,7 @@ end;
 $$;
 
 revoke all on function notification_service.enqueue_due_in_app_reminders(timestamptz) from public, anon, authenticated;
+
 grant execute on function notification_service.enqueue_due_in_app_reminders(timestamptz) to service_role;
 
 commit;

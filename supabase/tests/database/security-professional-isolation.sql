@@ -8,6 +8,7 @@ declare
   organization_id uuid := 'fe000000-0000-4000-8000-000000000004';
   request_id uuid;
   appointment_id uuid;
+  credential_id uuid;
 begin
   if has_schema_privilege('authenticated','professional_service','USAGE')
      or has_table_privilege('authenticated','professional_service.support_requests','SELECT')
@@ -19,13 +20,18 @@ begin
     (counselor_id,'professional-counselor@example.test'),
     (other_id,'professional-other@example.test');
   insert into user_service.profiles(user_id,account_status,eligible_18_plus,onboarding_completed)
-    values(owner_id,'active',true,true)
+    values(owner_id,'active',true,true),(counselor_id,'active',true,true)
     on conflict(user_id) do update set account_status='active',eligible_18_plus=true,onboarding_completed=true;
   insert into professional_service.organizations(id,slug,name,status,verified_at)
     values(organization_id,'test-partner','Test Partner','active',now());
+  insert into verification_service.verification_admins(user_id,is_active) values(owner_id,true);
+  perform set_config('request.jwt.claim.role','service_role',true);
+  select id into credential_id from professional_service.submit_credential(
+    organization_id,counselor_id,'counselor','Reviewed credential',current_date+30,'echo:encrypted:v1:example');
+  perform professional_service.review_credential(organization_id,credential_id,owner_id,'approved',null);
   insert into professional_service.memberships(organization_id,user_id,role,status,display_name,
-    credential_label,credential_expires_at,approved_at)
-    values(organization_id,counselor_id,'counselor','active','Test Counselor','Reviewed credential',current_date+30,now());
+    credential_label,credential_expires_at,approved_at,approved_by,approved_credential_id)
+    values(organization_id,counselor_id,'counselor','active','Test Counselor','Reviewed credential',current_date+30,now(),owner_id,credential_id);
   perform set_config('request.jwt.claim.role','service_role',true);
 
   begin

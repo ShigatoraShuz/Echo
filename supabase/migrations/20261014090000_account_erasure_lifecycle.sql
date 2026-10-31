@@ -18,8 +18,10 @@ create table user_service.account_erasure_jobs (
   updated_at timestamptz not null default now(),
   check (state <> 'completed' or (user_id is null and subject_hash is not null and completed_at is not null))
 );
+
 create index account_erasure_due_idx on user_service.account_erasure_jobs(next_attempt_at,scheduled_for)
   where state in ('pending','retry','processing');
+
 create table user_service.account_erasure_objects (
   request_id uuid not null references user_service.account_erasure_jobs(request_id) on delete cascade,
   bucket text not null check (bucket in ('avatars','journal-images','verification-documents')),
@@ -27,9 +29,13 @@ create table user_service.account_erasure_objects (
   deleted_at timestamptz,
   primary key(request_id,bucket,object_path)
 );
+
 alter table user_service.account_erasure_jobs enable row level security;
+
 alter table user_service.account_erasure_objects enable row level security;
+
 revoke all on user_service.account_erasure_jobs,user_service.account_erasure_objects from public,anon,authenticated;
+
 grant select,insert,update,delete on user_service.account_erasure_jobs,user_service.account_erasure_objects to service_role;
 
 insert into user_service.account_erasure_jobs(request_id,user_id,state,scheduled_for)
@@ -210,7 +216,9 @@ language sql stable security invoker set search_path='' as $$
  select p_user_id is not null and not exists(select 1 from user_service.account_deletion_requests
   where user_id=p_user_id and request_status in ('pending','processing'))
 $$;
+
 revoke all on function user_service.account_data_access_allowed(uuid) from public,anon;
+
 grant execute on function user_service.account_data_access_allowed(uuid) to authenticated,service_role;
 
 do $$ declare item record; begin
@@ -224,6 +232,7 @@ do $$ declare item record; begin
   execute format('create policy account_deletion_freeze on %I.%I as restrictive for all to authenticated using (user_service.account_data_access_allowed((select auth.uid()))) with check (user_service.account_data_access_allowed((select auth.uid())))',item.nspname,item.relname);
  end loop;
 end $$;
+
 create policy account_deletion_storage_freeze on storage.objects as restrictive for all to authenticated
  using (user_service.account_data_access_allowed((select auth.uid())))
  with check (user_service.account_data_access_allowed((select auth.uid())));
@@ -233,6 +242,7 @@ revoke all on function user_service.claim_account_erasure(),user_service.renew_a
  user_service.account_erasure_blocked_cases(uuid),user_service.prepare_account_erasure_relations(uuid),
  user_service.account_erasure_remaining_rows(uuid),
  user_service.finish_account_erasure(uuid,uuid,text) from public,anon,authenticated;
+
 grant execute on function user_service.claim_account_erasure(),user_service.renew_account_erasure(uuid,uuid,text),
  user_service.retry_account_erasure(uuid,uuid,text),user_service.account_erasure_subject_exists(uuid),
  user_service.account_erasure_blocked_cases(uuid),user_service.prepare_account_erasure_relations(uuid),

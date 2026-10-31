@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { EmailOtpForm } from "../components/email-otp-form";
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
 import { AuthFormField } from "../components/auth-form-field";
 import { AuthStatusMessage } from "../components/auth-status-message";
-import { AuthDivider } from "../components/google-auth-button";
-import { SecureGoogleLoginButton } from "../components/secure-google-login-button";
 import { PasswordField } from "../components/password-field";
 import { useLoginViewModel } from "../view-model/use-login-view-model";
 import { EchoReveal } from "@/shared/components/react-bits/echo-reveal";
@@ -27,18 +24,19 @@ interface LoginViewProps {
 const loginRouteMessages: Record<string, string> = {
   login_required: "Please log in to continue. This page is only available to signed-in users.",
   auth_not_configured: "Sign-in is temporarily unavailable because authentication is not configured.",
-  access_check_unavailable: "We could not verify access to your account. Please log in again.",
+  access_service_unavailable:
+    "Account access is temporarily unavailable. Your session may still be valid. Retry access in a moment.",
+  access_check_unavailable:
+    "Account access is temporarily unavailable. Your session may still be valid. Retry access in a moment.",
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before logging in.",
   sign_in_session_expired: "Your sign-in session expired. Please log in again.",
   idle_timeout: "You were signed out after 30 minutes without activity. Please log in again.",
   session_changed: "Your session changed. Please log in again.",
   auth_unavailable: "Your session could not be checked. Please log in again.",
-  google_account_exists: "This Google account already exists. Log in with Google from this page to continue.",
 };
 
 export function LoginView({ title, description, destination }: LoginViewProps) {
-  const [method, setMethod] = useState<"code" | "password">("code");
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeRedirectPath(destination ?? searchParams.get("next"));
@@ -55,6 +53,7 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
     setRememberSession,
     togglePasswordVisibility,
     submit,
+    reset,
   } = useLoginViewModel();
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -71,6 +70,10 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
   const routeError = searchParams.get("error");
   const routeMessage = routeError ? loginRouteMessages[routeError] : undefined;
 
+  useEffect(() => {
+    if (routeError) reset();
+  }, [routeError, reset]);
+
   return (
     <div className="w-full max-w-[28rem] py-3 [font-family:var(--font-echo-sans)] lg:py-5">
       <EchoReveal direction="down" duration={260}>
@@ -85,17 +88,17 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
             <p className="mx-auto mt-1.5 max-w-sm text-xs leading-5 text-[var(--landing-muted)]">{description}</p>
           </header>
 
-          {routeMessage ? (
+          {routeMessage && status === "idle" ? (
             <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
           ) : null}
 
-          <div className="mt-4 space-y-2">
-            <SecureGoogleLoginButton successPath={next} />
-            <AuthDivider />
-          </div>
-
-          {method === "code" ? <EmailOtpForm onAuthenticated={() => { router.replace(next); router.refresh(); }} /> : <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
-            <AuthStatusMessage status={status} error={error} />
+          {["access_service_unavailable", "access_check_unavailable"].includes(routeError ?? "") && (
+            <Link href={next} prefetch={false} className="mt-3 inline-block text-sm font-semibold underline">
+              Retry account access
+            </Link>
+          )}
+          <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
+            <AuthStatusMessage status={routeMessage && status === "success" ? "idle" : status} error={error} />
 
             <AuthFormField
               label="Email address"
@@ -146,13 +149,12 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
               className="h-[3.25rem] w-full rounded-full bg-[var(--landing-primary)] text-[var(--landing-inverse)] shadow-[0_12px_24px_rgba(83,103,51,0.2)] hover:bg-[var(--landing-primary-hover)]"
               isLoading={status === "submitting"}
               loadingText="Logging in..."
-              disabled={status === "success"}
+              disabled={status === "success" && !routeMessage}
             >
               Log in
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </EchoButton>
-          </form>}
-          <button type="button" className="mt-4 w-full text-center text-xs font-semibold text-[var(--landing-primary)] underline" onClick={() => setMethod(method === "code" ? "password" : "code")}>{method === "code" ? "Use password instead" : "Use an email code instead"}</button>
+          </form>
 
           <footer className="mt-3 border-t border-[rgba(83,103,51,0.14)] pt-3 text-center">
             <div className="inline-flex items-center gap-2 text-[11px] leading-4 text-[var(--landing-muted)]">
@@ -170,7 +172,10 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
             </p>
             <p className="mt-2 text-xs text-[var(--landing-muted)]">
               {destination ? "Looking for your personal ECHO space?" : "Approved professional?"}{" "}
-              <Link href={destination ? "/login" : "/professional/login"} className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline">
+              <Link
+                href={destination ? "/login" : "/professional/login"}
+                className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline"
+              >
                 {destination ? "Personal sign in" : "Professional sign in"}
               </Link>
             </p>

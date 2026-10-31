@@ -8,7 +8,7 @@
     "packages/contracts"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev -w frontend\" \"npm run dev -w backend\"",
+    "dev": "node scripts/run-local-dev.mjs all",
     "dev:core:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-core.ps1",
     "test:core:disposable": "tsx backend/scripts/test-core-disposable.mts",
     "test:core:http": "tsx backend/scripts/test-core-http.mts",

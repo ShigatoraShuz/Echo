@@ -7,6 +7,7 @@ export const DEFAULT_ERROR_MESSAGES: Record<ErrorCode, string> = {
   VERIFICATION_REQUIRED: "Complete account verification to use Buddy and AI-supported features.",
   NOT_FOUND: "The requested resource was not found.",
   CONFLICT: "This item was updated by another session. Please refresh.",
+  DOCUMENT_SCAN_PENDING: "Documents have not passed security scanning. Try again when the scanner is available.",
   RATE_LIMITED: "Too many requests. Please wait a moment and try again.",
   NETWORK_ERROR: "Unable to connect. Please check your internet connection.",
   TIMEOUT: "The request took too long. Please try again.",

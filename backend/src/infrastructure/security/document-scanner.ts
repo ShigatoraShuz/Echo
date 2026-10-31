@@ -14,6 +14,24 @@ export interface DocumentScanner {
 export const quarantineScanner: DocumentScanner = {
   async inspect(bytes) { return { status: "quarantined", sha256: createHash("sha256").update(bytes).digest("hex") }; },
 };
+export function createHttpDocumentScanner(url: string, token: string): DocumentScanner {
+  return {
+    async inspect(bytes, mime, signal) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": mime, Accept: "application/json" },
+        body: new Uint8Array(bytes),
+        signal,
+        redirect: "error",
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Document scanner is unavailable.");
+      const result: unknown = await response.json();
+      if (!result || typeof result !== "object") throw new Error("Document scanner returned an invalid result.");
+      return result as Awaited<ReturnType<DocumentScanner["inspect"]>>;
+    },
+  };
+}
 export function validateDocument(bytes: Buffer, mime: string): void {
   const match = mime === "application/pdf" ? bytes.subarray(0, 5).toString("ascii") === "%PDF-" :
     mime === "image/png" ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) :
@@ -42,5 +60,5 @@ export async function inspectDocument(scanner: DocumentScanner, bytes: Buffer, m
 }
 export function assertDocumentsClean(documents: Array<Record<string, unknown>>): void {
   if (documents.some((document) => document.scan_status !== "clean" || !document.scanned_at || !document.scanner_version))
-    throw new ConflictError("DOCUMENT_SCAN_PENDING", "Document security checks must finish before review.");
+    throw new ConflictError("DOCUMENT_SCAN_PENDING", "Documents have not passed security scanning. Try again when the scanner is available.");
 }

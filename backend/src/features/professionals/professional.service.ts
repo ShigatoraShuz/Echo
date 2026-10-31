@@ -1,25 +1,45 @@
+
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createHash, randomUUID } from "node:crypto";
 import {
   decryptText,
   encryptText,
   type EncryptionService,
 } from "../../infrastructure/encryption/encryption.service.js";
 import {
+  AppError,
   AuthorizationError,
   ConflictError,
   ExternalServiceError,
   NotFoundError,
+  ValidationError,
 } from "../../shared/errors/app-error.js";
 import type { JournalService } from "../journals/journals.service.js";
+import type { ExperienceService } from "../experience/experience.service.js";
+import type { AuthenticatedUser } from "../../shared/types/authenticated-user.js";
+import { ProfessionalCredentialService } from "./professional-credentials.service.js";
+import { ProfessionalFollowUpService } from "./professional-follow-ups.service.js";
+import { ProfessionalReferralService } from "./professional-referrals.service.js";
+import { ProfessionalNotificationService } from "./professional-notifications.service.js";
+import { professionalQueueQuery, type ProfessionalQueueQuery } from "./professional-queue.contract.js";
+import { messageBoundary } from "./professional-message-cursor.js";
 
 type Row = Record<string, unknown>;
 type ProfessionalRole = "counselor" | "psychologist" | "social_worker" | "coordinator" | "org_admin";
 const CLINICAL_ROLES = new Set<ProfessionalRole>(["counselor", "psychologist", "social_worker"]);
+const PROFESSIONAL_ROLES = new Set<string>([...CLINICAL_ROLES, "coordinator", "org_admin"]);
 export const PROFESSIONAL_CONSENT_VERSION = "professional-request-v2";
+
+function currentCredential(expiresAt: string): boolean {
+  const parsed = Date.parse(expiresAt);
+  return /^\d{4}-\d{2}-\d{2}$/.test(expiresAt) && Number.isFinite(parsed) &&
+    new Date(parsed).toISOString().slice(0, 10) === expiresAt && expiresAt >= new Date().toISOString().slice(0, 10);
+}
 
 function value(row: Row, key: string): string {
   return typeof row[key] === "string" ? (row[key] as string) : "";
 }
+
 function optional(row: Row, key: string): string | null {
   return typeof row[key] === "string" ? (row[key] as string) : null;
 }
@@ -29,9 +49,22 @@ function strings(row: Row, key: string): string[] {
 function databaseError(message: string): ExternalServiceError {
   return new ExternalServiceError("DATABASE_UNAVAILABLE", message);
 }
+
+function logDatabaseError(operation: string, error: {
+  code?: string;
+  message: string;
+  details?: string;
+  hint?: string;
+}) {
+  console.error(`[professional.${operation}] Supabase query failed`, {
+    code: error.code,
+  });
+}
+
 function sharingActive(row: Row): boolean {
   return !row.sharing_revoked_at && new Date(value(row, "sharing_expires_at")).getTime() > Date.now();
 }
+
 function mapOrganization(row: Row) {
   return {
     id: value(row, "id"),
@@ -45,6 +78,7 @@ function mapOrganization(row: Row) {
     status: value(row, "status"),
   };
 }
+
 function mapRequest(row: Row) {
   return {
     id: value(row, "id"),
@@ -62,28 +96,58 @@ function mapRequest(row: Row) {
 }
 
 export class ProfessionalService {
+  readonly credentials: ProfessionalCredentialService;
+  readonly followUps: ProfessionalFollowUpService;
+  readonly referrals: ProfessionalReferralService;
+  readonly notifications: ProfessionalNotificationService;
+
   constructor(
     private readonly database: SupabaseClient,
     private readonly encryption: EncryptionService,
     private readonly journals: JournalService,
-  ) {}
-
-  private async notify(userId: string | null, type: string, title: string, message: string, requestId: string) {
-    if (!userId) return;
-    await this.database.schema("notification_service").from("notifications").insert({
-      user_id: userId,
-      notification_type: type,
-      title,
-      message,
-      resource_type: "professional_case",
-      resource_id: requestId,
-    });
+    private readonly supportDirectory?: Pick<ExperienceService, "supportResources">,
+  ) {
+    this.credentials = new ProfessionalCredentialService(database, encryption);
+    this.followUps = new ProfessionalFollowUpService(database, encryption);
+    this.referrals = new ProfessionalReferralService(database);
+    this.notifications = new ProfessionalNotificationService(database);
   }
 
-  private async event(requestId: string, actorUserId: string, eventType: string, label: string) {
-    await this.database.schema("professional_service").from("case_events").insert({
-      request_id: requestId, actor_user_id: actorUserId, event_type: eventType, label,
-    });
+  private async notify(userId: string | null, type: string, title: string, message: string, requestId: string, notificationId?: string): Promise<boolean> {
+    if (!userId) return true;
+    try {
+      const preference = await this.database.schema("user_service").from("notification_preferences")
+        .select("in_app_enabled").eq("user_id", userId).maybeSingle();
+      if (preference.error) { logDatabaseError("notify.preferences", preference.error); return false; }
+      // Missing preferences fail closed. Never infer or silently turn on opt-in.
+      if (preference.data?.in_app_enabled !== true) return true;
+      const { error } = await this.database.schema("notification_service").from("notifications").insert({ ...(notificationId ? { id: notificationId } : {}), user_id: userId, notification_type: type, title, message, resource_type: "professional_case", resource_id: requestId });
+      if (error && error.code !== "23505") { logDatabaseError("notify", error); return false; }
+      return true;
+    } catch { console.error("[professional.notify] Delivery could not be confirmed"); return false; }
+  }
+  private async event(requestId: string, actorUserId: string, eventType: string, label: string, eventId?: string): Promise<boolean> {
+    try {
+      const { error } = await this.database.schema("professional_service").from("case_events").insert({ ...(eventId ? { id: eventId } : {}), request_id: requestId, actor_user_id: actorUserId, event_type: eventType, label });
+      if (error && error.code !== "23505") { logDatabaseError("event", error); return false; }
+      return true;
+    } catch { console.error("[professional.event] History could not be confirmed"); return false; }
+  }
+  private appointmentEventId(id: string, status: string) {
+    const raw = createHash("md5").update(`${id}:${status}`).digest("hex");
+    const hex = raw.slice(0,12) + "4" + raw.slice(13,16) + "8" + raw.slice(17);
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
+  private async deliverCaseEvents(requestId: string): Promise<boolean> {
+    if (!requestId) return false;
+    try {
+      const {data,error} = await this.database.schema("professional_service").rpc("process_case_events", {p_request_id:requestId,p_limit:10});
+      if (error) { logDatabaseError("appointmentDelivery",error); return false; }
+      return Number(data?.failures ?? 0) === 0 && Number(data?.pending ?? 0) === 0;
+    } catch { console.error("[professional.appointmentDelivery] Delivery remains unconfirmed"); return false; }
+  }
+  private deliveryFeedback(results: boolean[]) {
+    return results.every(Boolean) ? {} : { warning: "The appointment was saved. Some notification or history updates could not be confirmed. Refresh its status; do not submit another proposal." };
   }
 
   async listOrganizations() {
@@ -94,8 +158,26 @@ export class ProfessionalService {
       .eq("status", "active")
       .eq("accepting_requests", true)
       .order("name");
-    if (error) throw databaseError("Professional organizations could not be loaded.");
+
+    if (error) {
+      logDatabaseError("listOrganizations", error);
+      throw databaseError("Professional organizations could not be loaded.");
+    }
+
     return { organizations: ((data ?? []) as Row[]).map(mapOrganization) };
+  }
+
+  async crisisSupport(userId: string, requestId: string) {
+    await this.assignedCase(userId, requestId);
+    if (!this.supportDirectory) throw databaseError("The reviewed support directory is temporarily unavailable.");
+    const resources = await this.supportDirectory.supportResources(undefined, "crisis_hotline", "PH");
+    const row = await this.assignedCase(userId, requestId);
+    const { error } = await this.database.schema("professional_service").from("audit_events").insert({
+      organization_id: row.organization_id, request_id: requestId, actor_user_id: userId, action: "crisis.resources_viewed",
+    });
+    if (error) throw databaseError("The reviewed support directory is temporarily unavailable.");
+    return { resources, country: "PH", continuouslyMonitored: false,
+      escalation: { available: false, reasonCode: "ORGANIZATION_PROTOCOL_REQUIRED" } };
   }
 
   async memberships(userId: string) {
@@ -105,9 +187,15 @@ export class ProfessionalService {
       .select("id,organization_id,role,status,display_name,credential_label,credential_expires_at")
       .eq("user_id", userId)
       .order("created_at");
-    if (error) throw databaseError("Professional access could not be checked.");
+
+    if (error) {
+      logDatabaseError("memberships", error);
+      throw databaseError("Professional access could not be checked.");
+    }
+
     const memberships = (data ?? []) as Row[];
     if (memberships.length === 0) return { userId, memberships: [] };
+
     const { data: organizations, error: organizationError } = await this.database
       .schema("professional_service")
       .from("organizations")
@@ -116,8 +204,19 @@ export class ProfessionalService {
         "id",
         memberships.map((item) => value(item, "organization_id")),
       );
-    if (organizationError) throw databaseError("Organizations could not be loaded.");
-    const byId = new Map(((organizations ?? []) as Row[]).map((item) => [value(item, "id"), mapOrganization(item)]));
+
+    if (organizationError) {
+      logDatabaseError("memberships.organizations", organizationError);
+      throw databaseError("Organizations could not be loaded.");
+    }
+
+    const byId = new Map(
+      ((organizations ?? []) as Row[]).map((item) => [
+        value(item, "id"),
+        mapOrganization(item),
+      ]),
+    );
+
     return {
       userId,
       memberships: memberships.map((item) => ({
@@ -136,11 +235,10 @@ export class ProfessionalService {
               ? "pending_organization"
               : value(item, "status") === "suspended"
                 ? "suspended_membership"
-                : value(item, "status") !== "active"
+                : value(item, "status") !== "active" || !PROFESSIONAL_ROLES.has(value(item, "role"))
                   ? "pending_membership"
                   : CLINICAL_ROLES.has(value(item, "role") as ProfessionalRole) &&
-                      (!value(item, "credential_expires_at") ||
-                        value(item, "credential_expires_at") < new Date().toISOString().slice(0, 10))
+                      !currentCredential(value(item, "credential_expires_at"))
                     ? "credential_expired"
                     : "active",
       })),
@@ -155,54 +253,75 @@ export class ProfessionalService {
       .eq("user_id", userId)
       .eq("organization_id", organizationId)
       .maybeSingle();
-    if (error) throw databaseError("Professional access could not be checked.");
+
+    if (error) {
+      logDatabaseError("membership", error);
+      throw databaseError("Professional access could not be checked.");
+    }
+
     const member = data as Row | null;
-    if (!member || member.status !== "active")
+
+    if (!member || member.status !== "active" || !PROFESSIONAL_ROLES.has(value(member, "role"))) {
       throw new AuthorizationError("You do not have active access to this organization.");
+    }
+
     const { data: organization, error: organizationError } = await this.database
       .schema("professional_service")
       .from("organizations")
       .select("status")
       .eq("id", organizationId)
       .maybeSingle();
-    if (organizationError) throw databaseError("Organization access could not be checked.");
-    if (organization?.status !== "active")
+
+    if (organizationError) {
+      logDatabaseError("membership.organization", organizationError);
+      throw databaseError("Organization access could not be checked.");
+    }
+
+    if (organization?.status !== "active") {
       throw new AuthorizationError("This organization is not accepting professional access.");
+    }
+
     if (
       CLINICAL_ROLES.has(value(member, "role") as ProfessionalRole) &&
-      value(member, "credential_expires_at") < new Date().toISOString().slice(0, 10)
-    )
+      !currentCredential(value(member, "credential_expires_at"))
+    ) {
       throw new AuthorizationError("Your professional credential has expired.");
+    }
+
     if (clinical) {
       const role = value(member, "role") as ProfessionalRole;
       const expires = value(member, "credential_expires_at");
-      if (!CLINICAL_ROLES.has(role) || !expires || expires < new Date().toISOString().slice(0, 10))
+
+      if (!CLINICAL_ROLES.has(role) || !currentCredential(expires)) {
         throw new AuthorizationError("An active reviewed practitioner credential is required.");
+      }
     }
+
     return member;
   }
 
   async createRequest(
     userId: string,
     input: {
-      submissionId: string;
+      submissionId?: string;
       organizationId: string;
-      preferredProfileId: string | null;
+      preferredProfileId?: string | null;
       summary: string;
       preferredTime: string;
       journalIds: string[];
-      phq8Ids: string[];
+      phq8Ids?: string[];
     },
   ) {
     const journalIds = [...new Set(input.journalIds)];
-    const phq8Ids = [...new Set(input.phq8Ids)];
+    const phq8Ids = [...new Set(input.phq8Ids ?? [])];
     if (journalIds.length !== input.journalIds.length)
       throw new ConflictError("DUPLICATE_JOURNAL", "Choose each journal only once.");
-    if (phq8Ids.length !== input.phq8Ids.length)
+    if (phq8Ids.length !== (input.phq8Ids ?? []).length)
       throw new ConflictError("DUPLICATE_PHQ8", "Choose each check-in only once.");
     const journalSnapshots = await Promise.all(
       journalIds.map(async (journalId) => {
         const journal = await this.journals.get(userId, journalId);
+
         return {
           resourceType: "journal",
           sourceRecordId: journalId,
@@ -212,24 +331,55 @@ export class ProfessionalService {
       }),
     );
     const phq8Snapshots = phq8Ids.length === 0 ? [] : await this.phq8Snapshots(userId, phq8Ids);
-    const { data, error } = await this.database.schema("professional_service").rpc("create_request_v2", {
-      p_submission_id: input.submissionId,
-      p_organization_id: input.organizationId,
-      p_user_id: userId,
-      p_preferred_profile_id: input.preferredProfileId,
+    // Legacy callers retain v1 consent; PHQ-8 sharing is accepted only through
+    // the explicit v2 contract with a submission identifier.
+    const modern = !!input.submissionId;
+    if (!modern && (phq8Ids.length || input.preferredProfileId)) throw new ValidationError();
+    const common = {
+      p_organization_id: input.organizationId, p_user_id: userId,
       p_summary_encrypted: encryptText(input.summary, this.encryption),
       p_preferred_time_encrypted: encryptText(input.preferredTime, this.encryption),
-      p_consent_version: PROFESSIONAL_CONSENT_VERSION,
-      p_shared_items: [...journalSnapshots, ...phq8Snapshots],
+    };
+    const { data, error } = await this.database.schema("professional_service").rpc(modern ? "create_request_v2" : "create_request", modern ? {
+      ...common, p_submission_id: input.submissionId, p_preferred_profile_id: input.preferredProfileId ?? null,
+      p_consent_version: PROFESSIONAL_CONSENT_VERSION, p_shared_items: [...journalSnapshots, ...phq8Snapshots],
+    } : {
+      ...common, p_consent_version: "professional-request-v1",
+      p_shared_items: journalSnapshots.map((item) => ({ journalId: item.sourceRecordId, titleEncrypted: item.labelEncrypted, bodyEncrypted: item.payloadEncrypted })),
     });
+
     if (error) {
-      if (error.message.includes("USER_NOT_ELIGIBLE"))
+      if (modern && error.code === "23505") throw new ConflictError("REQUEST_RETRY_REQUIRED", "This submission is already being processed. Retry the same request to check its result.");
+      if (error.message === "INVALID_REQUEST" || error.message === "INVALID_SHARED_ITEM") throw new ValidationError();
+      if (error.message.includes("USER_NOT_ELIGIBLE")) {
         throw new AuthorizationError("This support request is currently available to eligible adult accounts.");
-      if (error.message.includes("ORGANIZATION_UNAVAILABLE"))
+      }
+
+      if (error.message.includes("ORGANIZATION_UNAVAILABLE")) {
         throw new NotFoundError("This organization is not accepting requests.");
+      }
       if (error.message.includes("PRACTITIONER_UNAVAILABLE"))
         throw new ConflictError("PRACTITIONER_UNAVAILABLE", "That practitioner is no longer accepting requests.");
+      logDatabaseError("createRequest", error);
       throw databaseError("Your support request could not be submitted.");
+    }
+
+    if (modern) {
+      const recorded = data as Row;
+      const sameIds = (left: string[], right: string[]) => JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+      if (!recorded || recorded.user_id !== userId || recorded.organization_id !== input.organizationId ||
+          recorded.submission_id !== input.submissionId || optional(recorded, "preferred_profile_id") !== (input.preferredProfileId ?? null) ||
+          decryptText(recorded.summary_encrypted, this.encryption) !== input.summary ||
+          decryptText(recorded.preferred_time_encrypted, this.encryption) !== input.preferredTime ||
+          !sameIds(strings(recorded, "shared_journal_ids"), journalIds)) {
+        throw new ConflictError("REQUEST_SUBMISSION_CONFLICT", "This submission already belongs to a different request. Review My requests before sending another.");
+      }
+      const shares = await this.database.schema("professional_service").from("case_shared_records")
+        .select("source_record_id").eq("request_id", value(recorded, "id")).eq("owner_user_id", userId).eq("resource_type", "phq8");
+      if (shares.error) throw databaseError("Your request receipt could not be confirmed. Retry the same submission.");
+      if (!sameIds(((shares.data ?? []) as Row[]).map(item => value(item, "source_record_id")), phq8Ids)) {
+        throw new ConflictError("REQUEST_SUBMISSION_CONFLICT", "This submission already contains different sharing choices. Review My requests before sending another.");
+      }
     }
     return { request: mapRequest(data as Row) };
   }
@@ -297,23 +447,81 @@ export class ProfessionalService {
     })) };
   }
 
-  async listQueue(userId: string, organizationId: string) {
+  async updateOwnRequest(userId: string, requestId: string, input: { summary: string; preferredTime: string }) {
+    const { data, error } = await this.database.schema("professional_service").rpc("update_own_request", {
+      p_request_id: requestId, p_actor: userId,
+      p_summary_encrypted: encryptText(input.summary, this.encryption),
+      p_preferred_time_encrypted: encryptText(input.preferredTime, this.encryption),
+    });
+    if (error) this.ownerActionError(error);
+    return { request: mapRequest(data as Row) };
+  }
+
+  async withdrawOwnRequest(userId: string, requestId: string) {
+    const { data, error } = await this.database.schema("professional_service").rpc("withdraw_own_request", {
+      p_request_id: requestId, p_actor: userId,
+    });
+    if (error) this.ownerActionError(error);
+    return { request: mapRequest(data as Row) };
+  }
+
+  private ownerActionError(error: { message: string }): never {
+    if (error.message === "REQUEST_NOT_FOUND") throw new NotFoundError();
+    if (error.message === "REQUEST_NOT_EDITABLE" || error.message === "SHARING_UNAVAILABLE") {
+      throw new ConflictError("REQUEST_NOT_EDITABLE", "This request can no longer be changed. Refresh its current status.");
+    }
+    if (error.message === "REQUEST_INVALID") throw new ValidationError();
+    throw databaseError("The request change could not be confirmed. Check its current status before retrying.");
+  }
+
+  async listQueue(userId: string, organizationId: string, input: ProfessionalQueueQuery = {}) {
+    const parsed = professionalQueueQuery.safeParse(input);
+    if (!parsed.success) throw new ValidationError();
+    const filters = parsed.data;
     await this.membership(userId, organizationId);
-    const { data, error } = await this.database
+
+    let query = this.database
       .schema("professional_service")
       .from("support_requests")
-      .select("id,organization_id,status,assigned_to,created_at,updated_at")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (error) throw databaseError("The request queue could not be loaded.");
+      .select("id,organization_id,status,assigned_to,created_at,updated_at", { count: "exact" })
+      .eq("organization_id", organizationId);
+    if (filters.status) query = query.eq("status", filters.status);
+    if (filters.assignedTo === "unassigned") query = query.is("assigned_to", null);
+    else if (filters.assignedTo) query = query.eq("assigned_to", filters.assignedTo === "me" ? userId : filters.assignedTo);
+    if (filters.createdFrom) query = query.gte("created_at", `${filters.createdFrom}T00:00:00.000Z`);
+    if (filters.createdThrough) {
+      const after = new Date(`${filters.createdThrough}T00:00:00.000Z`);
+      after.setUTCDate(after.getUTCDate() + 1);
+      query = query.lt("created_at", after.toISOString());
+    }
+    const { data, error, count } = await query
+      .order(filters.sort === "updated" ? "updated_at" : "created_at", { ascending: filters.sort === "oldest" })
+      .order("id", { ascending: true })
+      .range(filters.offset, filters.offset + filters.limit - 1);
+
+    if (error) {
+      logDatabaseError("listQueue", error);
+      throw databaseError("The request queue could not be loaded.");
+    }
+    if (typeof count !== "number") throw databaseError("The request count could not be confirmed.");
+
     const { error: auditError } = await this.database.schema("professional_service").from("audit_events").insert({
       organization_id: organizationId,
       actor_user_id: userId,
       action: "queue.viewed",
     });
-    if (auditError) throw databaseError("Queue access could not be recorded.");
+
+    if (auditError) {
+      logDatabaseError("listQueue.audit", auditError);
+      throw databaseError("Queue access could not be recorded.");
+    }
+
+    // Membership may change while the query/audit is in flight. Never deliver
+    // records on the strength of the earlier check alone.
+    await this.membership(userId, organizationId);
+
     return {
+      page: { offset: filters.offset, limit: filters.limit, total: count, hasMore: filters.offset + (data?.length ?? 0) < count },
       requests: ((data ?? []) as Row[]).map((row) => ({
         id: value(row, "id"),
         organizationId: value(row, "organization_id"),
@@ -332,36 +540,62 @@ export class ProfessionalService {
       .select("*")
       .eq("id", requestId)
       .maybeSingle();
-    if (error) throw databaseError("The support request could not be loaded.");
+
+    if (error) {
+      logDatabaseError("requestRow", error);
+      throw databaseError("The support request could not be loaded.");
+    }
+
     if (!data) throw new NotFoundError("The support request was not found.");
+
     return data as Row;
+  }
+
+  async dashboard(userId: string, organizationId: string) {
+    await this.membership(userId, organizationId);
+    const { data, error } = await this.database.schema("professional_service").rpc("dashboard_overview", {
+      p_organization_id: organizationId, p_actor: userId,
+    });
+    if (error) this.caseMutationError(error, "The dashboard overview is temporarily unavailable.");
+    await this.membership(userId, organizationId);
+    return data;
   }
 
   private async assignedCase(userId: string, requestId: string): Promise<Row> {
     const row = await this.requestRow(requestId);
+
     await this.membership(userId, value(row, "organization_id"), true);
-    if (row.assigned_to !== userId) throw new AuthorizationError("Only the assigned professional may open this case.");
+
+    if (row.assigned_to !== userId) {
+      throw new AuthorizationError("Only the assigned professional may open this case.");
+    }
+
     return row;
   }
 
   async detail(userId: string, requestId: string, viewer: "user" | "professional") {
-    let row = await this.requestRow(requestId);
+    if (viewer === "professional") return this.professionalDetail(userId, requestId);
+    const row = await this.requestRow(requestId);
     const owner = viewer === "user";
-    if (owner && row.user_id !== userId) throw new NotFoundError("The support request was not found.");
-    if (!owner) row = await this.assignedCase(userId, requestId);
+
+    if (owner && row.user_id !== userId) {
+      throw new NotFoundError("The support request was not found.");
+    }
+
     const mayReadShared = owner || sharingActive(row);
+
     const [sharedResult, appointmentResult, referralResult, noteResult] = await Promise.all([
       mayReadShared
         ? this.database
             .schema("professional_service")
             .from("case_shared_records")
             .select("id,resource_type,source_record_id,label_encrypted,payload_encrypted,expires_at,revoked_at")
-            .eq("request_id", requestId)
+            .eq("request_id", requestId).eq("owner_user_id", userId)
         : Promise.resolve({ data: [], error: null }),
       this.database
         .schema("professional_service")
         .from("appointments")
-        .select("id,starts_at,ends_at,mode,location_hint_encrypted,status,professional_user_id")
+        .select("id,starts_at,ends_at,mode,location_hint_encrypted,status,professional_user_id,replaces_appointment_id")
         .eq("request_id", requestId)
         .order("created_at", { ascending: false }),
       this.database
@@ -379,68 +613,117 @@ export class ProfessionalService {
             .eq("request_id", requestId)
             .order("created_at", { ascending: false }),
     ]);
-    if (sharedResult.error || appointmentResult.error || referralResult.error || noteResult.error)
+
+    if (sharedResult.error || appointmentResult.error || referralResult.error || noteResult.error) {
+      if (sharedResult.error) logDatabaseError("detail.sharedJournals", sharedResult.error);
+      if (appointmentResult.error) logDatabaseError("detail.appointments", appointmentResult.error);
+      if (referralResult.error) logDatabaseError("detail.referrals", referralResult.error);
+      if (noteResult.error) logDatabaseError("detail.notes", noteResult.error);
+
       throw databaseError("The case details could not be loaded.");
-    const appointmentIds = ((appointmentResult.data ?? []) as Row[]).map((item) => value(item, "id"));
-    const changeResult = appointmentIds.length === 0
-      ? { data: [] as Row[], error: null }
-      : await this.database.schema("professional_service").from("appointment_change_requests")
-          .select("id,appointment_id,preferred_time_encrypted,status,created_at")
-          .in("appointment_id", appointmentIds).order("created_at", { ascending: false });
-    if (changeResult.error) throw databaseError("Appointment change requests could not be loaded.");
-    if (!owner) {
-      const { error } = await this.database.schema("professional_service").from("audit_events").insert({
-        organization_id: row.organization_id,
-        request_id: requestId,
-        actor_user_id: userId,
-        action: "case.opened",
-      });
-      if (error) throw databaseError("Case access could not be recorded.");
     }
+
+    const appointmentIds = ((appointmentResult.data ?? []) as Row[]).map((item) => value(item, "id"));
+    const changes = appointmentIds.length ? await this.database.schema("professional_service").from("appointment_change_requests")
+      .select("id,appointment_id,preferred_time_encrypted,status,created_at").in("appointment_id", appointmentIds).order("created_at", { ascending: false }) : { data: [], error: null };
+    if (changes.error) throw databaseError("Appointment change requests could not be loaded.");
+    const { error: auditError } = await this.database.schema("professional_service").from("audit_events").insert({
+      organization_id: row.organization_id, request_id: requestId, actor_user_id: userId, action: "request.owner_viewed",
+    });
+    if (auditError) throw databaseError("Case access could not be recorded.");
+    return this.projectCase(row, owner, mayReadShared, {
+      sharedJournals: [], sharedRecords: (sharedResult.data ?? []) as Row[], appointments: (appointmentResult.data ?? []) as Row[],
+      referrals: (referralResult.data ?? []) as Row[], notes: [], appointmentChangeRequests: (changes.data ?? []) as Row[],
+    });
+  }
+
+  private async professionalDetail(userId: string, requestId: string) {
+    // Retain early service checks; the RPC independently enforces current access
+    // and commits the sensitive read audit in the same database transaction.
+    const initial = await this.assignedCase(userId, requestId);
+    const { data, error } = await this.database.schema("professional_service").rpc("case_snapshot", {
+      p_request_id: requestId, p_actor: userId,
+    });
+    if (error) this.caseMutationError(error, "The case details could not be loaded.");
+    const snapshot = data as { request: Row; sharedJournals: Row[]; sharedRecords?: Row[]; appointmentChangeRequests?: Row[]; appointments: Row[]; referrals: Row[]; notes: Row[]; notesLifecycleAvailable?: boolean; closureReasonAvailable?: boolean; timeline?: { events: Array<{ id: string; action: string; at: string }>; hasMore: boolean; limit: number } } | null;
+    if (!snapshot || snapshot.request?.id !== requestId || snapshot.request.organization_id !== initial.organization_id || snapshot.request.assigned_to !== userId) {
+      throw databaseError("The case details could not be confirmed.");
+    }
+    // Older authorized snapshots omit replacement links. Read only these IDs,
+    // within this request, and retain the final access recheck before projection.
+    if (snapshot.appointments.some(item => !Object.hasOwn(item, "replaces_appointment_id"))) {
+      const links = await this.database.schema("professional_service").from("appointments")
+        .select("id,replaces_appointment_id").eq("request_id", requestId)
+        .in("id", snapshot.appointments.map(item => value(item, "id")));
+      if (links.error) throw databaseError("Appointment replacement details could not be confirmed.");
+      snapshot.appointments = snapshot.appointments.map(item => ({ ...item,
+        replaces_appointment_id: ((links.data ?? []) as Row[]).find(link => link.id === item.id)?.replaces_appointment_id ?? null,
+      }));
+    }
+    // Revocation or permission loss may commit after the RPC returns. Recheck
+    // before decrypting; already delivered data cannot be recalled.
+    let currentShares: Row[] | undefined;
+    if (snapshot.sharedRecords?.length) {
+      const latest = await this.database.schema("professional_service").from("case_shared_records")
+        .select("id,expires_at,revoked_at").eq("request_id", requestId).eq("owner_user_id", initial.user_id)
+        .in("id", snapshot.sharedRecords.map((item) => value(item, "id")));
+      if (latest.error) throw databaseError("Current sharing permissions could not be confirmed.");
+      currentShares = (latest.data ?? []) as Row[];
+    }
+    const current = await this.assignedCase(userId, requestId);
+    const mayReadShared = sharingActive(snapshot.request) && sharingActive(current);
+    const permitted = currentShares ? snapshot.sharedRecords?.filter((item) => currentShares.some((grant) => grant.id === item.id && !grant.revoked_at && value(grant, "expires_at") > new Date().toISOString())) : snapshot.sharedRecords;
+    return {
+      ...this.projectCase({ ...snapshot.request, sharing_expires_at: current.sharing_expires_at, sharing_revoked_at: current.sharing_revoked_at }, false, mayReadShared, { ...snapshot, sharedRecords: permitted }),
+      timeline: snapshot.timeline,
+      notesLifecycleAvailable: snapshot.notesLifecycleAvailable === true,
+      closureReasonAvailable: snapshot.closureReasonAvailable === true,
+    };
+  }
+
+  private projectCase(row: Row, owner: boolean, mayReadShared: boolean, children: { sharedJournals: Row[]; sharedRecords?: Row[]; appointmentChangeRequests?: Row[]; appointments: Row[]; referrals: Row[]; notes: Row[] }) {
+    const shared = (children.sharedRecords ?? []).filter((item) => owner || mayReadShared && !item.revoked_at && value(item, "expires_at") > new Date().toISOString());
+    const journals = shared.filter((item) => item.resource_type === "journal");
+    const assessments = shared.filter((item) => item.resource_type === "phq8");
     return {
       request: {
         ...mapRequest(row),
         preferredTime: mayReadShared ? decryptText(row.preferred_time_encrypted, this.encryption) : "",
         summary: mayReadShared ? decryptText(row.summary_encrypted, this.encryption) : null,
       },
-      sharedJournals: ((sharedResult.data ?? []) as Row[])
-        .filter((item) => value(item, "resource_type") === "journal" && (owner || (!item.revoked_at && value(item, "expires_at") > new Date().toISOString())))
-        .map((item) => ({
-          journalId: value(item, "source_record_id"),
-          title: decryptText(item.label_encrypted, this.encryption),
-          body: decryptText(item.payload_encrypted, this.encryption),
-        })),
-      sharedPhq8: ((sharedResult.data ?? []) as Row[])
-        .filter((item) => value(item, "resource_type") === "phq8" && (owner || (!item.revoked_at && value(item, "expires_at") > new Date().toISOString())))
-        .map((item) => ({
-          id: value(item, "source_record_id"),
-          label: decryptText(item.label_encrypted, this.encryption),
-          ...JSON.parse(decryptText(item.payload_encrypted, this.encryption)) as Row,
-        })),
-      appointments: ((appointmentResult.data ?? []) as Row[]).map((item) => ({
+      sharedJournals: [...journals.map((item) => ({ journalId: value(item, "source_record_id"), title: decryptText(item.label_encrypted, this.encryption), body: decryptText(item.payload_encrypted, this.encryption) })), ...(mayReadShared ? children.sharedJournals : []).map((item) => ({
+        journalId: value(item, "journal_id"),
+        title: decryptText(item.title_encrypted, this.encryption),
+        body: decryptText(item.body_encrypted, this.encryption),
+      }))],
+      sharedPhq8: assessments.map((item) => {
+        const opened = JSON.parse(decryptText(item.payload_encrypted, this.encryption)) as Row;
+        return { id: value(item, "source_record_id"), label: decryptText(item.label_encrypted, this.encryption),
+          score: opened.score as number, severity: value(opened, "severity"), completedAt: value(opened, "completedAt"), context: value(opened, "context") };
+      }),
+      appointmentChangeRequests: (children.appointmentChangeRequests ?? []).map((item) => ({ id: value(item, "id"), appointmentId: value(item, "appointment_id"), preferredTime: decryptText(item.preferred_time_encrypted, this.encryption), status: value(item, "status"), createdAt: value(item, "created_at") })),
+      appointments: children.appointments.map((item) => ({
         id: value(item, "id"),
         startsAt: value(item, "starts_at"),
         endsAt: value(item, "ends_at"),
         mode: value(item, "mode"),
         locationHint: decryptText(item.location_hint_encrypted, this.encryption),
-        status: value(item, "status"),
+        status: value(item, "status"), replacesAppointmentId: optional(item, "replaces_appointment_id"),
       })),
-      appointmentChangeRequests: ((changeResult.data ?? []) as Row[]).map((item) => ({
-        id: value(item, "id"), appointmentId: value(item, "appointment_id"),
-        preferredTime: decryptText(item.preferred_time_encrypted, this.encryption),
-        status: value(item, "status"), createdAt: value(item, "created_at"),
-      })),
-      referrals: ((referralResult.data ?? []) as Row[]).map((item) => ({
+      referrals: children.referrals.map((item) => ({
         id: value(item, "id"),
         resourceName: value(item, "resource_name"),
         resourceUrl: optional(item, "resource_url"),
         createdAt: value(item, "created_at"),
       })),
-      notes: ((noteResult.data ?? []) as Row[]).map((item) => ({
+      notes: children.notes.map((item) => ({
         id: value(item, "id"),
         body: decryptText(item.body_encrypted, this.encryption),
         createdAt: value(item, "created_at"),
+        state: value(item, "state") || "final", revision: typeof item.revision === "number" ? item.revision : 1,
+        updatedAt: value(item, "updated_at") || value(item, "created_at"), finalizedAt: optional(item, "finalized_at"),
       })),
+      messagingAvailable: true,
       viewer: owner ? "user" : "professional",
     };
   }
@@ -448,14 +731,14 @@ export class ProfessionalService {
   async claim(userId: string, requestId: string) {
     const row = await this.requestRow(requestId);
     await this.membership(userId, value(row, "organization_id"), true);
+
     const { data, error } = await this.database.schema("professional_service").rpc("claim_request", {
       p_request_id: requestId,
       p_actor: userId,
     });
+
     if (error) {
-      if (error.message.includes("REQUEST_ALREADY_ASSIGNED"))
-        throw new ConflictError("REQUEST_ALREADY_ASSIGNED", "Another professional has already accepted this request.");
-      throw databaseError("The request could not be accepted.");
+      this.caseMutationError(error, "The request acceptance could not be confirmed. Refresh the queue before retrying.");
     }
     await this.notify(optional(data as Row, "user_id"), "professional_case_assigned", "Professional support updated", "A practitioner has been assigned to your support request.", requestId);
     await this.event(requestId, userId, "practitioner_assigned", "Practitioner assigned");
@@ -463,6 +746,10 @@ export class ProfessionalService {
   }
 
   async assign(userId: string, requestId: string, profileId: string) {
+    const request = await this.requestRow(requestId);
+    const member = await this.membership(userId, value(request, "organization_id"));
+    if (!["coordinator", "org_admin"].includes(value(member, "role"))) throw new AuthorizationError("Coordinator access is required.");
+    if (request.status !== "submitted" || request.assigned_to) throw new ConflictError("REQUEST_ALREADY_ASSIGNED", "Use the authorized case transfer workflow for an assigned case.");
     const { data, error } = await this.database.schema("professional_service").rpc("assign_request", {
       p_request_id: requestId, p_actor: userId, p_profile_id: profileId,
     });
@@ -481,28 +768,68 @@ export class ProfessionalService {
       p_request_id: requestId,
       p_actor: userId,
     });
+
     if (error) {
       if (error.message.includes("REQUEST_NOT_FOUND")) throw new NotFoundError();
+
+      logDatabaseError("revoke", error);
       throw databaseError("Sharing could not be stopped.");
     }
+
     return { request: mapRequest(data as Row) };
   }
 
-  async close(userId: string, requestId: string) {
+  async close(userId: string, requestId: string, reason?: string) {
     const request = await this.assignedCase(userId, requestId);
-    const { data, error } = await this.database.schema("professional_service").rpc("set_request_status", {
+
+    const { data, error } = await this.database.schema("professional_service").rpc("close_case", {
       p_request_id: requestId,
       p_actor: userId,
-      p_status: "closed",
+      p_reason_encrypted: reason ? encryptText(reason, this.encryption) : null,
     });
+
     if (error) {
-      if (error.message.includes("APPOINTMENT_ACTIVE"))
-        throw new ConflictError("APPOINTMENT_ACTIVE", "Cancel the active appointment before closing this case.");
-      throw databaseError("The case could not be closed.");
+      this.caseMutationError(error, "The case closure could not be confirmed. Refresh its status before retrying.");
     }
+
+    if (reason && (!data?.reasonEncrypted || decryptText(data.reasonEncrypted, this.encryption) !== reason)) throw new ConflictError("CLOSURE_CONFLICT", "This case already has a different closure record. Refresh its status.");
     await this.event(requestId, userId, "case_closed", "Case closed");
     await this.notify(optional(request, "user_id"), "professional_case_closed", "Professional support updated", "Your professional support case was closed.", requestId);
-    return { request: mapRequest(data as Row) };
+    return { request: mapRequest(data.request as Row) };
+  }
+
+  async transfer(userId: string, requestId: string, input: { targetUserId: string; reason: string; submissionId: string }) {
+    const row = await this.requestRow(requestId);
+    await this.membership(userId, value(row, "organization_id"), true);
+    const { data, error } = await this.database.schema("professional_service").rpc("transfer_case", {
+      p_request_id: requestId, p_actor: userId, p_target: input.targetUserId,
+      p_reason_encrypted: encryptText(input.reason, this.encryption), p_submission_id: input.submissionId,
+    });
+    if (error) this.caseMutationError(error, "The case transfer could not be confirmed. Refresh assignment before retrying.");
+    if (!data?.reasonEncrypted || decryptText(data.reasonEncrypted, this.encryption) !== input.reason) throw new ConflictError("TRANSFER_CONFLICT", "This transfer identifier already belongs to another handover. Refresh assignment.");
+    return { request: mapRequest(data.request as Row), transferId: data.transferId as string };
+  }
+
+  private caseMutationError(error: { message: string }, fallback: string): never {
+    switch (error.message) {
+      case "REQUEST_NOT_FOUND": throw new NotFoundError();
+      case "MEMBERSHIP_REQUIRED":
+      case "ASSIGNMENT_REQUIRED": throw new AuthorizationError();
+      case "REQUEST_ALREADY_ASSIGNED": throw new ConflictError("REQUEST_ALREADY_ASSIGNED", "This request is no longer available to accept. Refresh the queue.");
+      case "APPOINTMENT_ACTIVE": throw new ConflictError("APPOINTMENT_ACTIVE", "Cancel the active appointment before closing this case.");
+      case "INVALID_CASE_TRANSITION": throw new ConflictError("CASE_CLOSED", "This case cannot be changed in its current state. Refresh its status.");
+      case "INVALID_STATUS": throw new ValidationError();
+      case "INVALID_NOTE": throw new ValidationError();
+      case "INVALID_TRANSFER":
+      case "INVALID_CLOSURE": throw new ValidationError();
+      case "TRANSFER_TARGET_UNAVAILABLE": throw new ConflictError("TRANSFER_TARGET_UNAVAILABLE", "The selected practitioner is not available for this handover.");
+      case "TRANSFER_CONFLICT":
+      case "CLOSURE_CONFLICT": throw new ConflictError(error.message, "This case action has already changed. Refresh its current status.");
+      case "DRAFT_NOTES_PENDING": throw new ConflictError("DRAFT_NOTES_PENDING", "Finalize your draft notes before transferring the case.");
+      case "NOTE_IMMUTABLE": throw new ConflictError("NOTE_IMMUTABLE", "Final notes cannot be edited.");
+      case "NOTE_REVISION_CONFLICT": throw new ConflictError("NOTE_REVISION_CONFLICT", "This draft changed. Reload it before editing again.");
+      default: throw databaseError(fallback);
+    }
   }
 
   async proposeAppointment(
@@ -524,14 +851,16 @@ export class ProfessionalService {
       p_mode: input.mode,
       p_location_hint_encrypted: encryptText(input.locationHint, this.encryption),
     });
+
     if (error) {
-      if (error.message.includes("APPOINTMENT_CONFLICT") || error.code === "23505")
-        throw new ConflictError("APPOINTMENT_CONFLICT", "This time is already booked or an offer is pending.");
-      throw databaseError("The appointment could not be proposed.");
+      this.appointmentError(error, "The appointment proposal could not be confirmed. Refresh the case before retrying.");
     }
-    await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A new appointment time is ready for your review.", requestId);
-    await this.event(requestId, userId, "appointment_proposed", "Appointment proposed");
-    return { appointmentId: value(data as Row, "id") };
+    const appointmentId = value(data as Row, "id");
+    const delivery = await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A new appointment time is ready for your review.", requestId, appointmentId);
+    const history = await this.event(requestId, userId, "appointment_proposed", "Appointment proposed", this.appointmentEventId(appointmentId, "proposed"));
+    const queued = await this.deliverCaseEvents(requestId);
+    return { appointmentId, ...this.deliveryFeedback([delivery, history, queued]) };
+
   }
 
   async respondAppointment(userId: string, appointmentId: string, accept: boolean) {
@@ -540,29 +869,100 @@ export class ProfessionalService {
       p_actor: userId,
       p_accept: accept,
     });
+
     if (error) {
-      if (error.message.includes("REQUEST_NOT_FOUND")) throw new NotFoundError();
-      if (error.message.includes("APPOINTMENT_UNAVAILABLE"))
-        throw new ConflictError("APPOINTMENT_UNAVAILABLE", "This offer is no longer available.");
-      throw databaseError("The appointment response could not be saved.");
+      this.appointmentError(error, "The appointment response could not be confirmed. Refresh its status before retrying.");
     }
-    await this.event(value(data as Row, "request_id"), userId, accept ? "appointment_confirmed" : "appointment_declined", accept ? "Appointment confirmed" : "Appointment declined");
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    const history = await this.event(value(data as Row, "request_id"), userId, accept ? "appointment_confirmed" : "appointment_declined", accept ? "Appointment confirmed" : "Appointment declined", this.appointmentEventId(appointmentId, value(data as Row, "status")));
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([history, await this.deliverCaseEvents(value(data as Row, "request_id"))]) };
   }
 
-  async cancelAppointment(userId: string, appointmentId: string) {
+  async cancelAppointment(
+    userId: string,
+    appointmentId: string,
+    assuranceLevel: AuthenticatedUser["assuranceLevel"],
+  ) {
+    // This endpoint serves owners and practitioners. Resolve the owner from the
+    // database; a body/query flag must never exempt a practitioner from MFA.
+    const { data: appointment, error: appointmentError } = await this.database
+      .schema("professional_service")
+      .from("appointments")
+      .select("request_id")
+      .eq("id", appointmentId)
+      .maybeSingle();
+
+    if (appointmentError) {
+      logDatabaseError("cancelAppointment.appointment", appointmentError);
+      throw databaseError("Appointment access could not be checked.");
+    }
+    if (!appointment) {
+      throw new ConflictError("APPOINTMENT_UNAVAILABLE", "This appointment can no longer be canceled.");
+    }
+
+    const { data: request, error: requestError } = await this.database
+      .schema("professional_service")
+      .from("support_requests")
+      .select("user_id,organization_id,assigned_to")
+      .eq("id", appointment.request_id)
+      .maybeSingle();
+
+    if (requestError) {
+      logDatabaseError("cancelAppointment.request", requestError);
+      throw databaseError("Appointment access could not be checked.");
+    }
+    if (!request) throw new NotFoundError();
+
+    if (request.user_id !== userId) {
+      if (request.assigned_to !== userId) throw new NotFoundError();
+      await this.membership(userId, value(request, "organization_id"), true);
+      if (assuranceLevel !== "aal2") {
+        throw new AppError({
+          statusCode: 403,
+          code: "MFA_REQUIRED",
+          message: "Multi-factor authentication is required.",
+        });
+      }
+    }
+
+    // The RPC still rechecks ownership, membership and state transactionally.
     const { data, error } = await this.database.schema("professional_service").rpc("cancel_appointment", {
       p_appointment_id: appointmentId,
       p_actor: userId,
     });
+
     if (error) {
-      if (error.message.includes("APPOINTMENT_UNAVAILABLE"))
-        throw new ConflictError("APPOINTMENT_UNAVAILABLE", "This appointment can no longer be canceled.");
-      if (error.message.includes("REQUEST_NOT_FOUND")) throw new NotFoundError();
-      throw databaseError("The appointment could not be canceled.");
+      this.appointmentError(error, "The appointment cancellation could not be confirmed. Refresh its status before retrying.");
     }
-    await this.event(value(data as Row, "request_id"), userId, "appointment_canceled", "Appointment canceled");
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([await this.deliverCaseEvents(value(appointment as Row, "request_id"))]) };
+  }
+
+  private appointmentError(error: { message: string; code?: string }, fallback: string): never {
+    if (error.code === "23505" || error.code === "23P01" || error.message === "APPOINTMENT_CONFLICT") {
+      throw new ConflictError("APPOINTMENT_CONFLICT", "This time is already booked or an offer is pending.");
+    }
+    if (error.message === "INVALID_APPOINTMENT") throw new ValidationError({ appointment: ["Choose a future start and an end within two hours, with a supported session type."] });
+    if (error.message === "APPOINTMENT_UNAVAILABLE" || error.message === "APPOINTMENT_EXPIRED") {
+      throw new ConflictError(error.message, "This appointment offer is no longer available. Refresh the case.");
+    }
+    this.caseMutationError(error, fallback);
+  }
+
+  async rescheduleAppointment(userId: string, appointmentId: string, input: { startsAt: string; endsAt: string; mode: "in_person" | "online" | "phone"; locationHint: string }) {
+    const { data, error } = await this.database.schema("professional_service").rpc("reschedule_appointment", {
+      p_appointment_id: appointmentId, p_actor: userId, p_starts_at: input.startsAt, p_ends_at: input.endsAt,
+      p_mode: input.mode, p_location_hint_encrypted: encryptText(input.locationHint, this.encryption),
+    });
+    if (error) this.appointmentError(error, "Rescheduling could not be confirmed. Refresh the case before retrying.");
+    if (!data || decryptText(data.location_hint_encrypted, this.encryption) !== input.locationHint) {
+      throw new ConflictError("APPOINTMENT_CONFLICT", "This appointment already has a different replacement. Refresh the case.");
+    }
+    const requestId = value(data as Row, "request_id"), replacementId = value(data as Row, "id");
+    let request: Row | null = null;
+    try { request = await this.requestRow(requestId); } catch { /* The durable owner queue still records this committed replacement. */ }
+    const delivery = request ? await this.notify(optional(request, "user_id"), "professional_appointment_proposed", "Appointment response needed", "A replacement time is ready for your review.", requestId, replacementId) : false;
+    const history = await this.event(requestId, userId, "appointment_rescheduled", "Replacement appointment proposed", this.appointmentEventId(replacementId, "proposed"));
+    return { appointmentId: replacementId, status: value(data as Row, "status"), ...this.deliveryFeedback([delivery, history, await this.deliverCaseEvents(requestId)]) };
   }
 
   async completeAppointment(userId: string, appointmentId: string) {
@@ -573,7 +973,7 @@ export class ProfessionalService {
       .maybeSingle();
     if (appointmentError) throw databaseError("The appointment could not be loaded.");
     if (!appointment) throw new NotFoundError();
-    await this.assignedCase(userId, value(appointment as Row, "request_id"));
+    const request = await this.assignedCase(userId, value(appointment as Row, "request_id"));
     if (new Date(value(appointment as Row, "starts_at")).getTime() > Date.now())
       throw new ConflictError("APPOINTMENT_NOT_STARTED", "This appointment cannot be completed before its scheduled start.");
     const { data, error } = await this.database.schema("professional_service").rpc("complete_appointment", {
@@ -587,39 +987,42 @@ export class ProfessionalService {
       throw databaseError("The appointment could not be completed.");
     }
     const requestId = value(data as Row, "request_id");
-    const request = await this.requestRow(requestId);
-    await this.event(requestId, userId, "appointment_completed", "Appointment completed");
-    await this.notify(optional(request, "user_id"), "professional_appointment_completed", "Appointment updated", "Your professional appointment was marked complete.", requestId);
-    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status") };
+    const history = await this.event(requestId, userId, "appointment_completed", "Appointment completed", this.appointmentEventId(appointmentId, "completed"));
+    const delivery = await this.notify(optional(request, "user_id"), "professional_appointment_completed", "Appointment updated", "Your professional appointment was marked complete.", requestId, this.appointmentEventId(appointmentId, "completed"));
+    return { appointmentId: value(data as Row, "id"), status: value(data as Row, "status"), ...this.deliveryFeedback([history, delivery, await this.deliverCaseEvents(requestId)]) };
   }
 
-  async addNote(userId: string, requestId: string, body: string) {
-    const row = await this.assignedCase(userId, requestId);
-    if (row.status === "closed" || row.status === "declined")
-      throw new ConflictError("CASE_CLOSED", "This case is closed.");
-    const { data, error } = await this.database
-      .schema("professional_service")
-      .from("case_notes")
-      .insert({ request_id: requestId, author_user_id: userId, body_encrypted: encryptText(body, this.encryption) })
-      .select("id")
-      .single();
-    if (error) throw databaseError("The case note could not be saved.");
-    return { noteId: data.id as string };
+  async addNote(userId: string, requestId: string, body: string, options: { submissionId?: string; state?: "draft" | "final" } = {}) {
+    await this.assignedCase(userId, requestId);
+    if (body.trim().length < 2 || body.trim().length > 4000) throw new ValidationError();
+    const state = options.state ?? "final";
+    const { data, error } = await this.database.schema("professional_service").rpc("save_case_note", {
+      p_request_id: requestId, p_actor: userId, p_body_encrypted: encryptText(body.trim(), this.encryption),
+      p_submission_id: options.submissionId ?? randomUUID(), p_state: state,
+    });
+    if (error) this.caseMutationError(error, "The case note could not be saved. Check the case before retrying.");
+    // Compare authenticated ciphertext on a replay, rather than persisting a
+    // guessable plaintext note hash. The RPC inserts at most once per key.
+    if (!data || decryptText(data.body_encrypted, this.encryption) !== body.trim() || data.state !== state) {
+      throw new ConflictError("NOTE_SUBMISSION_CONFLICT", "This submission identifier already belongs to a different note. Reload the case.");
+    }
+    return { noteId: value(data as Row, "id"), state: value(data as Row, "state"), revision: data.revision as number };
   }
 
-  async addReferral(userId: string, requestId: string, resourceName: string, resourceUrl: string | null) {
-    const row = await this.assignedCase(userId, requestId);
-    if (row.status === "closed" || row.status === "declined")
-      throw new ConflictError("CASE_CLOSED", "This case is closed.");
-    const { data, error } = await this.database
-      .schema("professional_service")
-      .from("referrals")
-      .insert({ request_id: requestId, author_user_id: userId, resource_name: resourceName, resource_url: resourceUrl })
-      .select("id")
-      .single();
-    if (error) throw databaseError("The referral could not be saved.");
-    await this.event(requestId, userId, "referral_added", "Referral added");
-    return { referralId: data.id as string };
+  async editNote(userId: string, requestId: string, noteId: string, input: { body: string; expectedRevision: number; finalize: boolean }) {
+    await this.assignedCase(userId, requestId);
+    const { data, error } = await this.database.schema("professional_service").rpc("edit_case_note", {
+      p_request_id: requestId, p_note_id: noteId, p_actor: userId,
+      p_body_encrypted: encryptText(input.body, this.encryption), p_expected_revision: input.expectedRevision, p_finalize: input.finalize,
+    });
+    if (error) this.caseMutationError(error, "The note change could not be confirmed. Reload the case before retrying.");
+    if (!data || decryptText(data.body_encrypted, this.encryption) !== input.body) throw new ConflictError("NOTE_SUBMISSION_CONFLICT", "The note already contains a different finalized revision. Reload the case.");
+    return { noteId: value(data as Row, "id"), state: value(data as Row, "state"), revision: data.revision as number };
+  }
+
+  async addReferral(userId: string, requestId: string, resourceName: string, resourceUrl: string | null, submissionId?: string) {
+    await this.assignedCase(userId, requestId);
+    return this.referrals.create(userId, requestId, resourceName, resourceUrl, submissionId);
   }
 
   async directory(input: {
@@ -761,7 +1164,7 @@ export class ProfessionalService {
       appointments = ((appointmentResult.data ?? []) as Row[]).map((item) => ({
         id: value(item, "id"), requestId: value(item, "request_id"), startsAt: value(item, "starts_at"),
         endsAt: value(item, "ends_at"), mode: value(item, "mode"),
-        locationHint: decryptText(item.location_hint_encrypted, this.encryption), status: value(item, "status"),
+        locationHint: decryptText(item.location_hint_encrypted, this.encryption), status: value(item, "status"), replacesAppointmentId: optional(item, "replaces_appointment_id"),
       }));
       const readAt = new Map(((readResult.data ?? []) as Row[]).map((item) => [value(item, "request_id"), value(item, "last_read_at")]));
       unreadCount = ((messageResult.data ?? []) as Row[]).filter((item) => value(item, "created_at") > (readAt.get(value(item, "request_id")) ?? "")).length;
@@ -781,34 +1184,35 @@ export class ProfessionalService {
     };
   }
 
-  private async caseParticipant(userId: string, requestId: string): Promise<{ row: Row; kind: "user" | "professional" }> {
+  private async caseParticipant(userId: string, requestId: string, access: "participant" | "owner" = "participant"): Promise<{ row: Row; kind: "user" | "professional" }> {
     const row = await this.requestRow(requestId);
     if (row.user_id === userId) return { row, kind: "user" };
-    if (row.assigned_to !== userId) throw new NotFoundError("The support request was not found.");
+    if (access === "owner" || row.assigned_to !== userId) throw new NotFoundError("The support request was not found.");
     await this.membership(userId, value(row, "organization_id"), true);
     return { row, kind: "professional" };
   }
 
-  async messages(userId: string, requestId: string, before: string | undefined, limit: number) {
-    await this.caseParticipant(userId, requestId);
+  async messages(userId: string, requestId: string, before: string | undefined, limit: number, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     let query = this.database.schema("professional_service").from("case_messages")
       .select("id,request_id,sender_kind,body_encrypted,created_at")
       .eq("request_id", requestId).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
-    if (before) query = query.lt("created_at", before);
+    if (before) { const boundary = messageBoundary(before); query = boundary.id ? query.or(`created_at.lt.${boundary.at},and(created_at.eq.${boundary.at},id.lt.${boundary.id})`) : query.lt("created_at", boundary.at); }
     const { data, error } = await query;
     if (error) throw databaseError("Case messages could not be loaded.");
+    await this.caseParticipant(userId, requestId, access);
     const rows = (data ?? []) as Row[];
     return {
       messages: rows.slice(0, limit).reverse().map((item) => ({
         id: value(item, "id"), requestId: value(item, "request_id"), sender: value(item, "sender_kind"),
         body: decryptText(item.body_encrypted, this.encryption), createdAt: value(item, "created_at"),
       })),
-      nextCursor: rows.length > limit ? value(rows[limit - 1], "created_at") : null,
+      nextCursor: rows.length > limit ? `${value(rows[limit - 1], "created_at")}~${value(rows[limit - 1], "id")}` : null,
     };
   }
 
-  async sendMessage(userId: string, requestId: string, clientMessageId: string, body: string) {
-    const participant = await this.caseParticipant(userId, requestId);
+  async sendMessage(userId: string, requestId: string, clientMessageId: string, body: string, access: "participant" | "owner" = "participant") {
+    const participant = await this.caseParticipant(userId, requestId, access);
     const { data, error } = await this.database.schema("professional_service").rpc("send_case_message", {
       p_request_id: requestId, p_actor: userId, p_client_message_id: clientMessageId,
       p_body_encrypted: encryptText(body, this.encryption),
@@ -819,18 +1223,21 @@ export class ProfessionalService {
       throw databaseError("Your message could not be sent.");
     }
     const row = data as Row;
+    if (!row || row.request_id !== requestId || row.sender_user_id !== userId || decryptText(row.body_encrypted, this.encryption) !== body) {
+      throw new ConflictError("MESSAGE_SUBMISSION_CONFLICT", "This submission identifier already belongs to another message. Refresh the conversation before retrying.");
+    }
     await this.notify(
       participant.kind === "professional" ? optional(participant.row, "user_id") : optional(participant.row, "assigned_to"),
       "professional_case_message",
       "New professional support message",
       "A new message is available in your support case.",
-      requestId,
+      requestId, value(row, "id"),
     );
     return { message: { id: value(row, "id"), requestId, sender: value(row, "sender_kind"), body, createdAt: value(row, "created_at") } };
   }
 
-  async markMessagesRead(userId: string, requestId: string) {
-    await this.caseParticipant(userId, requestId);
+  async markMessagesRead(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     const { error } = await this.database.schema("professional_service").from("case_message_read_state").upsert({
       request_id: requestId, participant_user_id: userId, last_read_at: new Date().toISOString(),
     }, { onConflict: "request_id,participant_user_id" });
@@ -838,8 +1245,8 @@ export class ProfessionalService {
     return { read: true };
   }
 
-  async sharing(userId: string, requestId: string) {
-    const { row, kind } = await this.caseParticipant(userId, requestId);
+  async sharing(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    const { row, kind } = await this.caseParticipant(userId, requestId, access);
     let query = this.database.schema("professional_service").from("case_shared_records")
       .select("id,resource_type,source_record_id,label_encrypted,granted_at,expires_at,revoked_at")
       .eq("request_id", requestId).order("granted_at", { ascending: false });
@@ -858,6 +1265,9 @@ export class ProfessionalService {
   async revokeSharedRecord(userId: string, requestId: string, shareId: string) {
     const { row, kind } = await this.caseParticipant(userId, requestId);
     if (kind !== "user" || row.user_id !== userId) throw new NotFoundError();
+    const { data: record, error: scopeError } = await this.database.schema("professional_service").from("case_shared_records").select("id").eq("id", shareId).eq("request_id", requestId).eq("owner_user_id", userId).maybeSingle();
+    if (scopeError) throw databaseError("Sharing could not be stopped.");
+    if (!record) throw new NotFoundError();
     const { data, error } = await this.database.schema("professional_service").rpc("revoke_shared_record", {
       p_share_id: shareId, p_actor: userId,
     });
@@ -903,8 +1313,8 @@ export class ProfessionalService {
     return this.sharing(userId, requestId);
   }
 
-  async timeline(userId: string, requestId: string) {
-    await this.caseParticipant(userId, requestId);
+  async timeline(userId: string, requestId: string, access: "participant" | "owner" = "participant") {
+    await this.caseParticipant(userId, requestId, access);
     const { data, error } = await this.database.schema("professional_service").from("case_events")
       .select("id,event_type,label,created_at").eq("request_id", requestId)
       .order("created_at", { ascending: false }).limit(50);
@@ -939,7 +1349,7 @@ export class ProfessionalService {
 
   async listOwnAppointments(userId: string, range: { from?: string; to?: string } = {}) {
     let query = this.database.schema("professional_service").from("appointments")
-      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status,support_requests!inner()")
+      .select("id,request_id,starts_at,ends_at,mode,location_hint_encrypted,status,replaces_appointment_id,support_requests!inner()")
       .eq("support_requests.user_id", userId);
     if (range.from && range.to) query = query.gte("starts_at", range.from).lt("starts_at", range.to);
     const { data, error } = await query.order("starts_at", { ascending: false }).limit(100);
@@ -986,11 +1396,16 @@ export class ProfessionalService {
       })
       .select("id,slug,name,description,service_hours,status")
       .single();
+
     if (error) {
-      if (error.code === "23505")
+      if (error.code === "23505") {
         throw new ConflictError("ORGANIZATION_EXISTS", "This organization slug is already used.");
+      }
+
+      logDatabaseError("createOrganization", error);
       throw databaseError("The organization could not be created.");
     }
+
     return { organization: mapOrganization(data as Row) };
   }
 
@@ -1000,7 +1415,12 @@ export class ProfessionalService {
       .from("organizations")
       .select("id,slug,name,description,service_hours,status")
       .order("created_at", { ascending: false });
-    if (error) throw databaseError("Professional organizations could not be loaded.");
+
+    if (error) {
+      logDatabaseError("listOrganizationsForAdmin", error);
+      throw databaseError("Professional organizations could not be loaded.");
+    }
+
     return { organizations: ((data ?? []) as Row[]).map(mapOrganization) };
   }
 
@@ -1011,7 +1431,12 @@ export class ProfessionalService {
       .select("id,user_id,role,status,display_name,credential_label,credential_expires_at")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
-    if (error) throw databaseError("Organization members could not be loaded.");
+
+    if (error) {
+      logDatabaseError("listMembersForAdmin", error);
+      throw databaseError("Organization members could not be loaded.");
+    }
+
     return {
       memberships: ((data ?? []) as Row[]).map((row) => ({
         id: value(row, "id"),
@@ -1025,19 +1450,30 @@ export class ProfessionalService {
     };
   }
 
-  async listAuditForAdmin(organizationId: string) {
+  async listAuditForAdmin(organizationId: string, adminId: string) {
     const { data, error } = await this.database
       .schema("professional_service")
       .from("audit_events")
-      .select("id,action,actor_user_id,subject_user_id,created_at")
+      .select("id,request_id,action,actor_user_id,subject_user_id,created_at")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(100);
-    if (error) throw databaseError("Recent professional activity could not be loaded.");
+
+    if (error) {
+      logDatabaseError("listAuditForAdmin", error);
+      throw databaseError("Recent professional activity could not be loaded.");
+    }
+
+    const { error: auditError } = await this.database.schema("professional_service").from("audit_events").insert({
+      organization_id: organizationId, actor_user_id: adminId, action: "admin.audit_viewed",
+    });
+    if (auditError) throw databaseError("Audit access could not be recorded.");
+
     return {
       events: ((data ?? []) as Row[]).map((row) => ({
         id: value(row, "id"),
         action: value(row, "action"),
+        requestId: optional(row, "request_id"),
         actorUserId: value(row, "actor_user_id"),
         subjectUserId: optional(row, "subject_user_id"),
         createdAt: value(row, "created_at"),
@@ -1059,8 +1495,16 @@ export class ProfessionalService {
       .in("status", ["pending", "suspended"])
       .select("id,slug,name,description,service_hours,status")
       .maybeSingle();
-    if (error) throw databaseError("The organization could not be approved.");
-    if (!data) throw new ConflictError("ORGANIZATION_UNAVAILABLE", "This organization cannot be approved.");
+
+    if (error) {
+      logDatabaseError("approveOrganization", error);
+      throw databaseError("The organization could not be approved.");
+    }
+
+    if (!data) {
+      throw new ConflictError("ORGANIZATION_UNAVAILABLE", "This organization cannot be approved.");
+    }
+
     return { organization: mapOrganization(data as Row) };
   }
 
@@ -1069,11 +1513,16 @@ export class ProfessionalService {
       p_organization_id: organizationId,
       p_actor: adminId,
     });
+
     if (error) {
-      if (error.message.includes("ORGANIZATION_UNAVAILABLE"))
+      if (error.message.includes("ORGANIZATION_UNAVAILABLE")) {
         throw new ConflictError("ORGANIZATION_UNAVAILABLE", "This organization is not active.");
+      }
+
+      logDatabaseError("suspendOrganization", error);
       throw databaseError("The organization could not be suspended.");
     }
+
     return { organization: mapOrganization(data as Row) };
   }
 
@@ -1086,37 +1535,60 @@ export class ProfessionalService {
       displayName: string;
       credentialLabel: string | null;
       credentialExpiresAt: string | null;
+      credentialId?: string;
     },
   ) {
+    if (adminId === input.userId) {
+      throw new AuthorizationError("Another administrator must approve your professional membership.");
+    }
+
     const { data: organization, error: orgError } = await this.database
       .schema("professional_service")
       .from("organizations")
       .select("status")
       .eq("id", input.organizationId)
       .maybeSingle();
-    if (orgError) throw databaseError("Organization access could not be checked.");
-    if (organization?.status !== "active")
+
+    if (orgError) {
+      logDatabaseError("approveMember.organization", orgError);
+      throw databaseError("Organization access could not be checked.");
+    }
+
+    if (organization?.status !== "active") {
       throw new AuthorizationError("Approve the organization before adding staff.");
+    }
+
     const { data: profile, error: profileError } = await this.database
       .schema("user_service")
       .from("profiles")
       .select("account_status,eligible_18_plus,onboarding_completed")
       .eq("user_id", input.userId)
       .maybeSingle();
-    if (profileError) throw databaseError("The staff account could not be checked.");
+
+    if (profileError) {
+      logDatabaseError("approveMember.profile", profileError);
+      throw databaseError("The staff account could not be checked.");
+    }
+
     if (
       profile?.account_status !== "active" ||
       profile.eligible_18_plus !== true ||
       profile.onboarding_completed !== true
-    )
+    ) {
       throw new AuthorizationError("The staff member needs an active eligible ECHO account before approval.");
+    }
+
     if (
       CLINICAL_ROLES.has(input.role) &&
       (!input.credentialLabel ||
         !input.credentialExpiresAt ||
         input.credentialExpiresAt < new Date().toISOString().slice(0, 10))
-    )
+    ) {
       throw new AuthorizationError("A reviewed, unexpired practitioner credential is required.");
+    }
+
+    if (CLINICAL_ROLES.has(input.role)) await this.credentials.requireApproved(input);
+
     const { data, error } = await this.database
       .schema("professional_service")
       .from("memberships")
@@ -1129,6 +1601,7 @@ export class ProfessionalService {
           status: "active",
           credential_label: input.credentialLabel,
           credential_expires_at: input.credentialExpiresAt,
+          approved_credential_id: CLINICAL_ROLES.has(input.role) ? input.credentialId : null,
           approved_at: new Date().toISOString(),
           approved_by: adminId,
           updated_at: new Date().toISOString(),
@@ -1137,7 +1610,12 @@ export class ProfessionalService {
       )
       .select("id")
       .single();
-    if (error) throw databaseError("Professional access could not be approved.");
+
+    if (error) {
+      logDatabaseError("approveMember", error);
+      throw databaseError("Professional access could not be approved.");
+    }
+
     return { membershipId: data.id as string };
   }
 
@@ -1146,11 +1624,16 @@ export class ProfessionalService {
       p_membership_id: membershipId,
       p_actor: adminId,
     });
+
     if (error) {
-      if (error.message.includes("MEMBERSHIP_UNAVAILABLE"))
+      if (error.message.includes("MEMBERSHIP_UNAVAILABLE")) {
         throw new ConflictError("MEMBERSHIP_UNAVAILABLE", "This professional access is not active.");
+      }
+
+      logDatabaseError("suspendMember", error);
       throw databaseError("Professional access could not be suspended.");
     }
+
     return { membershipId: value(data as Row, "id"), status: "suspended" };
   }
 }

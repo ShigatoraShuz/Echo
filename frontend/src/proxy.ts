@@ -20,32 +20,20 @@ const authenticatedPrefixes = [
 
 function requiresAuthentication(pathname: string): boolean {
   if (pathname === "/professional/login") return false;
-  return authenticatedPrefixes.some(
-    (prefix) =>
-      pathname === prefix ||
-      pathname.startsWith(`${prefix}/`),
-  );
+  return authenticatedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 const accessDestinations: Record<string, string> = {
-  DELETION_PENDING:
-    "/deletion",
-  ACCOUNT_UNAVAILABLE:
-    "/login?error=account_unavailable",
-  EMAIL_VERIFICATION_REQUIRED:
-    "/login?error=email_verification_required",
-  AGE_VERIFICATION_REQUIRED:
-    "/onboarding/age",
-  POLICY_REVIEW_REQUIRED:
-    "/onboarding/policies",
-  ONBOARDING_REQUIRED:
-    "/onboarding",
+  DELETION_PENDING: "/deletion",
+  ACCOUNT_UNAVAILABLE: "/login?error=account_unavailable",
+  EMAIL_VERIFICATION_REQUIRED: "/login?error=email_verification_required",
+  AGE_VERIFICATION_REQUIRED: "/onboarding/age",
+  POLICY_REVIEW_REQUIRED: "/onboarding/policies",
+  ONBOARDING_REQUIRED: "/onboarding",
 };
 
 function generateNonce(): string {
-  const bytes = crypto.getRandomValues(
-    new Uint8Array(16),
-  );
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
 
   let binary = "";
 
@@ -56,9 +44,7 @@ function generateNonce(): string {
   return btoa(binary);
 }
 
-function origin(
-  value: string | undefined,
-): string | null {
+function origin(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -70,13 +56,9 @@ function origin(
   }
 }
 
-const supabaseOrigin = origin(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-);
+const supabaseOrigin = origin(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
-const apiOrigin = origin(
-  process.env.NEXT_PUBLIC_API_BASE_URL,
-);
+const apiOrigin = origin(process.env.NEXT_PUBLIC_API_BASE_URL);
 
 // Local registration follows the page's loopback host so its cookies return.
 const alternateLocalApiOrigin =
@@ -86,37 +68,23 @@ const alternateLocalApiOrigin =
       ? apiOrigin.replace("localhost", "127.0.0.1")
       : null;
 
-function contentSecurityPolicy(
-  nonce: string,
-): string {
-  const isDevelopment =
-    process.env.NODE_ENV !== "production";
+function contentSecurityPolicy(nonce: string): string {
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   return [
     "default-src 'self'",
 
-    `script-src 'self' 'nonce-${nonce}' https://accounts.google.com${
-      isDevelopment
-        ? " 'unsafe-inline' 'unsafe-eval'"
-        : ""
-    }`,
+    `script-src 'self' 'nonce-${nonce}'${process.env.NEXT_PUBLIC_REALTIME_TALK==='true'?" 'wasm-unsafe-eval'":""}${isDevelopment ? " 'unsafe-inline' 'unsafe-eval'" : ""}`,
 
-    "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+    "style-src 'self' 'unsafe-inline'",
 
     `img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com${supabaseOrigin ? ` ${supabaseOrigin}` : ""}`,
 
     "font-src 'self' data:",
 
-    `connect-src 'self' https://accounts.google.com${
-      supabaseOrigin
-        ? ` ${supabaseOrigin} ${supabaseOrigin.replace(
-            "https:",
-            "wss:",
-          )}`
-        : ""
-    }${apiOrigin ? ` ${apiOrigin}` : ""}${alternateLocalApiOrigin ? ` ${alternateLocalApiOrigin}` : ""}`,
-
-    "frame-src https://accounts.google.com",
+    `connect-src 'self'${
+      supabaseOrigin ? ` ${supabaseOrigin} ${supabaseOrigin.replace("https:", "wss:")}` : ""
+    }${apiOrigin ? ` ${apiOrigin}` : ""}${alternateLocalApiOrigin ? ` ${alternateLocalApiOrigin}` : ""}${process.env.NEXT_PUBLIC_REALTIME_TALK==='true'&&apiOrigin?` ${apiOrigin.replace(/^http/,"ws")}${alternateLocalApiOrigin?` ${alternateLocalApiOrigin.replace(/^http/,"ws")}`:""}`:""}`,
 
     "media-src 'self' blob: data:",
 
@@ -130,20 +98,12 @@ function contentSecurityPolicy(
 
     "frame-ancestors 'none'",
 
-    ...(isDevelopment
-      ? []
-      : ["upgrade-insecure-requests"]),
+    ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
 }
 
-function applySecurityHeaders(
-  response: NextResponse,
-  nonce: string,
-): NextResponse {
-  response.headers.set(
-    "Content-Security-Policy",
-    contentSecurityPolicy(nonce),
-  );
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
 
   return response;
 }
@@ -152,26 +112,26 @@ function redirectToLogin(
   request: NextRequest,
   response: NextResponse,
   nonce: string,
-  error:
-    | "login_required"
-    | "auth_not_configured"
-    | "access_check_unavailable",
+  error: "login_required" | "auth_not_configured" | "access_check_unavailable" | "access_service_unavailable",
 ): NextResponse {
-  const destination =
-    request.nextUrl.clone();
+  const destination = request.nextUrl.clone();
 
   destination.pathname =
     request.nextUrl.pathname === "/professional" ||
     request.nextUrl.pathname === "/professional/access" ||
+    [
+      "/professional/requests",
+      "/professional/my-cases",
+      "/professional/calendar",
+      "/professional/resources",
+      "/professional/settings",
+    ].includes(request.nextUrl.pathname) ||
     request.nextUrl.pathname.startsWith("/professional/cases/")
       ? "/professional/login"
       : "/login";
   destination.search = "";
 
-  destination.searchParams.set(
-    "error",
-    error,
-  );
+  destination.searchParams.set("error", error);
 
   destination.searchParams.set(
     "next",
@@ -180,66 +140,46 @@ function redirectToLogin(
       : `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
 
-  const redirect =
-    NextResponse.redirect(
-      destination,
-    );
+  const redirect = NextResponse.redirect(destination);
 
-  redirect.headers.set(
-    "Cache-Control",
-    "private, no-store, max-age=0",
-  );
+  redirect.headers.set("Cache-Control", "private, no-store, max-age=0");
 
-  applySecurityHeaders(
-    redirect,
-    nonce,
-  );
+  applySecurityHeaders(redirect, nonce);
 
-  response.cookies
-    .getAll()
-    .forEach((cookie) => {
-      redirect.cookies.set(
-        cookie,
-      );
-    });
+  response.cookies.getAll().forEach((cookie) => {
+    redirect.cookies.set(cookie);
+  });
 
   return redirect;
 }
 
-export async function proxy(
-  request: NextRequest,
-) {
+export async function proxy(request: NextRequest) {
+  // Reject the temporary preview before rendering can stream a 200 response.
+  // This guard only denies preview requests; it grants no authenticated access.
+  if (
+    (request.nextUrl.pathname === "/dev/professional-preview" ||
+      request.nextUrl.pathname.startsWith("/dev/professional-preview/")) &&
+    (process.env.NODE_ENV !== "development" ||
+      !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(request.headers.get("host") ?? ""))
+  ) {
+    return new NextResponse(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+
   const nonce = generateNonce();
 
-  request.headers.set(
-    "x-nonce",
-    nonce,
-  );
+  request.headers.set("x-nonce", nonce);
 
-  request.headers.set(
-    "Content-Security-Policy",
-    contentSecurityPolicy(
-      nonce,
-    ),
-  );
+  request.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
 
-  const response =
-    NextResponse.next({
-      request,
-    });
+  const response = NextResponse.next({
+    request,
+  });
 
-  applySecurityHeaders(
-    response,
-    nonce,
-  );
+  applySecurityHeaders(response, nonce);
 
-  const pathname =
-    request.nextUrl.pathname;
+  const pathname = request.nextUrl.pathname;
 
-  const requiresAuth =
-    requiresAuthentication(
-      pathname,
-    );
+  const requiresAuth = requiresAuthentication(pathname);
 
   /*
    * Public routes must never wait for
@@ -264,171 +204,91 @@ export async function proxy(
      * Configuration failures are never allowed
      * to make an authenticated route public.
      */
-    return redirectToLogin(
-      request,
-      response,
-      nonce,
-      "auth_not_configured",
-    );
+    return redirectToLogin(request, response, nonce, "auth_not_configured");
   }
 
-  const supabase =
-    createMiddlewareSupabaseClient(
-      request,
-      response,
-    );
+  const supabase = createMiddlewareSupabaseClient(request, response);
 
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-
-  if (!claims?.sub) {
-    return redirectToLogin(
-      request,
-      response,
-      nonce,
-      "login_required",
-    );
-  }
-
+  const accessRequestId = crypto.randomUUID();
+  let category = "auth_provider_unavailable";
+  let httpStatus: number | null = null;
   try {
-    const {
-      data: sessionData,
-    } = await supabase.auth.getSession();
-
-    const token =
-      sessionData.session
-        ?.access_token;
-
-    if (
-      !token ||
-      !process.env
-        .NEXT_PUBLIC_API_BASE_URL
-    ) {
-      throw new Error(
-        "Access service unavailable",
-      );
+    const { data, error } = await supabase.auth.getClaims();
+    if (error) {
+      if ([401, 403].includes(error.status ?? 0)) return redirectToLogin(request, response, nonce, "login_required");
+      throw new Error();
     }
-
-    const accessResponse =
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/access/status`,
-        {
-          headers: {
-            authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-          signal: AbortSignal.timeout(75_000),
-        },
+    if (!data?.claims?.sub) return redirectToLogin(request, response, nonce, "login_required");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return redirectToLogin(request, response, nonce, "login_required");
+    category = "configuration";
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (!apiUrl) throw new Error();
+    category = "transport";
+    const accessResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/access/status`, {
+      headers: { authorization: `Bearer ${token}`, "x-request-id": accessRequestId },
+      cache: "no-store",
+      signal: AbortSignal.timeout(75_000),
+    });
+    httpStatus = accessResponse.status;
+    if (accessResponse.status === 401) {
+      console.warn(
+        JSON.stringify({
+          service: "access-gateway",
+          category: "authentication_rejected",
+          httpStatus,
+          requestId: accessRequestId,
+        }),
       );
-
-    if (!accessResponse.ok) {
-      throw new Error(
-        "Access service rejected the session",
-      );
+      return redirectToLogin(request, response, nonce, "login_required");
     }
+    category = "backend_failure";
+    if (!accessResponse.ok) throw new Error();
+    category = "malformed_response";
+    const payload = await accessResponse.json();
+    const decision = payload?.data?.decision;
+    if (typeof decision !== "string" || (decision !== "ACCESS_GRANTED" && !Object.hasOwn(accessDestinations, decision)))
+      throw new Error();
 
-    const payload =
-      (await accessResponse.json()) as {
-        data?: {
-          decision?: string;
-        };
-      };
+    const destinationPath = accessDestinations[decision];
 
-    const decision =
-      payload.data?.decision ??
-      "ACCOUNT_UNAVAILABLE";
+    const alreadyAtDestination = destinationPath && pathname === destinationPath.split("?")[0];
 
-    const destinationPath =
-      accessDestinations[
-        decision
-      ];
+    if (destinationPath && !alreadyAtDestination) {
+      const destination = new URL(destinationPath, request.url);
 
-    const alreadyAtDestination =
-      destinationPath &&
-      pathname ===
-        destinationPath.split(
-          "?",
-        )[0];
-
-    if (
-      destinationPath &&
-      !alreadyAtDestination
-    ) {
-      const destination =
-        new URL(
-          destinationPath,
-          request.url,
-        );
-
-      if (
-        !pathname.startsWith(
-          "/onboarding",
-        )
-      ) {
-        destination.searchParams.set(
-          "next",
-          `${pathname}${request.nextUrl.search}`,
-        );
+      if (!pathname.startsWith("/onboarding")) {
+        destination.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
       }
 
-      const redirect =
-        NextResponse.redirect(
-          destination,
-        );
+      const redirect = NextResponse.redirect(destination);
 
-      applySecurityHeaders(
-        redirect,
-        nonce,
-      );
+      applySecurityHeaders(redirect, nonce);
 
-      response.cookies
-        .getAll()
-        .forEach((cookie) => {
-          redirect.cookies.set(
-            cookie,
-          );
-        });
+      response.cookies.getAll().forEach((cookie) => {
+        redirect.cookies.set(cookie);
+      });
 
       return redirect;
     }
 
-    if (
-      decision ===
-        "ACCESS_GRANTED" &&
-      pathname.startsWith(
-        "/onboarding",
-      )
-    ) {
-      const redirect =
-        NextResponse.redirect(
-          new URL(
-            "/dashboard",
-            request.url,
-          ),
-        );
+    if (decision === "ACCESS_GRANTED" && pathname.startsWith("/onboarding")) {
+      const redirect = NextResponse.redirect(new URL("/dashboard", request.url));
 
-      applySecurityHeaders(
-        redirect,
-        nonce,
-      );
+      applySecurityHeaders(redirect, nonce);
 
-      response.cookies
-        .getAll()
-        .forEach((cookie) => {
-          redirect.cookies.set(
-            cookie,
-          );
-        });
+      response.cookies.getAll().forEach((cookie) => {
+        redirect.cookies.set(cookie);
+      });
 
       return redirect;
     }
-  } catch {
-    return redirectToLogin(
-      request,
-      response,
-      nonce,
-      "access_check_unavailable",
-    );
+  } catch (error) {
+    if (category === "transport" && error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name))
+      category = "timeout";
+    console.warn(JSON.stringify({ service: "access-gateway", category, httpStatus, requestId: accessRequestId }));
+    return redirectToLogin(request, response, nonce, "access_service_unavailable");
   }
 
   return response;
@@ -437,7 +297,5 @@ export async function proxy(
 export const middleware = proxy;
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico)$).*)"],
 };

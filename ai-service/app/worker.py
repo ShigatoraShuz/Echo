@@ -16,6 +16,7 @@ class Worker:
             base_url=settings.backend_url.rstrip("/") + "/",
             headers={"Authorization": "Bearer " + settings.ai_worker_token},
             timeout=20,
+            trust_env=False,  # Internal loopback callbacks must not traverse system proxies.
         )
 
     async def post(self, path, payload, key=None):

@@ -34,5 +34,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         worker_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await worker_task
+    if hasattr(app.state.model_runtime,"talk"):app.state.model_runtime.talk.close()
     if hasattr(app.state.model_runtime, "release"):
         app.state.model_runtime.release()

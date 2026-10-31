@@ -1,0 +1,426 @@
+ M .gitignore
+ M README.md
+ M ai-service/app/api/middleware.py
+ M ai-service/app/api/routes/core.py
+ M ai-service/app/core/config.py
+ M ai-service/app/core/exceptions.py
+ M ai-service/app/core/lifespan.py
+ M ai-service/app/model/core.py
+ M ai-service/app/speech_worker.py
+ M ai-service/app/worker.py
+ M ai-service/requirements-speech.lock
+ M ai-service/tests/test_audio_decode.py
+ M ai-service/tests/test_speech_boundary.py
+ M backend/README.md
+ M backend/eslint.config.mjs
+ M backend/package.json
+ M backend/scripts/disposable-database.mjs
+ M backend/scripts/validate-analysis-sql.mjs
+ M backend/scripts/verify-local-json-flow.mts
+ M backend/src/config/__tests__/environment.test.ts
+ M backend/src/config/environment.ts
+ M backend/src/features/experience/experience.routes.ts
+ M backend/src/features/experience/experience.service.ts
+ M backend/src/features/journals/journals.routes.ts
+ M backend/src/features/journals/journals.service.ts
+ M backend/src/features/notifications/notifications.routes.test.ts
+ M backend/src/features/notifications/notifications.routes.ts
+ M backend/src/features/notifications/notifications.service.ts
+ M backend/src/features/professionals/__tests__/professional.routes.test.ts
+ M backend/src/features/professionals/__tests__/professional.service.test.ts
+ M backend/src/features/professionals/professional.routes.ts
+ M backend/src/features/professionals/professional.service.ts
+ M backend/src/features/registration/__tests__/registration.enumeration.test.ts
+ D backend/src/features/registration/__tests__/registration.google-cookies.test.ts
+ D backend/src/features/registration/__tests__/registration.google-nonce.test.ts
+ M backend/src/features/registration/__tests__/registration.routes.test.ts
+ M backend/src/features/registration/registration.routes.ts
+ M backend/src/features/registration/registration.service.ts
+ M backend/src/features/verification/__tests__/verification-admin-security.test.ts
+ M backend/src/features/verification/__tests__/verification.routes.additional.test.ts
+ M backend/src/features/verification/verification.controller.ts
+ M backend/src/features/verification/verification.routes.ts
+ M backend/src/features/verification/verification.service.ts
+ M backend/src/infrastructure/analysis/core-client.ts
+ M backend/src/infrastructure/analysis/local-analysis-store.ts
+ M backend/src/infrastructure/analysis/local-buddy-store.ts
+ M backend/src/infrastructure/security/document-scanner.ts
+ M backend/src/server.ts
+ M backend/src/shared/middleware/security-audit.middleware.ts
+ M backend/tests/security/storage-encryption.test.ts
+ M docs/journal-phq8-integration.md
+ M docs/screening-voice-progress.md
+ M docs/speech-environment.md
+ M docs/verification-admin-setup.md
+ M docs/wine-app-updates.md
+ M frontend/AGENTS.md
+ M frontend/e2e/public-mobile.spec.ts
+ M frontend/e2e/route-manifest.json
+ M frontend/e2e/staging-routes.spec.ts
+ M frontend/eslint.config.mjs
+ M frontend/next-env.d.ts
+ M frontend/next.config.ts
+ M frontend/package.json
+ M frontend/playwright.config.ts
+ D frontend/scripts/verify-google-origin.mjs
+ M frontend/src/app/(auth)/callback/route.test.ts
+ M frontend/src/app/(auth)/callback/route.ts
+ D frontend/src/app/(auth)/professional/login/page.tsx
+ M frontend/src/app/(onboarding)/onboarding/page.tsx
+ M frontend/src/app/(protected)/admin/professionals/page.tsx
+ M frontend/src/app/(protected)/admin/verifications/page.tsx
+ M frontend/src/app/layout.tsx
+ D frontend/src/features/authentication/__tests__/email-otp-form.test.tsx
+ D frontend/src/features/authentication/components/email-otp-form.tsx
+ D frontend/src/features/authentication/components/google-auth-button.test.tsx
+ D frontend/src/features/authentication/components/google-auth-button.tsx
+ D frontend/src/features/authentication/components/google-identity.ts
+ D frontend/src/features/authentication/components/google-mark.tsx
+ M frontend/src/features/authentication/components/index.ts
+ D frontend/src/features/authentication/components/secure-google-button.test.tsx
+ D frontend/src/features/authentication/components/secure-google-button.tsx
+ D frontend/src/features/authentication/components/secure-google-login-button.tsx
+ D frontend/src/features/authentication/components/secure-google-signup-button.tsx
+ M frontend/src/features/authentication/model/auth.constants.ts
+ M frontend/src/features/authentication/model/auth.model.ts
+ M frontend/src/features/authentication/view/__tests__/login-view.test.tsx
+ M frontend/src/features/authentication/view/__tests__/signup-view.test.tsx
+ M frontend/src/features/authentication/view/login-view.tsx
+ M frontend/src/features/authentication/view/signup-view.tsx
+ M frontend/src/features/buddy/components/buddy-chat-bubble.tsx
+ M frontend/src/features/buddy/model/buddy.model.ts
+ M frontend/src/features/buddy/view-model/use-buddy-view-model.ts
+ M frontend/src/features/buddy/view-model/use-buddy-voice-controls.test.tsx
+ M frontend/src/features/buddy/view-model/use-buddy-voice-controls.ts
+ M frontend/src/features/buddy/view/__tests__/buddy-view.test.tsx
+ M frontend/src/features/buddy/view/buddy-view.tsx
+ M frontend/src/features/calendar/view-model/use-calendar-view-model.ts
+ M frontend/src/features/calendar/view/calendar-view.test.tsx
+ M frontend/src/features/insights/view/facial-insights-view.tsx
+ M frontend/src/features/journal/components/journal-face-capture.tsx
+ M frontend/src/features/journal/components/native-analysis.tsx
+ M frontend/src/features/journal/view-model/use-journal-editor-view-model.ts
+ M frontend/src/features/journal/view/journal-editor-view.tsx
+ M frontend/src/features/onboarding/components/facial-analysis-opt-in.tsx
+ M frontend/src/features/professionals/components/professional-shell.tsx
+ M frontend/src/features/professionals/components/professional-workspace-gate.tsx
+ M frontend/src/features/professionals/professional-return-path.test.ts
+ M frontend/src/features/professionals/professional-return-path.ts
+ M frontend/src/features/professionals/view/professional-access-view.tsx
+ M frontend/src/features/professionals/view/professional-appointments-view.tsx
+ M frontend/src/features/professionals/view/professional-auth-flow.test.tsx
+ M frontend/src/features/professionals/view/professional-case-view.tsx
+ M frontend/src/features/professionals/view/professional-dashboard.tsx
+ M frontend/src/features/professionals/view/professional-login-view.tsx
+ M frontend/src/features/professionals/view/professional-messages-view.tsx
+ M frontend/src/features/professionals/view/professional-user-actions.test.tsx
+ M frontend/src/features/professionals/view/professional-user-support-pages.test.tsx
+ M frontend/src/features/public-content/components/privacy-policy-view.tsx
+ M frontend/src/features/settings/view/settings-views.tsx
+ M frontend/src/features/verification/__tests__/admin-verifications-page.test.tsx
+ D frontend/src/infrastructure/supabase/auth-helpers.test.ts
+ M frontend/src/infrastructure/supabase/auth-helpers.ts
+ M frontend/src/proxy.test.ts
+ M frontend/src/proxy.ts
+ M frontend/src/services/authentication/auth.service.ts
+ M frontend/src/services/authentication/auth.supabase-adapter.test.ts
+ M frontend/src/services/authentication/auth.supabase-adapter.ts
+ M frontend/src/services/authentication/registration-api.test.ts
+ M frontend/src/services/authentication/registration-api.ts
+ M frontend/src/services/buddy/buddy.http-adapter.ts
+ M frontend/src/services/notifications/notifications.service.ts
+ M frontend/src/services/professionals/professional-api.ts
+ M frontend/src/services/verification/verification-api.ts
+ M frontend/src/shared/components/navigation/notification-bell.test.tsx
+ M frontend/src/shared/components/navigation/notification-bell.tsx
+ M frontend/src/shared/components/ui/echo-dialog.tsx
+ M frontend/src/shared/errors/error-codes.ts
+ M frontend/src/shared/errors/error-messages.ts
+ M frontend/tsconfig.json
+ M package-lock.json
+ M package.json
+ M packages/contracts/src/analysis.ts
+ M packages/contracts/src/index.ts
+ M packages/contracts/src/notification.ts
+ M scripts/start-local-core.ps1
+ M supabase/config.toml
+ M supabase/migrations/20261011100000_user_professional_support_workspace.sql
+ M supabase/migrations/20261012090000_calendar_items.sql
+ M supabase/migrations/20261012091000_buddy_conversation_pins.sql
+ M supabase/migrations/20261013010000_buddy_history_controls.sql
+ M supabase/migrations/20261014090000_account_erasure_lifecycle.sql
+ M supabase/migrations/20261014091000_professional_account_erasure.sql
+ M supabase/migrations/20261014092000_category_retention_controls.sql
+ M supabase/migrations/20261017120000_in_app_reminder_delivery.sql
+ M supabase/migrations/20261018120000_notification_quiet_hours_grants.sql
+ M supabase/migrations/20261018130000_notification_channel_delivery.sql
+ M supabase/migrations/20261018131000_push_endpoint_single_owner.sql
+ M supabase/migrations/20261018140000_journal_draft_images.sql
+ M supabase/templates/login-code.html
+ M supabase/tests/database/security-professional-isolation.sql
+?? .gitattributes
+?? .gitleaksignore
+?? ai-service/app/face_worker.py
+?? ai-service/app/model/talk.py
+?? ai-service/app/talk_worker.py
+?? ai-service/requirements-face.lock
+?? ai-service/requirements-realtime-speech.lock
+?? ai-service/tests/smoke_talk_parity.py
+?? ai-service/tests/test_face_boundary.py
+?? ai-service/tests/test_talk_runtime.py
+?? ai-service/tests/test_talk_worker.py
+?? artifacts/professional-integration/
+?? artifacts/user-notifications/
+?? backend/scripts/benchmark-realtime-talk.mts
+?? backend/scripts/lib/professional-cloud-readonly.mts
+?? backend/scripts/lib/professional-local-target.mts
+?? backend/scripts/professional-cloud-backup.mts
+?? backend/scripts/professional-events.mts
+?? backend/scripts/professional-integration-preflight.mts
+?? backend/scripts/professional-key-recovery.mts
+?? backend/scripts/professional-local-app.mts
+?? backend/scripts/professional-local-fixtures.mts
+?? backend/scripts/professional-preflight.sql
+?? backend/scripts/professional-release-check.mts
+?? backend/scripts/professional-storage-backup.mts
+?? backend/scripts/test-talk-browser.mts
+?? backend/src/config/__tests__/http-only-mode.test.ts
+?? backend/src/config/http-only-mode.ts
+?? backend/src/features/experience/realtime-talk.ts
+?? backend/src/features/notifications/notifications.pagination.test.ts
+?? backend/src/features/professionals/__tests__/professional-appointments.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-audit.test.ts
+?? backend/src/features/professionals/__tests__/professional-authorization.test.ts
+?? backend/src/features/professionals/__tests__/professional-case-snapshot.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-consent.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-credentials.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-credentials.test.ts
+?? backend/src/features/professionals/__tests__/professional-crisis.test.ts
+?? backend/src/features/professionals/__tests__/professional-dashboard.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-database-authorization.test.ts
+?? backend/src/features/professionals/__tests__/professional-event-processor.test.ts
+?? backend/src/features/professionals/__tests__/professional-events.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-events.test.ts
+?? backend/src/features/professionals/__tests__/professional-follow-ups.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-follow-ups.test.ts
+?? backend/src/features/professionals/__tests__/professional-handover.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-inbox-delivery.integration.test.ts
+?? backend/src/features/professionals/__tests__/professional-lifecycle.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-main-integration.test.ts
+?? backend/src/features/professionals/__tests__/professional-message-cursor.test.ts
+?? backend/src/features/professionals/__tests__/professional-notes.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-notes.test.ts
+?? backend/src/features/professionals/__tests__/professional-notifications.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-notifications.test.ts
+?? backend/src/features/professionals/__tests__/professional-owner-actions.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-owner-actions.test.ts
+?? backend/src/features/professionals/__tests__/professional-pending-correction.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-query-plans.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-queue.test.ts
+?? backend/src/features/professionals/__tests__/professional-referrals.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-referrals.test.ts
+?? backend/src/features/professionals/__tests__/professional-release.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-scheduling.database.test.ts
+?? backend/src/features/professionals/__tests__/professional-security.test.ts
+?? backend/src/features/professionals/__tests__/professional-session.test.ts
+?? backend/src/features/professionals/__tests__/professional-sharing.test.ts
+?? backend/src/features/professionals/__tests__/professional-workflow.integration.test.ts
+?? backend/src/features/professionals/professional-credentials.service.ts
+?? backend/src/features/professionals/professional-event-processor.ts
+?? backend/src/features/professionals/professional-events.service.ts
+?? backend/src/features/professionals/professional-follow-ups.service.ts
+?? backend/src/features/professionals/professional-message-cursor.ts
+?? backend/src/features/professionals/professional-notifications.service.ts
+?? backend/src/features/professionals/professional-queue.contract.ts
+?? backend/src/features/professionals/professional-referrals.service.ts
+?? backend/src/infrastructure/security/windows-defender-scanner.ts
+?? backend/src/workers/professional-events.ts
+?? backend/tests/fixtures/
+?? backend/tests/security/local-face.test.ts
+?? backend/tests/security/professional-http-audit.database.test.ts
+?? backend/tests/security/professional-local-fixtures.test.ts
+?? backend/tests/security/professional-release-manifest.test.ts
+?? backend/tests/security/realtime-talk-browser.test.ts
+?? backend/tests/security/realtime-talk-gpu.test.ts
+?? backend/tests/security/realtime-talk.test.ts
+?? backend/tests/security/windows-defender-scanner.integration.test.ts
+?? docs/MODEL-INTEGRATION-HANDOVER.md
+?? docs/architecture/professional-backend-release.md
+?? docs/architecture/professional-credential-verification.md
+?? docs/architecture/professional-module-contract.md
+?? docs/architecture/professional-request-workflows.md
+?? docs/google-auth-retirement.md
+?? docs/handover/
+?? docs/local-startup-access.md
+?? docs/main-sync-face-integration.md
+?? docs/progress/
+?? docs/realtime-talk-validation.md
+?? docs/realtime-talk.md
+?? docs/releases/
+?? docs/testing/
+?? frontend/e2e/.gitignore
+?? frontend/e2e/README.md
+?? frontend/e2e/clinician-preview.spec.ts
+?? frontend/e2e/completion-sprint.spec.ts
+?? frontend/e2e/fixtures.ts
+?? frontend/e2e/harness/
+?? frontend/e2e/journeys.spec.ts
+?? frontend/e2e/messenger.spec.ts
+?? frontend/e2e/mobile-workspace.spec.ts
+?? frontend/e2e/navigation.spec.ts
+?? frontend/e2e/performance.spec.ts
+?? frontend/e2e/preview.spec.ts
+?? frontend/e2e/professional-local-live.mts
+?? frontend/e2e/professional-ui.spec.ts
+?? frontend/e2e/refinement.spec.ts
+?? frontend/e2e/responsive.spec.ts
+?? frontend/e2e/shared-onboarding.spec.ts
+?? frontend/e2e/user-notifications.spec.ts
+?? frontend/e2e/user-professional-integration.spec.ts
+?? frontend/e2e/vite.config.ts
+?? frontend/playwright.mobile.config.ts
+?? frontend/playwright.notifications.config.ts
+?? frontend/playwright.professional.config.ts
+?? frontend/public/vendor/buddy-vad/
+?? frontend/scripts/capture-professional-refinement.mjs
+?? frontend/scripts/check-clinician-preview-build.mjs
+?? frontend/scripts/profile-professional.mjs
+?? frontend/src/app/(auth)/callback/finish/
+?? frontend/src/app/(professional-auth)/
+?? frontend/src/app/(protected)/professional/calendar/
+?? frontend/src/app/(protected)/professional/my-cases/
+?? frontend/src/app/(protected)/professional/requests/
+?? frontend/src/app/(protected)/professional/resources/
+?? frontend/src/app/(protected)/professional/settings/
+?? frontend/src/app/dev/
+?? frontend/src/app/fonts/
+?? frontend/src/features/buddy/view-model/use-realtime-talk.ts
+?? frontend/src/features/journal/components/local-face-result.test.tsx
+?? frontend/src/features/journal/components/local-face-result.tsx
+?? frontend/src/features/professionals/components/professional-access-error.tsx
+?? frontend/src/features/professionals/components/professional-account-menu.tsx
+?? frontend/src/features/professionals/components/professional-application.test.tsx
+?? frontend/src/features/professionals/components/professional-application.tsx
+?? frontend/src/features/professionals/components/professional-appointment-agenda.test.tsx
+?? frontend/src/features/professionals/components/professional-appointment-agenda.tsx
+?? frontend/src/features/professionals/components/professional-appointment-cancel-dialog.tsx
+?? frontend/src/features/professionals/components/professional-appointment-form.tsx
+?? frontend/src/features/professionals/components/professional-assignment-panel.tsx
+?? frontend/src/features/professionals/components/professional-case-close-dialog.tsx
+?? frontend/src/features/professionals/components/professional-case-content.test.tsx
+?? frontend/src/features/professionals/components/professional-case-messages.tsx
+?? frontend/src/features/professionals/components/professional-case-note-editor.tsx
+?? frontend/src/features/professionals/components/professional-case-overview.tsx
+?? frontend/src/features/professionals/components/professional-case-referrals.test.tsx
+?? frontend/src/features/professionals/components/professional-case-referrals.tsx
+?? frontend/src/features/professionals/components/professional-case-sharing.tsx
+?? frontend/src/features/professionals/components/professional-case-tabs.test.tsx
+?? frontend/src/features/professionals/components/professional-case-tabs.tsx
+?? frontend/src/features/professionals/components/professional-case-timeline.tsx
+?? frontend/src/features/professionals/components/professional-claim-dialog.test.tsx
+?? frontend/src/features/professionals/components/professional-claim-dialog.tsx
+?? frontend/src/features/professionals/components/professional-credential-correction.test.tsx
+?? frontend/src/features/professionals/components/professional-credential-correction.tsx
+?? frontend/src/features/professionals/components/professional-credential-form.tsx
+?? frontend/src/features/professionals/components/professional-credential-review.test.tsx
+?? frontend/src/features/professionals/components/professional-credential-review.tsx
+?? frontend/src/features/professionals/components/professional-crisis-support.test.tsx
+?? frontend/src/features/professionals/components/professional-crisis-support.tsx
+?? frontend/src/features/professionals/components/professional-follow-ups.test.tsx
+?? frontend/src/features/professionals/components/professional-follow-ups.tsx
+?? frontend/src/features/professionals/components/professional-main-integration.test.tsx
+?? frontend/src/features/professionals/components/professional-message-drawer.tsx
+?? frontend/src/features/professionals/components/professional-message-presentation.tsx
+?? frontend/src/features/professionals/components/professional-messages-trigger.tsx
+?? frontend/src/features/professionals/components/professional-notification-bell.test.tsx
+?? frontend/src/features/professionals/components/professional-notification-bell.tsx
+?? frontend/src/features/professionals/components/professional-notification-center.test.tsx
+?? frontend/src/features/professionals/components/professional-notification-center.tsx
+?? frontend/src/features/professionals/components/professional-notifications.test.tsx
+?? frontend/src/features/professionals/components/professional-notifications.tsx
+?? frontend/src/features/professionals/components/professional-onboarding.test.tsx
+?? frontend/src/features/professionals/components/professional-onboarding.tsx
+?? frontend/src/features/professionals/components/professional-organization-selector.test.tsx
+?? frontend/src/features/professionals/components/professional-organization-selector.tsx
+?? frontend/src/features/professionals/components/professional-request-filters.tsx
+?? frontend/src/features/professionals/components/professional-request-queue.test.tsx
+?? frontend/src/features/professionals/components/professional-request-queue.tsx
+?? frontend/src/features/professionals/components/professional-shell.test.tsx
+?? frontend/src/features/professionals/components/professional-ui.test.tsx
+?? frontend/src/features/professionals/components/professional-ui.tsx
+?? frontend/src/features/professionals/dev/
+?? frontend/src/features/professionals/hooks/
+?? frontend/src/features/professionals/professional-access-context.ts
+?? frontend/src/features/professionals/professional-access-feedback.test.ts
+?? frontend/src/features/professionals/professional-access-feedback.ts
+?? frontend/src/features/professionals/professional-appointments.model.test.ts
+?? frontend/src/features/professionals/professional-appointments.model.ts
+?? frontend/src/features/professionals/professional-case.model.test.ts
+?? frontend/src/features/professionals/professional-case.model.ts
+?? frontend/src/features/professionals/professional-dashboard.model.test.ts
+?? frontend/src/features/professionals/professional-dashboard.model.ts
+?? frontend/src/features/professionals/professional-messaging.model.test.ts
+?? frontend/src/features/professionals/professional-messaging.model.ts
+?? frontend/src/features/professionals/professional-mfa-image.test.ts
+?? frontend/src/features/professionals/professional-mfa-image.ts
+?? frontend/src/features/professionals/professional-onboarding.model.ts
+?? frontend/src/features/professionals/professional-organizations.ts
+?? frontend/src/features/professionals/professional-portal.css
+?? frontend/src/features/professionals/professional-referrals.model.ts
+?? frontend/src/features/professionals/professional-request.model.test.ts
+?? frontend/src/features/professionals/professional-request.model.ts
+?? frontend/src/features/professionals/view/professional-admin-page.test.tsx
+?? frontend/src/features/professionals/view/professional-calendar-view.tsx
+?? frontend/src/features/professionals/view/professional-case-view.test.tsx
+?? frontend/src/features/professionals/view/professional-coordination.test.tsx
+?? frontend/src/features/professionals/view/professional-dashboard.test.tsx
+?? frontend/src/features/professionals/view/professional-login-view.test.tsx
+?? frontend/src/features/professionals/view/professional-navigation-pages.test.tsx
+?? frontend/src/features/professionals/view/professional-requests-view.test.tsx
+?? frontend/src/features/professionals/view/professional-requests-view.tsx
+?? frontend/src/features/professionals/view/professional-resources-view.tsx
+?? frontend/src/features/professionals/view/professional-settings-view.tsx
+?? frontend/src/services/notifications/notification-sound.test.ts
+?? frontend/src/services/notifications/notification-sound.ts
+?? frontend/src/services/professionals/professional-api.test.ts
+?? frontend/src/shared/components/layout/admin-shell.test.tsx
+?? frontend/src/shared/components/layout/admin-shell.tsx
+?? frontend/src/shared/components/navigation/notification-panel.css
+?? frontend/src/shared/components/navigation/notification-panel.model.test.ts
+?? frontend/src/shared/components/navigation/notification-panel.model.ts
+?? frontend/src/shared/components/navigation/notification-sound-controls.tsx
+?? frontend/src/shared/hooks/use-notification-sound.ts
+?? frontend/src/shared/hooks/use-workspace-refresh.test.tsx
+?? frontend/src/shared/hooks/use-workspace-refresh.ts
+?? packages/contracts/src/talk.ts
+?? scripts/check-shared-professional-env.mjs
+?? scripts/check-shared-professional-env.test.mjs
+?? scripts/prepare-realtime-assets.mjs
+?? scripts/run-local-dev.mjs
+?? scripts/run-local-dev.test.mjs
+?? supabase/migrations/20261012160000_professional_credential_reviews.sql
+?? supabase/migrations/20261014100000_professional_owner_request_actions.sql
+?? supabase/migrations/20261014110000_professional_claim_lifecycle.sql
+?? supabase/migrations/20261014120000_professional_dashboard.sql
+?? supabase/migrations/20261015100000_professional_case_snapshot.sql
+?? supabase/migrations/20261015110000_professional_consent.sql
+?? supabase/migrations/20261015120000_professional_notes.sql
+?? supabase/migrations/20261015130000_professional_case_handover.sql
+?? supabase/migrations/20261016100000_professional_appointment_lifecycle.sql
+?? supabase/migrations/20261016110000_professional_scheduling_constraints.sql
+?? supabase/migrations/20261016120000_professional_follow_ups.sql
+?? supabase/migrations/20261016130000_professional_referral_lifecycle.sql
+?? supabase/migrations/20261016140000_professional_notifications.sql
+?? supabase/migrations/20261016150000_professional_events.sql
+?? supabase/migrations/20261016160000_professional_query_indexes.sql
+?? supabase/migrations/20261017100000_professional_event_health.sql
+?? supabase/migrations/20261018150000_security_professional_http_audit.sql
+?? supabase/migrations/20261019090000_professional_withdrawal_compatibility.sql
+?? supabase/migrations/20261020103920_professional_shared_case_snapshot.sql
+?? supabase/migrations/20261023152235_professional_pending_credential_correction.sql
+?? supabase/migrations/20261024150538_professional_appointment_delivery.sql
+?? supabase/migrations/20261025065756_professional_notification_inbox.sql
+?? supabase/migrations/20261026090000_journal_emotion_insights_summary.sql
+?? supabase/migrations/20261031120000_keep_email_signup_draft_until_confirmation.sql
+?? supabase/migrations/20261031130000_retire_google_auth.sql
+?? supabase/migrations/20261031140000_restrict_email_confirmation_hook.sql

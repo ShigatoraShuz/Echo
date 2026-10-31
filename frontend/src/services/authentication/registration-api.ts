@@ -31,11 +31,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new Error("Could not connect to ECHO. Check your connection and try again.");
   }
-  const body = (await response.json().catch(() => null)) as { data?: T; error?: { message?: string } } | null;
+  const body = (await response.json().catch(() => null)) as { data?: T; error?: { code?: string; message?: string } } | null;
   if (response.status === 429) {
     throw new Error("Too many signup requests. Please wait before trying again.");
   }
   if (response.status >= 500) {
+    if (body?.error?.code === "EMAIL_DELIVERY_NOT_CONFIGURED") {
+      throw new Error("Email registration is unavailable until email delivery is configured.");
+    }
     throw new Error("Registration is temporarily unavailable. Please try again later.");
   }
   if (!response.ok) throw new Error(body?.error?.message ?? "Registration could not continue.");
@@ -57,28 +60,4 @@ export const registrationApi = {
   status: () =>
     request<{ verificationPending: boolean; resendAvailableAt: string | null; expiresAt: string }>("/status"),
   resend: () => request<{ sent: boolean }>("/resend", { method: "POST", body: "{}" }),
-  googleNonce: () => request<{ nonce: string; hashedNonce: string }>("/google/nonce", { method: "POST", body: "{}" }),
-  bindGoogle: (idToken: string, nonce: string) =>
-    request<{ reservation: string; email: string }>("/google/bind", {
-      method: "POST",
-      body: JSON.stringify({ idToken, nonce }),
-    }),
-  googleLoginNonce: async () => {
-    const challenge = await request<{ nonce: string; hashedNonce: string }>("/google/login-nonce", {
-      method: "POST",
-      body: "{}",
-    });
-    // Prove the browser accepted and returned the HttpOnly challenge cookie
-    // before asking the user to select a Google account. Never bypass proof.
-    await request<{ ready: true }>("/google/login-challenge", {
-      method: "POST",
-      body: JSON.stringify({ nonce: challenge.nonce }),
-    });
-    return challenge;
-  },
-  googleLoginStatus: (idToken: string, nonce: string) =>
-    request<{ status: "existing_google_identity" | "password_account_requires_link" | "no_existing_account" }>(
-      "/google/login-status",
-      { method: "POST", body: JSON.stringify({ idToken, nonce }) },
-    ),
 };

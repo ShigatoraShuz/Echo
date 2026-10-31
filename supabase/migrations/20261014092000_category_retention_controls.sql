@@ -9,9 +9,13 @@ create table user_service.retention_policy_approvals (
   created_at timestamptz not null default now(),
   check ((approved_at is null) = (approval_reference is null))
 );
+
 insert into user_service.retention_policy_approvals(policy_version) values('category-retention-v1');
+
 alter table user_service.retention_policy_approvals enable row level security;
+
 revoke all on user_service.retention_policy_approvals from public,anon,authenticated,service_role;
+
 grant select on user_service.retention_policy_approvals to service_role;
 
 create function user_service.category_retention_approved() returns boolean
@@ -102,6 +106,7 @@ end $$;
 revoke all on function user_service.category_retention_approved(),user_service.run_category_retention(boolean),
  user_service.eligible_verification_document_retention(integer),
  user_service.finish_verification_document_retention(uuid,text,text) from public,anon,authenticated;
+
 grant execute on function user_service.category_retention_approved(),user_service.run_category_retention(boolean),
  user_service.eligible_verification_document_retention(integer),
  user_service.finish_verification_document_retention(uuid,text,text) to service_role;
@@ -121,7 +126,9 @@ begin
  end if;
  return jsonb_build_object('dryRun',p_dry_run,'eligible',eligible,'removed',removed);
 end $$;
+
 revoke all on function professional_service.run_audit_retention(boolean) from public,anon,authenticated;
+
 grant execute on function professional_service.run_audit_retention(boolean) to service_role;
 
 commit;

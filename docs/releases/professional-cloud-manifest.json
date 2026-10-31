@@ -1,0 +1,812 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "lruciislmmqvcwweqjop",
+  "projectName": "ECHO UPDATED THESIS2",
+  "verifiedDate": "2026-10-19",
+  "status": "READY_FOR_OWNER_APPROVAL",
+  "source": {
+    "method": "Supabase Management API database/query",
+    "readOnly": true,
+    "query": "select version,name,statements from supabase_migrations.schema_migrations order by version",
+    "ledgerRows": 72
+  },
+  "auditRenumber": {
+    "from": "20261018140000",
+    "to": "20261018150000",
+    "sqlBehaviorUnchanged": true,
+    "localHistory": "Verified local ledger version moved without DDL replay; remote journal_draft_images history untouched"
+  },
+  "baseline": [
+    {
+      "version": "20260724012900",
+      "name": "initial_echo_schema",
+      "file": "20260724012900_initial_echo_schema.sql",
+      "sha256": "996295856bfc07fdbace966059b61e0907cfbfd9e5d3141daaf3dfb4b40ac75b",
+      "recordedStatementsSha256": "a5bd00d0050e5bb8a39fd193b5d47f985162d22e8fb8003bf54fb610674754ca",
+      "statementCount": 70,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260724021728",
+      "name": "reconcile_non_ai_erd_schema",
+      "file": "20260724021728_reconcile_non_ai_erd_schema.sql",
+      "sha256": "4ce5c4c420152f79188e99b120b504acd6c0feadafd258032e8c72f68b5667a1",
+      "recordedStatementsSha256": "c9d5f5f9c86a73e5914bbeae865b88fa6295545e224a53c895a550e5ed90abe6",
+      "statementCount": 149,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260724090000",
+      "name": "settings_preferences",
+      "file": "20260724090000_settings_preferences.sql",
+      "sha256": "5666177bb65f22e4afbd815c9e9018bc6a50160420cd48db538d7fdddee7e8ca",
+      "recordedStatementsSha256": "d90c7718f7ae7cdec50594fa3e7d75def3c4a5a45432c009d1897d11dafd31e4",
+      "statementCount": 13,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260724182348",
+      "name": "seed_verified_support_resources",
+      "file": "20260724182348_seed_verified_support_resources.sql",
+      "sha256": "52a879effbd076e1fa1ce69bec0ed9a7287bbbcc150b2775517eed9580833485",
+      "recordedStatementsSha256": "351d1011f6e693476faf053a7ba36d0de3db183f89b551ef6d983ce19903a336",
+      "statementCount": 1,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260724185719",
+      "name": "journal_drafts",
+      "file": "20260724185719_journal_drafts.sql",
+      "sha256": "1aaf9c425f6d1a845453a2c22cce5ee6347e1462ba60bb1a6ff318a0d68ae837",
+      "recordedStatementsSha256": "794d62cfd363986265ea7e1b5024cf809381706060617bc472eaf61766bbee31",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260724192001",
+      "name": "account_verification_workflow",
+      "file": "20260724192001_account_verification_workflow.sql",
+      "sha256": "b91eb1dd2a1733c753fcb2dfa6af5044db37dbc2cd2ece10934c4ffe1c083fbe",
+      "recordedStatementsSha256": "6fcc1ba1b2702f24a8b3f709e26146b0daba1117ff6e599a55ab767bcfd9e6f3",
+      "statementCount": 21,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260725104500",
+      "name": "signup_terms_and_ai_consent",
+      "file": "20260725104500_signup_terms_and_ai_consent.sql",
+      "sha256": "2c4817a029831060a812078179b95bb91824c2fa8166d1140186f4b21970dbb6",
+      "recordedStatementsSha256": "012f30c36a96beef43e4b0034b5ec379bab091b1abc544266afe416dcdf50d41",
+      "statementCount": 7,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260728000000",
+      "name": "new_feature_tables",
+      "file": "20260728000000_new_feature_tables.sql",
+      "sha256": "00039838e941aeabd12e53f226a33b2acebde01d3c9e376c35e96fae576fafe5",
+      "recordedStatementsSha256": "1c8aa7fd821060a5f78eac91a7a7b83642b430a389c774274d67bfa2b8cb6121",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260728000001",
+      "name": "new_feature_rls",
+      "file": "20260728000001_new_feature_rls.sql",
+      "sha256": "a1d5162d3a715c9c0fac5d3ffa5bfba5b7a591e706932d9e087b1f0b88edd0fe",
+      "recordedStatementsSha256": "ada3ae4f12158bbe9b0662aa549e433e84d02fab9b8eec278b124f6504b06f30",
+      "statementCount": 18,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260728000002",
+      "name": "profiles_preferences",
+      "file": "20260728000002_profiles_preferences.sql",
+      "sha256": "abff16bf333ae7c3431ff07287b79df2efbb524c5f6c412c63693b590ac9669e",
+      "recordedStatementsSha256": "35cbbf0c5c3d8b19b4144121984377b780b2689d308a55d4df7d6391be0fd936",
+      "statementCount": 16,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260817000000",
+      "name": "security_hardening_rls",
+      "file": "20260817000000_security_hardening_rls.sql",
+      "sha256": "e1d5fe51ebdb8aff37ac0359eedd76ef3e65fdd44df138cc4abd0b6c3a2a6671",
+      "recordedStatementsSha256": "109ad2fdacd71f6a042c2f921c58a36962006c3ee14f95d8680545602c7cd93d",
+      "statementCount": 52,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260824000100",
+      "name": "user_scoped_lab_data",
+      "file": "20260824000100_user_scoped_lab_data.sql",
+      "sha256": "b5d1ee4856966e2137ba332a049630af111b600725de5336b94b5062bbf7ada0",
+      "recordedStatementsSha256": "0431ad2757561e96be88b7f621e2a9a3e3201aa988d48579081510f1a068031d",
+      "statementCount": 28,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260824020000",
+      "name": "schema_per_service_architecture",
+      "file": "20260824020000_schema_per_service_architecture.sql",
+      "sha256": "dd660ca20ec8be00a33dc43a078cb5263bc1401a4ed48b799358ebe17162e40b",
+      "recordedStatementsSha256": "a59308aa6586ba36120978349660fe5c2b7df9f3b48eff15e64f64c2fb5c73ef",
+      "statementCount": 158,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260824030000",
+      "name": "ai_analysis_schema",
+      "file": "20260824030000_ai_analysis_schema.sql",
+      "sha256": "a723644d5e31ff9202efccbfa3c9f11812ac9f5dcabb270025a5562cb6f98306",
+      "recordedStatementsSha256": "1ea5dedb72fd9e4ea960321863ccffe17a0395971bee93cdc8fe4971e25e713b",
+      "statementCount": 39,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260824040000",
+      "name": "expose_service_schemas",
+      "file": "20260824040000_expose_service_schemas.sql",
+      "sha256": "db222bdf74bdd730c84c23382e656c41f783e9546b6342b0511005b8a9c6a98c",
+      "recordedStatementsSha256": "bb368462995b7bf3fe486b1f17f4aba6381f38dc43631c9de991f2319741f823",
+      "statementCount": 2,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825090000",
+      "name": "service_schema_backend_contract",
+      "file": "20260825090000_service_schema_backend_contract.sql",
+      "sha256": "fd905f9a7a697179f8d0ab074aeaf663fc0475869aa0c6e84fa3b2f17947013d",
+      "recordedStatementsSha256": "46b0a8409308fddd6852ff357301607da02dc3cc15596c9d51c30010b502066b",
+      "statementCount": 31,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825093000",
+      "name": "route_signup_defaults_to_user_service",
+      "file": "20260825093000_route_signup_defaults_to_user_service.sql",
+      "sha256": "be4aca4d49494b8085bfa0b2ef17f8b7ba4c2e42c414c7a468fb58b38408038f",
+      "recordedStatementsSha256": "51896c0555f0dfbc622910682d07ac7ca8df47d873dab82c68232fcba6f9146d",
+      "statementCount": 2,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825094000",
+      "name": "fix_user_service_signup_display_name_default",
+      "file": "20260825094000_fix_user_service_signup_display_name_default.sql",
+      "sha256": "c52c3ec833c656e5e715db70ea849562dd6e33c39c7ff4c534637d4b826333a4",
+      "recordedStatementsSha256": "a7206508862db170603c99218ba8aa2c6929b1581cb53636dff736954f6a1fe2",
+      "statementCount": 2,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825095000",
+      "name": "verification_service_backend_contract",
+      "file": "20260825095000_verification_service_backend_contract.sql",
+      "sha256": "a36e593b41f4f06cde193a19f7a5ed9a73ee6f54397be674049dabb769664f89",
+      "recordedStatementsSha256": "f07e522c1bf30625b674133807a42686fa8353b259ac9821dadb5270ddef1cca",
+      "statementCount": 3,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825100000",
+      "name": "google_signup_recommended_display_name",
+      "file": "20260825100000_google_signup_recommended_display_name.sql",
+      "sha256": "05b1707259a7b89f38741836e75e1a2f4e00d2c697ddf7f5c2f3e7932a8bd925",
+      "recordedStatementsSha256": "3c7b207b05c1279ce5f950f78b2619a3479acda9f947c1fa9574e1f746710de2",
+      "statementCount": 2,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260825103000",
+      "name": "profile_avatar_storage",
+      "file": "20260825103000_profile_avatar_storage.sql",
+      "sha256": "e04960a0550aa00cfdab39e594ee897c6d1bcf97f84b134413aba0ab46e463e6",
+      "recordedStatementsSha256": "005f65f22e6520c6fe787093232e2c1ee6a647b8ee36c86400831ca7b544cea4",
+      "statementCount": 1,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260829120000",
+      "name": "secure_auth_registration",
+      "file": "20260829120000_secure_auth_registration.sql",
+      "sha256": "77b7f8f26a5eea50c1ae8fbb772d5c51b8193ae0776870fb4f6b70c9b3698509",
+      "recordedStatementsSha256": "0bb1738a89aac4fb5dfc84d7ceec2d54fa42122b15e2a32c763241c312c0fe44",
+      "statementCount": 28,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260829123000",
+      "name": "registration_service_rpc",
+      "file": "20260829123000_registration_service_rpc.sql",
+      "sha256": "93433979aa6e5718295d3c95ae28f26dac18f887137aa2399a90810018200afe",
+      "recordedStatementsSha256": "bdcb1f9d25264533a24ea6b90ac045b776f989a8e36025eb45c3eed5372f6181",
+      "statementCount": 12,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260829124500",
+      "name": "correct_policy_markdown",
+      "file": "20260829124500_correct_policy_markdown.sql",
+      "sha256": "f9012b69d8e29433eac6c14ffb17baabaeada9ea2432c0241ad74e6f12a9cbb2",
+      "recordedStatementsSha256": "80101e7f2ee8e1661bd6acbadcc6e95a5d7f041e8b1e37e9e8e738d437747c6a",
+      "statementCount": 1,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260830010000",
+      "name": "complete_journal_analysis_architecture",
+      "file": "20260830010000_complete_journal_analysis_architecture.sql",
+      "sha256": "7b04820ec2d7a7adc2d96a5b715bf1784f263eb1982477607049184c6d533768",
+      "recordedStatementsSha256": "060c17bbc8088af967c48bc35cfc317ff426b78c839f1d02c3affe9a818daebd",
+      "statementCount": 152,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260831010000",
+      "name": "expanded_review_documents",
+      "file": "20260831010000_expanded_review_documents.sql",
+      "sha256": "6a392ca9fc877a5cfa8bf34275a97b75359ed9de9ce6fd00dd3ea09456868987",
+      "recordedStatementsSha256": "d2a2e2c31198474abd3d0f8500c4aa8e7b2e990f236dbbfc89a522924a5ac6fc",
+      "statementCount": 1,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260903010000",
+      "name": "journal_analysis_progress_and_notifications",
+      "file": "20260903010000_journal_analysis_progress_and_notifications.sql",
+      "sha256": "91df9f5c474217ae7a6eea9679888ef0c5d80d8657bbb4ba75f397c757c08684",
+      "recordedStatementsSha256": "6ad8ecd9864eadb07db1432c434fe67441ff3dd032bc1256d4192c6f1c04d065",
+      "statementCount": 11,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912010000",
+      "name": "periodic_wellness_checkins",
+      "file": "20260912010000_periodic_wellness_checkins.sql",
+      "sha256": "bddc7eacd7a3253ec9537c188e169b9b9de0be97aee0e5c8f2ca51f4218478aa",
+      "recordedStatementsSha256": "fe297bf859b593682c63159495f36905d2fcd3be0f0e73700fd4f594038277a9",
+      "statementCount": 17,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912011000",
+      "name": "trusted_contact_ai_gate",
+      "file": "20260912011000_trusted_contact_ai_gate.sql",
+      "sha256": "609c5c0e92ee575a74480c72c2fd5886ecb2cb73e5ddc59cddfe276fbb9ecb4d",
+      "recordedStatementsSha256": "545fde475deb5fd83a2157250a8c2900a3b196e9d5ee1b38c005a6849a081348",
+      "statementCount": 4,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912012000",
+      "name": "journal_draft_submission_key",
+      "file": "20260912012000_journal_draft_submission_key.sql",
+      "sha256": "a35348c9ffbd04e78e013bfd5ef54bcee3715b5d1a772b1d8c1a9ca380b32907",
+      "recordedStatementsSha256": "dfaa55aaceaa11c988ee715bfb38f52abbd82cfc50933d6aefd2ec998c605b93",
+      "statementCount": 1,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912013000",
+      "name": "reviewed_philippine_support_resources",
+      "file": "20260912013000_reviewed_philippine_support_resources.sql",
+      "sha256": "05d441cf5e65bbe4241383475b638c472c4134156187a6a0ad2144c9bf128b09",
+      "recordedStatementsSha256": "3df865b7d5b2fc7065926a941399501bf658bdcb32caee19f2fae2ad8f872e30",
+      "statementCount": 13,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912014000",
+      "name": "private_journal_images",
+      "file": "20260912014000_private_journal_images.sql",
+      "sha256": "e6b62dcd52f9c406d38806e87f6639df240d26fa65494385c2bce45fac6ef86d",
+      "recordedStatementsSha256": "8e54685bcb259b606860b82820635aa40c27ae6a2f5fcd64e51a06fb2e2f6a15",
+      "statementCount": 18,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912015000",
+      "name": "fix_completion_notification_preferences",
+      "file": "20260912015000_fix_completion_notification_preferences.sql",
+      "sha256": "d69fa4eb75f6cec1c7cf0831e1fba24549549df77b558f978fd99e333c0346a7",
+      "recordedStatementsSha256": "0fbe2584678fc2de448c38adb13d2a1670f7a888b595390d9a100443c1982e4b",
+      "statementCount": 2,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260912016000",
+      "name": "durable_draft_submission_receipts",
+      "file": "20260912016000_durable_draft_submission_receipts.sql",
+      "sha256": "2553551c57f302633cca8d84d4c72a1d03808c3a3ee196f7e5adb6529b71bf40",
+      "recordedStatementsSha256": "2ad14a6cf5f1165897f5c357f414c104c4f0cb64c269d95293571062956b3ea3",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260913073000",
+      "name": "complete_philippine_support_directory",
+      "file": "20260913073000_complete_philippine_support_directory.sql",
+      "sha256": "acbabff39193988e2056ced6043327644265aa4edb42d4a95c6248194c630a34",
+      "recordedStatementsSha256": "ffc08573b0d01e5dde5d4b7d0aea02a64c224602c9857db3b7d12a84154c177f",
+      "statementCount": 4,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260913081000",
+      "name": "fix_journal_image_reservation_lifecycle",
+      "file": "20260913081000_fix_journal_image_reservation_lifecycle.sql",
+      "sha256": "ebe234d1837ced8434ca096d0f21c38daa30629462279855fc508654d34e69e6",
+      "recordedStatementsSha256": "998d2df5abe6274c002e34fef7773ac1f42731015ab84f249bc5036a9af87edd",
+      "statementCount": 10,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917010000",
+      "name": "security_privileges_and_integrity",
+      "file": "20260917010000_security_privileges_and_integrity.sql",
+      "sha256": "6ceee72252c9f022b279fe0ea80827432d0dba296436ebb1316c776b3a1c7205",
+      "recordedStatementsSha256": "05fd03e68927298a7cd472d28e68063ca7fbaf331e7272cee95412aea4f0f0ba",
+      "statementCount": 21,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917011000",
+      "name": "security_session_lifecycle",
+      "file": "20260917011000_security_session_lifecycle.sql",
+      "sha256": "5e25f25f84bf2b1d12a6d923f4c22432c5a6533e54f6897c8d0ac6789584b75d",
+      "recordedStatementsSha256": "0645f33daf01ff0e48ec9d120999c5e86fb90583cef1d35c2e9dc1bb152cf6e2",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917012000",
+      "name": "buddy_ciphertext_and_document_quarantine",
+      "file": "20260917012000_buddy_ciphertext_and_document_quarantine.sql",
+      "sha256": "1148af3953a329bbcc07b19b61819f0e673ad8c5a1a08c9f4dc746003215d7de",
+      "recordedStatementsSha256": "810e110ce581f46bf6c9288eb0a283f13d40c1d0d0fbf154556d14c03e272fac",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917013000",
+      "name": "notification_user_scoping",
+      "file": "20260917013000_notification_user_scoping.sql",
+      "sha256": "632be796d62957a85f8dc57206080f872b583ad30e9ddab44f2b8130419479b8",
+      "recordedStatementsSha256": "e148f225d5704286c334f561b6082a4eb963ace5ea82ae25e56c4f9000373745",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917014000",
+      "name": "security_audit_events",
+      "file": "20260917014000_security_audit_events.sql",
+      "sha256": "f1a7da387255a3b864b4001eaecbd67bde14c964530a3b22d6329255905bef72",
+      "recordedStatementsSha256": "8a36664dbe46b9aab5bc8a02670c4454ef52b3dec3007d83b27f1ee675653fa8",
+      "statementCount": 7,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260917015000",
+      "name": "settings_user_scoping",
+      "file": "20260917015000_settings_user_scoping.sql",
+      "sha256": "c1168a4c4bc11912b8e057a4830aaf649eadb4f925eb41b0276700e8d80ae902",
+      "recordedStatementsSha256": "46bdf519f29483d9db5650dd15ffc07a6509ac7c0c785b10df5334b59c5f82fd",
+      "statementCount": 11,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260918010000",
+      "name": "buddy_ciphertext_rotation",
+      "file": "20260918010000_buddy_ciphertext_rotation.sql",
+      "sha256": "e3394c11b205fe061475f44fa04d23602484cc7e0da28fd409c91a3c49e2b7ae",
+      "recordedStatementsSha256": "513007313227d1ee1fbc55b586ba858bde0e40e38f7722803a1d891bfaccff33",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260918011000",
+      "name": "public_compatibility_lockdown",
+      "file": "20260918011000_public_compatibility_lockdown.sql",
+      "sha256": "1d6ff1b99e20515cc020fba3f0ddc46377ae8f1a1fb6f4053a6ec65db3f96495",
+      "recordedStatementsSha256": "8215f79adb9adf4b8b547868cbd4310815772d1945eb2deece1cfffe3a2705b7",
+      "statementCount": 9,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260918012000",
+      "name": "account_ownership_integrity",
+      "file": "20260918012000_account_ownership_integrity.sql",
+      "sha256": "4bb0855662624edabc733b832be28628f8a739d92296ec51d76a415e257e2ae4",
+      "recordedStatementsSha256": "8e8fa61d8fc38d4fcaa02904a3eddf618101806f93b959ee601dfe2853e57e57",
+      "statementCount": 6,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920010000",
+      "name": "analysis_result_ciphertext",
+      "file": "20260920010000_analysis_result_ciphertext.sql",
+      "sha256": "6d5a795031a494be54099eb47827819614c73ce2654298bf9886c8b72050003d",
+      "recordedStatementsSha256": "cc8c37419ab00338f09b3f5e236a53567a63c8dc91e6915bb8842458f441e395",
+      "statementCount": 7,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920011000",
+      "name": "analysis_admission_budgets",
+      "file": "20260920011000_analysis_admission_budgets.sql",
+      "sha256": "3d8d47a408b5757fec5fb9022dad1b4e3a3fc7e9adb4e93d778bf84cc4360e62",
+      "recordedStatementsSha256": "703ed70cbec553bc555dffe4190ee3f95593ef559bbe9ef646b49ef65fba581c",
+      "statementCount": 12,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920012000",
+      "name": "journal_read_scope",
+      "file": "20260920012000_journal_read_scope.sql",
+      "sha256": "04a5eb9ae17f9f6b688ee67f6c91bb7f1a3ea2ab85abf8ba8dbeb8cd9b2586e4",
+      "recordedStatementsSha256": "ff6086bbab1306910479e3a5e59db042f634e1398b61beb5af2160c30549f847",
+      "statementCount": 4,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920013000",
+      "name": "atomic_trusted_contacts",
+      "file": "20260920013000_atomic_trusted_contacts.sql",
+      "sha256": "310f4d2227e9db095cd5d59f9abcf78e34ffe85e336f1df413679126bed517d0",
+      "recordedStatementsSha256": "595786e69a7df742a4163f35a4362fda33051a31bcfa717ebfb2b3e6b2561b18",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920014000",
+      "name": "experience_read_scope",
+      "file": "20260920014000_experience_read_scope.sql",
+      "sha256": "983a749bc3c69cfa87c7103a6b3135f07f6e19a8a925a04145848d57ce1e2815",
+      "recordedStatementsSha256": "53f975cd3f306f631f3c5eb5714667935fb5c223a30997950ad62d7915cd4623",
+      "statementCount": 4,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920015000",
+      "name": "private_data_exports",
+      "file": "20260920015000_private_data_exports.sql",
+      "sha256": "4367c442b9470aa1e3f97bd065eaa42c0ea4d9ebcaf4d71dce5b6a1e1541ff66",
+      "recordedStatementsSha256": "d1e2a45330992c154469966285d64bfff101ba1fa4d8233799dcb49a60657f5a",
+      "statementCount": 15,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920016000",
+      "name": "disabled_account_sessions",
+      "file": "20260920016000_disabled_account_sessions.sql",
+      "sha256": "165e38c9666d66c0f33396902ad749828f22bb6f8d185e2ded496a04ef6d090b",
+      "recordedStatementsSha256": "71001dab8cb17adf0f4daa2378485e98270022cac90c17fccd45ae51f2208072",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920017000",
+      "name": "session_bound_data_policies",
+      "file": "20260920017000_session_bound_data_policies.sql",
+      "sha256": "bbe0086df126657af3d116688747370d793ea9cea57bacbddda91fc79e1aa603",
+      "recordedStatementsSha256": "3726e60875af562171e1b70779e0b360409fe71826d1452ba92e105ddb2bd155",
+      "statementCount": 7,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260920018000",
+      "name": "wellness_assessment_ciphertext",
+      "file": "20260920018000_wellness_assessment_ciphertext.sql",
+      "sha256": "a0c5dcd32bb067377a8506c9f43993717d7031b4d0225e4c59bc7146bd3ef37e",
+      "recordedStatementsSha256": "5172ed26065c574cdd919943fce4ec91ffaf7088d41d3358d2b700fd19827ff3",
+      "statementCount": 14,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260921010000",
+      "name": "wellness_ciphertext_rotation",
+      "file": "20260921010000_wellness_ciphertext_rotation.sql",
+      "sha256": "c946169174d65bc31332ad0fa04b326f45da2b0f33fb5796122b37c2a5a79299",
+      "recordedStatementsSha256": "75c1dc1cda930a6160a41cf1d5877481ea7457abc6e0952168edd827e9ac96c4",
+      "statementCount": 5,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260921011000",
+      "name": "atomic_deletion_requests",
+      "file": "20260921011000_atomic_deletion_requests.sql",
+      "sha256": "c8e8d939d923b968f40e653a4d2bb6b049086bf4b34b6633e4cd8612899ab9c9",
+      "recordedStatementsSha256": "c27e6905fc9bfc500c373cf3855e6bac7a8353bc972f70d4d3a5ab15cdfc4005",
+      "statementCount": 6,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20260929090000",
+      "name": "correct_ncmh_crisis_source",
+      "file": "20260929090000_correct_ncmh_crisis_source.sql",
+      "sha256": "d5ab75a9be6c97b6c3866ec9ee4644a7d204e384949367cdfcf57e0c10f6d5a4",
+      "recordedStatementsSha256": "53575f82ae8dc863254d12eca370bab96ba0ac53e9061cca69b093e1f0af5478",
+      "statementCount": 3,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20261010090000",
+      "name": "professional_support_portal",
+      "file": "20261010090000_professional_support_portal.sql",
+      "sha256": "5e0b9d50eba63479a0d17ca6bb1f32e403df67bc73e3a93329582808a0d447b6",
+      "recordedStatementsSha256": "158a1fcaffc0a69312f8467e54f8a01491df718e62d96228611a0ae816a69d88",
+      "statementCount": 54,
+      "recoveredFromRemote": false
+    },
+    {
+      "version": "20261011100000",
+      "name": "user_professional_support_workspace",
+      "file": "20261011100000_user_professional_support_workspace.sql",
+      "sha256": "03253bfcf2d49d31abced58e75530054f4ba03847a2d7386b81a8c027ba25723",
+      "recordedStatementsSha256": "5573e469558f66e9e0ccd0cc840f1b27c3b56fd1e40862b9654dfc9c557b7ec7",
+      "statementCount": 51,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261012090000",
+      "name": "calendar_items",
+      "file": "20261012090000_calendar_items.sql",
+      "sha256": "fdc210f08545c917e7b6fdd3fc6fd6f996dae490154daba11dadeea68abc4bbf",
+      "recordedStatementsSha256": "ff8ad771614effd1db89a73df3a2a79ecf8ab9a77e5246614154747246829255",
+      "statementCount": 5,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261012091000",
+      "name": "buddy_conversation_pins",
+      "file": "20261012091000_buddy_conversation_pins.sql",
+      "sha256": "b173c3fea84a9b366bf8b99cf2c2117ea9bf829c930f067c0dacc6cd57e6d411",
+      "recordedStatementsSha256": "659b606dd1c92dc83f7351ae20d1926e6c6c0049f8ca2f364554bfd7fa98073f",
+      "statementCount": 2,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261013010000",
+      "name": "buddy_history_controls",
+      "file": "20261013010000_buddy_history_controls.sql",
+      "sha256": "826ac135324a0d994d868fc37398baacc083ef07219cea13376f9e3afa1903c9",
+      "recordedStatementsSha256": "aaa18cb916777efa94e8abfc16a78db51625ffa42aaa4105345ed7a67e9e9175",
+      "statementCount": 24,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261013011000",
+      "name": "buddy_search_legacy_owners",
+      "file": "20261013011000_buddy_search_legacy_owners.sql",
+      "sha256": "a333f0e513363f598b7093c5b158a6c19d32c30d2ade19e6ad7046d4850353a4",
+      "recordedStatementsSha256": "37c87b0fb731760c4362d20567554a57c893b3155664d6741015a4888f8d52e3",
+      "statementCount": 1,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261013012000",
+      "name": "buddy_privacy_setting_grant",
+      "file": "20261013012000_buddy_privacy_setting_grant.sql",
+      "sha256": "906d110fc1b931608a77675dca515bdcda84499df506b18d217bc3f7e441f0ec",
+      "recordedStatementsSha256": "a868ab36689134ce0c438d89cfcd87899265da36818f4902ee3bde3e70f8888a",
+      "statementCount": 1,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261014090000",
+      "name": "account_erasure_lifecycle",
+      "file": "20261014090000_account_erasure_lifecycle.sql",
+      "sha256": "066b2dbb136fc40275f7d62ba0af27baef8acf277e8e02036b5fe511c9a9d38e",
+      "recordedStatementsSha256": "114f5ad489d40b6d5e7a8fa200a7829b073decd18c18f09cfdc3d94d23f97d8a",
+      "statementCount": 28,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261014091000",
+      "name": "professional_account_erasure",
+      "file": "20261014091000_professional_account_erasure.sql",
+      "sha256": "346c69b0417421fc4f2fed1e29c66ff0f7d1805fba850c72e52401ebaea7c197",
+      "recordedStatementsSha256": "686c9c4a756c5bd337c6bb78d246aeac949d7a26899429e207f9a52beebe2ff4",
+      "statementCount": 30,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261014092000",
+      "name": "category_retention_controls",
+      "file": "20261014092000_category_retention_controls.sql",
+      "sha256": "43c2d905f91638bbcad19724ff62a3c5b9d814fbce669422f31020c4d217e606",
+      "recordedStatementsSha256": "4095416cc4d38d5d549bb18ce87165ca110f655eee2e2b0c2cbc0da5c4f65067",
+      "statementCount": 16,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261017120000",
+      "name": "in_app_reminder_delivery",
+      "file": "20261017120000_in_app_reminder_delivery.sql",
+      "sha256": "e54d15b9aa3caac8dba5e029002c89af2d7e2fac204facf1697392be488bb506",
+      "recordedStatementsSha256": "cd1fe5e47636b92a9f85479a28ab1dce49a7f5109de082a05c6bbce54fbc85b6",
+      "statementCount": 10,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261018120000",
+      "name": "notification_quiet_hours_grants",
+      "file": "20261018120000_notification_quiet_hours_grants.sql",
+      "sha256": "f4f9b4bf6592dc2781d6ed418e53ced20adbb3f2d1423685703572cc2c43b796",
+      "recordedStatementsSha256": "87c23b459ddc7dd15ef0e538e1d2d051bc5aaf06f5cd947087679770d27cc9d2",
+      "statementCount": 3,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261018130000",
+      "name": "notification_channel_delivery",
+      "file": "20261018130000_notification_channel_delivery.sql",
+      "sha256": "47b53c16eac426d6f4bae736d3caddc59e74bf1739af0142b6b737543fe8c201",
+      "recordedStatementsSha256": "ec5722652111194c06657e8c756922aed7c49cbebd1963dbdb90834635448a55",
+      "statementCount": 20,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261018131000",
+      "name": "push_endpoint_single_owner",
+      "file": "20261018131000_push_endpoint_single_owner.sql",
+      "sha256": "0c5c4a982c91085ce20b900ad02f437e8f51478b33647663ceb694a241b51fcd",
+      "recordedStatementsSha256": "f2b7fec3aa3411e0b6e52a8dc772954b9c7a8a76500b1373222afc5e903dfe44",
+      "statementCount": 3,
+      "recoveredFromRemote": true
+    },
+    {
+      "version": "20261018140000",
+      "name": "journal_draft_images",
+      "file": "20261018140000_journal_draft_images.sql",
+      "sha256": "98a6e5329212bad1e735f437de1b06096b95cafa1a205af22620daee5e236218",
+      "recordedStatementsSha256": "4932310bd6094513cec95568911d1fe4bab9d6b01b5dbf3d3ed5737886803a2e",
+      "statementCount": 19,
+      "recoveredFromRemote": true
+    }
+  ],
+  "applyInOrder": [
+    {
+      "order": 1,
+      "version": "20261012160000",
+      "file": "20261012160000_professional_credential_reviews.sql",
+      "sha256": "4876ec63a5c88bcb17eced09600c27cf4eef8e114ecc58ff3cc09ec26455d12a"
+    },
+    {
+      "order": 2,
+      "version": "20261014100000",
+      "file": "20261014100000_professional_owner_request_actions.sql",
+      "sha256": "777e78105bebb76becb1c24011b4d4214d00e4ea4eadf5d58526acb4b458b1d1"
+    },
+    {
+      "order": 3,
+      "version": "20261014110000",
+      "file": "20261014110000_professional_claim_lifecycle.sql",
+      "sha256": "40bfcf585a3dd17da416e781409ebd138323aa6c847372bb999c97b36502449b"
+    },
+    {
+      "order": 4,
+      "version": "20261014120000",
+      "file": "20261014120000_professional_dashboard.sql",
+      "sha256": "3333a56fcf816cc08b9714570f70759c72fc5a2c78fc2e8b8a2d096f3b1660d6"
+    },
+    {
+      "order": 5,
+      "version": "20261015100000",
+      "file": "20261015100000_professional_case_snapshot.sql",
+      "sha256": "d567f1e5c7b119f7b928b760d23dce7416f259f00a82da6c3914187a605fc943"
+    },
+    {
+      "order": 6,
+      "version": "20261015110000",
+      "file": "20261015110000_professional_consent.sql",
+      "sha256": "4a3f91a6782ec859154153f58ce925a193d66f53abf150f5634fee01f92833dc"
+    },
+    {
+      "order": 7,
+      "version": "20261015120000",
+      "file": "20261015120000_professional_notes.sql",
+      "sha256": "4c8263b9475f492cc1335947bda53fe64f8508236a7389210f80329bcdb0b629"
+    },
+    {
+      "order": 8,
+      "version": "20261015130000",
+      "file": "20261015130000_professional_case_handover.sql",
+      "sha256": "61ae51b382fee7996b75161231adf7996c180357ca5a56b81c8679defd33e78a"
+    },
+    {
+      "order": 9,
+      "version": "20261016100000",
+      "file": "20261016100000_professional_appointment_lifecycle.sql",
+      "sha256": "828155d8994494ef8a015b33806d2b2f323fe5bc26b8d278a8fe6cb5d3ce2316"
+    },
+    {
+      "order": 10,
+      "version": "20261016110000",
+      "file": "20261016110000_professional_scheduling_constraints.sql",
+      "sha256": "4621fae55a6972337b004aa4015b36b0a2aefeaa561a9f285c3e04a7c06b0b31"
+    },
+    {
+      "order": 11,
+      "version": "20261016120000",
+      "file": "20261016120000_professional_follow_ups.sql",
+      "sha256": "8717a9b7c2f68b42bb379ca47711c48667a8b0c0fedc5f3a8204d63c5607920e"
+    },
+    {
+      "order": 12,
+      "version": "20261016130000",
+      "file": "20261016130000_professional_referral_lifecycle.sql",
+      "sha256": "85e77d35e3c741dbc105fe75c4227b06db9e95beb68c7378b4b01d305da120c6"
+    },
+    {
+      "order": 13,
+      "version": "20261016140000",
+      "file": "20261016140000_professional_notifications.sql",
+      "sha256": "aad64baed248f9e8a056b96fba10039db5993bb9e810bdc979990c47cfbc0439"
+    },
+    {
+      "order": 14,
+      "version": "20261016150000",
+      "file": "20261016150000_professional_events.sql",
+      "sha256": "fef58daf629f8d2c5c80f90233d0013e8d257caef35eb2ad7bf815ad61a8176d"
+    },
+    {
+      "order": 15,
+      "version": "20261016160000",
+      "file": "20261016160000_professional_query_indexes.sql",
+      "sha256": "0409762ff5683e5097bcae9c19b1f4cf525001ceca49c02c402219a292145258"
+    },
+    {
+      "order": 16,
+      "version": "20261017100000",
+      "file": "20261017100000_professional_event_health.sql",
+      "sha256": "48a7cf4653b692fdc846634d49a6fe654782ebe3b54bc0ab97c693b8b4438499"
+    },
+    {
+      "order": 17,
+      "version": "20261018150000",
+      "file": "20261018150000_security_professional_http_audit.sql",
+      "sha256": "3099c1dad459398a13adb2b2e9cd4df99b20bba3bf5c60d7af9a356f6cf53beb"
+    },
+    {
+      "order": 18,
+      "version": "20261019090000",
+      "file": "20261019090000_professional_withdrawal_compatibility.sql",
+      "sha256": "6adedbf7296127c01142a954d44799dcb2055771708f6a99e06da50bd1f85eb7"
+    }
+  ],
+  "validation": {
+    "date": "2026-10-19",
+    "postgres": "17.6",
+    "network": "none; no published ports; separate PostgreSQL cluster",
+    "cloudBaselineAndRolloutMigrations": 90,
+    "chronologicalReplayMigrations": 90,
+    "cloudOwnerWithdrawalBefore": "PASS",
+    "cloudOwnerWithdrawalAfter": "PASS",
+    "freshOwnerWithdrawal": "PASS",
+    "tablesWithoutRls": 0,
+    "browserSchemaTableFunctionPrivileges": 0,
+    "appointmentExclusionValidated": true,
+    "existingFixturesUnchanged": true,
+    "container": "echo_release_validation_10dd1c9c",
+    "withdrawalGuards": "PASS",
+    "reproducedBeforeFix": "INVALID_CASE_TRANSITION",
+    "storageObjectsVerified": 20,
+    "storageBytesVerified": 439795,
+    "storageRestoreMethod": "private isolated filesystem; original bucket/object paths reconstructed and bytes reread",
+    "applicationPayloadsDecrypted": 35,
+    "requiredAesKeyVersions": [
+      1
+    ],
+    "restoredTotpSecretsMatch": true,
+    "cloudBaselineRecheckedAtUtc": "2026-10-19T04:06:41.211Z"
+  },
+  "blockers": [],
+  "ownerApprovalPrerequisites": [
+    "Approve the exact 18 pending migrations, application rollout and maintenance window; no blanket push.",
+    "Acknowledge the credential migration demotes existing active clinical memberships pending independent credential review and explicit reactivation.",
+    "Retain the existing private application key environment and securely retain/copy backups; independent off-device key escrow has not been verified.",
+    "Recheck ledger and refresh backup at cutover if cloud data or configuration changes; preserve Auth/MFA and PostgREST schema configuration."
+  ]
+}

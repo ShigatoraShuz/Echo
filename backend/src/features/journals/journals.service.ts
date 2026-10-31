@@ -189,8 +189,76 @@ export class JournalService {
       result_payload:job.result_ciphertext?{ciphertext:job.result_ciphertext}:null,severity:null,phq8_score:null,
       facial_status:job.facial_status};
   }
+  private faceActive = new Set<string>();
+  private faceStopped=false;
+  stopLocalFaceProcessing(){this.faceStopped=true;}
+  async faceHistory(user:string){
+    if(!this.localResults||!await this.hasGlobalFacialConsent(user))return [];
+    const results=[];
+    for(const job of this.localResults.completed(user).filter(j=>j.face_result?.status==='available').slice(-30).reverse()){
+      try{await this.get(user,job.journal_id);}catch(error){if(error instanceof NotFoundError)continue;throw error;}
+      results.push({journalId:job.journal_id,result:job.face_result});
+    }
+    return results;
+  }
+  async faceStatus(user:string,journal:string){
+    await this.get(user,journal);
+    if(!this.localResults)throw new NotFoundError('Local analysis is disabled.');
+    const job=this.localResults.journal(user,journal);
+    if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
+    return {status:job?.facial_status??'not_requested',result:job?.face_result??null};
+  }
+  async submitFace(user:string,journal:string,image:Buffer){
+    if(this.runtime?.isProduction)throw new NotFoundError("This development face model is unavailable in production.");
+    if(!this.localResults||!this.coreClient)throw new NotFoundError('Local face inference is unavailable.');
+    const entry=await this.get(user,journal);
+    await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user))throw new AnalysisGateError('Enable journal and facial analysis consent.');
+    const job=this.localResults.journal(user,journal);
+    if(!job)throw new NotFoundError('Local journal analysis is required.');
+    if(this.faceStopped||this.faceActive.has(job.id)||job.face_result)throw new ConflictError('FACE_ALREADY_SUBMITTED','Face capture already submitted.');
+    if(this.faceActive.size>=4)throw new ConflictError('FACE_QUEUE_FULL','Local face queue is full.');
+    if(!image.length||image.length>2*1024*1024)throw new ConflictError('INVALID_CAPTURE','Image must be at most 2 MiB.');
+    this.localResults.setFace(user,job.id,'queued');this.faceActive.add(job.id);
+    const bytes=Buffer.from(image);
+    void (async()=>{
+      let inferenceStarted=false;
+      try{
+        const deadline=Date.now()+240000;
+        while(true){
+          const current=this.localResults!.get(user,job.id);
+          if(!current||this.faceStopped)return;
+          if(['failed','safety_action_required'].includes(current.status))throw new Error('Processing paused');
+          if(current.status==='completed'&&!await this.coreClient?.talkBusy?.())break;
+          if(Date.now()>deadline)throw new Error('Face wait expired');
+          await new Promise(r=>setTimeout(r,500));
+        }
+        await this.assertAnalysisGates(user);
+        if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user))throw new Error('Consent revoked');
+        if((await this.get(user,journal)).body!==entry.body)throw new Error('Journal changed');
+        this.localResults!.setFace(user,job.id,'analyzing');
+        inferenceStarted=true;
+        let result;
+        while(true){
+          if(this.faceStopped||!this.localResults!.get(user,job.id))return;
+          if(Date.now()>deadline)throw new Error('Face wait expired');
+          await this.assertAnalysisGates(user);
+          if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user)||(await this.get(user,journal)).body!==entry.body)throw new Error('Processing no longer allowed');
+          try{result=await this.coreClient!.face(bytes);break;}
+          catch(error){if(!(error instanceof AppError)||error.code!=='TALK_BUSY')throw error;this.localResults!.setFace(user,job.id,'queued');await new Promise(r=>setTimeout(r,1000));}
+        }
+        inferenceStarted=false;
+        if(this.faceStopped)return;
+        await this.assertAnalysisGates(user);
+        if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user)||(await this.get(user,journal)).body!==entry.body)throw new Error('Publishing no longer allowed');
+        this.localResults!.setFace(user,job.id,result.status==='available'?'completed':'unavailable',result);
+      }catch{if(!this.faceStopped)this.localResults?.setFace(user,job.id,'unavailable',{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:inferenceStarted?'model_unavailable':'processing_not_allowed'});}
+      finally{bytes.fill(0);this.faceActive.delete(job.id);}
+    })();
+  }
   async recoverLocalJobs():Promise<void> {
-    if(!this.localResults || !this.coreClient || !await this.coreClient.ready())return;
+    if(!this.localResults || !this.coreClient || !await this.coreClient.ready() || await this.coreClient.talkBusy?.())return;
+    for(const user of this.localResults.users())for(const job of this.localResults.completed(user))if((['queued','analyzing'].includes(job.facial_status)||(job.facial_status==='captured_pending_provider'&&Date.now()-Date.parse(job.updated_at)>60000))&&!this.faceActive.has(job.id))this.localResults.setFace(user,job.id,'unavailable',{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:'interrupted'});
     for(const job of this.localResults.pending())this.enqueueLocal(job);
   }
   private enqueueLocal(job:LocalAnalysisJob){
@@ -201,6 +269,7 @@ export class JournalService {
   private async processLocal(job:LocalAnalysisJob){
     const store=this.localResults!;
     if(!store.get(job.user_id,job.id))return;
+    if(await this.coreClient?.talkBusy?.()){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
     if(!this.coreClient || !await this.coreClient.ready()){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
     try {
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent is required.');
@@ -222,8 +291,8 @@ export class JournalService {
       await this.assertAnalysisGates(job.user_id);
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
       store.set(job.user_id,job.id,'completed',100,JSON.stringify(result));
-    } catch {
-      store.set(job.user_id,job.id,'failed',job.progress);
+    } catch(error) {
+      store.set(job.user_id,job.id,(error instanceof AppError && error.code==='TALK_BUSY') || await this.coreClient?.talkBusy?.(true)?'waiting_for_provider':'failed',job.progress);
     }
   }
   private async createLocal(userId:string,input:JournalInput,key:string|undefined,fixture?:string):Promise<JournalSubmissionResult>{
@@ -1046,6 +1115,7 @@ export class JournalService {
     const entry=await this.get(user,journal);await this.assertAnalysisGates(user);
     if(!this.localResults||!this.coreClient||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Local screening is unavailable.');
     const job=this.localResults.journal(user,journal);if(!job?.result_ciphertext)throw new NotFoundError('No completed analysis.');
+    if(await this.coreClient.talkBusy?.(true))throw new ConflictError('TALK_BUSY','Screening is waiting while Talk is active. Stop Talk and retry.');
     const key=user+':'+journal;if(this.screeningActive.has(key))throw new ConflictError('RETRY_BUSY','Screening retry in progress.');this.screeningActive.add(key);
     try{this.localResults.reserveScreening(user,job.id);const previous=this.readAnalysisResult({ciphertext:job.result_ciphertext});if(previous.schemaVersion==='echo-journal-analysis-v1')throw new ConflictError('RETRY_UNSUPPORTED','Legacy results cannot be retried.');
     const screening=journalScreeningSchema.parse(await this.coreClient.screening(entry.body));

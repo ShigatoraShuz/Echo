@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/server.ts",
+    "dev": "node ../scripts/run-local-dev.mjs backend",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
@@ -27,7 +27,8 @@
     "retention:active-policy": "tsx --env-file=.env scripts/audit-retention.mts",
     "erasure:restore": "tsx --env-file=.env scripts/account-erasure-restore.mts",
     "worker:account-erasure": "node --env-file=.env dist/workers/account-erasure.js",
-    "worker:in-app-reminders": "node --env-file=.env dist/workers/in-app-reminders.js"
+    "worker:in-app-reminders": "node --env-file=.env dist/workers/in-app-reminders.js",
+    "worker:professional-case-events": "node --env-file=.env dist/workers/professional-events.js"
   },
   "dependencies": {
     "@echo/contracts": "0.1.0",
@@ -35,11 +36,11 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
-    "google-auth-library": "^10.3.0",
     "helmet": "^8.1.0",
     "nodemailer": "^10.1.2",
     "sharp": "^0.35.5",
     "web-push": "^3.6.7",
+    "ws": "8.22.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -51,12 +52,13 @@
     "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.3",
     "@types/web-push": "^3.6.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@types/ws": "8.18.2",
+    "@vitest/coverage-v8": "^4.1.12",
     "globals": "^14.0.0",
     "supertest": "^7.1.4",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.46.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

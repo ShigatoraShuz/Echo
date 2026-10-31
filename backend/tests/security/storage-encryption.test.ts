@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
-import { assertDocumentsClean, inspectDocument, quarantineScanner, validateDocument } from "../../src/infrastructure/security/document-scanner.js";
+import { describe, expect, it, vi } from "vitest";
+import { assertDocumentsClean, createHttpDocumentScanner, inspectDocument, quarantineScanner, validateDocument } from "../../src/infrastructure/security/document-scanner.js";
 import { createEncryptionService, encryptText, decryptText } from "../../src/infrastructure/encryption/encryption.service.js";
 
 describe("restricted storage", () => {
@@ -31,5 +31,16 @@ describe("restricted storage", () => {
   it("fails closed on scanner outages and rejects detected active content", async () => {
     expect((await inspectDocument({ inspect: async () => { throw new Error("scanner unavailable"); } }, pdf, "application/pdf")).scan_status).toBe("quarantined");
     await expect(inspectDocument({ inspect: async () => ({ status: "rejected", sha256: "" }) }, pdf, "application/pdf")).rejects.toThrow();
+  });
+  it("sends bytes only to the configured scanner and verifies its clean response", async () => {
+    const response = { status: "clean", sha256: createHash("sha256").update(pdf).digest("hex"), scannerVersion: "test-scanner", pages: 1 };
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => response }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      expect((await inspectDocument(createHttpDocumentScanner("https://scan.example.test/inspect", "test-token"), pdf, "application/pdf")).scan_status).toBe("clean");
+      expect(fetchMock).toHaveBeenCalledWith("https://scan.example.test/inspect", expect.objectContaining({ method: "POST", redirect: "error", headers: expect.objectContaining({ Authorization: "Bearer test-token" }) }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

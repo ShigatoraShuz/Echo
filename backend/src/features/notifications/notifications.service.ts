@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { appointmentNotificationTypes, notificationCursorSchema, type NotificationCategory } from "@echo/contracts";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 import { ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
 
@@ -69,14 +70,22 @@ export class NotificationService {
     }));
   }
 
-  async list(userId: string, options: { status: "all" | "unread"; limit: number }) {
+  async list(userId: string, options: { status: "all" | "unread"; limit: number; category?: NotificationCategory; before?: string }) {
     let query = this.database
       .schema("notification_service")
       .from("notifications")
       .select("id, notification_type, title, message, resource_type, resource_id, read_at, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(options.limit);
+      .order("id", { ascending: false })
+      .limit(options.limit + 1);
+
+    if (options.category === "appointments") query = query.in("notification_type", [...appointmentNotificationTypes]);
+    if (options.category === "general") query = query.not("notification_type", "in", `(${appointmentNotificationTypes.join(",")})`);
+    if (options.before) {
+      const [at, id] = notificationCursorSchema.parse(options.before).split("~");
+      query = query.or(`created_at.lt.${at},and(created_at.eq.${at},id.lt.${id})`);
+    }
 
     if (options.status === "unread") {
       query = query.is("read_at", null);
@@ -95,9 +104,12 @@ export class NotificationService {
     throwIfDatabaseError(error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "select notifications" }, "Notifications could not be loaded.");
     throwIfDatabaseError(unread.error, { module: "notifications", schema: "notification_service", table: "notifications", operation: "count unread notifications" }, "Notifications could not be loaded.");
     if (typeof unread.count !== "number") throw databaseError("Notifications could not be loaded.");
+    const rows = (data ?? []) as Row[];
+    const page = rows.slice(0, options.limit).map(mapNotification);
     return {
-      notifications: await this.withResourceLabels(userId, ((data ?? []) as Row[]).map(mapNotification)),
+      notifications: await this.withResourceLabels(userId, page),
       unreadCount: unread.count,
+      nextCursor: rows.length > options.limit && page.length ? `${page[page.length - 1].createdAt}~${page[page.length - 1].id}` : null,
     };
   }
 

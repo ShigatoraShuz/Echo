@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=3_600)
+    realtime_talk_enabled: bool = False
     core_models_enabled: bool = False
     models_root: str = "../../models"
     backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
@@ -38,4 +40,4 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings(_env_file=None) if os.environ.get("ECHO_ISOLATED_TEST") == "true" else Settings()

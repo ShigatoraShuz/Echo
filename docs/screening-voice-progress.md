@@ -1,5 +1,5 @@
-# Current integration focus
+# Current integration status
 
-MOSS work is deferred at the user's request. Voice assets and prior uncommitted voice changes remain available for a later pass.
+Journal PHQ-8 is implemented; see [journal-phq8-integration.md](journal-phq8-integration.md).
 
-Journal PHQ-8 implementation, nullable-output rules, local storage, model provenance and verification are documented in [journal-phq8-integration.md](journal-phq8-integration.md). The screening-only retry path preserves native results and respects ownership, consent and eligibility.
+STT and TTS work has resumed and Buddy Chat/Talk is connected to the local Whisper and default MOSS voice pipelines. See [speech-environment.md](speech-environment.md) for startup, environment isolation, privacy boundaries and verification.

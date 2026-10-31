@@ -10,9 +10,13 @@ alter table buddy_service.buddy_conversations
 -- applies the history preference. Direct client writes could bypass both rules.
 revoke insert, update, delete on buddy_service.buddy_conversations,
   buddy_service.buddy_messages from authenticated, anon;
+
 drop policy if exists buddy_conversations_insert_own on buddy_service.buddy_conversations;
+
 drop policy if exists buddy_conversations_update_own on buddy_service.buddy_conversations;
+
 drop policy if exists buddy_conversations_delete_own on buddy_service.buddy_conversations;
+
 drop policy if exists buddy_messages_insert_user_owned_conversation on buddy_service.buddy_messages;
 
 create table if not exists buddy_service.conversation_search_tokens (
@@ -25,10 +29,14 @@ create table if not exists buddy_service.conversation_search_tokens (
   foreign key (conversation_id, user_id)
     references buddy_service.buddy_conversations(id, user_id) on delete cascade
 );
+
 create index if not exists buddy_search_token_lookup
   on buddy_service.conversation_search_tokens(user_id, token_hash, conversation_id);
+
 alter table buddy_service.conversation_search_tokens enable row level security;
+
 revoke all on buddy_service.conversation_search_tokens from anon, authenticated;
+
 grant select, insert, update, delete on buddy_service.conversation_search_tokens to service_role;
 
 create or replace function buddy_service.search_history(p_user_id uuid, p_hashes text[], p_page integer, p_page_size integer)
@@ -49,7 +57,9 @@ as $$
   order by c.pinned_at desc nulls last,c.last_message_at desc nulls last,c.id desc
   limit p_page_size offset (p_page-1)*p_page_size;
 $$;
+
 revoke all on function buddy_service.search_history(uuid, text[], integer, integer) from public, anon, authenticated;
+
 grant execute on function buddy_service.search_history(uuid, text[], integer, integer) to service_role;
 
 create or replace function buddy_service.create_conversation(p_user_id uuid, p_title_ciphertext text, p_title_hashes text[])
@@ -68,7 +78,9 @@ begin
   return created;
 end;
 $$;
+
 revoke all on function buddy_service.create_conversation(uuid,text,text[]) from public, anon, authenticated;
+
 grant execute on function buddy_service.create_conversation(uuid,text,text[]) to service_role;
 
 create or replace function buddy_service.rename_conversation(
@@ -88,7 +100,9 @@ begin
   return renamed;
 end;
 $$;
+
 revoke all on function buddy_service.rename_conversation(uuid,uuid,text,text[]) from public, anon, authenticated;
+
 grant execute on function buddy_service.rename_conversation(uuid,uuid,text,text[]) to service_role;
 
 create or replace function buddy_service.save_exchange(
@@ -139,5 +153,7 @@ begin
   end if;
 end;
 $$;
+
 revoke all on function buddy_service.save_exchange(uuid,uuid,text,text,boolean,text,text,text[],text[],text[]) from public, anon, authenticated;
+
 grant execute on function buddy_service.save_exchange(uuid,uuid,text,text,boolean,text,text,text[],text[],text[]) to service_role;

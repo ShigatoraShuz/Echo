@@ -25,6 +25,7 @@ function harness() {
     listOrganizationsForAdmin: vi.fn().mockResolvedValue({ organizations: [] }),
     listAuditForAdmin: vi.fn().mockResolvedValue({ events: [] }),
     suspendMember: vi.fn().mockResolvedValue({ status: "suspended" }),
+    approveMember: vi.fn().mockResolvedValue({ membershipId: CASE }),
   };
   const verification = {
     assertAdmin: vi.fn(async (userId: string) => {
@@ -59,6 +60,27 @@ function harness() {
 }
 
 describe("professional portal routes", () => {
+  it("accepts only defined roles and reviewed credentials from a recently authenticated administrator", async () => {
+    const { app, service } = harness();
+    const path = "/api/v1/professional/admin/memberships";
+    const input = {
+      organizationId: ORG, userId: CASE, role: "counselor", displayName: "Synthetic Practitioner",
+      credentialLabel: "Synthetic credential", credentialExpiresAt: "2099-12-31", credentialChecked: true,
+      credentialId: CASE,
+    };
+    for (const invalid of [
+      { ...input, role: "administrator" },
+      { ...input, credentialChecked: false },
+      { ...input, approvedBy: CASE },
+      { ...input, credentialId: undefined },
+    ]) {
+      expect((await request(app).post(path).set("Authorization", "Bearer mfa").send(invalid)).status).toBe(400);
+    }
+    expect(service.approveMember).not.toHaveBeenCalled();
+    expect((await request(app).post(path).set("Authorization", "Bearer mfa").send(input)).status).toBe(201);
+    expect(service.approveMember).toHaveBeenCalledWith(USER, input);
+  });
+
   it("reports professional memberships without treating sign-in as professional approval", async () => {
     const { app, service } = harness();
     const basic = await request(app).get("/api/v1/professional/me").set("Authorization", "Bearer basic");
@@ -120,6 +142,7 @@ describe("professional portal routes", () => {
       CASE,
       "fe000000-0000-4000-8000-000000000005",
       "Could we discuss the next appointment?",
+      "owner",
     );
   });
 
@@ -183,6 +206,6 @@ describe("professional portal routes", () => {
     expect((await request(app).get(auditPath).set("Authorization", "Bearer basic")).status).toBe(403);
     expect(service.listAuditForAdmin).not.toHaveBeenCalled();
     expect((await request(app).get(auditPath).set("Authorization", "Bearer mfa")).status).toBe(200);
-    expect(service.listAuditForAdmin).toHaveBeenCalledWith(ORG);
+    expect(service.listAuditForAdmin).toHaveBeenCalledWith(ORG, USER);
   });
 });

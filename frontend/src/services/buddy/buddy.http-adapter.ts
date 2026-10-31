@@ -24,6 +24,7 @@ interface BuddySessionResponse {
     role: "user" | "buddy";
     content: string;
     timestamp: string;
+    delivery?:{state:string};
   }>;
 }
 
@@ -91,6 +92,7 @@ function mapMessages(conversationId: string, messages: BuddySessionResponse["mes
     role: message.role === "user" ? "user" : "buddy",
     content: message.content,
     timestamp: message.timestamp,
+    playbackInterrupted:message.delivery?.state==='interrupted',
   }));
 }
 

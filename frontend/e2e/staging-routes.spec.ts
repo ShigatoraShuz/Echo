@@ -50,7 +50,7 @@ function storageState(fixture: string): string | undefined {
   return file;
 }
 
-const pages = manifest.filter((entry) => entry.kind !== "callback");
+const pages = manifest.filter((entry) => entry.kind !== "callback" && entry.kind !== "development-only");
 const coreFixtures = new Set([
   "none", "auth", "privileged-auth", "preview", "new-user", "consent-user", "profile-user",
   "setup-user", "policies-user", "member", "journal", "calendar", "insights",

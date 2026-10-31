@@ -41,6 +41,13 @@ function createHarness() {
 }
 
 describe("notification routes", () => {
+  it("accepts additive scoped category/cursor filters and rejects unsafe cursors", async () => {
+    const h = createHarness(), before = "2026-10-25T00:00:00.123456Z~11111111-1111-4111-8111-111111111111";
+    expect((await request(h.app).get(`/api/v1/notifications?category=appointments&before=${encodeURIComponent(before)}`).set("Authorization", "Bearer valid-token")).status).toBe(200);
+    expect(h.notifications.list).toHaveBeenCalledWith("user-1", { status: "all", limit: 20, category: "appointments", before });
+    expect((await request(h.app).get("/api/v1/notifications?category=clinical").set("Authorization", "Bearer valid-token")).status).toBe(400);
+    expect((await request(h.app).get("/api/v1/notifications?before=created_at.gt.now,forged").set("Authorization", "Bearer valid-token")).status).toBe(400);
+  });
   it("requires authentication before listing notifications", async () => {
     const { app, notifications } = createHarness();
 

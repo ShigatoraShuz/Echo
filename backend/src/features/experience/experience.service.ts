@@ -125,7 +125,7 @@ export class ExperienceService {
   async cancelLocal(user:string,journal:string){await this.journals.get(user,journal);this.journals.localResults?.remove(user,journal);}
   archiveLocal(user:string,id:string,archived:boolean){if(!this.localBuddy)throw new NotFoundError('Local storage is disabled.');return this.localBuddy.save({...this.localBuddy.get(user,id),archived});}
   exportLocal(user:string){if(!this.localBuddy||!this.journals.localResults)throw new NotFoundError('Local storage is disabled.');return {format:'echo-local-v1',analysis:this.journals.localResults.export(user),buddy:this.localBuddy.list(user)};}
-  clearLocal(user:string){for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);this.journals.localResults?.clear(user);for(const c of this.localBuddy?.list(user)??[])this.localBuddy!.remove(user,c.id);}
+  clearLocal(user:string){void this.realtime?.endUser(user);for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);this.journals.localResults?.clear(user);for(const c of this.localBuddy?.list(user)??[])this.localBuddy!.remove(user,c.id);}
   async retryLocal(user:string,journal:string){return this.journals.retryLocalAnalysis(user,journal);}
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
@@ -314,7 +314,7 @@ export class ExperienceService {
   }
 
   async deleteBuddyConversation(userId: string, conversationId: string) {
-    if(this.localBuddy)return this.localBuddy.remove(userId,conversationId);
+    if(this.localBuddy){await this.realtime?.endConversation(userId,conversationId);return this.localBuddy.remove(userId,conversationId);}
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .delete().eq("id", conversationId).eq("user_id", userId).select("id").maybeSingle();
@@ -371,6 +371,38 @@ export class ExperienceService {
     return { conversationId, conversation: this.conversationSummary(conversation), messages };
   }
 
+  realtime?: import('./realtime-talk.js').RealtimeTalkHub;
+  async validateTalk(user:string){await assertVoiceEnabled();if(!this.localBuddy||!this.coreClient)throw new NotFoundError('Local Talk is unavailable.');return {historyEnabled:await this.historyEnabled(user)};}
+  async startTalkContext(user:string,conversationId:string|undefined){const privacy=await this.validateTalk(user);if(conversationId){if(!privacy.historyEnabled)throw new ConflictError('BUDDY_HISTORY_DISABLED','Saved chats are read-only.');this.localBuddy!.get(user,conversationId);}return {conversationId:conversationId??null,...privacy};}
+  async acceptTalkTurn(user:string,content:string,conversationId:string|null,temporarySessionId:string,turnId:string){
+    const privacy=await this.validateTalk(user);
+    const timestamp=new Date().toISOString();
+    const message={id:turnId,role:'user' as const,content,timestamp};
+    if(privacy.historyEnabled){const c=conversationId?this.localBuddy!.get(user,conversationId):this.localBuddy!.create(user);if(c.messages.some(m=>m.id===turnId))throw new ConflictError('TURN_ALREADY_ACCEPTED','Turn already accepted.');if(!c.messages.some(m=>m.id===turnId)){c.messages.push(message);c.last_message_at=timestamp;c.preview=content.slice(0,120);if(c.messages.length===1)c.title=buddyTitle(content);this.localBuddy!.save(c);}return {conversationId:c.id,message,messages:c.messages.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content})) as ChatTurn[]};}
+    if(conversationId)throw new ConflictError('BUDDY_HISTORY_DISABLED','Saved chats are read-only.');
+    const key=user+':'+temporarySessionId;const prior=this.temporary.get(key);const turns=prior&&prior.expires>Date.now()?prior.turns:[];
+    turns.push({role:'user',content});while(turns.length>16||turns.reduce((a,t)=>a+t.content.length,0)>20000)turns.shift();
+    if(this.temporary.size>=1000&&!this.temporary.has(key))this.temporary.delete(this.temporary.keys().next().value!);
+    this.temporary.set(key,{turns,expires:Date.now()+1800000});return {conversationId:null,message,messages:[...turns]};
+  }
+  async generateTalk(user:string,sessionId:string,messages:ChatTurn[],signal:AbortSignal){
+    await this.validateTalk(user);let urgent=/\b(suicide|kill myself|end my life|hurt myself|self harm|want to die)\b/i.test(messages.at(-1)!.content);
+    let generated:any;
+    while(messages.length>1&&(messages.length>20||messages.reduce((a,m)=>a+m.content.length,0)>20000))messages.shift();
+    if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages},signal);urgent=generated.supportRequired;}
+    if(signal.aborted)throw new Error('Cancelled');
+    const reply=urgent?buddyReply(messages.at(-1)!.content,true):generated?.reply;
+    if(typeof reply!=='string'||!reply.trim()||reply.length>12000)throw new Error('No approved response');
+    return {reply,supportRequired:urgent,model:generated?.model??{providerName:'application-support-rules',modelVersion:'buddy-support-v1'},quality:generated?.quality};
+  }
+  async completeTalk(user:string,conversationId:string|null,temp:string,text:string,turnId:string,provenance:Record<string,unknown>){
+    const privacy=await this.validateTalk(user);const message={id:randomUUID(),role:'buddy' as const,content:text,timestamp:new Date().toISOString()};
+    if(privacy.historyEnabled&&conversationId){const c=this.localBuddy!.get(user,conversationId);if(!c.messages.some(m=>m.id===turnId))throw new NotFoundError('Accepted turn was removed.');c.messages.push(message);c.supportRequired=Boolean(provenance.supportRequired);c.preview=text.slice(0,120);c.last_message_at=message.timestamp;{const prior=c.provenance.find(r=>r.turnId===turnId);if(prior)Object.assign(prior,provenance);else c.provenance.push({turnId,...provenance});}this.localBuddy!.save(c);}
+    else{const key=user+':'+temp,previous=this.temporary.get(key);this.temporary.set(key,{turns:[...(previous?.turns??[]),{role:'assistant' as const,content:text}].slice(-16),expires:Date.now()+1800000});conversationId=null;}
+    this.rememberReply(user,text);return {message,conversationId};
+  }
+  talkProvenance(user:string,conversationId:string|null,turnId:string,field:string,value:unknown){if(!conversationId)return;const c=this.localBuddy!.get(user,conversationId);let record=c.provenance.find(r=>r.turnId===turnId);if(!record){record={turnId};c.provenance.push(record);}if(field==='tts'){const models=Array.isArray(record.tts)?record.tts:[];if(!models.some((m:any)=>m.modelVersion===(value as any)?.modelVersion))models.push(value);record.tts=models;}else record[field]=value;this.localBuddy!.save(c);}
+  talkDelivery(user:string,conversationId:string|null,messageId:string,delivery:import('@echo/contracts').TalkDelivery){if(!conversationId)return;const c=this.localBuddy!.get(user,conversationId),message=c.messages.find(m=>m.id===messageId&&m.role==='buddy');if(message){message.delivery=delivery;this.localBuddy!.save(c);}}
   async sendBuddyMessage(userId: string, content: string, selectedConversationId?: string,temporarySessionId?:string) {
     const temporaryKey=userId+':'+(temporarySessionId??'legacy');
     const saving = await this.historyEnabled(userId);

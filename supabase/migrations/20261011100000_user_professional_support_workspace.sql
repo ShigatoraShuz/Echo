@@ -25,7 +25,9 @@ insert into professional_service.practitioner_profiles(membership_id)
 select id from professional_service.memberships
 where status='active' and role in ('counselor','psychologist','social_worker')
 on conflict (membership_id) do nothing;
+
 create index practitioner_profiles_specialties_gin on professional_service.practitioner_profiles using gin(specialties);
+
 create index practitioner_profiles_service_types_gin on professional_service.practitioner_profiles using gin(service_types);
 
 create function professional_service.sync_practitioner_profile() returns trigger language plpgsql security definer
@@ -43,17 +45,22 @@ begin
   end if;
   return new;
 end $$;
+
 create trigger professional_membership_profile_sync after insert or update of status,role
   on professional_service.memberships for each row execute function professional_service.sync_practitioner_profile();
 
 alter table professional_service.support_requests
   add column submission_id uuid,
   add column preferred_profile_id uuid references professional_service.practitioner_profiles(id);
+
 create unique index support_requests_submission_idx
   on professional_service.support_requests(user_id,submission_id) where submission_id is not null;
+
 create index support_requests_owner_status_idx
   on professional_service.support_requests(user_id,status,updated_at desc);
+
 alter table professional_service.support_requests drop constraint support_requests_status_check;
+
 alter table professional_service.support_requests add constraint support_requests_status_check
   check (status in ('submitted','assigned','scheduled','closed','declined','withdrawn'));
 
@@ -73,9 +80,11 @@ create table professional_service.case_shared_records (
   revoked_by uuid references auth.users(id),
   constraint shared_record_expiry check (expires_at > granted_at)
 );
+
 create unique index case_shared_records_active_source_idx
   on professional_service.case_shared_records(request_id,resource_type,source_record_id)
   where revoked_at is null;
+
 create index case_shared_records_access_idx
   on professional_service.case_shared_records(request_id,revoked_at,expires_at);
 
@@ -97,6 +106,7 @@ create table professional_service.case_events (
   label text not null check (char_length(label) between 2 and 160),
   created_at timestamptz not null default now()
 );
+
 create index case_events_timeline_idx on professional_service.case_events(request_id,created_at desc,id);
 
 insert into professional_service.case_events(request_id,actor_user_id,event_type,label,created_at)
@@ -113,6 +123,7 @@ create table professional_service.case_messages (
   created_at timestamptz not null default now(),
   unique(sender_user_id,client_message_id)
 );
+
 create index case_messages_page_idx on professional_service.case_messages(request_id,created_at desc,id desc);
 
 create table professional_service.case_message_read_state (
@@ -123,6 +134,7 @@ create table professional_service.case_message_read_state (
 );
 
 alter table professional_service.appointments drop constraint appointments_status_check;
+
 alter table professional_service.appointments add constraint appointments_status_check
   check (status in ('proposed','confirmed','declined','canceled','completed'));
 
@@ -135,25 +147,34 @@ create table professional_service.appointment_change_requests (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
 create unique index appointment_change_one_pending_idx
   on professional_service.appointment_change_requests(appointment_id) where status='pending';
 
 alter table professional_service.practitioner_profiles enable row level security;
+
 alter table professional_service.case_shared_records enable row level security;
+
 alter table professional_service.case_events enable row level security;
+
 alter table professional_service.case_messages enable row level security;
+
 alter table professional_service.case_message_read_state enable row level security;
+
 alter table professional_service.appointment_change_requests enable row level security;
 
 revoke all on professional_service.practitioner_profiles,professional_service.case_shared_records,
   professional_service.case_events,professional_service.case_messages,
   professional_service.case_message_read_state,professional_service.appointment_change_requests
   from public,anon,authenticated;
+
 revoke all on function professional_service.sync_practitioner_profile() from public,anon,authenticated;
+
 grant select,insert,update on professional_service.practitioner_profiles,
   professional_service.case_shared_records,professional_service.case_events,
   professional_service.case_messages,professional_service.case_message_read_state,
   professional_service.appointment_change_requests to service_role;
+
 grant update on professional_service.support_requests,professional_service.appointments to service_role;
 
 create or replace function professional_service.revoke_sharing(p_request_id uuid,p_actor uuid)
@@ -363,6 +384,7 @@ revoke all on function professional_service.create_request_v2(uuid,uuid,uuid,uui
   professional_service.send_case_message(uuid,uuid,uuid,text),
   professional_service.revoke_shared_record(uuid,uuid),
   professional_service.assign_request(uuid,uuid,uuid) from public,anon,authenticated;
+
 grant execute on function professional_service.create_request_v2(uuid,uuid,uuid,uuid,text,text,text,jsonb),
   professional_service.withdraw_request(uuid,uuid),
   professional_service.send_case_message(uuid,uuid,uuid,text),
@@ -371,6 +393,7 @@ grant execute on function professional_service.create_request_v2(uuid,uuid,uuid,
 
 revoke all on function professional_service.complete_appointment(uuid,uuid)
   from public,anon,authenticated;
+
 grant execute on function professional_service.complete_appointment(uuid,uuid) to service_role;
 
 create function professional_service.run_retention(p_dry_run boolean default true)
@@ -386,5 +409,7 @@ begin
   end if;
   return jsonb_build_object('dryRun',p_dry_run,'eligible',eligible,'removed',removed,'checkedAt',now());
 end $$;
+
 revoke all on function professional_service.run_retention(boolean) from public,anon,authenticated;
+
 grant execute on function professional_service.run_retention(boolean) to service_role;

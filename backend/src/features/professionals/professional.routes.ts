@@ -10,8 +10,14 @@ import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import type { VerificationService } from "../verification/verification.service.js";
 import type { ProfessionalService } from "./professional.service.js";
+import { professionalQueueQuery } from "./professional-queue.contract.js";
+import { professionalMessageCursorSchema } from "./professional-message-cursor.js";
 
 const uuid = z.uuid();
+const revision = z.number().int().min(1).max(2147483646);
+const followUpFields = { title: z.string().trim().min(2).max(240), dueAt: z.iso.datetime({ offset: true }) };
+const legacyRequestSchema = z.strictObject({ organizationId: uuid, summary: z.string().trim().min(20).max(4000), preferredTime: z.string().trim().max(240).default(""), journalIds: z.array(uuid).max(3).default([]), consent: z.literal(true) });
+const requestSchema = z.union([createProfessionalRequestSchema, legacyRequestSchema]);
 const appointmentSchema = z.strictObject({
   startsAt: z.iso.datetime({ offset: true }),
   endsAt: z.iso.datetime({ offset: true }),
@@ -35,7 +41,23 @@ const memberSchema = z.strictObject({
   credentialLabel: z.string().trim().min(2).max(160).nullable(),
   credentialExpiresAt: z.iso.date().nullable(),
   credentialChecked: z.literal(true),
+  credentialId: uuid.optional(),
+}).superRefine((input, context) => {
+  if (["counselor", "psychologist", "social_worker"].includes(input.role) && !input.credentialId) {
+    context.addIssue({ code: "custom", path: ["credentialId"], message: "An approved credential review is required." });
+  }
 });
+const credentialSchema = z.strictObject({
+  organizationId: uuid,
+  role: z.enum(["counselor", "psychologist", "social_worker"]),
+  credentialLabel: z.string().trim().min(2).max(160),
+  expiresAt: z.iso.date(),
+  evidenceReference: z.string().trim().min(20).max(4000),
+});
+const credentialDecisionSchema = z.discriminatedUnion("decision", [
+  z.strictObject({ decision: z.literal("approved"), reasonCode: z.null() }),
+  z.strictObject({ decision: z.literal("rejected"), reasonCode: z.enum(["invalid_evidence", "expired_credential", "unable_to_verify"]) }),
+]);
 
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
@@ -57,6 +79,35 @@ export function createProfessionalRouter(
   const router = Router();
   const authenticate = createAuthMiddleware(verifier);
   router.use("/professional", authenticate, endpointLimiter(45));
+
+  router.get("/professional/credentials", requireMfa, async (request, response) => {
+    sendSuccess(response, await service.credentials.listOwn(request.auth!.id));
+  });
+  router.post("/professional/credentials", requireMfa, endpointLimiter(8), async (request, response) => {
+    sendSuccess(response, await service.credentials.submit(request.auth!.id, parse(credentialSchema, request.body)), 201);
+  });
+  router.patch("/professional/credentials/:credentialId", requireMfa, endpointLimiter(8), async (request, response) => {
+    const input = parse(z.strictObject({ credentialLabel: z.string().trim().min(2).max(160), expiresAt: z.iso.date() }), request.body);
+    sendSuccess(response, await service.credentials.correct(request.auth!.id, requireUuidParam(request, "credentialId"), input));
+  });
+  const credentialAdminPath = "/professional/admin/organizations/:organizationId/credentials";
+  router.get(credentialAdminPath, requireMfa, requireRecentAuthentication, async (request, response) => {
+    await verification.assertAdmin(request.auth!.id);
+    sendSuccess(response, await service.credentials.listForAdmin(requireUuidParam(request, "organizationId")));
+  });
+  router.get(`${credentialAdminPath}/:credentialId`, requireMfa, requireRecentAuthentication, async (request, response) => {
+    await verification.assertAdmin(request.auth!.id);
+    sendSuccess(response, await service.credentials.readForAdmin(
+      request.auth!.id, requireUuidParam(request, "organizationId"), requireUuidParam(request, "credentialId"),
+    ));
+  });
+  router.post(`${credentialAdminPath}/:credentialId/decision`, requireMfa, requireRecentAuthentication, async (request, response) => {
+    await verification.assertAdmin(request.auth!.id);
+    sendSuccess(response, await service.credentials.review(
+      request.auth!.id, requireUuidParam(request, "organizationId"), requireUuidParam(request, "credentialId"),
+      parse(credentialDecisionSchema, request.body),
+    ));
+  });
 
   router.get("/professional/organizations", async (_request, response) => {
     sendSuccess(response, await service.listOrganizations());
@@ -90,11 +141,19 @@ export function createProfessionalRouter(
     sendSuccess(response, await service.listOwnRequests(request.auth!.id));
   });
   router.post("/professional/my-requests", endpointLimiter(8), async (request, response) => {
-    const input = parse(createProfessionalRequestSchema, request.body);
+    const input = parse(requestSchema, request.body);
     sendSuccess(response, await service.createRequest(request.auth!.id, input), 201);
   });
   router.get("/professional/my-requests/:requestId", async (request, response) => {
     sendSuccess(response, await service.detail(request.auth!.id, requireUuidParam(request, "requestId"), "user"));
+  });
+  router.patch("/professional/my-requests/:requestId", async (request, response) => {
+    const input = parse(z.strictObject({ summary: z.string().trim().min(20).max(4000), preferredTime: z.string().trim().max(240) }), request.body);
+    sendSuccess(response, await service.updateOwnRequest(request.auth!.id, requireUuidParam(request, "requestId"), input));
+  });
+  router.post("/professional/my-requests/:requestId/cancel", async (request, response) => {
+    parse(z.strictObject({}), request.body ?? {});
+    sendSuccess(response, await service.withdrawOwnRequest(request.auth!.id, requireUuidParam(request, "requestId")));
   });
   router.post("/professional/my-requests/:requestId/revoke", async (request, response) => {
     sendSuccess(response, await service.revoke(request.auth!.id, requireUuidParam(request, "requestId")));
@@ -121,7 +180,7 @@ export function createProfessionalRouter(
     ), 201);
   });
   router.get("/professional/my-requests/:requestId/sharing", async (request, response) => {
-    sendSuccess(response, await service.sharing(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.sharing(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.post("/professional/my-requests/:requestId/sharing", async (request, response) => {
     const input = parse(z.strictObject({
@@ -139,14 +198,14 @@ export function createProfessionalRouter(
     ));
   });
   router.get("/professional/my-requests/:requestId/timeline", async (request, response) => {
-    sendSuccess(response, await service.timeline(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.timeline(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.get("/professional/my-requests/:requestId/messages", async (request, response) => {
     const input = parse(z.strictObject({
-      before: z.iso.datetime({ offset: true }).optional(),
+      before: professionalMessageCursorSchema.optional(),
       limit: z.coerce.number().int().min(1).max(50).default(30),
     }), request.query);
-    sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit));
+    sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit, "owner"));
   });
   router.post("/professional/my-requests/:requestId/messages", endpointLimiter(20), async (request, response) => {
     const input = parse(z.strictObject({ clientMessageId: uuid, body: z.string().trim().min(1).max(4000) }), request.body);
@@ -155,10 +214,11 @@ export function createProfessionalRouter(
       requireUuidParam(request, "requestId"),
       input.clientMessageId,
       input.body,
+      "owner",
     ), 201);
   });
   router.patch("/professional/my-requests/:requestId/messages/read", async (request, response) => {
-    sendSuccess(response, await service.markMessagesRead(request.auth!.id, requireUuidParam(request, "requestId")));
+    sendSuccess(response, await service.markMessagesRead(request.auth!.id, requireUuidParam(request, "requestId"), "owner"));
   });
   router.get("/professional/appointments", async (request, response) => {
     const range = parse(z.strictObject({
@@ -179,10 +239,17 @@ export function createProfessionalRouter(
       await service.respondAppointment(request.auth!.id, requireUuidParam(request, "appointmentId"), accept),
     );
   });
+  router.post("/professional/appointments/:appointmentId/reschedule", requireMfa, async (request, response) => {
+    sendSuccess(response, await service.rescheduleAppointment(request.auth!.id, requireUuidParam(request, "appointmentId"), parse(appointmentSchema, request.body)));
+  });
   router.post("/professional/appointments/:appointmentId/cancel", async (request, response) => {
     sendSuccess(
       response,
-      await service.cancelAppointment(request.auth!.id, requireUuidParam(request, "appointmentId")),
+      await service.cancelAppointment(
+        request.auth!.id,
+        requireUuidParam(request, "appointmentId"),
+        request.auth!.assuranceLevel,
+      ),
     );
   });
   router.post("/professional/appointments/:appointmentId/complete", requireMfa, async (request, response) => {
@@ -201,7 +268,19 @@ export function createProfessionalRouter(
   });
 
   router.get("/professional/organizations/:organizationId/queue", requireMfa, async (request, response) => {
-    sendSuccess(response, await service.listQueue(request.auth!.id, requireUuidParam(request, "organizationId")));
+    sendSuccess(response, await service.listQueue(request.auth!.id, requireUuidParam(request, "organizationId"), parse(professionalQueueQuery, request.query)));
+  });
+  router.get("/professional/organizations/:organizationId/dashboard", requireMfa, async (request, response) => {
+    parse(z.strictObject({}), request.query);
+    sendSuccess(response, await service.dashboard(request.auth!.id, requireUuidParam(request, "organizationId")));
+  });
+  router.get("/professional/organizations/:organizationId/notifications", requireMfa, async (request, response) => {
+    const { status } = parse(z.strictObject({ status: z.enum(["all", "unread"]).default("all") }), request.query);
+    sendSuccess(response, await service.notifications.list(request.auth!.id, requireUuidParam(request, "organizationId"), status === "unread"));
+  });
+  router.patch("/professional/organizations/:organizationId/notifications/:notificationId/read", requireMfa, async (request, response) => {
+    parse(z.strictObject({}), request.body ?? {});
+    sendSuccess(response, await service.notifications.read(request.auth!.id, requireUuidParam(request, "organizationId"), requireUuidParam(request, "notificationId")));
   });
   router.get("/professional/cases/:requestId", requireMfa, async (request, response) => {
     sendSuccess(
@@ -217,7 +296,7 @@ export function createProfessionalRouter(
   });
   router.get("/professional/cases/:requestId/messages", requireMfa, async (request, response) => {
     const input = parse(z.strictObject({
-      before: z.iso.datetime({ offset: true }).optional(),
+      before: professionalMessageCursorSchema.optional(),
       limit: z.coerce.number().int().min(1).max(50).default(30),
     }), request.query);
     sendSuccess(response, await service.messages(request.auth!.id, requireUuidParam(request, "requestId"), input.before, input.limit));
@@ -237,6 +316,10 @@ export function createProfessionalRouter(
   router.post("/professional/cases/:requestId/claim", requireMfa, async (request, response) => {
     sendSuccess(response, await service.claim(request.auth!.id, requireUuidParam(request, "requestId")));
   });
+  router.get("/professional/cases/:requestId/crisis-support", requireMfa, async (request, response) => {
+    parse(z.strictObject({}), request.query);
+    sendSuccess(response, await service.crisisSupport(request.auth!.id, requireUuidParam(request, "requestId")));
+  });
   router.post("/professional/cases/:requestId/assign", requireMfa, async (request, response) => {
     const { profileId } = parse(z.strictObject({ profileId: uuid }), request.body);
     sendSuccess(response, await service.assign(request.auth!.id, requireUuidParam(request, "requestId"), profileId));
@@ -250,14 +333,19 @@ export function createProfessionalRouter(
     );
   });
   router.post("/professional/cases/:requestId/notes", requireMfa, async (request, response) => {
-    const { body } = parse(z.strictObject({ body: z.string().trim().min(2).max(4000) }), request.body);
-    sendSuccess(response, await service.addNote(request.auth!.id, requireUuidParam(request, "requestId"), body), 201);
+    const { body, ...options } = parse(z.strictObject({ body: z.string().trim().min(2).max(4000), submissionId: uuid.optional(), state: z.enum(["draft", "final"]).optional() }), request.body);
+    sendSuccess(response, await service.addNote(request.auth!.id, requireUuidParam(request, "requestId"), body, options), 201);
+  });
+  router.patch("/professional/cases/:requestId/notes/:noteId", requireMfa, async (request, response) => {
+    const input = parse(z.strictObject({ body: z.string().trim().min(2).max(4000), expectedRevision: z.number().int().min(1).max(2147483646), finalize: z.boolean() }), request.body);
+    sendSuccess(response, await service.editNote(request.auth!.id, requireUuidParam(request, "requestId"), requireUuidParam(request, "noteId"), input));
   });
   router.post("/professional/cases/:requestId/referrals", requireMfa, async (request, response) => {
     const input = parse(
       z.strictObject({
         resourceName: z.string().trim().min(2).max(160),
-        resourceUrl: z.url().startsWith("https://").nullable(),
+        resourceUrl: z.url().startsWith("https://").max(2048).nullable(),
+        submissionId: uuid.optional(),
       }),
       request.body,
     );
@@ -268,12 +356,43 @@ export function createProfessionalRouter(
         requireUuidParam(request, "requestId"),
         input.resourceName,
         input.resourceUrl,
+        input.submissionId,
       ),
       201,
     );
   });
+  const followUpsPath = "/professional/cases/:requestId/follow-ups";
+  router.get("/professional/cases/:requestId/referrals", requireMfa, async (request, response) => {
+    parse(z.strictObject({}), request.query);
+    sendSuccess(response, await service.referrals.list(request.auth!.id, requireUuidParam(request, "requestId")));
+  });
+  router.patch("/professional/cases/:requestId/referrals/:referralId", requireMfa, async (request, response) => {
+    const input = parse(z.strictObject({ status: z.enum(["completed", "canceled"]), expectedRevision: revision }), request.body);
+    sendSuccess(response, await service.referrals.setStatus(request.auth!.id, requireUuidParam(request, "requestId"), requireUuidParam(request, "referralId"), input.status, input.expectedRevision));
+  });
+  router.get(followUpsPath, requireMfa, async (request, response) => {
+    parse(z.strictObject({}), request.query);
+    sendSuccess(response, await service.followUps.list(request.auth!.id, requireUuidParam(request, "requestId")));
+  });
+  router.post(followUpsPath, requireMfa, async (request, response) => {
+    sendSuccess(response, await service.followUps.create(request.auth!.id, requireUuidParam(request, "requestId"),
+      parse(z.strictObject({ ...followUpFields, submissionId: uuid }), request.body)), 201);
+  });
+  router.patch(`${followUpsPath}/:followUpId`, requireMfa, async (request, response) => {
+    const { expectedRevision, ...input } = parse(z.strictObject({ ...followUpFields, expectedRevision: revision }), request.body);
+    sendSuccess(response, await service.followUps.update(request.auth!.id, requireUuidParam(request, "requestId"), requireUuidParam(request, "followUpId"), expectedRevision, input));
+  });
+  router.post(`${followUpsPath}/:followUpId/complete`, requireMfa, async (request, response) => {
+    const { expectedRevision } = parse(z.strictObject({ expectedRevision: revision }), request.body);
+    sendSuccess(response, await service.followUps.update(request.auth!.id, requireUuidParam(request, "requestId"), requireUuidParam(request, "followUpId"), expectedRevision, null));
+  });
   router.post("/professional/cases/:requestId/close", requireMfa, async (request, response) => {
-    sendSuccess(response, await service.close(request.auth!.id, requireUuidParam(request, "requestId")));
+    const { reason } = parse(z.strictObject({ reason: z.string().trim().min(2).max(2000).optional() }), request.body ?? {});
+    sendSuccess(response, await service.close(request.auth!.id, requireUuidParam(request, "requestId"), reason));
+  });
+  router.post("/professional/cases/:requestId/transfer", requireMfa, async (request, response) => {
+    const input = parse(z.strictObject({ targetUserId: uuid, reason: z.string().trim().min(10).max(2000), submissionId: uuid }), request.body);
+    sendSuccess(response, await service.transfer(request.auth!.id, requireUuidParam(request, "requestId"), input));
   });
 
   router.get(
@@ -300,7 +419,7 @@ export function createProfessionalRouter(
     requireRecentAuthentication,
     async (request, response) => {
       await verification.assertAdmin(request.auth!.id);
-      sendSuccess(response, await service.listAuditForAdmin(requireUuidParam(request, "organizationId")));
+      sendSuccess(response, await service.listAuditForAdmin(requireUuidParam(request, "organizationId"), request.auth!.id));
     },
   );
   router.post(

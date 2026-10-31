@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { ShieldCheck } from "lucide-react";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { professionalApi, type Membership } from "@/services/professionals/professional-api";
 import {
@@ -13,46 +12,73 @@ import {
   type ReviewerFactor,
 } from "@/services/authentication/reviewer-mfa";
 import { ProfessionalShell, ProfessionalSkeleton } from "../components/professional-shell";
-import { professionalReturnPath } from "../professional-return-path";
-
-const accessLabels: Record<Membership["accessState"], string> = {
-  active: "Approved",
-  pending_organization: "Organization review pending",
-  suspended_organization: "Organization access suspended",
-  pending_membership: "Professional approval pending",
-  suspended_membership: "Professional access suspended",
-  credential_expired: "Credential renewal required",
-};
+import { professionalOrganizationDestination, professionalReturnPath } from "../professional-return-path";
+import { ProfessionalApplication } from "../components/professional-application";
+import { ProfessionalOnboarding } from "../components/professional-onboarding";
+import { ProfessionalHeading, ProfessionalNotice } from "../components/professional-ui";
+import { approvedOrganizations } from "../professional-organizations";
+import { ProfessionalOrganizationChooser } from "../components/professional-organization-selector";
+import { professionalAccessFailure, professionalAccessState, professionalLoginDestination, type ProfessionalAccessFailure } from "../professional-access-feedback";
+import { ProfessionalAccessError } from "../components/professional-access-error";
+import { professionalMfaImage } from "../professional-mfa-image";
 
 export function ProfessionalAccessView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = professionalReturnPath(searchParams.get("next"));
+  return <AccessCheck key={next} next={next} />;
+}
+
+function AccessCheck({ next }: { next: string }) {
+  const router = useRouter();
   const inFlight = useRef(false);
+  const verificationInFlight = useRef(false);
+  const applicantMfaInFlight = useRef(false);
+  const pendingMembership = useRef<ReturnType<typeof professionalApi.memberships> | null>(null);
+  const request = useRef(0);
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
+  const [userId, setUserId] = useState("");
+  const [applicantMfaRequired, setApplicantMfaRequired] = useState(true);
   const [factor, setFactor] = useState<ReviewerFactor | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ProfessionalAccessFailure | null>(null);
 
   const load = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
+    const current = ++request.current;
     setBusy(true);
-    setError("");
+    setError(null);
+    setMemberships(null);
+    setFactor(null);
+    setCode("");
+    let preparingMfa = false;
     try {
-      const result = await professionalApi.memberships();
+      // Effect replay may overlap the same access read. Verification still
+      // performs a new membership check after the previous read has settled.
+      const result = await (pendingMembership.current ??= professionalApi.memberships().finally(() => { pendingMembership.current = null; }));
+      if (current !== request.current) return;
       setMemberships(result.memberships);
-      const active = result.memberships.filter((item) => item.accessState === "active");
+      setUserId(result.userId ?? "");
+      setApplicantMfaRequired(!!result.mfaRequired);
+      let active = approvedOrganizations(result.memberships);
       if (active.length === 0) return;
       if (result.mfaRequired) {
+        preparingMfa = true;
         const nextFactor = await prepareReviewerMfa("ECHO professional");
+        if (current !== request.current) return;
+        preparingMfa = false;
         if (nextFactor) {
           setFactor(nextFactor);
           return;
         }
         const refreshed = await professionalApi.memberships();
-        if (refreshed.mfaRequired) throw new Error("MFA session unavailable");
+        if (current !== request.current) return;
+        if (refreshed.mfaRequired) { setError(professionalAccessState("mfa_unavailable")); return; }
+        setMemberships(refreshed.memberships);
+        setApplicantMfaRequired(!!refreshed.mfaRequired);
+        active = approvedOrganizations(refreshed.memberships);
+        if (active.length === 0) return;
       }
       setFactor(null);
       if (active.length === 1 || next.startsWith("/professional/cases/")) {
@@ -60,81 +86,82 @@ export function ProfessionalAccessView() {
           ? `/professional?organization=${encodeURIComponent(active[0].organizationId)}`
           : next;
         router.replace(destination);
-        router.refresh();
       }
-    } catch {
-      setError("Professional access could not be checked. Please retry.");
+    } catch (reason) {
+      if (current !== request.current) return;
+      const failure = preparingMfa ? professionalAccessState("mfa_unavailable") : professionalAccessFailure(reason);
+      setError(failure);
+      setMemberships(null);
+      if (failure.kind === "session" || failure.kind === "reauth") router.replace(professionalLoginDestination(next));
     } finally {
-      setBusy(false);
-      inFlight.current = false;
+      if (current === request.current) { setBusy(false); inFlight.current = false; }
     }
   }, [next, router]);
 
   useEffect(() => {
     void load();
+    return () => { request.current += 1; inFlight.current = false; };
   }, [load]);
+
+  useEffect(() => {
+    const clear = () => { request.current++; pendingMembership.current = null; inFlight.current = false; setMemberships(null); setUserId(""); setFactor(null); setCode(""); setBusy(false); setError(professionalAccessState("session")); };
+    window.addEventListener("echo:sensitive-state-cleared", clear);
+    return () => window.removeEventListener("echo:sensitive-state-cleared", clear);
+  }, []);
+
+  async function beginApplicantMfa() {
+    if (busy || inFlight.current || applicantMfaInFlight.current) return;
+    applicantMfaInFlight.current = true;
+    const current = request.current;
+    setBusy(true); setError(null);
+    try {
+      const prepared = await prepareReviewerMfa("ECHO professional");
+      if (current !== request.current) return;
+      if (prepared) setFactor(prepared); else { setBusy(false); await load(); }
+    } catch { if (current === request.current) setError(professionalAccessState("mfa_unavailable")); }
+    finally { applicantMfaInFlight.current = false; if (current === request.current) setBusy(false); }
+  }
 
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!factor || busy) return;
+    if (!factor || busy || verificationInFlight.current) return;
+    verificationInFlight.current = true;
+    const current = request.current;
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await verifyReviewerMfa(factor.id, code);
+      if (current !== request.current) return;
       setFactor(null);
       setCode("");
       setBusy(false);
       await load();
     } catch {
-      setError("The authenticator code could not be verified. Try again.");
+      if (current !== request.current) return;
+      setError(professionalAccessState("mfa_invalid"));
       setBusy(false);
+    } finally {
+      verificationInFlight.current = false;
     }
   }
 
-  const active = memberships?.filter((item) => item.accessState === "active") ?? [];
+  const active = approvedOrganizations(memberships ?? []);
   return (
     <ProfessionalShell>
-      <div className="mx-auto max-w-2xl space-y-5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">ECHO professional care</p>
-          <h1 className="mt-2 text-3xl [font-family:var(--font-echo-display)]">Professional access</h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Your ECHO account needs an approved organization, professional role, and authenticator verification.
-          </p>
-        </div>
-        {memberships === null && busy ? <ProfessionalSkeleton title="Checking professional access" /> : null}
-        {error ? (
-          <div role="alert" className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm">
-            {error} <button type="button" className="font-semibold underline" onClick={() => void load()}>Retry</button>
-          </div>
-        ) : null}
-        {memberships && active.length === 0 ? (
-          <section className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-            <ShieldCheck size={28} className="text-primary" aria-hidden="true" />
-            <h2 className="mt-4 text-2xl [font-family:var(--font-echo-display)]">Access is not active yet</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              An ECHO administrator must approve your organization and role. A verified user account alone does not grant case access.
-            </p>
-            {memberships.length > 0 ? (
-              <ul className="mt-5 space-y-2">
-                {memberships.map((item) => (
-                  <li key={item.id} className="flex flex-wrap justify-between gap-2 rounded-xl bg-secondary/60 px-4 py-3 text-sm">
-                    <span>{item.organization?.name ?? "Organization unavailable"}</span>
-                    <strong>{accessLabels[item.accessState]}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <Link href="/dashboard" className="mt-5 inline-block text-sm font-semibold text-primary underline">Return to My ECHO</Link>
-          </section>
-        ) : null}
-        {factor && active.length > 0 ? (
-          <form onSubmit={(event) => void verify(event)} className="space-y-4 rounded-3xl border border-border bg-card p-6 sm:p-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <ProfessionalHeading title="Professional access" label="ECHO professional care" description="Your ECHO account needs an approved organization, professional role, and authenticator verification." />
+        {memberships === null && busy ? <ProfessionalSkeleton variant="content" title="Checking professional access" /> : null}
+        {error ? <ProfessionalAccessError failure={error} destination={next} atAccess onRetry={() => void load()} busy={busy} /> : null}
+        {memberships && active.length === 0 ? applicantMfaRequired ? <ProfessionalOnboarding memberships={memberships} application={<ProfessionalNotice title="Verify your authenticator to apply">Credential submission and history require MFA, even before membership approval.<EchoButton className="mt-3" onClick={() => void beginApplicantMfa()} disabled={busy || !!factor}>Verify authenticator to apply</EchoButton></ProfessionalNotice>} reviewHistory={<ProfessionalNotice title="Application history requires MFA">Verify your authenticator to view your own credential applications.</ProfessionalNotice>} /> : <ProfessionalApplication key={userId} memberships={memberships} userId={userId} /> : null}
+        {active.length > 0 ? <ProfessionalNotice title="Membership approved">{factor ? "Authenticator verification is required before entering your workspace. " : null}Continue through any required authenticator check, then choose your approved organization. Credential review alone does not grant workspace access.</ProfessionalNotice> : null}
+        {memberships && active.length === 0 ? <div className="flex flex-wrap items-center gap-3"><EchoButton type="button" variant="outline" isLoading={busy} loadingText="Checking access" onClick={() => void load()}>Check approval status</EchoButton><Link href="/dashboard" className="echo-focus-ring inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-primary underline">Return to My ECHO</Link></div> : null}
+        {factor ? (
+          <form onSubmit={(event) => void verify(event)} className="mx-auto max-w-2xl space-y-4 rounded-3xl border border-border bg-card p-6 sm:p-8">
             <h2 className="text-2xl [font-family:var(--font-echo-display)]">Verify your authenticator</h2>
             <p className="text-sm leading-6 text-muted-foreground">
               {factor.qrCode ? "Scan this code with your authenticator app, then enter its six-digit code." : "Enter the six-digit code from your authenticator app."}
             </p>
-            {factor.qrCode ? <Image src={factor.qrCode} alt="Authenticator enrollment QR code" width={200} height={200} unoptimized /> : null}
+            {factor.qrCode ? <Image src={professionalMfaImage(factor.qrCode)} alt="Authenticator enrollment QR code" width={200} height={200} unoptimized /> : null}
             <label className="block text-sm font-semibold">
               Authenticator code
               <input
@@ -151,21 +178,10 @@ export function ProfessionalAccessView() {
           </form>
         ) : null}
         {active.length > 1 && !factor && !busy && !error ? (
-          <section className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-            <h2 className="text-2xl [font-family:var(--font-echo-display)]">Choose an organization</h2>
-            <div className="mt-4 grid gap-3">
-              {active.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="min-h-14 rounded-xl border border-border px-4 text-left text-sm font-semibold transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary"
-                  onClick={() => { router.replace(`/professional?organization=${encodeURIComponent(item.organizationId)}`); router.refresh(); }}
-                >
-                  {item.organization?.name ?? "Organization"} <span className="ml-2 text-muted-foreground">{item.role.replace("_", " ")}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+          <ProfessionalOrganizationChooser memberships={memberships ?? []} onChange={(id) => {
+            if (!active.some((item) => item.organizationId === id)) return;
+            router.replace(professionalOrganizationDestination(next, id));
+          }} />
         ) : null}
       </div>
     </ProfessionalShell>

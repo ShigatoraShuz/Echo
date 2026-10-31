@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Camera, CameraOff, Check, Eye, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import type { FaceMeshCapture } from "@echo/contracts";
 
@@ -17,6 +10,7 @@ type Connection = { start: number; end: number };
 export interface JournalFaceCaptureHandle {
   getCapture(): FaceMeshCapture | undefined;
   stop(): void;
+  getStill(): Promise<Blob | undefined>;
 }
 
 interface JournalFaceCaptureProps {
@@ -61,10 +55,34 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
       setState("idle");
     }, [clearCanvas]);
 
-    useImperativeHandle(ref, () => ({
-      getCapture: () => latestCaptureRef.current,
-      stop,
-    }), [stop]);
+    useImperativeHandle(
+      ref,
+      () => ({
+        getStill: async () => {
+          const video = videoRef.current;
+          if (!latestCaptureRef.current || !video?.videoWidth) return undefined;
+          const canvas = document.createElement("canvas");
+          const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+          canvas.width = Math.round(video.videoWidth * scale);
+          canvas.height = Math.round(video.videoHeight * scale);
+          canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+          return new Promise((resolve) =>
+            canvas.toBlob(
+              (blob) => {
+                canvas.width = 0;
+                canvas.height = 0;
+                resolve(blob ?? undefined);
+              },
+              "image/jpeg",
+              0.9,
+            ),
+          );
+        },
+        getCapture: () => latestCaptureRef.current,
+        stop,
+      }),
+      [stop],
+    );
 
     const drawMesh = useCallback((landmarks: number[][]) => {
       const canvas = canvasRef.current;
@@ -119,7 +137,10 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
           video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false,
         });
-        if (generation !== requestGeneration.current) { stream.getTracks().forEach(track => track.stop()); return; }
+        if (generation !== requestGeneration.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
         setState("loading_mesh");
@@ -161,9 +182,16 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             return;
           }
           busyRef.current = false;
-          if (message.type === "error") { stop(); setState("error"); }
+          if (message.type === "error") {
+            stop();
+            setState("error");
+          }
         };
-        worker.onerror = () => { if (generation !== requestGeneration.current) return; stop(); setState("error"); };
+        worker.onerror = () => {
+          if (generation !== requestGeneration.current) return;
+          stop();
+          setState("error");
+        };
         worker.postMessage({
           type: "init",
           wasmRoot: new URL("/vendor/mediapipe", window.location.origin).toString(),
@@ -172,12 +200,17 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
       } catch (error) {
         if (generation !== requestGeneration.current) return;
         stop();
-        setState(error instanceof DOMException && ["NotAllowedError", "PermissionDeniedError"].includes(error.name) ? "denied" : "unavailable");
+        setState(
+          error instanceof DOMException && ["NotAllowedError", "PermissionDeniedError"].includes(error.name)
+            ? "denied"
+            : "unavailable",
+        );
       }
     }, [beginFrames, clearCanvas, drawMesh, onRequestedChange, stop]);
 
     useEffect(() => {
-      if (videoRef.current && streamRef.current && (state === "active" || state === "loading_mesh")) videoRef.current.srcObject = streamRef.current;
+      if (videoRef.current && streamRef.current && (state === "active" || state === "loading_mesh"))
+        videoRef.current.srcObject = streamRef.current;
     }, [state]);
 
     useEffect(() => {
@@ -196,21 +229,22 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
     }, [requested, state, stop]);
 
     const active = state === "active" || state === "loading_mesh";
-    const statusText = state === "requesting"
-      ? "Requesting camera permission…"
-      : state === "loading_mesh"
-        ? "Starting the private face mesh…"
-        : state === "active" && hasFace
-          ? "Face mesh ready"
-          : state === "active"
-            ? "Center one face in the frame"
-            : state === "denied"
-              ? "Camera permission was denied"
-              : state === "unavailable"
-                ? "No camera is available"
-                : state === "error"
-                  ? "Face mesh could not start"
-                  : "Camera stays off until you choose to start it";
+    const statusText =
+      state === "requesting"
+        ? "Requesting camera permission…"
+        : state === "loading_mesh"
+          ? "Starting the private face mesh…"
+          : state === "active" && hasFace
+            ? "Face mesh ready"
+            : state === "active"
+              ? "Center one face in the frame"
+              : state === "denied"
+                ? "Camera permission was denied"
+                : state === "unavailable"
+                  ? "No camera is available"
+                  : state === "error"
+                    ? "Face mesh could not start"
+                    : "Camera stays off until you choose to start it";
 
     return (
       <section className="overflow-hidden rounded-[1.35rem] border border-primary/15 bg-[linear-gradient(145deg,hsl(var(--card)),hsl(var(--secondary)/.38))] shadow-subtle">
@@ -221,11 +255,17 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             </span>
             <div>
               <h3 className="text-sm font-semibold text-foreground">Optional facial expression capture</h3>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">A live mesh is prepared for your private analysis.</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                On Save, one still is processed locally for an experimental facial-expression estimate.
+              </p>
             </div>
           </div>
           {active ? (
-            <button type="button" onClick={stop} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold text-foreground transition-[transform,background-color] duration-150 ease-out hover:bg-secondary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[.97]">
+            <button
+              type="button"
+              onClick={stop}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold text-foreground transition-[transform,background-color] duration-150 ease-out hover:bg-secondary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[.97]"
+            >
               <CameraOff className="h-3.5 w-3.5" aria-hidden="true" /> Stop
             </button>
           ) : null}
@@ -234,9 +274,19 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
         {active ? (
           <div className="relative aspect-video overflow-hidden border-y border-primary/10 bg-[#10231b]">
             <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" />
-            <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]" aria-hidden="true" />
-            <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur ${hasFace ? "bg-emerald-50/90 text-emerald-800" : "bg-card/90 text-muted-foreground"}`}>
-              {hasFace ? <Check className="h-3 w-3" /> : <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />}
+            <canvas
+              ref={canvasRef}
+              className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]"
+              aria-hidden="true"
+            />
+            <span
+              className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur ${hasFace ? "bg-emerald-50/90 text-emerald-800" : "bg-card/90 text-muted-foreground"}`}
+            >
+              {hasFace ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+              )}
               {hasFace ? "Mesh ready" : "Finding face"}
             </span>
           </div>
@@ -244,8 +294,19 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
           <div className="mx-4 grid min-h-28 place-items-center rounded-2xl border border-dashed border-primary/20 bg-primary/[.035] px-4 py-5 text-center">
             <Camera className="h-7 w-7 text-primary/55" aria-hidden="true" />
             <p className="mt-2 text-xs text-muted-foreground">{statusText}</p>
-            <button type="button" onClick={() => void start()} disabled={state === "requesting"} className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition-transform duration-150 ease-out focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[.97] disabled:opacity-60">
-              {state === "requesting" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : state === "idle" ? <Camera className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            <button
+              type="button"
+              onClick={() => void start()}
+              disabled={state === "requesting"}
+              className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition-transform duration-150 ease-out focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[.97] disabled:opacity-60"
+            >
+              {state === "requesting" ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : state === "idle" ? (
+                <Camera className="h-3.5 w-3.5" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
               {state === "idle" ? "Start camera" : state === "requesting" ? "Requesting…" : "Try again"}
             </button>
           </div>
@@ -255,9 +316,10 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           On-device mesh · no photo or video is saved
         </div>
-        <p className="sr-only" aria-live="polite">{statusText}</p>
+        <p className="sr-only" aria-live="polite">
+          {statusText}
+        </p>
       </section>
     );
   },
 );
-

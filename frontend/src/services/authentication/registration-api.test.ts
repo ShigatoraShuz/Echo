@@ -18,6 +18,15 @@ describe("registration request recovery", () => {
       .rejects.toThrow("Registration is temporarily unavailable. Please try again later.");
   });
 
+  it("explains when hosted email delivery rejects recipients", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: { code: "EMAIL_DELIVERY_NOT_CONFIGURED", message: "private provider detail" },
+    }), { status: 503, headers: { "content-type": "application/json" } })));
+
+    await expect(registrationApi.email({ email: "mira@example.test", password: "StrongPass1", confirmPassword: "StrongPass1" }))
+      .rejects.toThrow("Email registration is unavailable until email delivery is configured.");
+  });
+
   it("explains a lost connection without exposing a browser fetch error", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
 

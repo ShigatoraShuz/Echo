@@ -74,3 +74,7 @@ frontend/assets/auth-grid-background.png
 frontend/assets/e2d821df-*.png
 
 /local-data/
+
+# Prepared local Talk/VAD assets; recreated by prepare-realtime-assets.mjs
+/frontend/public/vendor/buddy-vad/*.onnx
+/frontend/public/vendor/buddy-vad/ort-wasm*

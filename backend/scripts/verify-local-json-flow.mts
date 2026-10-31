@@ -59,6 +59,17 @@ export async function verifyLocalFlow(core: any) {
             assert.equal(detail.status, 200);
             assert.ok(['echo-journal-analysis-v2','echo-journal-analysis-v3'].includes((await detail.json()).data.result.schemaVersion));
         }
+        if(process.env.ECHO_VERIFY_FACE==='true'){
+            await db.query('update user_service.privacy_preferences set facial_analysis_enabled=true where user_id=$1',[user]);
+            const first=store.completed(user)[0];
+            const image=await readFile(new URL('../../../runtime-cache/face-blank.png',import.meta.url));
+            const uploaded=await fetch(base+'/journals/'+first.journal_id+'/face',{method:'POST',headers:{Authorization:headers.Authorization,'Content-Type':'image/png'},body:image});assert.equal(uploaded.status,202);
+            const deadline=Date.now()+120000;let face:any;
+            do{await new Promise(r=>setTimeout(r,500));face=await (await fetch(base+'/journals/'+first.journal_id+'/face',{headers})).json();}while(['queued','analyzing'].includes(face.data.status)&&Date.now()<deadline);
+            assert.equal(face.data.result?.reason,'no_usable_face');assert.equal(face.data.result?.status,'unavailable');
+            const saved=new LocalBuddyStore(dir);assert.ok(saved);assert.ok(store.get(user,first.id)?.face_result);
+            assert.equal(store.get(user,first.id)?.status,'completed');console.info('PASS actual face preprocessing -> no-face outcome -> Express -> local JSON, independent of completed text/PHQ results');
+        }
         if(process.env.ECHO_VERIFY_PHQ_ONLY==='true'){
             const completed=store.completed(user);assert.equal(completed.length,3);
             const first=completed[0];const before=JSON.parse(first.result_ciphertext!);assert.equal(before.schemaVersion,'echo-journal-analysis-v3');assert.equal(before.journalScreening.status,'available');

@@ -60,6 +60,7 @@ vi.mock("@/shared/components/ui/echo-motion-surface", () => ({
 
 function setupMock() {
   return {
+    getTemporarySessionId:()=>"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",applyTalkMessage:vi.fn(),applyTalkDelivery:vi.fn(),
     accessStatus: "allowed" as const,
     historyEnabled: true,
     isLoadingMessages: false,

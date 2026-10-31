@@ -9,9 +9,13 @@ create table notification_service.push_subscriptions (
   updated_at timestamptz not null default now(),
   unique (user_id, endpoint_hash)
 );
+
 create index push_subscriptions_user_idx on notification_service.push_subscriptions (user_id);
+
 alter table notification_service.push_subscriptions enable row level security;
+
 revoke all on notification_service.push_subscriptions from anon, authenticated;
+
 grant select, insert, update, delete on notification_service.push_subscriptions to service_role;
 
 alter table notification_service.notification_logs
@@ -21,16 +25,22 @@ alter table notification_service.notification_logs
   add column if not exists lease_until timestamptz,
   add column if not exists claim_token uuid,
   add column if not exists failure_code text;
+
 alter table notification_service.notification_logs
   add constraint notification_logs_notification_fk foreign key (notification_id)
   references notification_service.notifications(id) on delete cascade not valid;
+
 create unique index notification_email_once_idx on notification_service.notification_logs (notification_id)
   where channel = 'email';
+
 create unique index notification_push_once_idx on notification_service.notification_logs (notification_id, push_subscription_id)
   where channel = 'push';
+
 create index notification_delivery_due_idx on notification_service.notification_logs (next_attempt_at, created_at)
   where channel in ('email', 'push') and delivery_status in ('pending', 'processing');
+
 revoke all on notification_service.notification_logs from anon, authenticated;
+
 grant select, insert, update, delete on notification_service.notification_logs to service_role;
 
 create or replace function notification_service.enqueue_notification_channels()
@@ -52,7 +62,9 @@ begin
   return new;
 end;
 $$;
+
 revoke all on function notification_service.enqueue_notification_channels() from public, anon, authenticated;
+
 create trigger enqueue_notification_channels_after_insert
   after insert on notification_service.notifications for each row
   execute function notification_service.enqueue_notification_channels();
@@ -102,7 +114,9 @@ begin
   left join user_service.privacy_preferences priv on priv.user_id = n.user_id;
 end;
 $$;
+
 revoke all on function notification_service.claim_notification_deliveries(integer,text[]) from public, anon, authenticated;
+
 grant execute on function notification_service.claim_notification_deliveries(integer,text[]) to service_role;
 
 commit;

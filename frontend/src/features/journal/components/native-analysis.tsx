@@ -1,4 +1,5 @@
 "use client";
+import {LocalFaceResult} from "./local-face-result";
 import { useState } from "react";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -53,6 +54,7 @@ export function NativeAnalysis({
           Model categories support reflection. They are not diagnoses or measures of your safety.
         </p>
       </div>
+      {entryId && <LocalFaceResult entryId={entryId}/>}
       {result.schemaVersion === "echo-journal-analysis-v3" && (
         <div>
           <h3>Experimental journal PHQ-8 estimate</h3>

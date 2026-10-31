@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginView } from "../login-view";
-import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
+import { useLoginViewModel, type FormStatus } from "@/features/authentication/view-model/use-login-view-model";
 
 const navigation = vi.hoisted(() => ({
   push: vi.fn(),
@@ -19,12 +19,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/features/authentication/view-model/use-login-view-model", () => ({
   useLoginViewModel: vi.fn(),
 }));
-vi.mock("@/features/authentication/components/secure-google-login-button", () => ({
-  SecureGoogleLoginButton: ({ successPath }: { successPath: string }) => <span data-testid="google-destination">{successPath}</span>,
-}));
-vi.mock("@/features/authentication/components/email-otp-form", () => ({
-  EmailOtpForm: ({ onAuthenticated }: { onAuthenticated: () => void }) => <button type="button" onClick={onAuthenticated}>Finish email sign in</button>,
-}));
 
 function setupMock() {
   return {
@@ -32,7 +26,7 @@ function setupMock() {
     password: "",
     rememberSession: false,
     showPassword: false,
-    status: "idle" as const,
+    status: "idle" as FormStatus,
     error: null,
     fieldErrors: {},
     setEmail: vi.fn(),
@@ -57,7 +51,7 @@ describe("LoginView", () => {
 
     render(<LoginView title="Log in" description="Welcome back" />);
 
-    await user.click(screen.getByRole("button", { name: /use password instead/i }));
+    expect(screen.queryByRole("button", { name: /send sign-in code/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /show password/i }));
     await user.click(screen.getByLabelText(/remember me on this device/i));
     await user.type(screen.getByLabelText(/email address/i), "mira@example.com");
@@ -82,12 +76,23 @@ describe("LoginView", () => {
     );
   });
 
+  it("clears stale login success after the access gateway sends the user back", async () => {
+    navigation.searchParams = new URLSearchParams("error=access_check_unavailable");
+    const mock = { ...setupMock(), status: "success" as const };
+    vi.mocked(useLoginViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+
+    render(<LoginView title="Log in" description="Welcome back" />);
+
+    expect(mock.reset).toHaveBeenCalled();
+    expect(screen.queryByText("Operation completed successfully.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^log in$/i })).toBeEnabled();
+  });
+
   it("returns an ordinary user to a safe support request after password sign-in", async () => {
     navigation.searchParams = new URLSearchParams("next=%2Fprofessional%2Frequest");
     vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
     const user = userEvent.setup();
     render(<LoginView title="Log in" description="Welcome back" />);
-    await user.click(screen.getByRole("button", { name: /use password instead/i }));
     await user.click(screen.getByRole("button", { name: /^log in$/i }));
     expect(navigation.replace).toHaveBeenCalledWith("/professional/request");
   });
@@ -96,16 +101,17 @@ describe("LoginView", () => {
     vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
     const user = userEvent.setup();
     render(<LoginView title="Professional sign in" description="Professional workspace" destination="/professional/access" />);
-    await user.click(screen.getByRole("button", { name: /use password instead/i }));
     await user.click(screen.getByRole("button", { name: /^log in$/i }));
     expect(navigation.replace).toHaveBeenCalledWith("/professional/access");
   });
 
-  it("uses the professional access destination for email code and Google sign-in", async () => {
+  it("shows only password sign-in and retains the migration link", () => {
     vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
     render(<LoginView title="Professional sign in" description="Professional workspace" destination="/professional/access?next=%2Fprofessional" />);
-    expect(screen.getByTestId("google-destination")).toHaveTextContent("/professional/access?next=%2Fprofessional");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Finish email sign in" }));
-    expect(navigation.replace).toHaveBeenCalledWith("/professional/access?next=%2Fprofessional");
+    expect(screen.queryByRole("button", { name: /continue with google/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /email code/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter your password")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /google|move your account/i })).not.toBeInTheDocument();
   });
 });

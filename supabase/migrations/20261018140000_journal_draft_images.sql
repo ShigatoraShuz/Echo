@@ -11,9 +11,13 @@ create table journal_service.journal_draft_images (
   reservation_expires_at timestamptz not null default (now() + interval '30 minutes'),
   created_at timestamptz not null default now()
 );
+
 create index journal_draft_images_user_idx on journal_service.journal_draft_images(user_id, created_at);
+
 alter table journal_service.journal_draft_images enable row level security;
+
 revoke all on journal_service.journal_draft_images from public, anon, authenticated;
+
 grant select, insert, update, delete on journal_service.journal_draft_images to service_role;
 
 create function journal_service.reserve_journal_draft_image(
@@ -44,7 +48,9 @@ begin
   return path;
 end;
 $$;
+
 revoke all on function journal_service.reserve_journal_draft_image(uuid,uuid,text,text) from public, anon, authenticated;
+
 grant execute on function journal_service.reserve_journal_draft_image(uuid,uuid,text,text) to service_role;
 
 create function journal_service.enforce_draft_image_limit() returns trigger
@@ -61,7 +67,9 @@ begin
   return new;
 end;
 $$;
+
 revoke all on function journal_service.enforce_draft_image_limit() from public, anon, authenticated;
+
 create trigger enforce_draft_image_limit before update of uploaded on journal_service.journal_draft_images
 for each row execute function journal_service.enforce_draft_image_limit();
 
@@ -74,7 +82,9 @@ begin
   return old;
 end;
 $$;
+
 revoke all on function journal_service.queue_draft_image_deletion() from public, anon, authenticated;
+
 create trigger queue_draft_image_deletion after delete on journal_service.journal_draft_images
 for each row execute function journal_service.queue_draft_image_deletion();
 
@@ -108,7 +118,9 @@ begin
   return attached_count;
 end;
 $$;
+
 revoke all on function journal_service.attach_journal_draft_images(uuid,uuid) from public, anon, authenticated;
+
 grant execute on function journal_service.attach_journal_draft_images(uuid,uuid) to service_role;
 
 commit;

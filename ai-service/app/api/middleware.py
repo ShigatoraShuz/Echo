@@ -54,11 +54,11 @@ async def request_id_middleware(request: Request, call_next):
 
     request.state.request_id = request_id
     body_limit=MAX_BODY_BYTES
-    if request.url.path=='/v2/speech':
+    if request.url.path in ('/v2/speech','/v1/face','/v1/talk'):
         from app.core.security import require_internal_token
         try:require_internal_token(request.headers.get('authorization'))
         except HTTPException as error:return _error_response(error.status_code,error.detail,request_id)
-        body_limit=14*1024*1024
+        body_limit=(14 if request.url.path=='/v2/speech' else 3)*1024*1024
     content_length = request.headers.get("content-length")
     if content_length:
         try:

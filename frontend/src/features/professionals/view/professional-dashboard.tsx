@@ -2,274 +2,97 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, CalendarDays, ClipboardList, ShieldCheck, UserRoundCheck } from "lucide-react";
-import { PageHeader } from "@/shared/components/layout/page-header";
+import { useRef } from "react";
+import { ArrowRight, CalendarDays, RefreshCw, ShieldCheck } from "lucide-react";
+import { EchoEmptyState } from "@/shared/components/feedback/echo-empty-state";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
-import { normalizeError } from "@/shared/errors/normalize-error";
-import { professionalApi, type Membership, type PractitionerProfile, type QueueRequest } from "@/services/professionals/professional-api";
-import { ProfessionalShell, ProfessionalSkeleton, RequestStatus } from "../components/professional-shell";
-
-const date = (value: string) =>
-  new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+import { ProfessionalShell, ProfessionalSkeleton } from "../components/professional-shell";
+import { ProfessionalHeading, ProfessionalMetrics, ProfessionalNotice, ProfessionalPanel } from "../components/professional-ui";
+import { ProfessionalAssignmentPanel } from "../components/professional-assignment-panel";
+import { ProfessionalAccessError } from "../components/professional-access-error";
+import { useProfessionalWorkspace } from "../hooks/use-professional-workspace";
+import { ProfessionalRequestQueue, type ProfessionalQueueHandle } from "../components/professional-request-queue";
+import { professionalCaseHref } from "../professional-request.model";
+import { appointmentTime, sessionModes } from "../professional-appointments.model";
 
 export function ProfessionalDashboard() {
-  const searchParams = useSearchParams();
-  const requestedOrganization = searchParams.get("organization");
-  const [memberships, setMemberships] = useState<Membership[] | null>(null);
-  const [userId, setUserId] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
-  const [requests, setRequests] = useState<QueueRequest[] | null>(null);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [busyId, setBusyId] = useState("");
-  const [practitioners, setPractitioners] = useState<PractitionerProfile[]>([]);
-  const [assignee, setAssignee] = useState<Record<string, string>>({});
-  const queueRequest = useRef(0);
+  const params = useSearchParams();
+  return <DashboardWorkspace key={params.toString()} />;
+}
 
-  useEffect(() => {
-    let active = true;
-    professionalApi
-      .memberships()
-      .then(({ memberships: items, userId: actor }) => {
-        if (!active) return;
-        setMemberships(items);
-        setUserId(actor);
-        const selected = items.find((item) => item.accessState === "active" && item.organizationId === requestedOrganization);
-        const first = selected ?? items.find((item) => item.accessState === "active");
-        if (first) setOrganizationId(first.organizationId);
-      })
-      .catch((reason) => {
-        if (active) {
-          setError(normalizeError(reason).userMessage);
-          setMemberships([]);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [requestedOrganization]);
-
-  const refresh = useCallback(async () => {
-    if (!organizationId) return;
-    const current = ++queueRequest.current;
-    setError("");
-    setRequests(null);
-    try {
-      const result = await professionalApi.queue(organizationId);
-      if (current === queueRequest.current) setRequests(result.requests);
-    } catch (reason) {
-      if (current === queueRequest.current) {
-        setError(normalizeError(reason).userMessage);
-        setRequests([]);
-      }
-    }
-  }, [organizationId]);
-
-  useEffect(() => {
-    void refresh();
-    return () => {
-      queueRequest.current += 1;
-    };
-  }, [refresh]);
-  useEffect(() => {
-    if (!organizationId) return;
-    let active = true;
-    void professionalApi.directory({ organizationId, limit: 30 }).then((result) => {
-      if (active) setPractitioners(result.practitioners);
-    }).catch(() => { if (active) setPractitioners([]); });
-    return () => { active = false; };
-  }, [organizationId]);
-  const activeMembership = memberships?.find((item) => item.organizationId === organizationId);
-  const canClaim =
-    activeMembership?.role === "counselor" ||
-    activeMembership?.role === "psychologist" ||
-    activeMembership?.role === "social_worker";
-  const canAssign = activeMembership?.role === "coordinator" || activeMembership?.role === "org_admin";
-  const visible = useMemo(
-    () => (requests ?? []).filter((item) => filter === "all" || item.status === filter),
-    [requests, filter],
-  );
-  const openCount = requests?.filter((item) => item.status === "submitted").length ?? 0;
-  const mineCount = requests?.filter((item) => item.assignedTo === userId && item.status !== "closed").length ?? 0;
-  const scheduledCount =
-    requests?.filter((item) => item.status === "scheduled" && item.assignedTo === userId).length ?? 0;
-
-  async function claim(id: string) {
-    setBusyId(id);
-    setError("");
-    try {
-      await professionalApi.claim(id);
-      await refresh();
-    } catch (reason) {
-      setError(normalizeError(reason).userMessage);
-    } finally {
-      setBusyId("");
-    }
-  }
-  async function assign(id: string) {
-    const profileId = assignee[id];
-    if (!profileId) return;
-    setBusyId(id); setError("");
-    try { await professionalApi.assign(id, profileId); await refresh(); }
-    catch (reason) { setError(normalizeError(reason).userMessage); }
-    finally { setBusyId(""); }
-  }
+function DashboardWorkspace() {
+  const { memberships, organizationId, userId, requests, activeMembership, overview, dashboardSummary, summaryUnavailable, error, success, busyId, canClaim, selectionNotice, destination, switchOrganization, refreshWorkspace, retry, claim, canAssign, assign } = useProfessionalWorkspace();
+  const queueView = useRef<ProfessionalQueueHandle>(null);
+  const scheduledCount = dashboardSummary?.counts.scheduledCount ?? overview.scheduledCases.length;
+  const scheduledCases = dashboardSummary?.scheduledCases ?? overview.scheduledCases;
 
   return (
     <ProfessionalShell
       memberships={memberships ?? undefined}
       organizationId={organizationId}
-      onOrganizationChange={(id) => {
-        queueRequest.current += 1;
-        setRequests(null);
-        setOrganizationId(id);
-      }}
+      organizationDisabled={!!busyId}
+      onOrganizationChange={switchOrganization}
     >
-      <PageHeader
+      <ProfessionalHeading
+        label="Workspace overview"
         title="Today, at a glance"
-        description="Requests, appointments, and follow-ups for your active organization. Only assigned professionals can open private case details."
+        description="Your priorities, in one place."
+        action={<EchoButton className="pro-overview-refresh" aria-label="Refresh overview" title="Refresh overview" type="button" variant="outline" disabled={!organizationId || !!busyId || !!error || requests === null} onClick={refreshWorkspace}><RefreshCw size={17} aria-hidden="true" /><span>Refresh overview</span></EchoButton>}
       />
-      {memberships === null ? (
-        <ProfessionalSkeleton title="Loading your organizations" />
+      {selectionNotice ? <div className="mb-6"><ProfessionalNotice title="Organization selection updated">{selectionNotice}</ProfessionalNotice></div> : null}
+      {error ? <ProfessionalAccessError failure={error} destination={destination} retryLabel="Retry workspace" onRetry={retry} /> : memberships === null ? (
+        <ProfessionalSkeleton title="Loading your organizations" variant="content" />
       ) : memberships.length === 0 || !organizationId ? (
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-subtle sm:p-9">
-          <ShieldCheck className="mb-4 text-primary" size={27} aria-hidden="true" />
-          <h2 className="text-2xl [font-family:var(--font-echo-display)]">Professional access is not active</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+        <ProfessionalPanel title="Professional access is not active" icon={ShieldCheck} description="Your account and professional access are checked separately.">
+          <p className="max-w-xl text-sm leading-6 text-muted-foreground">
             An ECHO administrator must approve your organization and professional role after checking your credentials.
             An ordinary verified account does not grant case access.
           </p>
-          <Link href="/professional-support" className="mt-5 inline-flex text-sm font-semibold text-primary underline">
+          <Link href="/professional/request" className="echo-focus-ring mt-5 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline">
             Looking for support as an ECHO user?
           </Link>
-        </section>
+        </ProfessionalPanel>
       ) : (
         <>
-          <div className="mb-6 grid gap-3 sm:grid-cols-3">
-            {[
-              { label: "New requests", value: openCount, icon: ClipboardList },
-              { label: "My active cases", value: mineCount, icon: UserRoundCheck },
-              { label: "Scheduled", value: scheduledCount, icon: CalendarDays },
-            ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-3xl border border-border/70 bg-card p-5 shadow-subtle">
-                <Icon className="mb-4 text-primary" size={20} aria-hidden="true" />
-                {requests === null ? (
-                  <EchoSkeleton className="h-9 w-12" />
-                ) : (
-                  <p className="text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-                )}
-                <p className="mt-1 text-sm text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
-          <section
-            id="requests"
-            className="scroll-mt-32 rounded-3xl border border-border/70 bg-card p-4 shadow-subtle sm:p-6"
-          >
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-2xl [font-family:var(--font-echo-display)]">Request queue</h2>
-                <p className="text-sm text-muted-foreground">
-                  Showing only {activeMembership?.organization?.name ?? "your organization"}.
-                </p>
-              </div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                Status
-                <select
-                  className="ml-2 min-h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                >
-                  <option value="all">All</option>
-                  <option value="submitted">New</option>
-                  <option value="assigned">Accepted</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </label>
-            </div>
-            {requests === null ? (
-              <ProfessionalSkeleton title="Loading request queue" />
-            ) : visible.length === 0 ? (
-              <div className="mt-5 rounded-2xl bg-secondary/40 p-8 text-center text-sm text-muted-foreground">
-                No requests match this view.
-              </div>
-            ) : (
-              <ul className="mt-5 divide-y divide-border/70">
-                {visible.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong className="text-sm text-foreground">Request {item.id.slice(0, 8).toUpperCase()}</strong>
-                        <RequestStatus status={item.status} />
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">Submitted {date(item.createdAt)}</p>
-                    </div>
-                    {item.assignedTo === userId ? (
-                      <Link
-                        href={`/professional/cases/${item.id}`}
-                        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-primary/25 px-4 text-sm font-semibold text-primary hover:bg-secondary"
-                      >
-                        Open case <ArrowRight size={15} />
-                      </Link>
-                    ) : item.status === "submitted" && canClaim ? (
-                      <EchoButton
-                        size="small"
-                        isLoading={busyId === item.id}
-                        loadingText="Accepting"
-                        onClick={() => void claim(item.id)}
-                      >
-                        Accept request
-                      </EchoButton>
-                    ) : item.status === "submitted" && canAssign ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label><span className="sr-only">Choose practitioner for request {item.id.slice(0, 8)}</span><select className="min-h-10 rounded-xl border border-border bg-background px-3 text-xs" value={assignee[item.id] ?? ""} onChange={(event) => setAssignee((current) => ({ ...current, [item.id]: event.target.value }))}><option value="">Choose practitioner</option>{practitioners.map((profile) => <option key={profile.id} value={profile.id}>{profile.displayName}</option>)}</select></label>
-                        <EchoButton size="small" disabled={!assignee[item.id]} isLoading={busyId === item.id} onClick={() => void assign(item.id)}>Assign</EchoButton>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Assigned elsewhere</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <section id="calendar" className="mt-6 scroll-mt-32 rounded-3xl border border-border/70 bg-card p-5 sm:p-6">
-            <h2 className="text-2xl [font-family:var(--font-echo-display)]">Scheduled cases</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Open a case to see its confirmed appointment details.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
+
+          <ProfessionalMetrics newRequests={dashboardSummary?.counts.pendingCount ?? overview.pendingCount} activeCases={dashboardSummary?.counts.activeCount ?? overview.activeCount} scheduled={scheduledCount} loading={requests === null} />
+          <details className="pro-overview-context mb-4 text-xs leading-6 text-muted-foreground"><summary className="echo-focus-ring min-h-11 cursor-pointer content-center rounded-lg font-semibold text-primary">{summaryUnavailable ? "Totals unavailable · counts from loaded requests" : dashboardSummary ? "About these counts" : "Counts from loaded requests · About this overview"}</summary><p className="pb-2 break-words">{dashboardSummary ? `Counts cover all pending requests and your authorized active cases in ${activeMembership?.organization?.name ?? "your organization"}. The request list below is a bounded page.` : <>Counts cover the loaded requests for {activeMembership?.organization?.name ?? "your organization"}.{requests !== null && requests.length >= 100 ? " This overview includes the latest 100 requests; older cases may be outside this view." : ""}</>}{summaryUnavailable ? " Organization-wide totals are temporarily unavailable; only loaded-request counts are shown." : ""}</p></details>
+          {success ? <p role="status" className="mb-4 text-sm font-semibold text-primary">{success}</p> : null}
+          {canAssign && requests ? <ProfessionalAssignmentPanel key={organizationId} organizationId={organizationId} requests={requests} busy={!!busyId} onAssign={assign} /> : null}
+          <div className="pro-dashboard-grid grid items-start gap-5 xl:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
+          <ProfessionalRequestQueue key={organizationId} ref={queueView} requests={requests} organizationId={organizationId} organizationName={activeMembership?.organization?.name ?? "your organization"} userId={userId} canClaim={canClaim} canOpenCases={canClaim} busyId={busyId} compact onClaim={(item) => claim(item.id)} />
+          <ProfessionalPanel id="calendar" title="Scheduled cases" icon={CalendarDays} description="Your next conversations">
+            <div className="pro-scheduled-content space-y-3">
               {requests === null ? (
                 <EchoSkeleton variant="rectangular" className="h-10 w-48" />
               ) : (
-                requests
-                  .filter((item) => item.status === "scheduled" && item.assignedTo === userId)
+                scheduledCases
+                  .slice(0, 3)
                   .map((item) => (
                     <Link
                       key={item.id}
-                      href={`/professional/cases/${item.id}`}
-                      className="rounded-full bg-secondary px-4 py-2 text-xs font-semibold text-primary"
+                      href={professionalCaseHref(item.id, organizationId)}
+                      className="echo-focus-ring flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-border bg-background p-4 text-sm font-semibold text-primary transition-colors hover:bg-secondary/60 motion-reduce:transition-none"
                     >
-                      Case {item.id.slice(0, 8)} →
+                      <span className="min-w-0"><span className="block">Case {item.id.slice(0, 8).toUpperCase()}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">View appointment details</span></span>
+                      <ArrowRight size={16} className="shrink-0" aria-hidden="true" />
                     </Link>
                   ))
               )}
               {requests !== null && scheduledCount === 0 ? (
-                <span className="text-sm text-muted-foreground">No confirmed appointments yet.</span>
+                <EchoEmptyState icon={<CalendarDays size={22} />} title="No scheduled cases in this overview." description="Open an active case to review appointment offers." className="pro-empty py-3" />
               ) : null}
+              {requests !== null && scheduledCount > 3 ? dashboardSummary ? <Link href={`/professional/my-cases?organization=${encodeURIComponent(organizationId)}`} className="echo-focus-ring inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary underline">Open My cases</Link> : <button type="button" className="echo-focus-ring inline-flex min-h-11 items-center rounded-lg text-sm font-semibold text-primary underline" onClick={() => { queueView.current?.viewScheduled(); }}>View all {scheduledCount} scheduled cases in the queue</button> : null}
+              <div className="pro-schedule-summary border-t border-border/70 pt-4 text-xs leading-6 text-muted-foreground">
+                {dashboardSummary ? <><h3 className="text-sm font-semibold text-foreground">Upcoming appointments</h3>{!dashboardSummary.clinicalAccess ? <p className="mt-2">Clinical appointment details are unavailable for your role.</p> : dashboardSummary.appointments.length ? <ul className="mt-3 space-y-3">{dashboardSummary.appointments.map((item) => <li key={item.id}><Link href={professionalCaseHref(item.requestId, organizationId)} className="echo-focus-ring flex min-h-11 flex-col justify-center rounded-lg text-primary underline"><span>{appointmentTime(item.startsAt)}</span><span className="text-xs capitalize">{sessionModes[item.mode as keyof typeof sessionModes] ?? "Session"} · {item.status}</span></Link></li>)}</ul> : <p className="mt-2">No upcoming or in-progress appointments.</p>}{dashboardSummary.clinicalAccess ? <p className="mt-2">Showing {dashboardSummary.appointments.length} of {dashboardSummary.appointmentTotal} upcoming or in-progress appointments. Open a case for current details.</p> : null}</> : <p>Upcoming appointment times are available inside your assigned cases. A combined schedule is not available here yet.</p>}
+                <details className="mt-3"><summary className="echo-focus-ring flex min-h-11 cursor-pointer items-center rounded-lg font-semibold text-foreground">Professional follow-ups · not available</summary><p>A task list is not available here yet. Review your active cases for follow-up actions.</p></details>
+              </div>
             </div>
-          </section>
+          </ProfessionalPanel>
+          </div>
         </>
       )}
-      {error ? (
-        <p role="alert" className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-4 text-sm text-foreground">
-          {error}{" "}
-          <Link href="/settings/security" className="font-semibold text-primary underline">
-            Review account security
-          </Link>
-        </p>
-      ) : null}
     </ProfessionalShell>
   );
 }

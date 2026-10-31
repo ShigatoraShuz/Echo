@@ -140,10 +140,11 @@ test("public dashboard preview has a usable phone menu without private destinati
   await expect(trigger).toBeFocused();
 });
 
-test("phone login keeps password controls readable and rejects invalid email before sending", async ({ page }, testInfo) => {
+test("phone login keeps password controls readable and rejects invalid email before submission", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "tablet", "Phone-specific login layout");
   await page.goto("/login");
-  await page.getByRole("button", { name: "Use password instead" }).click();
+  await page.getByRole("button", { name: "Show password" }).click();
+  await page.getByRole("button", { name: "Hide password" }).click();
   const remember = page.locator("label").filter({ hasText: "Remember me on this device" });
   const forgot = page.getByRole("link", { name: "Forgot password?" });
   const rememberBox = await remember.boundingBox();
@@ -154,8 +155,10 @@ test("phone login keeps password controls readable and rejects invalid email bef
   expect(rememberBox!.height).toBeGreaterThanOrEqual(44);
   expect(forgotBox!.height).toBeGreaterThanOrEqual(44);
 
-  await page.getByRole("textbox", { name: "Email address" }).fill("invalid' OR '1'='1");
   await page.getByPlaceholder("Enter your password").fill("example-password");
+  const email = page.getByRole("textbox", { name: "Email address" });
+  await email.fill("invalid' OR '1'='1");
+  await expect(email).toHaveValue("invalid' OR '1'='1");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page.getByText("Please enter a valid email address")).toBeVisible();
   await expect(page.getByPlaceholder("Enter your password")).toHaveValue("example-password");

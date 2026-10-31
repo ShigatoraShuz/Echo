@@ -13,6 +13,7 @@ export interface BuddyConversation {
 }
 
 export interface BuddyMessage {
+  playbackInterrupted?:boolean;
   id: string;
   conversationId: string;
   role: "user" | "buddy";

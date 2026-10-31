@@ -1,5 +1,7 @@
+import {RealtimeTalkHub} from "./features/experience/realtime-talk.js";
 import { LocalAnalysisStore } from "./infrastructure/analysis/local-analysis-store.js";
 import { LocalBuddyStore } from "./infrastructure/analysis/local-buddy-store.js";
+import { httpOnlyMode } from "./config/http-only-mode.js";
 import { DataExportService } from "./features/settings/data-export.service.js";
 import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/environment.js";
@@ -15,6 +17,8 @@ import { JournalImagesService } from "./features/journals/journal-images.service
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
+import { createHttpDocumentScanner, quarantineScanner } from "./infrastructure/security/document-scanner.js";
+import { createWindowsDefenderScanner } from "./infrastructure/security/windows-defender-scanner.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
 import { PushSubscriptionsService } from "./features/notifications/push-subscriptions.service.js";
@@ -28,11 +32,14 @@ import { createRequestUserClient } from "./infrastructure/supabase/supabase-user
 import { ProfessionalService } from "./features/professionals/professional.service.js";
 import { CalendarService } from "./features/calendar/calendar.service.js";
 import { CoreClient } from "./infrastructure/analysis/core-client.js";
+import { ProfessionalEventService } from "./features/professionals/professional-events.service.js";
+import { startProfessionalEventProcessor } from "./features/professionals/professional-event-processor.js";
 
 const environment = loadEnvironment();
 const localResults=environment.AI_ANALYSIS_MODE==="local_json"?new LocalAnalysisStore(environment.LOCAL_DATA_DIR):undefined;
 const localBuddy=localResults?new LocalBuddyStore(environment.LOCAL_DATA_DIR):undefined;
 const coreClient = environment.AI_SERVICE_URL ? new CoreClient(environment.AI_SERVICE_URL, environment.AI_SERVICE_TOKEN!) : undefined;
+const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const supabaseAdmin = createSupabaseAdminClient(environment);
 const encryptionService = createEncryptionService(
   environment.JOURNAL_ENCRYPTION_KEY_BASE64,
@@ -96,7 +103,15 @@ const experienceService = new ExperienceService(supabaseAdmin, journalService, e
   supportWindowDays: environment.SUPPORT_PROMPT_WINDOW_DAYS,
   supportCooldownDays: environment.SUPPORT_PROMPT_COOLDOWN_DAYS,
 }, () => createRequestUserClient(environment), coreClient,localBuddy);
-const verificationService = new VerificationService(supabaseAdmin, encryptionService);
+const verificationService = new VerificationService(
+  supabaseAdmin,
+  encryptionService,
+  environment.VERIFICATION_SCANNER_URL && environment.VERIFICATION_SCANNER_TOKEN
+    ? createHttpDocumentScanner(environment.VERIFICATION_SCANNER_URL, environment.VERIFICATION_SCANNER_TOKEN)
+    : environment.VERIFICATION_SCANNER_MODE === "windows_defender"
+      ? createWindowsDefenderScanner(environment.VERIFICATION_PDFINFO_PATH!)
+      : quarantineScanner,
+);
 const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
 const notificationService = new NotificationService(
   () => createRequestUserClient(environment),
@@ -106,13 +121,17 @@ const registrationService = new RegistrationService(
   supabaseAdmin,
   () => createSupabasePublicServerClient(environment),
   environment.SIGNUP_DRAFT_SECRET ?? environment.JOURNAL_ENCRYPTION_KEY_BASE64,
-  environment.GOOGLE_WEB_CLIENT_ID,
   environment.FRONTEND_URL,
 );
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
-const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService);
+const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService, experienceService);
 const calendarService = new CalendarService(supabaseAdmin, encryptionService);
+if(process.env.ECHO_REALTIME_TALK==='true'&&localResults&&coreClient){
+  const origins=new Set([new URL(environment.FRONTEND_URL).origin]);
+  if(environment.NODE_ENV==='development')for(const origin of ['http://localhost:3000','http://127.0.0.1:3000'])origins.add(origin);
+  experienceService.realtime=new RealtimeTalkHub(experienceService,coreClient,verifier,verificationService,origins,accessService);
+}
 const app = createApp({
   allowedOrigin: environment.FRONTEND_URL,
   bodyLimit: environment.REQUEST_BODY_LIMIT,
@@ -166,16 +185,24 @@ app.locals.checkReadiness = async () => {
   const workerReady = environment.AI_ANALYSIS_MODE !== "local_worker" || (data?.accepting_jobs === true && Date.now() - Date.parse(data.last_heartbeat_at) < 60_000);
   return !error && workerReady && (!coreClient || await coreClient.ready());
 };
-const server = app.listen(environment.PORT, "0.0.0.0", () => {
+const server = app.listen(environment.PORT, httpOnly ? "127.0.0.1" : "0.0.0.0", () => {
   console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
+});
+experienceService.realtime?.attach(server);
+const professionalEvents = startProfessionalEventProcessor(new ProfessionalEventService(supabaseAdmin), {
+  enabled: environment.PROFESSIONAL_EVENTS_ENABLED,
+  httpOnly,
+  report: event => console.info(JSON.stringify({ service: "professional-events", ...event })),
 });
 const maintenance = new AnalysisMaintenanceService(supabaseAdmin);
 const reportMaintenanceFailure = () =>
   console.warn(JSON.stringify({ service: "backend", event: "analysis_maintenance_failed" }));
+let maintenanceTimer: ReturnType<typeof setInterval> | undefined;
+if (!httpOnly) {
 if(!localResults)void backgroundJournalService.recoverDevelopmentJobs().catch(reportMaintenanceFailure);
 void dataExports.expire().catch(reportMaintenanceFailure);
 if(localResults)void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);
-const maintenanceTimer = setInterval(() => {
+maintenanceTimer = setInterval(() => {
   if(localResults){void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);void (async()=>{for(const user of localResults.users()){const found=await supabaseAdmin.auth.admin.getUserById(user);if(found.error?.status===404 && found.error.code==="user_not_found")experienceService.clearLocal(user);}})().catch(reportMaintenanceFailure);}
   void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
   if(!localResults)void maintenance.tick().catch(reportMaintenanceFailure);
@@ -186,10 +213,17 @@ const maintenanceTimer = setInterval(() => {
 maintenanceTimer.unref();
 if (environment.AI_ANALYSIS_MODE === "local_worker") void localWorkerService.recover().catch(reportMaintenanceFailure);
 
+} else {
+  console.info(JSON.stringify({ service: "backend", event: "development_http_only", backgroundMaintenance: false }));
+}
+
 function shutdown(signal: string): void {
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
+  void experienceService.realtime?.shutdown();
+  journalService.stopLocalFaceProcessing();
   developmentRunner.stop();
-  clearInterval(maintenanceTimer);
+  void professionalEvents.stop();
+  if (maintenanceTimer) clearInterval(maintenanceTimer);
   server.close((error) => {
     localResults?.close();
     process.exitCode = error ? 1 : 0;

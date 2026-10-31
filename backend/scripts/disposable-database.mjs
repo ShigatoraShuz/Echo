@@ -1,18 +1,19 @@
 // Supplemental PostgreSQL/WASM checks. This does not replace local Supabase,
 // PostgREST, or Realtime integration validation.
 import { PGlite } from "@electric-sql/pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readFile, readdir } from "node:fs/promises";
 
 export async function createDisposableDatabase() {
-const database = new PGlite({ extensions: { pgcrypto } });
+const database = new PGlite({ extensions: { pgcrypto, btree_gist } });
 await database.exec(`
  create role anon; create role authenticated; create role service_role bypassrls;
  create role supabase_auth_admin; create role supabase_storage_admin; create role authenticator;
  create schema auth; create schema storage; create schema extensions;
  create extension pgcrypto with schema extensions;
  set search_path=public,extensions;
- create table auth.users(id uuid primary key default gen_random_uuid(),email text,raw_user_meta_data jsonb default '{}',raw_app_meta_data jsonb default '{}',
+ create table auth.users(id uuid primary key default gen_random_uuid(),email text,raw_user_meta_data jsonb default '{}',raw_app_meta_data jsonb default '{"provider":"email","providers":["email"]}' ,
    created_at timestamptz default now(),updated_at timestamptz default now(),email_confirmed_at timestamptz,confirmed_at timestamptz);
  create table auth.identities(id text primary key,user_id uuid references auth.users(id),provider text,provider_id text,identity_data jsonb default '{}');
  create table auth.sessions(id uuid primary key,user_id uuid references auth.users(id),not_after timestamptz);

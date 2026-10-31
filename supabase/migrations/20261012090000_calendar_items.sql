@@ -14,6 +14,7 @@ create index if not exists calendar_items_user_day_idx
   on user_service.calendar_items (user_id, scheduled_on, scheduled_time);
 
 alter table user_service.calendar_items enable row level security;
+
 create policy calendar_items_owner on user_service.calendar_items
   for all to authenticated using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);

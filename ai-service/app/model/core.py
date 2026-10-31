@@ -8,7 +8,7 @@ import threading
 import time
 from pathlib import Path
 
-from app.core.exceptions import ModelUnavailableError
+from app.core.exceptions import ModelUnavailableError, TalkCancelledError, TalkBusyError
 
 LABELS = ["Others", "Anxious", "Depressed", "Frustrated", "Suicidal"]
 EMOTIONS = ["joy", "trust", "fear", "surprise", "sadness", "disgust", "anger", "anticipation"]
@@ -89,6 +89,9 @@ class CoreRuntime:
         finally:
             self.release()
         self.loaded = True
+        self._talk_context=threading.local()
+        from app.model.talk import TalkRuntime
+        self.talk=TalkRuntime(self)
 
     def require_ready(self):
         if not self.loaded:
@@ -142,7 +145,7 @@ class CoreRuntime:
             )
             model = PeftModel.from_pretrained(model, adapter, local_files_only=True).eval()
             obj = (model, tokenizer)
-        elif name == "speech":
+        elif name in ("speech", "face"):
             obj = None
         else:
             raise ValueError("Unknown model")
@@ -156,9 +159,11 @@ class CoreRuntime:
 
         return {
             "ready": self.loaded,
+            "talkActive": bool(getattr(self,"talk",None) and self.talk.owner),
             "screeningReady": getattr(self,"screening_unavailable",None) is None,
             "activeModel": self.active,
-            "residentModelCount": int(self.instance is not None or self.active=="speech"),
+            "residentModelCount": int(self.instance is not None or self.active=="speech")+int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None)),
+            "freeGpuBytes": torch.cuda.mem_get_info()[0],
             "speechPeakAllocatedBytes": getattr(self,"speech_peak_allocated",None),
             "peakAllocatedBytes": torch.cuda.max_memory_allocated(),
             "loadMilliseconds": self.load_milliseconds.copy(),
@@ -166,16 +171,18 @@ class CoreRuntime:
 
     def call(self, name, fn):
         self.require_ready()
+        if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False):raise TalkBusyError("Talk has priority between stages")
         if not self.slots.acquire(blocking=False):
             raise ModelUnavailableError("Inference queue is full.")
         try:
             if not self.lock.acquire(timeout=30):
                 raise ModelUnavailableError("Inference queue timed out.")
             try:
+                if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False):raise TalkBusyError("Talk has priority between stages")
                 try:
                     return fn(self._load(name))
-                except Exception:
-                    self.release()
+                except Exception as error:
+                    if not isinstance(error,TalkCancelledError):self.release()
                     raise
             finally:
                 self.lock.release()
@@ -183,6 +190,7 @@ class CoreRuntime:
             self.slots.release()
 
     def classify(self, text, language="unknown"):
+        if getattr(getattr(self,"_talk_context",None),"active",False):return self._talk_classifier.classify(text,language=language)
         if not isinstance(text, str) or not text.strip() or len(text) > 20000:
             raise ValueError("Invalid journal text.")
         return self.call("xlmr", lambda m: m.classify(text, language=language))
@@ -222,6 +230,8 @@ class CoreRuntime:
         }
         try:
             screening=self.screening(text)
+        except TalkBusyError:
+            raise
         except Exception:
             screening={'status':'unavailable' if getattr(self,'screening_unavailable',None) else 'failed','experimental':True,'inferenceVersion':'journal-nullable-v1','items':None,'coverage':0,'subtotal':None,'total':None}
         return {
@@ -314,13 +324,29 @@ class CoreRuntime:
                     if 'peakBytes' in result:self.speech_peak_allocated=result['peakBytes']
                     manifest=(self.root/'voice/manifest.json').read_bytes()
                     source=Path(__file__).parents[1]/'speech_worker.py'
-                    result['model']={'providerName':'local-base-voice','modelVersion':hashlib.sha256(manifest).hexdigest(),'inferenceVersion':hashlib.sha256(source.read_bytes()).hexdigest(),'voice':'MOSS default, no reference'}
+                    result['model']={'providerName':'local-faster-whisper' if payload['task']=='transcribe' else 'local-moss-tts','modelVersion':hashlib.sha256(manifest).hexdigest(),'inferenceVersion':hashlib.sha256(source.read_bytes()).hexdigest()}
+                    if payload['task']=='speak':result['model']['voice']='MOSS default, no reference'
                     return result
                 finally:
                     if process.poll() is None:process.kill()
                     process.wait()
                     self.active=None
         return self.call('speech',execute)
+
+    def face(self, encoded):
+        import base64, subprocess, tempfile
+        data = base64.b64decode(encoded, validate=True)
+        if not data or len(data) > 2 * 1024 * 1024:
+            raise ValueError('Image exceeds 2 MiB')
+        def execute(_):
+            python = Path(os.environ.get('FACE_PYTHON', str(self.root.parent/'face-venv/Scripts/python.exe')))
+            with tempfile.TemporaryDirectory(dir=self.root.parent/'runtime-cache') as folder:
+                image = Path(folder)/'capture.image'
+                output = Path(folder)/'result.json'
+                image.write_bytes(data)
+                subprocess.run([str(python), '-B', str(Path(__file__).parents[1]/'face_worker.py'), str(self.root/'face_model'), str(image), str(output)], check=True, timeout=90, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                return json.loads(output.read_text())
+        return self.call('face', execute)
 
     def screening(self,text):
         if getattr(self,'screening_unavailable',None):raise ModelUnavailableError('Screening model unavailable')

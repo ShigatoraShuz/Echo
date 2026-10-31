@@ -1,0 +1,62 @@
+{
+  "requirements-local.lock": {
+    "sha256": "0390775e386d25855671f7b85fe5c207d5b617eca737fdb0e55dd553708aae84",
+    "pinnedPackages": 117,
+    "missing": [],
+    "versionDifferences": {
+      "fsspec": {
+        "locked": "2024.3.1",
+        "installed": "2026.9.0"
+      },
+      "hf-xet": {
+        "locked": "1.6.0",
+        "installed": "1.7.1"
+      }
+    },
+    "installedNotPinned": [
+      "certifi",
+      "cffi",
+      "charset-normalizer",
+      "colorama",
+      "filelock",
+      "gmpy2",
+      "jinja2",
+      "markupsafe",
+      "mkl-fft",
+      "mkl-random",
+      "mpmath",
+      "networkx",
+      "optree",
+      "pip",
+      "sympy",
+      "typing-extensions"
+    ]
+  },
+  "requirements-speech.lock": {
+    "sha256": "89b780d5c26c9c868fb1499bc7b961d8d5ea7ecaf4360a802c184bfe6470f270",
+    "pinnedPackages": 69,
+    "missing": [],
+    "versionDifferences": {},
+    "installedNotPinned": [
+      "pip"
+    ]
+  },
+  "requirements-realtime-speech.lock": {
+    "sha256": "89b780d5c26c9c868fb1499bc7b961d8d5ea7ecaf4360a802c184bfe6470f270",
+    "pinnedPackages": 69,
+    "missing": [],
+    "versionDifferences": {},
+    "installedNotPinned": [
+      "pip"
+    ]
+  },
+  "requirements-face.lock": {
+    "sha256": "776df24c56f53dfd125b78a75dfcb0b1626fe538c03b1dd73a1781e5f2955f5c",
+    "pinnedPackages": 26,
+    "missing": [],
+    "versionDifferences": {},
+    "installedNotPinned": [
+      "pip"
+    ]
+  }
+}

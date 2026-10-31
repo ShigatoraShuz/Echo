@@ -29,7 +29,9 @@ let previousBodyOverflow = "";
 export function EchoDialog({ open, onClose, title, description, children, className, size = "medium" }: EchoDialogProps) {
   const [present, setPresent] = useState(open);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useFocusTrap(open);
+  // Presence may mount one render after open; attach the trap only once its
+  // DOM exists, including dialogs opened from an initially closed state.
+  const dialogRef = useFocusTrap(open && present);
   const titleId = useId();
   const descriptionId = useId();
   const closeRef = useRef(onClose);

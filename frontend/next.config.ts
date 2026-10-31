@@ -51,6 +51,21 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  // Defense in depth: neither clinician demo nor the legacy fixture laboratory
+  // can enter a production client/server graph, even if a route imports them.
+  turbopack: { resolveAlias: process.env.NODE_ENV === "production" ? {
+    "@/features/professionals/dev/professional-clinician-preview": "./src/features/professionals/dev/production-preview-disabled.tsx",
+    "@/features/professionals/dev/professional-preview": "./src/features/professionals/dev/production-preview-disabled.tsx",
+  } : {} },
+  webpack(config, { dev }) {
+    if (!dev) {
+      config.resolve.alias = { ...config.resolve.alias,
+        "@/features/professionals/dev/professional-clinician-preview$": path.join(__dirname, "src/features/professionals/dev/production-preview-disabled.tsx"),
+        "@/features/professionals/dev/professional-preview$": path.join(__dirname, "src/features/professionals/dev/production-preview-disabled.tsx"),
+      };
+    }
+    return config;
+  },
   outputFileTracingRoot: path.join(__dirname, ".."),
   // Local monorepo development reuses only the public Supabase values from
   // backend/.env. The service-role and encryption keys are never exposed.
@@ -81,11 +96,9 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/(login|signup)",
+        source: "/buddy/:path*",
         headers: [
-          // GIS must see the requesting origin. Private pages retain no-referrer.
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()" },
         ],
       },
       {

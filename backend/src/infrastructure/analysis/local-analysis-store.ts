@@ -1,7 +1,7 @@
 import { openSync, closeSync, fsyncSync, readFileSync, writeFileSync, renameSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { analysisStatusSchema, journalAnalysisResultSchema } from "@echo/contracts";
+import { facialExpressionResultSchema, analysisStatusSchema, journalAnalysisResultSchema } from "@echo/contracts";
 import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AnalysisStatus, FacialAnalysisStatus } from "@echo/contracts";
@@ -15,6 +15,7 @@ export interface LocalAnalysisJob {
     status: AnalysisStatus;
     progress: number;
     facial_status: FacialAnalysisStatus;
+    face_result?: import("@echo/contracts").FacialExpressionResult;
     result_ciphertext: string | null;
     attempts?: number;
     screeningAttempts?:number;
@@ -59,7 +60,7 @@ export class LocalAnalysisStore {
     private rows() { return readdirSync(this.path, { recursive: true }).map(String).filter(f => f.endsWith('.json') && f.split(/[\\/]/).at(-2) === 'analysis').map(f => { const x = JSON.parse(readFileSync(join(this.path, f), 'utf8'));
             z.object({schemaVersion:z.literal(1),created_at:z.string().datetime(),updated_at:z.string().datetime(),approved:z.union([z.literal(0),z.literal(1)]),progress:z.number().int().min(0).max(100)}).parse(x); z.string().uuid().parse(x.user_id); z.string().uuid().parse(x.id); z.string().uuid().parse(x.journal_id); if (f.split(/[\\/]/)[0] !== x.user_id || f.split(/[\\/]/).at(-1) !== x.id + '.json')
         throw Error('Local ownership mismatch'); analysisStatusSchema.parse(x.status); if (typeof x.request_key !== 'string' || typeof x.request_hash !== 'string' || !Number.isFinite(x.progress))
-        throw Error('Invalid local job'); if (x.result)
+        throw Error('Invalid local job'); if(x.face_result)facialExpressionResultSchema.parse(x.face_result); if (x.result)
         journalAnalysisResultSchema.parse(x.result); return { ...x, result_ciphertext: x.result ? JSON.stringify(x.result) : null } as LocalAnalysisJob; }); }
     private save(x: LocalAnalysisJob) { const f = this.file(x.user_id, x.id), tmp = f + '.' + randomUUID() + '.tmp'; const { result_ciphertext, ...rest } = x; const fd = openSync(tmp, 'wx'); try {
         writeFileSync(fd, JSON.stringify({ schemaVersion: 1, ...rest, result: result_ciphertext ? journalAnalysisResultSchema.parse(JSON.parse(result_ciphertext)) : null }, null, 2));
@@ -93,6 +94,7 @@ export class LocalAnalysisStore {
     export(user: string) { z.string().uuid().parse(user); return this.rows().filter(x => x.user_id === user).map(({ result_ciphertext, ...x }) => ({ ...x, result: result_ciphertext ? JSON.parse(result_ciphertext) : null })); }
     reserveScreening(user:string,id:string){const j=this.get(user,id);if(!j||j.status!=='completed'||(j.screeningAttempts??0)>=3)throw new ConflictError('RETRY_LIMIT','Screening retry unavailable.');this.save({...j,screeningAttempts:(j.screeningAttempts??0)+1});}
     replaceScreening(user:string,id:string,result:unknown){const j=this.get(user,id);if(j)this.save({...j,result_ciphertext:JSON.stringify(journalAnalysisResultSchema.parse(result)),updated_at:new Date().toISOString()});}
+    setFace(user:string,id:string,status:FacialAnalysisStatus,result?:unknown){const j=this.get(user,id);if(j)this.save({...j,facial_status:status,...(result?{face_result:facialExpressionResultSchema.parse(result)}:{}),updated_at:new Date().toISOString()});}
     clear(user: string) { for (const j of this.rows().filter(x => x.user_id === user))
         this.remove(user, j.journal_id); }
 }

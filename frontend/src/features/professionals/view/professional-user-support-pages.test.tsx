@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProfessionalMessagesView } from "./professional-messages-view";
@@ -44,6 +44,43 @@ beforeEach(() => {
 });
 
 describe("user professional support pages", () => {
+  it("refreshes an incoming reply and the current case status without a page reload", async () => {
+    mocks.ownRequests.mockResolvedValue({ requests: [request("assigned")] });
+    render(<ProfessionalMessagesView />);
+    await screen.findByRole("textbox", { name: "Message your practitioner" });
+    mocks.messages.mockResolvedValue({ messages: [{ id: "reply", requestId: request("assigned").id, sender: "professional", body: "Fictional new reply", createdAt: "2026-10-12T01:00:00Z" }], nextCursor: null });
+    mocks.ownRequests.mockResolvedValue({ requests: [request("closed")] });
+    await userEvent.click(screen.getByRole("button", { name: "Refresh conversation" }));
+    expect(await screen.findByText("Fictional new reply")).toBeInTheDocument();
+    expect(await screen.findByText(/This case is read-only/)).toBeInTheDocument();
+  });
+
+  it("does not render a message returned for a different case", async () => {
+    mocks.ownRequests.mockResolvedValue({ requests: [request("assigned")] });
+    mocks.messages.mockResolvedValue({ messages: [{ id: "wrong", requestId: "other-case", sender: "professional", body: "Wrong-case fixture", createdAt: "2026-10-12T01:00:00Z" }], nextCursor: null });
+    render(<ProfessionalMessagesView />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Wrong-case fixture")).not.toBeInTheDocument();
+    expect(mocks.markMessagesRead).not.toHaveBeenCalled();
+  });
+
+  it("coalesces duplicate form submits while retaining the retry identifier", async () => {
+    mocks.ownRequests.mockResolvedValue({ requests: [request("assigned")] });
+    let reject!: (reason: Error) => void;
+    mocks.sendMessage.mockImplementationOnce(() => new Promise((_, no) => { reject = no; }));
+    render(<ProfessionalMessagesView />);
+    const draft = await screen.findByRole("textbox", { name: "Message your practitioner" });
+    fireEvent.change(draft, { target: { value: "Fictional safe retry" } });
+    fireEvent.submit(draft.closest("form")!); fireEvent.submit(draft.closest("form")!);
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    await act(async () => reject(new TypeError("Network unavailable")));
+    const first = mocks.sendMessage.mock.calls[0][1];
+    mocks.sendMessage.mockResolvedValue({ message: { id: "sent", requestId: request("assigned").id, sender: "user", body: first.body, createdAt: "2026-10-12T01:00:00Z" } });
+    fireEvent.submit(draft.closest("form")!);
+    await screen.findByText("Fictional safe retry");
+    expect(mocks.sendMessage.mock.calls[1][1]).toEqual(first);
+  });
+
   it("sends a message in an assigned case and shows it in the thread", async () => {
     mocks.ownRequests.mockResolvedValue({ requests: [request("assigned")] });
     mocks.sendMessage.mockResolvedValue({

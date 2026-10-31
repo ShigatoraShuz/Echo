@@ -23,7 +23,7 @@ export function BuddyChatBubble({ message }: { message: BuddyMessage }) {
         )}
       >
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{isBuddy ? "Buddy" : "You"}</p>
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words">{message.content}</p>{message.playbackInterrupted&&<p className="mt-1 text-xs opacity-75">Playback interrupted; the full reply is shown above.</p>}
         <p className="mt-2 text-[11px] font-medium text-muted-foreground">{message.timestamp}</p>
       </div>
     </div>

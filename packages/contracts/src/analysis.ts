@@ -539,3 +539,39 @@ export function analysisChecksFor(
   });
   return [...checks, facialCheck(facialStatus)];
 }
+
+/** Experimental expression outputs are independent from journal text and screening. */
+export const facialExpressionResultSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      schemaVersion: z.literal("echo-face-expression-v1"),
+      status: z.literal("available"),
+      experimental: z.literal(true),
+      prediction: plutchikEmotionSchema,
+      scoreType: z.literal("uncalibrated_class_probability"),
+      classProbabilities: z.record(plutchikEmotionSchema, z.number().finite().min(0).max(1)),
+      quality: z.record(z.string(), z.union([z.string(), z.number().finite()])),
+      modelFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      inferenceVersion: z.string().min(1),
+      generatedAt: z.string().datetime(),
+    })
+    .strict()
+    .refine(
+      (x) => Math.abs(Object.values(x.classProbabilities).reduce((a, b) => a + b, 0) - 1) < 0.001,
+      "Face distribution must sum to one",
+    ),
+  z
+    .object({
+      schemaVersion: z.literal("echo-face-expression-v1"),
+      status: z.enum(["unavailable", "failed"]),
+      reason: z.enum(["no_usable_face", "model_unavailable", "interrupted", "processing_not_allowed"]),
+      modelFingerprint: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
+      inferenceVersion: z.string().min(1).optional(),
+      generatedAt: z.string().datetime().optional(),
+    })
+    .strict(),
+]);
+export type FacialExpressionResult = z.infer<typeof facialExpressionResultSchema>;

@@ -57,4 +57,8 @@ The core launcher defaults to local JSON storage. See [startup, data controls an
 
 ## Journal PHQ-8 estimates
 
-Journal analysis now supports nullable experimental SeaLLMs estimates in local JSON, separately from the PHQ-8 questionnaire. See [startup, scoring rules and verification](docs/journal-phq8-integration.md). MOSS work is currently deferred.
+Journal analysis now supports nullable experimental SeaLLMs estimates in local JSON, separately from the PHQ-8 questionnaire. See [startup, scoring rules and verification](docs/journal-phq8-integration.md). Buddy Chat/Talk now uses local Whisper STT and the default MOSS TTS voice; see [speech startup and verification](docs/speech-environment.md).
+
+Local facial-expression integration and main reconciliation: [startup, model limitations and validation](docs/main-sync-face-integration.md).
+
+Start the complete local application once with `.\scripts\start-local-core.ps1`; it already starts frontend and backend. Do not run an additional `npm run dev`. See [local startup and account-access troubleshooting](docs/local-startup-access.md).

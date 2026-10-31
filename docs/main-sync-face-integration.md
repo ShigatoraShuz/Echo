@@ -1,0 +1,33 @@
+# Main source sync and local facial expressions — 2026-10-31
+
+## Source reconciliation
+
+Fetched and verified remote `main` at `47372cfe7652b4efa5202f42f3c74c1900d40607`. The current branch remains `model-integration` (original HEAD `8439f3d`). Main application changes take precedence, including auth retirement, professional portal, notifications and scanning controls. Existing XLM-R/E4/nullable PHQ-8/CBT/STT/TTS, local JSON persistence and Chat/Talk are preserved. Shared startup, environment schema, settings controls and disposable SQL setup were reconciled explicitly. Nothing has been committed or pushed; this is a source reconciliation in the working tree, not a completed Git merge commit.
+
+Backup branch: `backup/model-before-main-20261031-104851`. Uncommitted pre-sync files and three-way inputs are under `CODEX/integration-backup/main-sync-20261031-104851`. Protected `backend/.env.example` and `frontend/.env.example` were excluded from automated reconciliation, along with all actual `.env`/key/certificate files. Those two upstream template updates require manual handling; no protected files were read or changed. The backend TypeScript environment schema incorporates both main and local model settings. No hosted migrations or test records were applied.
+
+## Face model and dependencies
+
+Uses `CODEX/models/face_model/selected_development_model.joblib`, matching H_protected_hybrid SHA-256 `b789e56ac1251677a4d1933b9480fea102c0f6ae7ce632ca8e4e158e1b4027e5`. Every supplied manifest hash matched. The original `echoface_local_runtime.py` and protected classifier are used unchanged, including runtime/task hashes, two-stage image preprocessing, 478 landmarks, 52 blendshapes and 72 feature ordering. No mesh-to-image approximation, retraining or text/facial fusion was introduced.
+
+The export is development-selected, explicitly `deployment_ready: false`, with no independent test metrics. Application outputs are experimental uncalibrated class probabilities for eight native labels. Native classifier order is anger, anticipation, disgust, fear, joy, sadness, surprise, trust. Scores are not labeled confidence or clinical severity. Production backend submission is disabled for this development checkpoint.
+
+Created `CODEX/face-venv` without changing core or speech environments. Installed the supplied versions: MediaPipe 0.10.35, NumPy 2.1.3, pandas 2.2.3, scikit-learn 1.6.1, SciPy 1.15.3, Pillow 11.3.0, opencv-contrib-python 4.11.0.86, joblib 1.5.2, matplotlib 3.10.7, plus transitive dependencies. `pip check` passed; lock: `ai-service/requirements-face.lock`. The older core environment cannot deserialize this checkpoint and is deliberately not used for face inference.
+
+## Application behavior
+
+Enable journal and facial consent, start the optional camera while writing, and Save. One unmirrored JPEG still is captured before tracks stop. It is excluded from draft/create JSON and sent separately to authenticated Express `POST /api/v1/journals/:journalId/face` (2 MiB encoded maximum). Up to four transient captures wait in memory for completed text analysis, respecting safety pauses, consent, ownership, edits and deletion. A pause/restart can discard the still and leave facial analysis unavailable; journals/text results remain saved.
+
+The bearer-authenticated loopback Python `POST /v1/face` uses the existing execution queue, unloads the current GPU model and launches the CPU face subprocess in face-venv. Still files are deleted by temporary-directory cleanup on success, failure or timeout. Image format, dimensions (32–2048; at most 4 million pixels), single-face quality and finite native outputs are validated. No face still enters journal-image storage, exports, logs, Buddy or Supabase. No video is uploaded.
+
+`echo-face-expression-v1` is a separate validated optional `face_result` on the local analysis job; journal result v1/v2/v3 and questionnaire semantics remain unchanged. This preserves the distinction between facial expression and text emotion. Read routes are `GET /journals/:journalId/face` and `/journals/facial-history`, authenticated and ownership checked. Journal details show native scores and quality warnings; facial insights show this installation's completed local history. Local account/journal deletion removes the attached result, and ordinary local exports include it automatically.
+
+Launch with `.\scripts\start-local-core.ps1`; it selects `CODEX/face-venv/Scripts/python.exe`. Camera permission and a secure browser context remain required.
+
+## Verification and limitations
+
+Main reconciliation: 1,084 frontend tests passed; 905 backend tests passed in the broad run, with one loopback/proxy failure passing on targeted retry with process-local NO_PROXY. All 21 isolated SQL suites passed. The new face repository/schema/consent tests (3) and temporary-file/size boundary tests (2) pass. Both TypeScript checks and backend build pass after reconciliation. All 22 core Python tests pass (one optional audio-environment check skipped); the local worker now explicitly bypasses environment proxies for loopback callbacks. Two new face UI rendering tests pass, and the 64 journal/insights tests passed on the updated views. The launcher adds a process-local NO_PROXY loopback bypass. Actual classifier inference on three synthetic 72-feature vectors produced finite normalized eight-class outputs. Actual MediaPipe image preprocessing on a blank synthetic image returned `no_usable_face`, never an emotion. No real-user or participant images were used.
+
+A positive camera/portrait end-to-end classification and interactive browser capture remain unverified. Synthetic feature tests are compatibility checks, not accuracy validation. The actual-core Express/disposable SQL/local JSON smoke passed in 244.15 seconds: three synthetic journal languages, nullable PHQ-8 and screening-only retry, actual face no-face preprocessing through authenticated Express, persistence/reopen, and zero database analysis records. Positive portrait/browser verification remains explicitly unverified.
+
+MediaPipe 0.10.35 attempted a performance telemetry connection during the blank-image check. Its documented policy says input images stay on-device, but the SDK sends usage/performance metrics and has no official opt-out. No OS firewall changes were made. Therefore a strictly air-gapped/no-egress runtime is not claimed. See the [official privacy notice](https://github.com/google-ai-edge/mediapipe#privacy-notice) and [maintainer explanation](https://github.com/google-ai-edge/mediapipe/issues/6291). Camera stills and model outputs remain local; this dependency caveat must be considered before claiming zero network activity.
