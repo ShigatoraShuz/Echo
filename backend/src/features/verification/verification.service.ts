@@ -425,12 +425,6 @@ export class VerificationService {
     if (missing.length > 0) {
       throw new ValidationError({ documents: missing.map((kind) => `Upload ${kind.replaceAll("_", " ")}.`) });
     }
-    if (documents.some((document) => document.scan_status !== "clean") && this.scanner !== quarantineScanner) {
-      await this.rescanStoredDocuments(documents);
-      assertDocumentsClean(await this.documentsForVerification(stringValue(application.id)));
-    } else {
-      assertDocumentsClean(documents);
-    }
     const now = new Date().toISOString();
     const { error } = await this.database
       .schema("verification_service")
@@ -511,15 +505,20 @@ export class VerificationService {
     if (!data) throw new NotFoundError("The verification application was not found.");
     const row = data as Row;
     const documents = await this.documentsForVerification(verificationId);
-    assertDocumentsClean(documents);
     const reviewedDocuments = await Promise.all(
       documents.map(async (document) => {
+        const scanStatus = document.scan_status === "clean" && document.scanned_at && document.scanner_version
+          ? "clean" : document.scan_status === "rejected" ? "rejected" : "quarantined";
+        if (scanStatus !== "clean") {
+          return { ...this.documentResponse(document), scanStatus, signedUrl: null };
+        }
         const path = stringValue(document.storage_path);
         const signed = await this.database.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
         if (signed.error)
           throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
         return {
           ...this.documentResponse(document),
+          scanStatus,
           signedUrl: signed.data.signedUrl,
         };
       }),

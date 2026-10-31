@@ -90,7 +90,7 @@ export interface AdminVerificationDetail {
   isMinor: boolean;
   ageAtSubmission: number;
   application: VerificationApplication;
-  documents: Array<VerificationDocument & { signedUrl: string }>;
+  documents: Array<VerificationDocument & { scanStatus: "clean" | "quarantined" | "rejected"; signedUrl: string | null }>;
   submittedAt: string | null;
   reviewedAt: string | null;
   reasonCode: string | null;
