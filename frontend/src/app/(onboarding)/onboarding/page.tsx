@@ -178,7 +178,7 @@ export default function OnboardingPage() {
               </h1>
               <p className="mt-3 text-sm leading-7 text-[#667064]">
                 These details are optional and can be changed later in Settings. ECHO never infers them from your name
-                or Google account.
+                or email address.
               </p>
               <fieldset className="mt-7">
                 <legend className="text-sm font-bold">

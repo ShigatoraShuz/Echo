@@ -101,60 +101,6 @@ export function createAuthSupabaseAdapter(): AuthService {
   const client = createBrowserSupabaseClient();
 
   return {
-    async sendLoginCode(email) {
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      if (error) {
-        if (error.status && error.status >= 500) {
-          return {
-            success: false,
-            error: {
-              code: "UNKNOWN",
-              message: "Sign-in email is temporarily unavailable. Please try again later or use your password.",
-            },
-          };
-        }
-        return failure({
-          message: "We could not send a code. Check your email address and try again shortly.",
-          code: error.code,
-          status: error.status,
-        });
-      }
-
-      return {
-        success: true,
-        data: {
-          message: "If this email has an ECHO account, a sign-in code is on its way.",
-        },
-      };
-    },
-
-    async verifyLoginCode(input) {
-      const { data, error } = await client.auth.verifyOtp({
-        email: input.email,
-        token: input.code,
-        type: "email",
-      });
-
-      if (error || !data.session) {
-        return failure({
-          message: "This code is invalid or has expired. Try again or request a new code.",
-        });
-      }
-
-      configureSessionPersistence(input.rememberSession);
-
-      return {
-        success: true,
-        data: toSession(data.session),
-      };
-    },
-
     async login(input) {
       const { data, error } = await client.auth.signInWithPassword({
         email: input.email,

@@ -12,9 +12,6 @@ function harness() {
     acceptAgreements: vi.fn(),
     registerEmail: vi.fn(),
     registrationStatus: vi.fn(),
-    createGoogleNonce: vi.fn(),
-    bindGoogleSignup: vi.fn(),
-    googleLoginStatus: vi.fn(),
   };
   const app = createApp({
     allowedOrigin: "http://localhost:3000",
@@ -26,6 +23,19 @@ function harness() {
 }
 
 describe("registration routes", () => {
+  it("finishes password-only signup without leaving unusable draft cookies", async () => {
+    const { app, service } = harness();
+    service.registerEmail.mockResolvedValue(null);
+    const response = await request(app)
+      .post("/api/v1/registration/email")
+      .set("Origin", "http://localhost:3000")
+      .send({ email: "synthetic@example.test", password: "StrongPass1", confirmPassword: "StrongPass1" });
+    expect(response.status).toBe(201);
+    expect(response.body.data).toMatchObject({ nextStep: "sign-in", verificationPending: false });
+    const cookies = response.headers["set-cookie"] as unknown as string[];
+    expect(cookies).toHaveLength(2);
+    expect(cookies.every((cookie) => cookie.includes("Max-Age=0"))).toBe(true);
+  });
   it("rejects state changes from an untrusted origin", async () => {
     const { app, service } = harness();
     const response = await request(app)

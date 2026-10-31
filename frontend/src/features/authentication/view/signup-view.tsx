@@ -22,7 +22,7 @@ interface SignupViewProps {
   title: string;
   description: string;
 }
-const steps = ["Eligibility", "Agreements", "Account", "Verify & finish"];
+const steps = ["Eligibility", "Agreements", "Account", "Finish"];
 
 export function SignupView({ title, description }: SignupViewProps) {
   const [step, setStep] = useState(0);
@@ -39,6 +39,7 @@ export function SignupView({ title, description }: SignupViewProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [verificationPending, setVerificationPending] = useState(false);
   const passwordValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
   const allReviewed = policies.length === 3 && policies.every((policy) => reviewed.includes(policy.id));
 
@@ -90,7 +91,8 @@ export function SignupView({ title, description }: SignupViewProps) {
     run(async () => {
       if (!passwordValid) throw new Error("Use at least 8 characters with lowercase, uppercase, and a number.");
       if (password !== confirmPassword) throw new Error("Passwords do not match.");
-      await registrationApi.email({ email, password, confirmPassword });
+      const result = await registrationApi.email({ email, password, confirmPassword });
+      setVerificationPending(result.verificationPending);
       setPassword("");
       setConfirmPassword("");
       setStep(3);
@@ -326,11 +328,10 @@ export function SignupView({ title, description }: SignupViewProps) {
               <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e7efdc] text-[#526f35]">
                 <Mail className="size-7" />
               </span>
-              <p className="eyebrow mt-5">Step 4 · Verify & finish</p>
-              <h2 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">Check your inbox</h2>
+              <p className="eyebrow mt-5">Step 4 · Finish</p>
+              <h2 className="mt-2 text-4xl [font-family:var(--font-echo-display)]">{verificationPending ? "Check your inbox" : "Continue with your account"}</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[#697168]">
-                If this address can register, a verification link will arrive at <strong>{email}</strong>. Open it to
-                confirm your email and continue setup. If you already have an account, sign in or reset your password.
+                {verificationPending ? <>If this address can register, a verification link will arrive at <strong>{email}</strong>. Open it to confirm your email and continue setup.</> : <>Sign in with <strong>{email}</strong> and your password to continue. If you already have an account, use its password.</>}
               </p>
               <Link
                 href="/login"
@@ -338,10 +339,7 @@ export function SignupView({ title, description }: SignupViewProps) {
               >
                 Go to log in <ArrowRight className="size-4" />
               </Link>
-              <p className="mt-4 text-sm text-[#697168]">
-                Used Google before? <Link href="/google-migration" className="font-bold text-[#526f35] underline">Move your existing account to email</Link>
-              </p>
-              <button
+              {verificationPending && <button
                 type="button"
                 disabled={busy}
                 onClick={() =>
@@ -353,7 +351,7 @@ export function SignupView({ title, description }: SignupViewProps) {
                 className="mx-auto mt-3 flex h-11 items-center justify-center rounded-full px-5 text-sm font-bold text-[#526f35] underline disabled:opacity-50"
               >
                 Resend verification email
-              </button>
+              </button>}
               {notice && (
                 <p role="status" className="mt-2 text-sm font-semibold text-[#526f35]">
                   {notice}

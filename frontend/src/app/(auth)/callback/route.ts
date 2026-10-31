@@ -6,7 +6,6 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const next = safeRedirectPath(requestUrl.searchParams.get("next"));
-  const intent = requestUrl.searchParams.get("intent");
 
   if (!code && !requestUrl.searchParams.has("error")) {
     // Implicit email confirmation tokens live in the browser fragment, which
@@ -21,24 +20,6 @@ export async function GET(request: Request) {
       const supabase = await createServerSupabaseClient();
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (!error) {
-        if (intent === "signup") {
-          const { data: userData } = await supabase.auth.getUser();
-          if (userData.user) {
-            const { data: profile } = await supabase
-              .schema("user_service")
-              .from("profiles")
-              .select("onboarding_completed")
-              .eq("user_id", userData.user.id)
-              .maybeSingle();
-
-            if (profile?.onboarding_completed) {
-              await supabase.auth.signOut({ scope: "local" });
-              const existingLogin = new URL("/login", requestUrl.origin);
-              existingLogin.searchParams.set("error", "google_account_exists");
-              return NextResponse.redirect(existingLogin);
-            }
-          }
-        }
         return NextResponse.redirect(new URL(next, requestUrl.origin));
       }
     } catch {

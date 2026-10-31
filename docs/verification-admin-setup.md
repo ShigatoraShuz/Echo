@@ -8,7 +8,7 @@ The scanner endpoint accepts a `POST` containing the raw JPG, PNG, or PDF bytes 
 
 For this Windows development machine only, set `VERIFICATION_SCANNER_MODE=windows_defender` and `VERIFICATION_PDFINFO_PATH` to the absolute path of Poppler's `pdfinfo.exe` in `backend/.env`. This opt-in scans a temporary private copy with Microsoft Defender using `-DisableRemediation`, checks the original digest, decodes images with Sharp, and checks PDF page count, encryption, forms, JavaScript, and common active-action markers with Poppler. It quarantines files when any check or cleanup fails. This local adapter is blocked in production; a deployed backend needs the approved HTTPS scanner above. Restart the backend after changing its environment.
 
-New uploads are scanned at upload time. A draft with quarantined files can retry submission after the scanner is available; the backend rescans its stored files. When an administrator selects an existing submitted application with quarantined documents, the review page runs one authorized rescan automatically and offers **Run security scan** to retry if it fails. This action requires reviewer MFA and recent authentication, checks stored-file integrity, and opens the evidence only after every document passes. No reviewer can approve quarantined evidence. Do not change a document's scan fields manually.
+New uploads are scanned at upload time. After all required files are uploaded, an application can be submitted to the administrator queue even if a file remains quarantined. When an administrator selects it, the review page runs one authorized rescan automatically and offers **Run security scan** to retry if needed. This action requires reviewer MFA and recent authentication and checks stored-file integrity. Quarantined files have no signed links. The reviewer can request a replacement if scanning still fails; approval requires every required document to pass scanning. Do not change a document's scan fields manually.
 
 ## Scope
 
@@ -18,7 +18,7 @@ No account or live verification decision was created or changed during this impl
 
 ## Provision securely
 
-Use a real ECHO account that its owner has registered and email-verified through the normal signup flow. Complete required onboarding and policy review. Google sign-in is supported. Do not invent an email, use a shared default password, auto-confirm an unknown identity, disable signup protections, or put service-role credentials in the frontend.
+Use a real ECHO account that its owner has registered and email-verified through the normal signup flow. Complete required onboarding and policy review. Do not invent an email, use a shared default password, auto-confirm an unknown identity, disable signup protections, or put service-role credentials in the frontend.
 
 From `backend`, with its existing server-only `.env` configured:
 

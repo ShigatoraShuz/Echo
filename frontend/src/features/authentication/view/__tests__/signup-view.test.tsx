@@ -45,7 +45,7 @@ describe("SignupView", () => {
     vi.mocked(registrationApi.eligibility).mockResolvedValue({ eligible: true });
     vi.mocked(registrationApi.policies).mockResolvedValue([...policies]);
     vi.mocked(registrationApi.agreements).mockResolvedValue({ nextStep: "account" });
-    vi.mocked(registrationApi.email).mockResolvedValue({ verificationPending: true });
+    vi.mocked(registrationApi.email).mockResolvedValue({ verificationPending: false });
   });
   it("requires eligibility and document review before creating an email account", async () => {
     const user = userEvent.setup();
@@ -74,8 +74,9 @@ describe("SignupView", () => {
     await user.type(screen.getByLabelText(/^password/i), "SecurePass1");
     await user.type(screen.getByLabelText(/confirm password/i), "SecurePass1");
     await user.click(screen.getByRole("button", { name: /create account/i }));
-    await screen.findByText("Check your inbox");
-    expect(screen.getByRole("link", { name: "Move your existing account to email" })).toHaveAttribute("href", "/google-migration");
+    await screen.findByText("Continue with your account");
+    expect(screen.queryByRole("button", { name: "Resend verification email" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /google|move your account/i })).not.toBeInTheDocument();
     expect(registrationApi.email).toHaveBeenCalledWith({
       email: "mira@example.com",
       password: "SecurePass1",

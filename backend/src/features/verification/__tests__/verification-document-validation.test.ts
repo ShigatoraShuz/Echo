@@ -59,7 +59,9 @@ describe("VerificationService explicit basic validator injection", () => {
     const inspect = vi.fn(basicDocumentValidator.inspect);
     const service = new VerificationService(database as never, {} as never, { inspect });
     vi.spyOn(service, "assertAdmin").mockResolvedValue(undefined);
-    await expect(service.getForAdmin("fictional-admin", "fictional-application")).rejects.toMatchObject({ code: "DOCUMENT_SCAN_PENDING" });
+    await expect(service.getForAdmin("fictional-admin", "fictional-application")).resolves.toMatchObject({
+      documents: [expect.objectContaining({ scanStatus: "quarantined", signedUrl: null })],
+    });
     expect(inspect).not.toHaveBeenCalled(); expect(signedUrl).not.toHaveBeenCalled();
     expect(quarantined.scan_status).toBe("quarantined");
     vi.mocked(service.assertAdmin).mockRejectedValueOnce(new Error("Unauthorized"));

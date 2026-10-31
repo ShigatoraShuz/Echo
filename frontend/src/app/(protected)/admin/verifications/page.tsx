@@ -127,14 +127,19 @@ export default function AdminVerificationsPage() {
     setErrorCode(null);
     void (async () => {
       try {
-        let next: AdminVerificationDetail;
-        try {
-          next = await verificationApi.adminDetail(selectedId);
-        } catch (reason) {
-          if (normalizeError(reason).code !== "DOCUMENT_SCAN_PENDING") throw reason;
+        let next = await verificationApi.adminDetail(selectedId);
+        if (next.documents.some((document) => document.scanStatus !== "clean")) {
           if (!active) return;
           setScanning(true);
-          next = await verificationApi.adminRescan(selectedId);
+          try {
+            next = await verificationApi.adminRescan(selectedId);
+          } catch (reason) {
+            const normalized = normalizeError(reason);
+            if (active) {
+              setError(normalized.userMessage);
+              setErrorCode(normalized.code);
+            }
+          }
         }
         if (!next.application)
           throw new Error("The protected application is unavailable. No decision can be recorded.");
@@ -162,7 +167,8 @@ export default function AdminVerificationsPage() {
     setBusy(true);
     setError(null);
     try {
-      setDetail(await verificationApi.adminRescan(selectedId));
+      const next = await verificationApi.adminRescan(selectedId);
+      setDetail(next);
       setNotice("Security scan completed. The evidence is ready for review.");
       await loadList();
     } catch (reason) {
@@ -193,6 +199,7 @@ export default function AdminVerificationsPage() {
       !selectedId ||
       detail?.id !== selectedId ||
       detail.status !== "under_review" ||
+      (decision === "approved" && detail.documents.some((document) => document.scanStatus !== "clean")) ||
       !checkedEvidence ||
       !confirmed ||
       busy
@@ -455,14 +462,8 @@ export default function AdminVerificationsPage() {
                   copy or share identity documents.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {detail.documents.map((document) => (
-                    <a
-                      key={document.id}
-                      href={document.signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex items-center gap-3 rounded-2xl border border-border bg-background/70 p-4 outline-none transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-white focus-visible:ring-4 focus-visible:ring-primary/15"
-                    >
+                  {detail.documents.map((document) => {
+                    const content = <>
                       <span className="grid h-10 w-10 place-items-center rounded-xl bg-secondary text-primary">
                         <FileText className="h-4 w-4" />
                       </span>
@@ -470,12 +471,28 @@ export default function AdminVerificationsPage() {
                         <span className="block truncate text-sm font-semibold capitalize">
                           {document.kind.replaceAll("_", " ")}
                         </span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{document.mimeType}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {document.signedUrl ? document.mimeType : "Security scan pending · file unavailable"}
+                        </span>
                       </span>
-                      <ExternalLink className="h-4 w-4 text-primary" />
-                    </a>
-                  ))}
+                      {document.signedUrl && <ExternalLink className="h-4 w-4 text-primary" />}
+                    </>;
+                    const className = "flex items-center gap-3 rounded-2xl border border-border bg-background/70 p-4";
+                    return document.signedUrl ? (
+                      <a key={document.id} href={document.signedUrl} target="_blank" rel="noopener noreferrer" className={`${className} outline-none hover:bg-white focus-visible:ring-4 focus-visible:ring-primary/15`}>
+                        {content}
+                      </a>
+                    ) : <div key={document.id} className={className}>{content}</div>;
+                  })}
                 </div>
+                {detail.documents.some((document) => document.scanStatus !== "clean") && (
+                  <div className="mt-4 rounded-2xl border border-danger/20 bg-crisis-soft/70 p-4 text-sm text-danger">
+                    <p>Some files cannot be opened until they pass the security scan. Approval is unavailable. Retry the scan, or request that the applicant replace the files.</p>
+                    <EchoButton type="button" className="mt-3" isLoading={busy || scanning} loadingText="Scanning…" onClick={() => void rescan()}>
+                      <RefreshCw className="h-4 w-4" /> Run security scan
+                    </EchoButton>
+                  </div>
+                )}
               </div>
 
               {detail.status === "under_review" ? (
@@ -530,6 +547,7 @@ export default function AdminVerificationsPage() {
                         <option value="identity_confirmed">Identity confirmed</option>
                         <option value="age_confirmed">Age confirmed</option>
                         <option value="document_unclear">Document is unclear</option>
+                        <option value="document_scan_pending">Document could not pass the security scan</option>
                         <option value="details_mismatch">Details do not match</option>
                         <option value="guardian_evidence_missing">Guardian evidence is insufficient</option>
                         <option value="unable_to_verify">Unable to verify</option>
@@ -563,7 +581,7 @@ export default function AdminVerificationsPage() {
                         setConfirmed(false);
                       }}
                     />
-                    I reviewed the identity, age, and required supporting documents.
+                    I reviewed the available application details and document status.
                   </label>
                   {detail.documents.length === 0 && (
                     <p className="mt-3 text-sm text-danger">No evidence is available. Approval is disabled.</p>
@@ -584,7 +602,7 @@ export default function AdminVerificationsPage() {
                       type="button"
                       disabled={
                         !checkedEvidence ||
-                        (decision === "approved" && detail.documents.length === 0) ||
+                        (decision === "approved" && (detail.documents.length === 0 || detail.documents.some((document) => document.scanStatus !== "clean"))) ||
                         (decision !== "approved" && (!reasonCode || note.trim().length < 2))
                       }
                       isLoading={busy}
