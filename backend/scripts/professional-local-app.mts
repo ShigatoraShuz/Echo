@@ -25,12 +25,12 @@ async function main() {
     ENCRYPTION_PREVIOUS_KEYS_JSON: "{}", SIGNUP_DRAFT_SECRET: fixture.registrationSecret,
     IDEMPOTENCY_HMAC_ACTIVE_VERSION: "local-v1", IDEMPOTENCY_HMAC_KEYS_JSON: JSON.stringify({
       "local-v1": createHmac("sha256", fixture.registrationSecret).update("local-app-idempotency-v1").digest("hex"),
-    }), GOOGLE_WEB_CLIENT_ID: "", AI_ANALYSIS_MODE: "disabled", AI_DEVELOPMENT_USER_IDS: "",
+    }), AI_ANALYSIS_MODE: "disabled", AI_DEVELOPMENT_USER_IDS: "",
     AI_WORKER_TOKEN: createHmac("sha256", fixture.registrationSecret).update("disabled-local-worker").digest("hex"),
   } : {
     ...common, NEXT_PUBLIC_SUPABASE_URL: LOCAL_API, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local.anonKey,
     NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:4200/api/v1", GATEWAY_API_BASE_URL: "http://127.0.0.1:4200/api/v1",
-    NEXT_PUBLIC_DATA_ADAPTER: "http", NEXT_PUBLIC_GOOGLE_CLIENT_ID: "", NEXT_DIST_DIR: ".next",
+    NEXT_PUBLIC_DATA_ADAPTER: "http", NEXT_DIST_DIR: ".next",
   };
   process.stdout.write(`Starting actual ${workspace} with verified LOCAL Supabase; existing .env files preserved.\n`);
   const child = spawn("cmd.exe", ["/d", "/s", "/c", `npm run dev --workspace ${workspace}`], { cwd: root, env, stdio: "inherit", windowsHide: true });

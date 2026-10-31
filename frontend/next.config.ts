@@ -96,11 +96,9 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/(login|signup|professional/login)",
+        source: "/buddy/:path*",
         headers: [
-          // GIS must see the requesting origin. Private pages retain no-referrer.
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()" },
         ],
       },
       {

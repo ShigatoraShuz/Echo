@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { EmailOtpForm } from "../components/email-otp-form";
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
@@ -32,11 +31,9 @@ const loginRouteMessages: Record<string, string> = {
   idle_timeout: "You were signed out after 30 minutes without activity. Please log in again.",
   session_changed: "Your session changed. Please log in again.",
   auth_unavailable: "Your session could not be checked. Please log in again.",
-  google_account_exists: "This Google account already exists. Use the account migration page to move it to email sign-in.",
 };
 
 export function LoginView({ title, description, destination }: LoginViewProps) {
-  const [method, setMethod] = useState<"code" | "password">("code");
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeRedirectPath(destination ?? searchParams.get("next"));
@@ -92,7 +89,7 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
             <EchoInlineMessage variant="error" message={routeMessage} className="mt-4" />
           ) : null}
 
-          {method === "code" ? <EmailOtpForm onAuthenticated={() => { router.replace(next); router.refresh(); }} /> : <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
+          <form onSubmit={handleSubmit} className="mt-4 space-y-2" noValidate>
             <AuthStatusMessage status={routeMessage && status === "success" ? "idle" : status} error={error} />
 
             <AuthFormField
@@ -149,8 +146,7 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
               Log in
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </EchoButton>
-          </form>}
-          <button type="button" className="mt-4 w-full text-center text-xs font-semibold text-[var(--landing-primary)] underline" onClick={() => setMethod(method === "code" ? "password" : "code")}>{method === "code" ? "Use password instead" : "Use an email code instead"}</button>
+          </form>
 
           <footer className="mt-3 border-t border-[rgba(83,103,51,0.14)] pt-3 text-center">
             <div className="inline-flex items-center gap-2 text-[11px] leading-4 text-[var(--landing-muted)]">
@@ -164,12 +160,6 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
                 className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]"
               >
                 Create an account
-              </Link>
-            </p>
-            <p className="mt-2 text-xs text-[var(--landing-muted)]">
-              Used Google before?{" "}
-              <Link href="/google-migration" className="font-bold text-[var(--landing-primary)] underline-offset-4 hover:underline">
-                Move your account to email
               </Link>
             </p>
             <p className="mt-2 text-xs text-[var(--landing-muted)]">

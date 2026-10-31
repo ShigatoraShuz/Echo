@@ -6,7 +6,7 @@ function harness(error:unknown) {
  const rpc=vi.fn(async(name:string)=>name==="echo_registration_get_draft" ? {data:{id:"draft",state:"account",csrf_hash:createHmac("sha256",secret).update("csrf").digest("hex")},error:null}:{data:true,error:null});
  const signUp=vi.fn().mockResolvedValue({data:{user:{id:"new-user"}},error});
  const factory=vi.fn(()=>({auth:{signUp}}));
- const service=new RegistrationService({rpc} as never,factory as never,secret,"","https://echo.example");
+ const service=new RegistrationService({rpc} as never,factory as never,secret,"https://echo.example");
  return {service,signUp,factory,rpc};
 }
 describe("registration enumeration boundary",()=>{
@@ -23,9 +23,16 @@ describe("registration enumeration boundary",()=>{
  h.signUp.mockResolvedValueOnce({data:{user:null},error:null});
  await expect(h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1")).rejects.toMatchObject({code:"EMAIL_SIGNUP_FAILED"});
  });
- it.each([null,{code:"user_already_exists",message:"private account detail"},{code:"email_exists",message:"private account detail"}])("returns identical credential shapes for existing and new addresses",async(error)=>{
- const h=harness(error);const result=await h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1");
- expect(Object.keys(result).sort()).toEqual(["csrf","token"]);expect(result.token).toHaveLength(43);expect(h.factory).toHaveBeenCalledOnce();
+ it("completes password-only signup when Auth creates an immediate session",async()=>{
+ const h=harness(null);
+ h.signUp.mockResolvedValueOnce({data:{user:{id:"new-user"},session:{access_token:"synthetic-session"}},error:null});
+ await expect(h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1")).resolves.toBeNull();
+ expect(h.rpc).toHaveBeenCalledTimes(2);
+ });
+ it.each([{code:"user_already_exists",message:"private account detail"},{code:"email_exists",message:"private account detail"}])("does not reveal an existing address",async(error)=>{
+ const h=harness(error);
+ await expect(h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1")).resolves.toBeNull();
+ expect(h.factory).toHaveBeenCalledOnce();
  });
  it("never returns unexpected provider diagnostics",async()=>{
  const h=harness({code:"unexpected_failure",message:"private database details"});
@@ -43,6 +50,16 @@ describe("registration enumeration boundary",()=>{
   });
   expect(h.rpc).toHaveBeenLastCalledWith("echo_registration_update_draft", expect.objectContaining({
     expected_state:"verification_pending",changes: { state:"account",email:null,reservation_id:null,verification_sent_at:null },
+  }));
+ });
+ it("identifies unavailable email delivery without exposing the address or provider message",async()=>{
+  const h=harness({code:"email_address_not_authorized",status:422,message:"private recipient detail"});
+  await expect(h.service.registerEmail("token","csrf","synthetic@example.test","StrongPass1")).rejects.toMatchObject({
+    code:"EMAIL_DELIVERY_NOT_CONFIGURED",statusCode:503,
+    message:"Email registration is unavailable until email delivery is configured.",
+  });
+  expect(h.rpc).toHaveBeenLastCalledWith("echo_registration_update_draft", expect.objectContaining({
+    expected_state:"verification_pending",changes:{state:"account",email:null,reservation_id:null,verification_sent_at:null},
   }));
  });
  it("restores the draft when the provider request throws",async()=>{

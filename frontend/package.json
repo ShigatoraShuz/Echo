@@ -14,7 +14,6 @@
     "test:e2e:staging": "playwright test --config playwright.staging.config.ts",
     "test:e2e:staging:core": "npm run test:e2e:routes && node scripts/run-staging-core.mjs",
     "test:e2e:record": "node scripts/create-release-record.mjs",
-    "verify:google-origin": "node scripts/verify-google-origin.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",

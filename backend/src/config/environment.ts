@@ -40,7 +40,6 @@ const environmentSchema = z.object({
   PUSH_VAPID_SUBJECT: z.string().trim().optional().transform((value) => value || undefined),
   PUSH_VAPID_PUBLIC_KEY: z.string().trim().optional().transform((value) => value || undefined),
   PUSH_VAPID_PRIVATE_KEY: z.string().trim().optional().transform((value) => value || undefined),
-  GOOGLE_WEB_CLIENT_ID: z.string().trim().optional().default(""),
   SIGNUP_DRAFT_SECRET: z.string().trim().min(32).optional(),
   JOURNAL_ENCRYPTION_KEY_BASE64: base64KeySchema,
   JOURNAL_ENCRYPTION_KEY_VERSION: z.coerce.number().int().positive().default(1),

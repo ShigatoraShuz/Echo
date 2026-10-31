@@ -7,7 +7,7 @@ import type { AuthSession } from "@/features/authentication/model/auth.model";
 
 const mocks = vi.hoisted(() => ({
   router: { replace: vi.fn(), refresh: vi.fn() }, searchParams: new URLSearchParams(),
-  getCurrentSession: vi.fn(), login: vi.fn(), sendLoginCode: vi.fn(), verifyLoginCode: vi.fn(),
+  getCurrentSession: vi.fn(), login: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => mocks.router, useSearchParams: () => mocks.searchParams,
@@ -24,12 +24,9 @@ beforeEach(() => {
   mocks.searchParams = new URLSearchParams();
   mocks.getCurrentSession.mockResolvedValue({ success: true, data: null });
   mocks.login.mockResolvedValue({ success: true, data: session });
-  mocks.sendLoginCode.mockResolvedValue({ success: true, data: { message: "sent" } });
-  mocks.verifyLoginCode.mockResolvedValue({ success: true, data: session });
 });
 
 async function passwordForm() {
-  await userEvent.setup().click(screen.getByRole("button", { name: "Password" }));
   fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "professional@example.test" } });
   fireEvent.change(screen.getByPlaceholderText("Enter your password"), { target: { value: "synthetic-password" } });
 }
@@ -50,9 +47,9 @@ describe("professional login presentation and authentication", () => {
   it("offers supported methods, public navigation and an accessible approval explanation", async () => {
     const { container } = render(<ProfessionalLoginView />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Email code" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Email code" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Move your account to email/i })).toHaveAttribute("href", "/google-migration");
+    expect(screen.queryByRole("link", { name: /google|move your account/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Personal sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: /create an account/i })).toHaveAttribute("href", "/signup");
     expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute("href", "/");
@@ -74,31 +71,6 @@ describe("professional login presentation and authentication", () => {
     expect(mocks.login).toHaveBeenCalledWith({ email: "professional@example.test", password: "synthetic-password", rememberSession: true });
     expect(mocks.router.replace).toHaveBeenCalledWith(destination);
     expect(mocks.router.refresh).not.toHaveBeenCalled();
-  });
-
-  it("keeps email-code verification and resend safeguards before accessing the gateway", async () => {
-    render(<ProfessionalLoginView />);
-    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "professional@example.test" } });
-    await userEvent.setup().click(screen.getByRole("button", { name: "Send sign-in code" }));
-    expect(mocks.sendLoginCode).toHaveBeenCalledWith("professional@example.test");
-    expect(screen.getByLabelText(/email address/i)).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Resend in 60s" })).toBeDisabled();
-    expect(mocks.router.replace).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/email sign-in code/i), { target: { value: "123456" } });
-    await userEvent.setup().click(screen.getByRole("button", { name: "Verify code and log in" }));
-    expect(mocks.verifyLoginCode).toHaveBeenCalledWith({ email: "professional@example.test", code: "123456", rememberSession: false });
-    expect(mocks.router.replace).toHaveBeenCalledWith(destination);
-    expect(mocks.router.refresh).not.toHaveBeenCalled();
-  });
-
-  it("keeps email-code errors visible without navigating", async () => {
-    mocks.sendLoginCode.mockResolvedValue({ success: false, error: { code: "NETWORK", message: "Code delivery is temporarily unavailable." } });
-    render(<ProfessionalLoginView />);
-    fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "professional@example.test" } });
-    await userEvent.setup().click(screen.getByRole("button", { name: "Send sign-in code" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Code delivery is temporarily unavailable.");
-    expect(screen.getByRole("button", { name: "Send sign-in code" })).toBeEnabled();
-    expect(mocks.router.replace).not.toHaveBeenCalled();
   });
 
   it.each(["https://other.example/", "//other.example/", "/professional/request"])("limits an unapproved return path %s for password sign-in", async (next) => {
@@ -130,14 +102,12 @@ describe("professional login presentation and authentication", () => {
     expect(form).toHaveAttribute("aria-busy", "true");
     expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
     expect(screen.getByLabelText(/email address/i)).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Email code" })).toBeDisabled();
     await act(async () => finish({ success: true, data: session }));
     expect(mocks.router.replace).toHaveBeenCalledTimes(1);
   });
 
   it("focuses the first invalid field and exposes its associated error", async () => {
     render(<ProfessionalLoginView />);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Password" }));
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
     const email = screen.getByLabelText(/email address/i);
     expect(email).toHaveFocus();
@@ -167,9 +137,6 @@ describe("professional login presentation and authentication", () => {
     expect(screen.getByLabelText(/email address/i)).toHaveValue("professional@example.test");
     expect(screen.getByPlaceholderText("Enter your password")).toHaveValue("synthetic-password");
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Email code" }));
-    expect(screen.getByRole("button", { name: "Password" })).toBeEnabled();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Password" }));
     expect(screen.getByPlaceholderText("Enter your password")).toHaveValue("synthetic-password");
     await userEvent.setup().click(screen.getByRole("button", { name: "Sign in" }));
     expect(mocks.router.replace).toHaveBeenCalledWith(destination);

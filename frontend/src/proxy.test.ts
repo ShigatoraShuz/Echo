@@ -158,7 +158,7 @@ describe("authentication proxy", () => {
     const response = await proxy(first);
     expect(first.headers.get("Content-Security-Policy")).toBe(response.headers.get("Content-Security-Policy"));
     expect(first.headers.get("Content-Security-Policy")).toContain(`'nonce-${first.headers.get("x-nonce")}'`);
-    expect(first.headers.get("Content-Security-Policy")).toContain("https://accounts.google.com");
+    expect(first.headers.get("Content-Security-Policy")).not.toContain("https://accounts.google.com");
     const second = request("/login"); await proxy(second);
     expect(first.headers.get("x-nonce")).not.toBe(second.headers.get("x-nonce"));
   });

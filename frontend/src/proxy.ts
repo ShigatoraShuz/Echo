@@ -95,19 +95,19 @@ function contentSecurityPolicy(
   return [
     "default-src 'self'",
 
-    `script-src 'self' 'nonce-${nonce}' https://accounts.google.com${
+    `script-src 'self' 'nonce-${nonce}'${
       isDevelopment
         ? " 'unsafe-inline' 'unsafe-eval'"
         : ""
     }`,
 
-    "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+    "style-src 'self' 'unsafe-inline'",
 
     `img-src 'self' data: blob: https://images.unsplash.com https://plus.unsplash.com${supabaseOrigin ? ` ${supabaseOrigin}` : ""}`,
 
     "font-src 'self' data:",
 
-    `connect-src 'self' https://accounts.google.com${
+    `connect-src 'self'${
       supabaseOrigin
         ? ` ${supabaseOrigin} ${supabaseOrigin.replace(
             "https:",
@@ -116,7 +116,6 @@ function contentSecurityPolicy(
         : ""
     }${apiOrigin ? ` ${apiOrigin}` : ""}${alternateLocalApiOrigin ? ` ${alternateLocalApiOrigin}` : ""}`,
 
-    "frame-src https://accounts.google.com",
 
     "media-src 'self' blob: data:",
 

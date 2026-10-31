@@ -18,7 +18,7 @@ No account or live verification decision was created or changed during this impl
 
 ## Provision securely
 
-Use a real ECHO account that its owner has registered and email-verified through the normal signup flow. Complete required onboarding and policy review. Google sign-in is supported. Do not invent an email, use a shared default password, auto-confirm an unknown identity, disable signup protections, or put service-role credentials in the frontend.
+Use a real ECHO account that its owner has registered and email-verified through the normal signup flow. Complete required onboarding and policy review. Do not invent an email, use a shared default password, auto-confirm an unknown identity, disable signup protections, or put service-role credentials in the frontend.
 
 From `backend`, with its existing server-only `.env` configured:
 

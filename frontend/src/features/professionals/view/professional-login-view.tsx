@@ -7,7 +7,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays, ClipboardList, Leaf, Mail, ShieldCheck, UsersRound } from "lucide-react";
 import { AuthFormField } from "@/features/authentication/components/auth-form-field";
 import { AuthStatusMessage } from "@/features/authentication/components/auth-status-message";
-import { EmailOtpForm } from "@/features/authentication/components/email-otp-form";
 import { PasswordField } from "@/features/authentication/components/password-field";
 import { useLoginViewModel } from "@/features/authentication/view-model/use-login-view-model";
 import { getAuthService } from "@/services/authentication/auth-service.factory";
@@ -24,7 +23,6 @@ const routeMessages: Record<string, string> = {
   account_unavailable: "This account is currently unavailable. Contact support if you believe this is a mistake.",
   email_verification_required: "Verify your email address before signing in.",
   sign_in_session_expired: "Your sign-in session expired. Please sign in again.",
-  google_account_exists: "This Google account already exists. Use the account migration page to move it to email sign-in.",
 };
 const linkStyle = "inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-[var(--landing-primary)] outline-none transition-colors hover:text-[var(--landing-primary-hover)] focus-visible:ring-4 focus-visible:ring-[var(--landing-primary-20)]";
 
@@ -33,7 +31,6 @@ export function ProfessionalLoginView() {
   const searchParams = useSearchParams();
   const next = professionalReturnPath(searchParams.get("next"));
   const destination = `/professional/access?next=${encodeURIComponent(next)}`;
-  const [method, setMethod] = useState<"code" | "password">("code");
   const [unexpectedError, setUnexpectedError] = useState("");
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -132,18 +129,7 @@ export function ProfessionalLoginView() {
             </header>
             {routeMessage ? <EchoInlineMessage variant="error" message={routeMessage} className="mt-5" /> : null}
 
-            <div role="group" aria-label="Email sign-in method" className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-[var(--landing-primary-15)] bg-secondary/50 p-1">
-              {(["code", "password"] as const).map((value) => (
-                <button key={value} type="button" aria-pressed={method === value} disabled={busy || finished}
-                  onClick={() => { attempted.current = false; setUnexpectedError(""); setMethod(value); }}
-                  className={`min-h-11 rounded-lg px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-4 focus-visible:ring-primary/20 disabled:opacity-60 ${method === value ? "bg-card text-[var(--landing-primary)] shadow-subtle" : "text-[var(--landing-muted)] hover:text-[var(--landing-primary)]"}`}>
-                  {value === "code" ? "Email code" : "Password"}
-                </button>
-              ))}
-            </div>
-
             <div className="[&_input:not([type=checkbox])]:text-base [&_button:focus-visible]:outline-none [&_button:focus-visible]:ring-4 [&_button:focus-visible]:ring-primary/20 [&_label:has(input[type=checkbox]:focus-visible)]:rounded-lg [&_label:has(input[type=checkbox]:focus-visible)]:ring-4 [&_label:has(input[type=checkbox]:focus-visible)]:ring-primary/20">
-              {method === "code" ? <EmailOtpForm onAuthenticated={authenticated} /> : (
                 <form ref={form} onSubmit={submit} className="mt-5 space-y-4" aria-label="Password sign in" aria-busy={busy || undefined} noValidate>
                   <div ref={errorSummary} tabIndex={-1} className="rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-primary/20">
                     <AuthStatusMessage status={login.status} error={login.error} successMessage="Signed in. Checking professional access…" />
@@ -165,7 +151,6 @@ export function ProfessionalLoginView() {
                     </EchoButton>
                   </fieldset>
                 </form>
-              )}
             </div>
 
             <div className="mt-6 flex items-start gap-3 border-t border-[var(--landing-primary-15)] pt-5">
@@ -173,7 +158,6 @@ export function ProfessionalLoginView() {
               <p className="text-xs leading-6 text-[var(--landing-muted)]">Signing in confirms your identity. Professional access still requires approved membership and multi-factor verification.</p>
             </div>
           </section>
-          <p className="mt-4 text-center text-xs leading-6 text-[var(--landing-muted)]">Used Google before? <Link href="/google-migration" className={`${linkStyle} text-xs`}>Move your account to email<ArrowRight size={13} aria-hidden="true" /></Link></p>
           <p className="mt-2 text-center text-xs leading-6 text-[var(--landing-muted)]">New to ECHO? <Link href="/signup" className={`${linkStyle} text-xs`}>Create an account<ArrowRight size={13} aria-hidden="true" /></Link></p>
           <div className="flex justify-center"><Link href="/" className={`${linkStyle} text-xs text-[var(--landing-muted)]`}><ArrowLeft size={14} aria-hidden="true" />Return home</Link></div>
         </div>

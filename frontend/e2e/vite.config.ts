@@ -14,7 +14,6 @@ export default defineConfig({
     { find: "next/image", replacement: path.join(__dirname, "harness/image.tsx") },
     {find: /^@\/services\/notifications$/, replacement: path.join(__dirname,"harness/services.ts")},
     ...[ "@/services/settings/settings.service", "@/services/professionals/professional-api", "@/services/experience/experience-api", "@/services/authentication/auth-service.factory", "@/services/authentication/reviewer-mfa"].map((find) => ({ find, replacement: path.join(__dirname, "harness/services.ts") })),
-    { find: "@/features/authentication/components/secure-google-login-button", replacement: path.join(__dirname, "harness/google.tsx") },
     { find: "@", replacement: path.join(frontend, "src") },
   ] },
 });

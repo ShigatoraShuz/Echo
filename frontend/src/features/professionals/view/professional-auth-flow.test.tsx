@@ -347,7 +347,7 @@ describe("professional auth flow", () => {
     mocks.searchParams = new URLSearchParams("next=%2Fprofessional%2Frequest");
     mocks.getCurrentSession.mockResolvedValue({ success: true, data: { isMockSession: false } });
     render(<ProfessionalLoginView />);
-    expect(screen.getByRole("link", { name: /Move your account to email/i })).toHaveAttribute("href", "/google-migration");
+    expect(screen.queryByRole("link", { name: /Move your account to email/i })).not.toBeInTheDocument();
     await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/professional/access?next=%2Fprofessional"));
   });
 

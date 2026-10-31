@@ -113,7 +113,6 @@ const registrationService = new RegistrationService(
   supabaseAdmin,
   () => createSupabasePublicServerClient(environment),
   environment.SIGNUP_DRAFT_SECRET ?? environment.JOURNAL_ENCRYPTION_KEY_BASE64,
-  environment.GOOGLE_WEB_CLIENT_ID,
   environment.FRONTEND_URL,
 );
 const accessService = new AccessService(supabaseAdmin, () => createRequestUserClient(environment));
