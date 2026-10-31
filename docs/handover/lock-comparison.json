@@ -1,18 +1,9 @@
 {
   "requirements-local.lock": {
-    "sha256": "0390775e386d25855671f7b85fe5c207d5b617eca737fdb0e55dd553708aae84",
+    "sha256": "5e6fd54d705c18cabb4926818b66a4ffee4b6b71690555ff69723e82f4467146",
     "pinnedPackages": 117,
     "missing": [],
-    "versionDifferences": {
-      "fsspec": {
-        "locked": "2024.3.1",
-        "installed": "2026.9.0"
-      },
-      "hf-xet": {
-        "locked": "1.6.0",
-        "installed": "1.7.1"
-      }
-    },
+    "versionDifferences": {},
     "installedNotPinned": [
       "certifi",
       "cffi",
@@ -30,7 +21,45 @@
       "pip",
       "sympy",
       "typing-extensions"
-    ]
+    ],
+    "duplicateMetadata": {
+      "charset-normalizer": [
+        "3.4.7",
+        "3.5.1"
+      ],
+      "filelock": [
+        "3.29.4",
+        "4.0.1"
+      ],
+      "fsspec": [
+        "2024.3.1",
+        "2026.7.0",
+        "2026.9.0"
+      ],
+      "hf-xet": [
+        "1.6.0",
+        "1.7.1"
+      ]
+    },
+    "selection": "importlib.metadata.version / pip freeze; retained duplicate records are not removed",
+    "directReferenceNames": [
+      "certifi",
+      "cffi",
+      "charset-normalizer",
+      "colorama",
+      "filelock",
+      "gmpy2",
+      "Jinja2",
+      "MarkupSafe",
+      "mkl_fft",
+      "mkl_random",
+      "mpmath",
+      "networkx",
+      "optree",
+      "sympy",
+      "typing_extensions"
+    ],
+    "note": "installedNotPinned means no == pin; some are represented by direct URL references in pip freeze. Do not treat every entry as missing from the lock."
   },
   "requirements-speech.lock": {
     "sha256": "89b780d5c26c9c868fb1499bc7b961d8d5ea7ecaf4360a802c184bfe6470f270",

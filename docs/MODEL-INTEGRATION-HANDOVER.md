@@ -49,7 +49,7 @@ Full package/version tables: [installed-packages.md](handover/installed-packages
 
 The AI service `pyproject.toml` declares Python >=3.12, FastAPI/Pydantic/Uvicorn runtime dependencies, optional core requirements and development tools. `uv.lock` belongs to the scaffold/package workflow; it is not proof of the complete manually provisioned CUDA/model environments. The actual environment locks and their fresh comparisons are:
 
-- `requirements-local.lock`: 117 pins; 0 missing; 2 differing versions; 16 installed packages outside these pins.
+- `requirements-local.lock`: 117 pins; 0 missing; 0 differing selected versions; 16 selected packages without == pins (includes direct-reference requirements and pip; see comparison). Duplicate metadata is documented below.
 - `requirements-speech.lock`: 69 pins; 0 missing; 0 differing versions; 1 installed packages outside these pins.
 - `requirements-realtime-speech.lock`: 69 pins; 0 missing; 0 differing versions; 1 installed packages outside these pins.
 - `requirements-face.lock`: 26 pins; 0 missing; 0 differing versions; 1 installed packages outside these pins.
@@ -96,3 +96,9 @@ Rollback: omit the experimental flag to retain manual speech; preserve JSON hist
 ## 5. Handover artifacts and limitations
 
 This handover directory supplies the complete installed-package inventory, declared dependency metadata, lock comparison and observed changed-path list. Repository status was read using a command-local `safe.directory` override because this session has different filesystem ownership; global Git configuration was not altered. No package was installed, removed, repaired or upgraded. The older `.venv` failure is documented rather than silently replaced. No private journals, local conversation files, credential files or environment-file contents were read.
+
+## Confirmed Thesis2_VENV baseline refresh
+
+Per user confirmation, preserve installed selections rather than trying to install the conflicting pasted list. requirements-local.lock now reflects pip freeze; selected versions match importlib.metadata.version. The earlier comparison incorrectly retained the last duplicate metadata record for fsspec/hf-xet, which overstated drift. Correct selected versions are fsspec `2024.3.1`, hf-xet `1.6.0`, NumPy `1.26.4`, filelock `3.29.4`, and charset-normalizer `3.4.7`. Duplicate distribution metadata remains for fsspec, hf-xet, filelock and charset-normalizer. Both selected versions and all retained records are recorded; pip check passing does not establish that duplicate metadata/native ABI is clean. No cleanup, install or upgrade was performed.
+
+[Conda records](handover/thesis2-conda-package-records.json) separately retain native/system package name/version/build metadata. Conda records such as numpy-base/libtorch may be stale after pip replacement and must not be mixed blindly into pip requirements. No GPU/model imports or smoke tests were rerun for this documentation-only refresh. Speech/face environments and locks are unchanged.

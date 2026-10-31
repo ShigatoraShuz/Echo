@@ -1,12 +1,12 @@
 # Installed model-environment packages
 
-Fresh inventory, 2026-10-31. Package metadata and declared dependencies are also in environment-inventory.json. No packages were installed or upgraded during this handover.
+Core refreshed on 2026-10-31. Core rows use importlib.metadata.version, matching pip freeze. Duplicate metadata is retained in environment-inventory.json, not silently removed. Speech/face retain their preceding inventory. No packages changed.
 
 ## core
 
 Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 
-| Package | Installed version |
+| Package | Selected version |
 | --- | --- |
 | accelerate | 1.15.0 |
 | aiohappyeyeballs | 2.7.1 |
@@ -23,7 +23,6 @@ Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 | certifi | 2026.7.22 |
 | cffi | 2.1.1 |
 | charset-normalizer | 3.4.7 |
-| charset-normalizer | 3.5.1 |
 | click | 8.5.0 |
 | cloudpickle | 3.1.2 |
 | colorama | 0.4.6 |
@@ -34,48 +33,44 @@ Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 | datasets | 4.3.0 |
 | diffusers | 0.40.0 |
 | dill | 0.3.8 |
-| docstring_parser | 0.18.0 |
+| docstring-parser | 0.18.0 |
 | einops | 0.8.2 |
 | fastapi | 0.162.0 |
 | filelock | 3.29.4 |
-| filelock | 4.0.1 |
 | fonttools | 4.65.0 |
 | frozenlist | 1.8.0 |
 | fsspec | 2024.3.1 |
-| fsspec | 2026.7.0 |
-| fsspec | 2026.9.0 |
 | genson | 1.4.0 |
 | gmpy2 | 2.3.1 |
 | h11 | 0.16.0 |
+| hf-transfer | 0.1.9 |
 | hf-xet | 1.6.0 |
-| hf-xet | 1.7.1 |
-| hf_transfer | 0.1.9 |
 | httpcore | 1.0.9 |
 | httptools | 0.9.0 |
 | httpx | 0.28.1 |
-| huggingface_hub | 1.32.0 |
+| huggingface-hub | 1.32.0 |
 | idna | 3.20 |
-| importlib_metadata | 9.0.1 |
+| importlib-metadata | 9.0.1 |
 | inflect | 7.6.0 |
 | iniconfig | 2.3.1 |
 | isort | 8.0.1 |
-| jaraco.functools | 4.6.0 |
-| Jinja2 | 3.1.6 |
+| jaraco-functools | 4.6.0 |
+| jinja2 | 3.1.6 |
 | joblib | 1.6.0 |
 | kiwisolver | 1.5.1 |
 | markdown-it-py | 4.2.0 |
-| MarkupSafe | 3.0.3 |
+| markupsafe | 3.0.3 |
 | matplotlib | 3.11.2 |
 | mdurl | 0.1.2 |
+| mkl-fft | 2.3.2 |
+| mkl-random | 1.4.1 |
 | mkl-service | 2.7.2 |
-| mkl_fft | 2.3.2 |
-| mkl_random | 1.4.1 |
 | more-itertools | 11.2.1 |
 | mpmath | 1.3.0 |
 | msgspec | 0.21.1 |
 | multidict | 6.9.0 |
 | multiprocess | 0.70.16 |
-| mypy_extensions | 1.1.0 |
+| mypy-extensions | 1.1.0 |
 | nest-asyncio | 1.6.0 |
 | networkx | 3.6.1 |
 | numpy | 1.26.4 |
@@ -96,15 +91,15 @@ Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 | pyarrow-hotfix | 0.7 |
 | pycparser | 3.12 |
 | pydantic | 2.13.5 |
+| pydantic-core | 2.46.5 |
 | pydantic-settings | 2.16.2 |
-| pydantic_core | 2.46.5 |
-| Pygments | 2.21.0 |
+| pygments | 2.21.0 |
 | pyparsing | 3.3.3 |
 | pytest | 8.4.2 |
 | python-dateutil | 2.9.0.post0 |
 | python-dotenv | 1.2.4 |
 | pytokens | 0.4.1 |
-| PyYAML | 6.0.3 |
+| pyyaml | 6.0.3 |
 | regex | 2026.9.10 |
 | requests | 2.34.2 |
 | rich | 15.0.0 |
@@ -131,12 +126,12 @@ Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 | trl | 0.24.0 |
 | typeguard | 4.6.0 |
 | typer | 0.27.2 |
+| typing-extensions | 4.16.0 |
 | typing-inspection | 0.4.4 |
-| typing_extensions | 4.16.0 |
 | tyro | 1.0.16 |
 | tzdata | 2026.4 |
 | unsloth | 2026.9.7 |
-| unsloth_zoo | 2026.9.6 |
+| unsloth-zoo | 2026.9.6 |
 | urllib3 | 2.8.0 |
 | uvicorn | 0.54.0 |
 | watchfiles | 1.3.0 |
@@ -151,7 +146,7 @@ Interpreter: `E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe`
 
 Interpreter: `E:\Python Project\CODEX\speech-venv\Scripts\python.exe`
 
-| Package | Installed version |
+| Package | Selected version |
 | --- | --- |
 | accelerate | 1.15.0 |
 | annotated-doc | 0.0.5 |
@@ -174,16 +169,16 @@ Interpreter: `E:\Python Project\CODEX\speech-venv\Scripts\python.exe`
 | hf-xet | 1.8.0 |
 | httpcore | 1.0.9 |
 | httpx | 0.28.1 |
-| huggingface_hub | 0.36.2 |
+| huggingface-hub | 0.36.2 |
 | idna | 3.20 |
 | iniconfig | 2.3.1 |
-| Jinja2 | 3.1.6 |
+| jinja2 | 3.1.6 |
 | joblib | 1.6.0 |
 | lazy-loader | 0.6 |
 | librosa | 1.0.0 |
 | llvmlite | 0.50.0 |
 | markdown-it-py | 4.2.0 |
-| MarkupSafe | 3.0.4 |
+| markupsafe | 3.0.4 |
 | mdurl | 0.1.2 |
 | mpmath | 1.3.0 |
 | msgpack | 1.2.4 |
@@ -200,9 +195,9 @@ Interpreter: `E:\Python Project\CODEX\speech-venv\Scripts\python.exe`
 | protobuf | 7.36.2 |
 | psutil | 7.2.2 |
 | pycparser | 3.12 |
-| Pygments | 2.21.0 |
+| pygments | 2.21.0 |
 | pytest | 8.4.2 |
-| PyYAML | 6.0.3 |
+| pyyaml | 6.0.3 |
 | regex | 2026.9.29 |
 | requests | 2.34.2 |
 | rich | 15.0.0 |
@@ -221,14 +216,14 @@ Interpreter: `E:\Python Project\CODEX\speech-venv\Scripts\python.exe`
 | tqdm | 4.70.1 |
 | transformers | 4.57.6 |
 | typer | 0.27.3 |
-| typing_extensions | 4.16.0 |
+| typing-extensions | 4.16.0 |
 | urllib3 | 2.8.0 |
 
 ## face
 
 Interpreter: `E:\Python Project\CODEX\face-venv\Scripts\python.exe`
 
-| Package | Installed version |
+| Package | Selected version |
 | --- | --- |
 | absl-py | 2.5.1 |
 | certifi | 2026.10.23 |
@@ -262,7 +257,16 @@ Interpreter: `E:\Python Project\CODEX\face-venv\Scripts\python.exe`
 
 Interpreter: `unavailable`
 
-| Package | Installed version |
+| Package | Selected version |
 | --- | --- |
 
-Interpreter execution failed; installed packages could not be inventoried.
+Interpreter could not execute; contents unverified.
+
+## Core duplicate metadata
+
+| Package | Retained distribution records | Selected version |
+| --- | --- | --- |
+| charset-normalizer | 3.4.7, 3.5.1 | 3.4.7 |
+| filelock | 3.29.4, 4.0.1 | 3.29.4 |
+| fsspec | 2024.3.1, 2026.7.0, 2026.9.0 | 2024.3.1 |
+| hf-xet | 1.6.0, 1.7.1 | 1.6.0 |
