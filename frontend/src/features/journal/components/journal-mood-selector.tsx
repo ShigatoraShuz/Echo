@@ -24,7 +24,7 @@ const MOOD_ICONS: Record<JournalMood, typeof Leaf> = {
 export function JournalMoodSelector({ value, onChange, disabled }: JournalMoodSelectorProps) {
   return (
     <fieldset>
-      <p className="mb-2 text-xs text-muted-foreground">Self-reported mood | DEMO_FALLBACK for unavailable emotion inference. Your selection is not an AI prediction.</p>
+      <p className="mb-2 text-xs text-muted-foreground">Choose how you feel. Your selection is separate from model analysis.</p>
       <legend className="mb-2 text-sm font-medium text-foreground">Mood</legend>
       <div className="flex flex-wrap gap-2">
         {moodOrder.map((mood) => {

@@ -403,6 +403,12 @@ export const journalSubmissionResponseSchema = z.object({
 });
 
 export const dashboardInsightsSchema = z.object({
+  latestAnalyzedAt: z.string().datetime({ offset: true }).nullable().optional(),
+  latestRequest: z.object({ status: analysisStatusSchema, updatedAt: z.string() }).nullable().optional(),
+  processorAvailable: z.boolean().optional(),
+  categoryTrend: z.array(z.object({
+    date: z.string().date(), label: z.string(), modelIdentity: z.string(),
+  })).optional(),
   journalScreeningTrend: z
     .array(
       z.object({
@@ -414,6 +420,7 @@ export const dashboardInsightsSchema = z.object({
       }),
     )
     .optional(),
+  facialResults: z.array(z.object({journalId:z.string().uuid(),result:z.lazy(()=>facialExpressionResultSchema)})).optional(),
   latestResultId: z.string().uuid().nullable().optional(),
   latest: journalAnalysisResultSchema.nullable(),
   recommendation: z
@@ -424,8 +431,9 @@ export const dashboardInsightsSchema = z.object({
       date: z.string().date(),
       values: z.record(z.string(), z.number().min(0).max(1)),
       isSimulated: z.boolean(),
+      modelIdentity: z.string().optional(),
       schemaVersion: z
-        .enum(["echo-journal-analysis-v1", "echo-journal-analysis-v2", "echo-journal-analysis-v3"])
+        .enum(["echo-journal-analysis-v1", "echo-journal-analysis-v2", "echo-journal-analysis-v3", "echo-model-pipeline-v2"])
         .optional(),
     }),
   ),
@@ -443,6 +451,7 @@ export const dashboardInsightsSchema = z.object({
       from: z.string().date(),
       to: z.string().date(),
       analyzedReflectionCount: z.number().int().min(0),
+      historyTruncated: z.boolean().optional(),
     })
     .strict()
     .optional(),

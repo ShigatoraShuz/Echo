@@ -67,6 +67,7 @@ const backgroundJournalService = new JournalService(
     ),
     timeoutMs: environment.AI_JOB_TIMEOUT_MS,
     isProduction: environment.NODE_ENV === "production",
+    nativeUserIds: environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? new Set(environment.AI_DEVELOPMENT_USER_IDS.split(",")) : undefined,
   },
   developmentRunner,
 );
@@ -84,6 +85,7 @@ const journalService = new JournalService(
     ),
     timeoutMs: environment.AI_JOB_TIMEOUT_MS,
     isProduction: environment.NODE_ENV === "production",
+    nativeUserIds: environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? new Set(environment.AI_DEVELOPMENT_USER_IDS.split(",")) : undefined,
   },
   developmentRunner,
   undefined,
@@ -94,6 +96,12 @@ const localWorkerService = new LocalWorkerService(
   supabaseAdmin,
   backgroundJournalService,
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
+  environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? "echo-native-development-v1" : "local-worker",
+  environment.AI_CORE_PROFILE !== "disabled",
+  environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? {
+    userIds: environment.AI_DEVELOPMENT_USER_IDS.split(",").filter(Boolean),
+    createdAfter: environment.AI_NATIVE_CREATED_AFTER!,
+  } : undefined,
 );
 const dataExports = new DataExportService(supabaseAdmin, encryptionService);
 const pushSubscriptions = environment.PUSH_VAPID_PUBLIC_KEY

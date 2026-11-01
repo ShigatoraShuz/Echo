@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DashboardData } from "../model/dashboard.model";
 import type { DashboardService } from "@/services/dashboard/dashboard.service";
 import { getDashboardService } from "@/services/dashboard/dashboard-service.factory";
+import { realAnalysisInsights } from "@/features/journal/model/real-analysis-insights";
 import { normalizeError } from "@/shared/errors/normalize-error";
 
 export function useDashboardViewModel(initialTimeRange = "7d", serviceOverride?: DashboardService) {
@@ -46,7 +47,7 @@ export function useDashboardViewModel(initialTimeRange = "7d", serviceOverride?:
       }
       const result = await read;
       if (!active.current || current !== revision.current) return;
-      if (result.success) setData(result.data);
+      if (result.success) setData({ ...result.data, analysisInsights: realAnalysisInsights(result.data.analysisInsights) });
       else setError(result.error.message);
     } catch (cause) {
       if (active.current && current === revision.current) setError(normalizeError(cause).userMessage);
@@ -57,9 +58,17 @@ export function useDashboardViewModel(initialTimeRange = "7d", serviceOverride?:
 
   useEffect(() => { void load(timeRange); }, [load, timeRange]);
   useEffect(() => {
-    const refresh = () => { void load(timeRange); };
+    let disposed = false, queued = false;
+    const refresh = () => {
+      const read = pending.current.get(timeRange);
+      if (!read) { void load(timeRange); return; }
+      if (queued) return;
+      queued = true;
+      void read.finally(() => { queued = false; if (!disposed && active.current) void load(timeRange); }).catch(() => {});
+    };
     window.addEventListener("echo:analysis-completed", refresh);
-    return () => window.removeEventListener("echo:analysis-completed", refresh);
+    window.addEventListener("echo:journal-changed", refresh);
+    return () => { disposed = true; window.removeEventListener("echo:analysis-completed", refresh); window.removeEventListener("echo:journal-changed", refresh); };
   }, [load, timeRange]);
 
   return { data, isLoading, error, timeRange, setTimeRange, retry: () => load(timeRange) };

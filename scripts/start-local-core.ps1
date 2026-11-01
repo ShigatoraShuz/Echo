@@ -1,67 +1,136 @@
-param([string]$Python = 'E:\Python Project\PROJECTS\Thesis2\Thesis2_VENV\python.exe', [switch]$EnableWorker, [switch]$EnableRealtimeTalk)
+param([string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
+    [string]$LocalDatabaseWorkspace, [ValidateRange(1024,65535)][int]$AIPort = 8000)
 $ErrorActionPreference = 'Stop'
-Write-Host 'Starting the complete ECHO application: Python models, frontend (3000), and backend (4200). Do not run npm run dev in another terminal.'
 $echoRoot = Split-Path $PSScriptRoot -Parent
-$codexRoot = Split-Path $echoRoot -Parent
-$aiRoot = Join-Path $echoRoot 'ai-service'
-foreach ($port in @(3000,4200,8000)) {
-    if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) { throw "Port $port is already in use. Stop the existing development instance before running this launcher." }
+if (!$Python) { $Python = Join-Path $echoRoot 'ai-service/.venv-core/Scripts/python.exe' }
+if (!$ModelsRoot) { $ModelsRoot = Join-Path $echoRoot 'backend/models' }
+if (!(Test-Path -LiteralPath $Python) -or !(Test-Path -LiteralPath (Join-Path $ModelsRoot 'manifest.json'))) {
+    throw 'Prepare the isolated core environment and verified installed manifest first.'
 }
-$localConfig = Join-Path $codexRoot 'runtime-cache/core-secrets.json'
-New-Item -ItemType Directory -Force (Split-Path $localConfig) | Out-Null
-if (!(Test-Path $localConfig)) {
-    function New-CoreToken {
-        $bytes = New-Object byte[] 32
-        $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
-        try { $generator.GetBytes($bytes) } finally { $generator.Dispose() }
-        return [BitConverter]::ToString($bytes).Replace('-', '')
-    }
-    $secrets = @{ serviceToken = (New-CoreToken); workerToken = (New-CoreToken) }
-    $secrets | ConvertTo-Json | Set-Content -LiteralPath $localConfig
+# Read only the required configuration values. Never print credentials or copy files.
+function Read-ConfigValue([string]$File, [string]$Name) {
+    $line = Get-Content -LiteralPath $File | Where-Object { $_ -match ('^' + [regex]::Escape($Name) + '=') } | Select-Object -Last 1
+    if (!$line) { throw "Missing $Name in local configuration." }
+    return ($line.Substring($Name.Length + 1)).Trim().Trim('"', "'")
 }
-$secrets = Get-Content -LiteralPath $localConfig -Raw | ConvertFrom-Json
-$backendEnvironment = Get-Content (Join-Path $echoRoot 'backend/.env')
-if ($EnableWorker) {
-    $databaseUrl = ($backendEnvironment | Where-Object { $_ -match '^SUPABASE_URL=' }) -replace '^SUPABASE_URL=', ''
-    if (([Uri]$databaseUrl.Trim('"', "'")).Host -notin @('localhost','127.0.0.1','[::1]')) { throw 'Worker startup is restricted to a disposable local Supabase project.' }
-}
-$env:NO_PROXY = ($env:NO_PROXY + ',localhost,127.0.0.1,::1').Trim(',')
-$env:ECHO_REALTIME_TALK = if ($EnableRealtimeTalk) { 'true' } else { 'false' }
-$env:REALTIME_TALK_ENABLED = $env:ECHO_REALTIME_TALK
-$env:NEXT_PUBLIC_REALTIME_TALK = $env:ECHO_REALTIME_TALK
-$env:FACE_PYTHON = Join-Path $codexRoot 'face-venv/Scripts/python.exe'
-$env:SPEECH_PYTHON = Join-Path $codexRoot 'speech-venv/Scripts/python.exe'
-$env:TALK_PYTHON = $env:SPEECH_PYTHON
-if ($EnableRealtimeTalk) { Write-Host 'Experimental hands-free Talk enabled. The 10-second response target has not passed; text chat and manual Talk remain available.' }
-$env:CORE_MODELS_ENABLED = 'true'
-$env:MODELS_ROOT = Join-Path $codexRoot 'models'
-$env:AI_SERVICE_TOKEN = $secrets.serviceToken
-$env:AI_WORKER_TOKEN = $secrets.workerToken
-$env:AI_SERVICE_URL = 'http://127.0.0.1:8000'
-$env:WORKER_ENABLED = if ($EnableWorker) { 'true' } else { 'false' }
-$env:AI_ANALYSIS_MODE = if ($EnableWorker) { 'local_worker' } else { 'local_json' }
-$env:BACKEND_URL = 'http://127.0.0.1:4200/api/v1/internal/ai'
-$env:LOCAL_DATA_DIR = Join-Path $codexRoot 'local-data/Echo'
-$env:AI_JOB_TIMEOUT_MS = '300000'
-$env:HF_HUB_OFFLINE = '1'; $env:TRANSFORMERS_OFFLINE = '1'; $env:HF_DATASETS_OFFLINE = '1'
-foreach ($entry in @(@('HF_HOME','hf'),@('HF_HUB_CACHE','hf/hub'),@('HF_XET_CACHE','hf/xet'),@('TRITON_CACHE_DIR','triton'))) {
-    $cache = Join-Path $codexRoot ('runtime-cache/' + $entry[1]); New-Item -ItemType Directory -Force $cache | Out-Null
-    [Environment]::SetEnvironmentVariable($entry[0], $cache, 'Process')
-}
-Push-Location $echoRoot
-try {
-    npm run check:contracts
-    if ($LASTEXITCODE) { throw 'Contracts build failed.' }
-    $process = Start-Process -FilePath $Python -ArgumentList @('-B','-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000','--workers','1') -WorkingDirectory $aiRoot -WindowStyle Hidden -PassThru
+$localValues = @{}
+if ($LocalDatabaseWorkspace) {
+    if ($AIOnly) { throw 'Local database configuration is unnecessary in AI-only mode.' }
+    Push-Location $echoRoot
     try {
-        $deadline = (Get-Date).AddSeconds(600)
+        $privateJson = & node --import tsx (Join-Path $PSScriptRoot 'local-core-environment.mts') $LocalDatabaseWorkspace
+        if ($LASTEXITCODE) { throw 'The local database identity or private settings could not be verified.' }
+        $privateConfig = $privateJson | ConvertFrom-Json
+        foreach ($property in $privateConfig.PSObject.Properties) { $localValues[$property.Name] = [string]$property.Value }
+    } finally { Pop-Location }
+}
+if (!$AIOnly -and !$LocalDatabaseWorkspace) {
+    $backendFile = Join-Path $echoRoot 'backend/.env'
+    $frontendFile = @('.env.development.local','.env.local','.env.development','.env') |
+        ForEach-Object { Join-Path $echoRoot ('frontend/' + $_) } |
+        Where-Object { (Test-Path -LiteralPath $_) -and ((Get-Content -LiteralPath $_) -match '^NEXT_PUBLIC_SUPABASE_URL=') } |
+        Select-Object -First 1
+    if (!(Test-Path $backendFile) -or (!$frontendFile -and !$env:NEXT_PUBLIC_SUPABASE_URL)) {
+        throw 'Full application mode requires owner-supplied local-only backend/.env and frontend configuration. Use -AIOnly for stateless model checks.'
+    }
+    $database = Read-ConfigValue $backendFile 'SUPABASE_URL'
+    $browserDatabase = if ($env:NEXT_PUBLIC_SUPABASE_URL) { $env:NEXT_PUBLIC_SUPABASE_URL } else { Read-ConfigValue $frontendFile 'NEXT_PUBLIC_SUPABASE_URL' }
+    if ($env:SUPABASE_URL) { $database = $env:SUPABASE_URL }
+    if ($env:NEXT_PUBLIC_SUPABASE_URL) { $browserDatabase = $env:NEXT_PUBLIC_SUPABASE_URL }
+    foreach ($value in @($database, $browserDatabase)) {
+        $uri = [Uri]$value
+        if ($uri.Scheme -ne 'http' -or $uri.Host -notin @('localhost', '127.0.0.1') -or $uri.UserInfo) {
+            throw 'Full model startup requires a confirmed loopback local Supabase target. Hosted projects are refused.'
+        }
+    }
+    if ($database.TrimEnd('/') -ne $browserDatabase.TrimEnd('/')) { throw 'Frontend and backend must use the SAME local Supabase URL.' }
+    # Next can override .env. Refuse any competing hosted/public configuration.
+    foreach ($file in @('.env', '.env.local', '.env.development', '.env.development.local')) {
+        $candidate = Join-Path $echoRoot ('frontend/' + $file)
+        if (!(Test-Path -LiteralPath $candidate)) { continue }
+        foreach ($line in Get-Content -LiteralPath $candidate) {
+            if ($line -match '^(NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_API_BASE_URL|GATEWAY_API_BASE_URL)=(.+)$') {
+                $key = $Matches[1]; $configured = $Matches[2].Trim().Trim('"', "'")
+                $target = [Uri]$configured
+                if (!$target.IsAbsoluteUri -or $target.Scheme -ne 'http' -or $target.Host -notin @('localhost','127.0.0.1') -or $target.UserInfo) {
+                    throw 'A frontend configuration points outside the local stack. No service was started.'
+                }
+                if ($key -eq 'NEXT_PUBLIC_SUPABASE_URL' -and $configured.TrimEnd('/') -ne $database.TrimEnd('/')) {
+                    throw 'Competing frontend Supabase configuration does not match the local backend.'
+                }
+            }
+        }
+    }
+    foreach ($key in @('NEXT_PUBLIC_API_BASE_URL', 'GATEWAY_API_BASE_URL')) {
+        $configured = [Environment]::GetEnvironmentVariable($key, 'Process')
+        if ($configured) {
+            $target = [Uri]$configured
+            if ($target.Scheme -ne 'http' -or $target.Host -notin @('localhost','127.0.0.1') -or $target.UserInfo) {
+                throw 'An API process override points outside the local stack.'
+            }
+        }
+    }
+
+    # Avoid background maintenance unrelated to model verification, even locally.
+}
+$ports = if ($AIOnly) { @($AIPort) } else { @(3000,4200,$AIPort) }
+foreach ($port in $ports) {
+    if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) {
+        throw "Port $port is occupied; stop its known development terminal yourself. No process was killed."
+    }
+}
+function New-RuntimeToken {
+    $bytes = New-Object byte[] 48
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $random.GetBytes($bytes) } finally { $random.Dispose() }
+    return [Convert]::ToBase64String($bytes)
+}
+$values = @{
+    NODE_ENV='development'; APP_ENV='development'; HOST='127.0.0.1'; CORE_MODELS_ENABLED='true'; CORE_TRANSPORT='text_memory';
+    MODELS_ROOT=[IO.Path]::GetFullPath($ModelsRoot); WORKER_ENABLED=($(if ($AIOnly) {'false'} else {'true'}));
+    AI_SERVICE_TOKEN=($(if ($env:AI_SERVICE_TOKEN -and $env:AI_SERVICE_TOKEN.Length -ge 32) { $env:AI_SERVICE_TOKEN } else { New-RuntimeToken }));
+    AI_WORKER_TOKEN=($(if ($env:AI_WORKER_TOKEN -and $env:AI_WORKER_TOKEN.Length -ge 32) { $env:AI_WORKER_TOKEN } else { New-RuntimeToken }));
+    BACKEND_URL='http://127.0.0.1:4200/api/v1/internal/ai'; AI_SERVICE_URL="http://127.0.0.1:$AIPort";
+    AI_CORE_PROFILE='local_encrypted_worker'; AI_ANALYSIS_MODE='local_worker'; AI_JOB_TIMEOUT_MS='300000';
+    REALTIME_TALK_ENABLED='false'; ECHO_REALTIME_TALK='false'; NEXT_PUBLIC_REALTIME_TALK='false';
+    ECHO_ACTIVE_MODELS='{}'; HF_HUB_OFFLINE='1'; TRANSFORMERS_OFFLINE='1'; HF_DATASETS_OFFLINE='1';
+    HF_HUB_DISABLE_TELEMETRY='1'; ECHO_HTTP_ONLY_MODE='1'; PROFESSIONAL_EVENTS_ENABLED='false';
+    NO_PROXY='localhost,127.0.0.1,::1'
+}
+# PowerShell has case-insensitive hashtables; NO_PROXY also covers no_proxy on Windows.
+foreach ($name in $localValues.Keys) { $values[$name] = $localValues[$name] }
+$previous = @{}
+$process = $null
+try {
+    foreach ($name in $values.Keys) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $values[$name], 'Process')
+    }
+    Push-Location $echoRoot
+    try {
+        $process = Start-Process -FilePath $Python -ArgumentList @('-B','-m','uvicorn','app.main:app','--host','127.0.0.1','--port',[string]$AIPort,'--workers','1','--no-access-log') -WorkingDirectory (Join-Path $echoRoot 'ai-service') -WindowStyle Hidden -PassThru
+        $deadline = (Get-Date).AddSeconds(100)
         $ready = $false
         while ((Get-Date) -lt $deadline -and !$process.HasExited) {
-            try { $response = Invoke-WebRequest 'http://127.0.0.1:8000/ready' -UseBasicParsing -TimeoutSec 2; $ready = $response.StatusCode -eq 200 } catch { $ready = $false }
+            try { $ready = (Invoke-WebRequest "http://127.0.0.1:$AIPort/ready" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200 } catch { $ready = $false }
             if ($ready) { break }
-            Start-Sleep -Seconds 1
+            Start-Sleep -Milliseconds 500
         }
-        if (!$ready) { throw 'Core models did not become ready; the application was not started.' }
-        npm run dev
-    } finally { if (!$process.HasExited) { Stop-Process -Id $process.Id } }
-} finally { Pop-Location }
+        if (!$ready) { throw 'The bounded text worker did not initialize. No application was started.' }
+        Write-Host "AI ready at http://127.0.0.1:$AIPort. Text models load lazily. PHQ-8/speech/Talk/face remain unavailable in this profile."
+        if ($AIOnly) {
+            Write-Host 'Stateless AI-only mode. No database worker or browser account flow. Ctrl+C stops the owned model process tree.'
+            while (!$process.HasExited) { Start-Sleep -Milliseconds 500 }
+        } else {
+            node scripts/run-local-dev.mjs all
+            if ($LASTEXITCODE) { throw 'Application launcher failed.' }
+        }
+    } finally { Pop-Location }
+} finally {
+    if ($process -and !$process.HasExited) {
+        # Target only this invocation's owned tree, including the GPU child.
+        & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null
+        $process.WaitForExit()
+    }
+    foreach ($name in $previous.Keys) { [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process') }
+}

@@ -1,2 +1,6 @@
 # Migration manifests hash exact bytes on every platform.
 supabase/migrations/*.sql -text
+
+# Exact vendor bytes are covered by Leo's installed manifest.
+ai-service/app/vendor/xlmr/core.py text eol=lf
+ai-service/app/vendor/xlmr/inference.py text eol=lf

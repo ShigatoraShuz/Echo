@@ -36,9 +36,12 @@ class Settings(BaseSettings):
     echo_diagnostic_models_dir: Path = Path(__file__).resolve().parents[3] / "backend" / "models"
     realtime_talk_enabled: bool = False
     core_models_enabled: bool = False
-    models_root: str = "../../models"
+    core_transport: Literal["disabled", "text_memory"] = "disabled"
+    core_request_timeout_seconds: int = Field(default=270, ge=1, le=270)
+    models_root: str = str(Path(__file__).resolve().parents[3] / "backend" / "models")
     backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
     ai_worker_token: str = ""
+    ai_worker_id: str = "local-worker"
     worker_enabled: bool = False
     queue_limit: int = Field(default=4, ge=1, le=16)
 

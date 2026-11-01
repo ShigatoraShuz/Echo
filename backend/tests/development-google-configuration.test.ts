@@ -52,7 +52,7 @@ describe("retained research-only Google configuration helper", () => {
 
   it("keeps the retained research configuration isolated from ordinary workspace startup", () => {
     const repository = resolve(import.meta.dirname, "../..");
-    expect(JSON.parse(readFileSync(resolve(repository, "package.json"), "utf8")).scripts.dev).toBe("node scripts/run-local-dev.mjs all");
+    expect(JSON.parse(readFileSync(resolve(repository, "package.json"), "utf8")).scripts.dev).toBe("node scripts/run-integrated-dev.mjs");
     expect(readFileSync(resolve(repository, "backend/scripts/model-local-demo.mts"), "utf8")).toContain("developmentConfiguration(root)");
     expect(readFileSync(resolve(repository, "backend/scripts/model-local-app.mts"), "utf8")).toContain('if (mode === "development")');
     mkdirSync(resolve(directory, "backend/.local-development"), { recursive: true });

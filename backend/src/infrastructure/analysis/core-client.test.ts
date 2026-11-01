@@ -37,3 +37,17 @@ it("preserves the sanitized Talk-busy signal so Journal can wait without losing 
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: { code: "TALK_BUSY" } }), { status: 503 })));
   await expect(new CoreClient("http://127.0.0.1:8000", token).analyze("Fictional")).rejects.toMatchObject({ code: "TALK_BUSY", statusCode: 503 });
 });
+
+it.each(["https://example.com", "http://127.0.0.1.example.com", "http://user:password@127.0.0.1:8000", "http://127.0.0.1:8000/other"]) ("rejects non-loopback origins and embedded credentials: %s", url => {
+  expect(() => new CoreClient(url, token)).toThrow();
+});
+it("rejects oversized streamed model results without exposing them", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("x".repeat(1024 * 1024 + 1))));
+  await expect(new CoreClient("http://127.0.0.1:8000", token).analyze("Fictional")).rejects.toMatchObject({ code: "AI_UNAVAILABLE" });
+});
+
+it("does not transmit an oversized text payload", async () => {
+  const fetcher=vi.fn(); vi.stubGlobal("fetch", fetcher);
+  await expect(new CoreClient("http://127.0.0.1:8000",token).analyze("x".repeat(65537))).rejects.toMatchObject({code:"AI_UNAVAILABLE"});
+  expect(fetcher).not.toHaveBeenCalled();
+});

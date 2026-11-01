@@ -34,6 +34,9 @@ it("stops tracks and terminates the worker after model initialization fails",asy
   render(<JournalFaceCapture requested onRequestedChange={()=>{}} />);
   fireEvent.click(screen.getByRole("button",{name:"Start camera"}));
   await waitFor(()=>expect(worker).toBeDefined());
+  expect(document.querySelector("video")).toHaveAttribute("aria-hidden","true");
+  expect(document.querySelector("video")).toHaveClass("opacity-0");
+  expect(document.querySelector("canvas")).toHaveClass("hidden");
   await act(async()=>worker.onmessage?.({data:{type:"error"}} as MessageEvent));
   expect(stop).toHaveBeenCalledOnce();expect(terminate).toHaveBeenCalledOnce();
 });

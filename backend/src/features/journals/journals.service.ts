@@ -1,3 +1,6 @@
+import { encryptText,decryptText } from "../../infrastructure/encryption/encryption.service.js";
+import {facialExpressionResultSchema} from "@echo/contracts";
+import { analysisTrends } from "./analysis-insights.js";
 import { sealAnalysisResult, openAnalysisResult } from "../../infrastructure/encryption/analysis-result-encryption.js";
 import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -94,6 +97,7 @@ export type JournalSubmissionResult =
   | { kind: "analysis"; submission: JournalSubmissionResponse; replayed: boolean };
 
 export interface JournalAnalysisRuntime {
+  nativeUserIds?: Set<string>;
   mode: AnalysisMode;
   developmentUserIds: Set<string>;
   timeoutMs: number;
@@ -189,26 +193,55 @@ export class JournalService {
       result_payload:job.result_ciphertext?{ciphertext:job.result_ciphertext}:null,severity:null,phq8_score:null,
       facial_status:job.facial_status};
   }
+  async evaluateFace(user:string,image:Buffer){
+    if(this.runtime?.isProduction)throw new NotFoundError('Development face analysis is unavailable in production.');
+    await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalFacialConsent(user)||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Enable journal and facial analysis consent.');
+    const {evaluateFinalFace}=await import('../../infrastructure/analysis/final-face.js');
+    return evaluateFinalFace(image);
+  }
   private faceActive = new Set<string>();
   private faceStopped=false;
   stopLocalFaceProcessing(){this.faceStopped=true;}
   async faceHistory(user:string){
+    if(!this.localResults){
+      if(!await this.hasGlobalFacialConsent(user))return [];
+      const {data,error}=await this.database.schema('ai_analysis').from('journal_face_results').select('journal_id,result_ciphertext').eq('user_id',user).order('created_at',{ascending:false}).limit(30);
+      if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Face history could not be loaded.');
+      const values=[];
+      for(const row of data??[]){try{await this.get(user,row.journal_id);}catch(error){if(error instanceof NotFoundError)continue;throw error;}values.push({journalId:row.journal_id,result:facialExpressionResultSchema.parse(JSON.parse(decryptText(row.result_ciphertext,this.encryption)))});}
+      return values;
+    }
     if(!this.localResults||!await this.hasGlobalFacialConsent(user))return [];
     const results=[];
     for(const job of this.localResults.completed(user).filter(j=>j.face_result?.status==='available').slice(-30).reverse()){
       try{await this.get(user,job.journal_id);}catch(error){if(error instanceof NotFoundError)continue;throw error;}
-      results.push({journalId:job.journal_id,result:job.face_result});
+      results.push({journalId:job.journal_id,result:job.face_result!});
     }
     return results;
   }
   async faceStatus(user:string,journal:string){
     await this.get(user,journal);
-    if(!this.localResults)throw new NotFoundError('Local analysis is disabled.');
+    if(!this.localResults){
+      if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
+      const {data,error}=await this.database.schema('ai_analysis').from('journal_face_results').select('result_ciphertext').eq('user_id',user).eq('journal_id',journal).maybeSingle();
+      if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Face result could not be loaded.');
+      const result=data?facialExpressionResultSchema.parse(JSON.parse(decryptText(data.result_ciphertext,this.encryption))):null;
+      return {status:result?.status==='available'?'completed':result?.status??'not_requested',result};
+    }
     const job=this.localResults.journal(user,journal);
     if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
     return {status:job?.facial_status??'not_requested',result:job?.face_result??null};
   }
   async submitFace(user:string,journal:string,image:Buffer){
+    if(!this.localResults){
+      await this.get(user,journal);
+      const result=await this.evaluateFace(user,image);
+      await this.get(user,journal);await this.assertAnalysisGates(user);
+      const {error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result',{p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify(result),this.encryption),p_available:result.status==='available'});
+      if(error)throw new ExternalServiceError('FACE_SAVE_FAILED','Face result could not be saved. Please retry.');
+      return;
+    }
     if(this.runtime?.isProduction)throw new NotFoundError("This development face model is unavailable in production.");
     if(!this.localResults||!this.coreClient)throw new NotFoundError('Local face inference is unavailable.');
     const entry=await this.get(user,journal);
@@ -775,6 +808,8 @@ export class JournalService {
   }
 
   private async assertAnalysisGates(userId: string): Promise<void> {
+    if (this.runtime.nativeUserIds && !this.runtime.nativeUserIds.has(userId))
+      throw new AuthorizationError("Native development analysis is not enabled for this account.");
     await assertAiEnabled();
     await assertTrustedContact(this.database, userId);
     const [profileResult, verificationResult] = await Promise.all([
@@ -1181,6 +1216,16 @@ export class JournalService {
     if(status==="completed") {
       const latest=await this.latestAnalysis(String(data.journal_id),userId);
       const result=latest?.result_payload ? this.readAnalysisResult(latest.result_payload) : undefined;
+      if (result?.schemaVersion === "echo-journal-analysis-v2" || result?.schemaVersion === "echo-journal-analysis-v3") {
+        const screening = result.schemaVersion === "echo-journal-analysis-v3" ? result.journalScreening : null;
+        const check = checks.find(item => item.id === "phq8");
+        if (check && (!screening || screening.status !== "available" || screening.coverage !== 8)) {
+          check.state = "partial";
+          check.detail = screening?.status === "available"
+            ? "Partial journal estimate; questionnaire remains separate"
+            : "Journal estimate unavailable; other model results saved";
+        }
+      }
       if(result?.schemaVersion==="echo-model-pipeline-v2") {
         const mapping={emotion:"peak",distress:"distress",phq8:"phq8",facial:"face"} as const;
         for(const check of checks) if(check.id!=="safety_crisis") {
@@ -1231,7 +1276,7 @@ export class JournalService {
       : null;
   }
 
-  async dashboardInsights(userId: string, input: AnalysisInsightsRangeInput = { range: "30d" }) {
+  async dashboardInsights(userId: string, input: AnalysisInsightsRangeInput = { range: "30d" }, includeLatestOutsidePeriod = false) {
     if(this.localResults)return this.localDashboard(userId,input);
     const now = new Date();
     const days = input.range === "7d" ? 7 : input.range === "90d" ? 90 : 30;
@@ -1240,28 +1285,30 @@ export class JournalService {
       : new Date(now.getTime() - (days - 1) * 86_400_000);
     if (input.range !== "custom") from.setUTCHours(0, 0, 0, 0);
     const to = input.range === "custom" && input.to ? new Date(`${input.to}T23:59:59.999Z`) : now;
-    let query = this.database
-      .schema("ai_analysis")
-      .from("analysis_results")
-      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(deleted_at,facial_status)")
-      .eq("user_id", userId)
-      .is("analysis_requests.deleted_at", null)
-      .not("result_payload", "is", null)
-      .gte("created_at", from.toISOString())
-      .lte("created_at", to.toISOString())
-      .order("created_at", { ascending: true });
-    if (this.runtime.isProduction) query = query.eq("is_simulated", false);
-    const { data: results, error } = await query;
-    if (error)
+    const resultQuery = (count = false) => this.database.schema("ai_analysis").from("analysis_results")
+      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(user_id,status,deleted_at,facial_status)", count ? { count: "exact" } : undefined)
+      .eq("user_id", userId).eq("analysis_requests.user_id", userId)
+      .eq("analysis_requests.status", "completed").is("analysis_requests.deleted_at", null)
+      .eq("is_simulated", false).not("result_payload", "is", null);
+    const [history, latestHistory, latestJob] = await Promise.all([
+      resultQuery(true).gte("created_at", from.toISOString()).lte("created_at", to.toISOString())
+        .order("created_at", { ascending: false }).limit(1000),
+      includeLatestOutsidePeriod ? resultQuery().order("created_at", { ascending: false }).limit(1) : null,
+      this.database.schema("ai_analysis").from("analysis_requests").select("id,status,created_at")
+        .eq("user_id", userId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (history.error || latestHistory?.error || latestJob.error)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Dashboard insights are temporarily unavailable.");
-    const rows = (results ?? []) as Array<Record<string, unknown>>;
-    const latestRow = rows.at(-1);
-    const latest = latestRow?.result_payload ? this.readAnalysisResult(latestRow.result_payload) : null;
+    const decodeRows = (data: unknown) => ((data ?? []) as Array<Record<string, unknown>>)
+      .map(row => ({ row, result: this.readAnalysisResult(row.result_payload) }))
+      .filter(({ result }) => !result.isSimulated);
+    const records = decodeRows(history.data).reverse();
+    const selected = includeLatestOutsidePeriod ? decodeRows(latestHistory?.data).at(0) : records.at(-1);
+    const latestRow = selected?.row;
+    const latest = selected?.result ?? null;
     const latestRequestValue = latestRow?.analysis_requests;
     const latestRequest = (Array.isArray(latestRequestValue) ? latestRequestValue[0] : latestRequestValue) as
-      | Record<string, unknown>
-      | undefined;
-    const dailyRows = [...new Map(rows.map((row) => [asString(row.created_at).slice(0, 10), row])).values()];
+      | Record<string, unknown> | undefined;
     let recommendation = null;
     if (latestRow) {
       const { data } = await this.database
@@ -1280,35 +1327,25 @@ export class JournalService {
           activity: asString(rule.activity),
         };
     }
+    // PostgREST cannot embed the public projection from the ai_analysis profile.
+    const projection = latestJob.data ? await this.database.schema("public").from("analysis_status_projection")
+      .select("updated_at").eq("job_id", latestJob.data.id).eq("user_id", userId).maybeSingle() : null;
+    if (projection?.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Dashboard insights are temporarily unavailable.");
     return {
+      facialResults:(await this.faceHistory(userId)).filter(row=>includeLatestOutsidePeriod||!row.result.generatedAt||(Date.parse(row.result.generatedAt)>=from.getTime()&&Date.parse(row.result.generatedAt)<=to.getTime())),
       latest,
       latestResultId: latestRow ? asString(latestRow.id) : null,
       recommendation,
-      emotionTrend: dailyRows.flatMap((row) => {
-        const parsed = this.readAnalysisResult(row.result_payload);
-        if (parsed.schemaVersion === "echo-model-pipeline-v2" || parsed.schemaVersion !== latest?.schemaVersion) return [];
-        return [{
-          date: asString(row.created_at).slice(0, 10),
-          values: Object.fromEntries(parsed.emotionDistribution.map((item) => [item.emotion, item.value])),
-          isSimulated: parsed.isSimulated,
-          schemaVersion: parsed.schemaVersion,
-        }];
-      }),
-      distressTrend: dailyRows.flatMap((row) => {
-        const parsed = this.readAnalysisResult(row.result_payload);
-        if (parsed.schemaVersion !== "echo-journal-analysis-v1") return [];
-        return [{
-          date: asString(row.created_at).slice(0, 10),
-          band: parsed.distressBand,
-          value: ["low", "mild", "moderate", "high", "severe"].indexOf(parsed.distressBand) / 4,
-          isSimulated: parsed.isSimulated,
-        }];
-      }),
+      latestAnalyzedAt: latestRow ? asString(latestRow.created_at) : null,
+      latestRequest: latestJob.data ? { status: latestJob.data.status, updatedAt: projection?.data?.updated_at ?? latestJob.data.created_at } : null,
+      processorAvailable: this.runtime.mode !== "disabled",
+      ...analysisTrends(records.map(({ row, result }) => ({ id: asString(row.id), createdAt: asString(row.created_at), result }))),
       period: {
         range: input.range,
         from: from.toISOString().slice(0, 10),
         to: to.toISOString().slice(0, 10),
-        analyzedReflectionCount: rows.length,
+        analyzedReflectionCount: history.count ?? records.length,
+        historyTruncated: (history.count ?? records.length) > records.length,
       },
       facialStatus: facialAnalysisStatusSchema.catch("not_requested").parse(latestRequest?.facial_status),
     };

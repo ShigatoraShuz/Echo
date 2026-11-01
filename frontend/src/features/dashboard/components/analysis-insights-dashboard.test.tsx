@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { AnalysisInsightsDashboard } from "./analysis-insights-dashboard";
+import native from "../../../../../packages/contracts/fixtures/core-v2.json";
+import { journalAnalysisV2ResultSchema } from "@echo/contracts";
 import type { DashboardInsights } from "@echo/contracts";
 
 const result = {
@@ -34,24 +36,11 @@ describe("analysis dashboard", () => {
     expect(screen.getByText("No completed analysis yet")).toBeInTheDocument();
     expect(screen.getByText(/will not invent a trend/i)).toBeInTheDocument();
   });
-  it("labels simulated results and opens the non-diagnostic details", async () => {
-    const insights: DashboardInsights = {
-      latest: result,
-      recommendation: { id: "00000000-0000-4000-8000-000000000001", title: "Breathe", description: "Pause gently.", activity: "paced" },
-      emotionTrend: [], distressTrend: [],
-    };
-    render(<AnalysisInsightsDashboard insights={insights} />);
-    const disclosure = screen.getByText("Journal analysis").closest("details");
-    expect(disclosure).not.toHaveAttribute("open");
-    expect(screen.getByText("Sample analysis preview")).toBeInTheDocument();
-    expect(screen.getByText("Simulated analysis")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByText("Journal analysis"));
-    expect(disclosure).toHaveAttribute("open");
-    expect(screen.getByText(/not a diagnosis or completed PHQ-8 assessment/i)).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent("development example");
-    expect(screen.getByText("Buddy handoff is unavailable for a simulated result.")).toBeInTheDocument();
-    expect(screen.queryByText("Start with ECHO Buddy")).not.toBeInTheDocument();
-    expect(screen.getByText(/not enough dated analysis/i)).toBeInTheDocument();
+  it("excludes simulated values from the account summary", () => {
+    render(<AnalysisInsightsDashboard insights={{ latest: result, recommendation: null, emotionTrend: [], distressTrend: [] }} />);
+    expect(screen.getByText("No completed analysis yet")).toBeInTheDocument();
+    expect(screen.queryByText("Sample analysis preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("low")).not.toBeInTheDocument();
   });
   it("renders real dated mappings without a simulated-only notice", async () => {
     const real = { ...result, isSimulated: false };
@@ -77,4 +66,18 @@ describe("analysis dashboard", () => {
     expect(screen.getByText("Start with ECHO Buddy")).toBeInTheDocument();
     expect(screen.queryByText(/Only simulated points/i)).not.toBeInTheDocument();
   });
+  it("keeps newer pending status visible beside a completed native summary", () => {
+    const insights: DashboardInsights = {
+      latest: journalAnalysisV2ResultSchema.parse(native), recommendation: null, emotionTrend: [], distressTrend: [],
+      latestRequest: { status: "queued", updatedAt: "2026-10-31T01:00:00Z" }, latestAnalyzedAt: "2000-01-01T00:00:00Z",
+    };
+    render(<AnalysisInsightsDashboard insights={insights} />);
+    const card = screen.getByRole("region", { name: "Saved AI result summary" });
+    expect(screen.getByText("Journal category")).toBeVisible();
+    expect(screen.getAllByText(native.distressCategory, { exact: true })[0]).toBeVisible();
+    expect(screen.getByText(/A newer analysis is pending/)).toBeVisible();
+    expect(screen.getAllByText(native.dominantEmotion, { exact: false }).length).toBeGreaterThan(0);
+    expect(card?.querySelector('time')).toHaveAttribute("datetime", "2000-01-01T00:00:00Z");
+  });
+
 });

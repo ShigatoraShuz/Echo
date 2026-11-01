@@ -23,6 +23,7 @@ import {
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { useRealtimeTalk } from "../view-model/use-realtime-talk";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
+import { BuddyTypingIndicator } from "../components/buddy-typing-indicator";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
 import { BuddyAnalysisHandoff } from "../components/buddy-analysis-handoff";
 import { DefaultJournalFilters, type JournalEntry } from "@/features/journal/model/journal.model";
@@ -256,7 +257,7 @@ export function BuddyView() {
         >
           {vm.isLoadingList && (
             <p role="status" className="px-2 text-sm text-[var(--landing-muted)]">
-              Loading conversationsâ€¦
+              Loading conversations...
             </p>
           )}
           {!vm.isLoadingList && vm.conversations.length === 0 && (
@@ -460,7 +461,7 @@ export function BuddyView() {
           <div className="mx-auto max-w-3xl space-y-5">
             {vm.isLoadingMessages && vm.messages.length === 0 && (
               <p role="status" className="py-16 text-center text-sm text-[var(--landing-muted)]">
-                Opening your private conversationâ€¦
+                Opening your private conversation...
               </p>
             )}
             {!vm.isLoadingMessages && vm.messages.length === 0 && <BuddyEmptyState onPromptSelect={setDraft} />}
@@ -477,7 +478,7 @@ export function BuddyView() {
               </div>
             ))}
             {vm.isSending && (
-              <p className="pl-2 text-xs font-medium text-[var(--landing-muted)]">Buddy is reflectingâ€¦</p>
+              <BuddyTypingIndicator />
             )}
           </div>
         </div>
@@ -750,7 +751,7 @@ export function BuddyView() {
             onClick={() => void saveRename()}
             className="rounded-full bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
           >
-            {renaming ? "Savingâ€¦" : "Save"}
+            {renaming ? "Saving..." : "Save"}
           </button>
         </div>
       </EchoDialog>

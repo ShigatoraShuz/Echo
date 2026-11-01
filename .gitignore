@@ -100,3 +100,8 @@ frontend/assets/e2d821df-*.png
 # Prepared local Talk/VAD assets; recreated by prepare-realtime-assets.mjs
 /frontend/public/vendor/buddy-vad/*.onnx
 /frontend/public/vendor/buddy-vad/ort-wasm*
+
+# Isolated local service environments (not application source).
+/ai-service/.venv-core/
+/ai-service/.venv-speech/
+/ai-service/.venv-face/

@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import native from "../../../../../packages/contracts/fixtures/core-v2.json";
+import { journalAnalysisV2ResultSchema } from "@echo/contracts";
 import type { DashboardInsights } from "@echo/contracts";
 import { EmotionInsightsView } from "./emotion-insights-view";
 
@@ -10,7 +12,7 @@ const overview: DashboardInsights = {
     thresholdVersion: "v1",
     providerName: "fixture",
     modelVersion: "fixture-v1",
-    isSimulated: true,
+    isSimulated: false,
     emotionDistribution: [
       { emotion: "joy", value: 0.1 },
       { emotion: "calm", value: 0.4 },
@@ -28,15 +30,16 @@ const overview: DashboardInsights = {
     facialExpressionAnalysis: null,
   },
   recommendation: null,
-  emotionTrend: [{ date: "2026-10-10", values: { calm: 0.4 }, isSimulated: true }],
-  distressTrend: [{ date: "2026-10-10", band: "low", value: 0, isSimulated: true }],
+  emotionTrend: [{ date: "2026-10-10", values: { calm: 0.4 }, isSimulated: false }],
+  distressTrend: [{ date: "2026-10-10", band: "low", value: 0, isSimulated: false }],
   period: { range: "30d", from: "2026-09-12", to: "2026-10-11", analyzedReflectionCount: 1 },
   facialStatus: "captured_pending_provider",
 };
 let showEmpty = false;
+let showNative = false;
 
 afterEach(() => {
-  showEmpty = false;
+  showEmpty = false; showNative = false;
   vi.unstubAllEnvs();
 });
 
@@ -47,7 +50,7 @@ vi.mock("@/features/verification", () => ({
 vi.mock("../view-model/use-insights-view-model", () => ({
   useInsightsViewModel: (preview: boolean) => ({
     timeRange: "30d",
-    overview: !preview && showEmpty ? { ...overview, latest: null } : overview,
+    overview: showNative ? { ...overview, latest: journalAnalysisV2ResultSchema.parse(native), emotionTrend: [], distressTrend: [] } : !preview && showEmpty ? { ...overview, latest: null } : overview,
     isLoading: false,
     error: null,
     setTimeRange: vi.fn(),
@@ -70,21 +73,38 @@ describe("AI insights dashboard", () => {
     expect(screen.getAllByText(/facial model provider not connected/i).length).toBeGreaterThan(0);
   });
 
-  it("shows labelled sample values only when development has no completed analysis", () => {
+  it("shows labelled sample values only in an explicit development preview", () => {
     vi.stubEnv("NODE_ENV", "development");
     showEmpty = true;
-    render(<EmotionInsightsView previewWhenEmpty />);
+    render(<EmotionInsightsView preview />);
 
     expect(screen.getByText(/Preview mode — simulated examples, not your results/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Textual and facial signals" })).toBeInTheDocument();
   });
 
+  it("does not silently replace an empty development account with fixtures", () => {
+    vi.stubEnv("NODE_ENV", "development"); showEmpty = true;
+    render(<EmotionInsightsView />);
+    expect(screen.getByRole("heading", { name: "No completed analysis yet" })).toBeInTheDocument();
+    expect(screen.queryByText(/Preview mode/)).not.toBeInTheDocument();
+  });
+
   it("keeps the empty state in production instead of showing sample results", () => {
     vi.stubEnv("NODE_ENV", "production");
     showEmpty = true;
-    render(<EmotionInsightsView previewWhenEmpty />);
+    render(<EmotionInsightsView />);
 
     expect(screen.getByRole("heading", { name: "No completed analysis yet" })).toBeInTheDocument();
     expect(screen.queryByText(/Preview mode — simulated examples, not your results/i)).not.toBeInTheDocument();
   });
+  it("keeps date filters, native results, and history in the same Insights layout", () => {
+    showNative = true;
+    render(<EmotionInsightsView />);
+    expect(screen.getByRole("heading", { name: "Your emotional patterns" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Analysis period" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Your reflection patterns" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Emotion history" })).toBeInTheDocument();
+    expect(screen.queryByText(/Preview mode/)).not.toBeInTheDocument();
+  });
+
 });

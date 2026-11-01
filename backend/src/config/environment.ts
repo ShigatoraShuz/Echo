@@ -55,6 +55,9 @@ const environmentSchema = z.object({
   AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker", "local_json"]).default("disabled"),
   AI_DEVELOPMENT_USER_IDS: z.string().default(""),
   AI_WORKER_TOKEN: z.string().min(32).optional(),
+  AI_CORE_PROFILE: z.enum(["disabled", "local_encrypted_worker", "hosted_encrypted_worker"]).default("disabled"),
+  AI_NATIVE_CREATED_AFTER: z.string().optional(),
+  AI_HOSTED_PROJECT_REF: z.string().default(""),
   AI_SERVICE_URL: z.string().url().optional(),
   AI_SERVICE_TOKEN: z.string().min(32).optional(),
   AI_STUB_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(1),
@@ -91,9 +94,27 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
     throw new Error(`Invalid backend environment configuration: ${fields}`);
   }
 
-  // Quarantine the new core-backed persistence path until encrypted storage,
-  // retention, account scoping, and consent-race handling are approved.
-  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || parsed.data.AI_SERVICE_URL || source.ECHO_REALTIME_TALK === "true")
+  // Only the reviewed loopback development worker may use existing encrypted storage.
+  // Hosted development additionally requires explicit project, account and activation scopes.
+  const hostedCore = parsed.data.AI_CORE_PROFILE === "hosted_encrypted_worker";
+  const encryptedLocalCore = parsed.data.AI_CORE_PROFILE === "local_encrypted_worker" || hostedCore;
+  if (hostedCore) {
+    const database = new URL(parsed.data.SUPABASE_URL);
+    const users = parsed.data.AI_DEVELOPMENT_USER_IDS.split(",").filter(Boolean);
+    if (database.protocol !== "https:" || database.hostname !== `${parsed.data.AI_HOSTED_PROJECT_REF}.supabase.co` ||
+        !parsed.data.AI_HOSTED_PROJECT_REF || database.username || database.password ||
+        !parsed.data.AI_NATIVE_CREATED_AFTER || Number.isNaN(Date.parse(parsed.data.AI_NATIVE_CREATED_AFTER)) ||
+        users.length < 1 || users.length > 20 || users.some(id => !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id)))
+      throw new Error("Hosted native development requires the configured project and explicit test account scope.");
+  }
+  if (encryptedLocalCore && (
+    parsed.data.NODE_ENV !== "development" || source.ECHO_HTTP_ONLY_MODE !== "1" ||
+    parsed.data.AI_ANALYSIS_MODE !== "local_worker" || !parsed.data.AI_SERVICE_URL ||
+    !parsed.data.AI_SERVICE_TOKEN || !parsed.data.AI_WORKER_TOKEN ||
+    (!hostedCore && (!["127.0.0.1", "localhost"].includes(new URL(parsed.data.SUPABASE_URL).hostname) ||
+    new URL(parsed.data.SUPABASE_URL).protocol !== "http:"))
+  )) throw new Error("Encrypted model development requires an approved development database profile and dedicated worker credentials.");
+  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || (parsed.data.AI_SERVICE_URL && !encryptedLocalCore) || source.ECHO_REALTIME_TALK === "true")
     throw new Error("Core-backed application storage is pending privacy approval; use the standard application profile.");
 
   if (parsed.data.NODE_ENV === "production" && parsed.data.AI_ANALYSIS_MODE === "development_stub")

@@ -31,7 +31,7 @@ export function OverallAnalysis({ entries, insights }: { entries: DashboardEntry
           ? "lower"
           : "unchanged";
   return (
-    <details className="echo-compact-card group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="overall-analysis-title">
+    <details className="echo-compact-card group min-w-0 lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="overall-analysis-title">
       <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0">
           <h2 id="overall-analysis-title" className="text-sm font-semibold text-foreground">Past 30 days</h2>

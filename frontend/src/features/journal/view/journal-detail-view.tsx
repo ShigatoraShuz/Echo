@@ -130,6 +130,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
       </article>
 
       <section aria-label="ECHO perspective" className="mt-8 sm:mt-10">
+        {error ? <div role="alert" className="mb-4 rounded-2xl border border-danger/25 bg-card p-4 text-sm"><p>{error}</p><button type="button" onClick={retry} className="mt-2 min-h-11 font-semibold text-primary underline">Retry loading analysis</button></div> : null}
         {analysis ? <>
           <JournalAnalysisPanel analysis={analysis} />
           {analysis.result && analysis.summary && <div className="mt-4 rounded-2xl border border-primary/10 bg-card/80 px-5 py-4 sm:px-6"><h2 className="text-xs font-semibold uppercase tracking-[.14em] text-primary">Narrative summary</h2><p className="mt-2 text-sm leading-7 text-muted-foreground">{analysis.summary}</p></div>}

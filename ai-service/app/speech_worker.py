@@ -5,9 +5,28 @@ import io
 import json
 import os
 import sys
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 os.environ.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1")
+
+
+@contextmanager
+def cuda12_search_path():
+    """CTranslate2 needs CUDA 12 DLLs, independently of Torch's CUDA 13 build."""
+    previous = os.environ.get("PATH", "")
+    try:
+        with ExitStack() as stack:
+            if os.name == "nt":
+                site = Path(sys.prefix) / "Lib/site-packages/nvidia"
+                for name in ("cublas", "cudnn"):
+                    folder = site / name / "bin"
+                    if folder.is_dir():
+                        stack.enter_context(os.add_dll_directory(str(folder)))
+                        os.environ["PATH"] = str(folder) + os.pathsep + os.environ.get("PATH", "")
+            yield
+    finally:
+        os.environ["PATH"] = previous
 
 
 def decode_recording(data):
@@ -52,16 +71,17 @@ def run(root, request):
             raise ValueError("Audio exceeds 60 seconds")
         if len(samples) < 1600 or np.max(np.abs(samples)) < 0.005:
             return {"text": ""}
-        model = WhisperModel(
-            str(root / "whisper"), device="cuda", compute_type="float16", local_files_only=True
-        )
-        segments, info = model.transcribe(
-            samples, beam_size=5, vad_filter=True, condition_on_previous_text=False
-        )
-        return {
-            "text": " ".join(x.text.strip() for x in segments if x.no_speech_prob < 0.6).strip(),
-            "language": info.language,
-        }
+        with cuda12_search_path():
+            model = WhisperModel(
+                str(root / "whisper"), device="cuda", compute_type="float16", local_files_only=True
+            )
+            segments, info = model.transcribe(
+                samples, beam_size=5, vad_filter=True, condition_on_previous_text=False
+            )
+            return {
+                "text": " ".join(x.text.strip() for x in segments if x.no_speech_prob < 0.6).strip(),
+                "language": info.language,
+            }
     from transformers import AutoModel
     from transformers.dynamic_module_utils import get_class_from_dynamic_module
     from transformers.processing_utils import ProcessorMixin

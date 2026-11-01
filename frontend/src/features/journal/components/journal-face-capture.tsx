@@ -4,6 +4,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { Camera, CameraOff, Check, Eye, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import type { FaceMeshCapture } from "@echo/contracts";
 
+import { env } from "@/config/environment";
+import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
+
 type CameraState = "idle" | "requesting" | "loading_mesh" | "active" | "denied" | "unavailable" | "error";
 type Connection = { start: number; end: number };
 
@@ -23,6 +26,9 @@ const MODEL_VERSION = "mediapipe-face-landmarker-float16-v1";
 export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFaceCaptureProps>(
   function JournalFaceCapture({ requested, onRequestedChange }, ref) {
     const [state, setState] = useState<CameraState>("idle");
+    const [evaluating,setEvaluating]=useState(false);
+    const [expression,setExpression]=useState("");
+    const evaluationAbort=useRef<AbortController|null>(null);
     const [hasFace, setHasFace] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,6 +47,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
 
     const stop = useCallback(() => {
       requestGeneration.current += 1;
+      evaluationAbort.current?.abort(); setEvaluating(false); setExpression("");
       if (timerRef.current !== null) window.clearInterval(timerRef.current);
       timerRef.current = null;
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -83,6 +90,19 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
       }),
       [stop],
     );
+
+    async function evaluate() {
+      const video=videoRef.current;if(!video||!hasFace||evaluating)return;
+      const generation=requestGeneration.current;
+      const capture=document.createElement('canvas');capture.width=video.videoWidth;capture.height=video.videoHeight;
+      capture.getContext('2d')?.drawImage(video,0,0);
+      const blob=await new Promise<Blob|null>(done=>capture.toBlob(done,'image/jpeg',.9));capture.width=0;capture.height=0;
+      if(!blob||generation!==requestGeneration.current||!streamRef.current)return;
+      const abort=new AbortController();evaluationAbort.current=abort;setEvaluating(true);setExpression('');
+      try{const token=await supabaseAuthTokenProvider.getAccessToken();const response=await fetch(env.apiBaseUrl+'/journals/face/evaluate',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'image/jpeg'},body:blob,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(65000)])});const body=await response.json();if(!response.ok)throw Error(body.error?.message??'Face analysis is unavailable.');if(!abort.signal.aborted)setExpression(body.data.status==='available'?`Expression signal: ${body.data.prediction}. Uncalibrated model output, not your emotional state.`:'No usable single face. Adjust lighting and try again.');}
+      catch(error){if(!abort.signal.aborted)setExpression(error instanceof Error?error.message:'Face analysis is unavailable.');}
+      finally{if(!abort.signal.aborted)setEvaluating(false);}
+    }
 
     const drawMesh = useCallback((landmarks: number[][]) => {
       const canvas = canvasRef.current;
@@ -231,11 +251,11 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
     const active = state === "active" || state === "loading_mesh";
     const statusText =
       state === "requesting"
-        ? "Requesting camera permission…"
+        ? "Requesting camera permissionâ€¦"
         : state === "loading_mesh"
-          ? "Starting the private face mesh…"
+          ? "Starting the private face meshâ€¦"
           : state === "active" && hasFace
-            ? "Face mesh ready"
+            ? "Face analysis ready"
             : state === "active"
               ? "Center one face in the frame"
               : state === "denied"
@@ -243,7 +263,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
                 : state === "unavailable"
                   ? "No camera is available"
                   : state === "error"
-                    ? "Face mesh could not start"
+                    ? "Face analysis could not start"
                     : "Camera stays off until you choose to start it";
 
     return (
@@ -255,7 +275,7 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             </span>
             <div>
               <h3 className="text-sm font-semibold text-foreground">Optional facial expression capture</h3>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">UNAVAILABLE: automated facial-expression analysis is disabled in the standard profile. Optional on-device mesh preview is separate from emotion analysis; manual mood remains available.</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Optional face analysis. Your camera image and mesh stay hidden; only the analysis indicator is shown. Choose Analyze expression to process one temporary frame with the final v4 model.</p>
             </div>
           </div>
           {active ? (
@@ -270,22 +290,22 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
         </div>
 
         {active ? (
-          <div className="relative aspect-video overflow-hidden border-y border-primary/10 bg-[#10231b]">
-            <video ref={videoRef} autoPlay muted playsInline className="h-full w-full scale-x-[-1] object-cover" />
+          <div className="relative flex min-h-24 items-center justify-center overflow-hidden border-y border-primary/10 bg-primary/5">
+            <video ref={videoRef} autoPlay muted playsInline className="absolute h-px w-px opacity-0 pointer-events-none" aria-hidden="true" tabIndex={-1} />
             <canvas
               ref={canvasRef}
-              className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1]"
+              className="hidden"
               aria-hidden="true"
             />
             <span
-              className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur ${hasFace ? "bg-emerald-50/90 text-emerald-800" : "bg-card/90 text-muted-foreground"}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur ${hasFace ? "bg-emerald-50/90 text-emerald-800" : "bg-card/90 text-muted-foreground"}`}
             >
               {hasFace ? (
                 <Check className="h-3 w-3" />
               ) : (
                 <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
               )}
-              {hasFace ? "Mesh ready" : "Finding face"}
+              {hasFace ? "Face analysis ready" : "Waiting for one face"}
             </span>
           </div>
         ) : (
@@ -305,14 +325,15 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              {state === "idle" ? "Start camera" : state === "requesting" ? "Requesting…" : "Try again"}
+              {state === "idle" ? "Start camera" : state === "requesting" ? "Requestingâ€¦" : "Try again"}
             </button>
           </div>
         )}
 
+        {active && <div className="px-4 py-3"><button type="button" disabled={!hasFace||evaluating} onClick={()=>void evaluate()} className="echo-button-secondary disabled:opacity-50">{evaluating?'Analyzing expression...':'Analyze expression'}</button><p role="status" className="mt-2 text-xs">{expression}</p></div>}
         <div className="flex items-center gap-2 px-4 py-3 text-[11px] font-medium text-primary/80">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          On-device mesh · no photo or video is saved
+          On-device mesh Â· no photo or video is saved
         </div>
         <p className="sr-only" aria-live="polite">
           {statusText}

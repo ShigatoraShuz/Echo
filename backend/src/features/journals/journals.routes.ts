@@ -21,7 +21,8 @@ export function createJournalsRouter(
     if (["GET", "HEAD"].includes(req.method)) return next();
     return writeLimit(req, res, next);
   });
-  router.get('/journals/facial-history',authenticate,requireVerifiedAi,async(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await service.faceHistory(req.auth!.id)});});
+  router.post('/journals/face/evaluate',authenticate,requireVerifiedAi,raw({type:['image/jpeg','image/png','image/webp'],limit:'2mb'}),async(req,res)=>{if(!Buffer.isBuffer(req.body)||!req.body.length){res.status(422).json({error:{message:'A camera frame is required.'}});return;}try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await service.evaluateFace(req.auth!.id,req.body)});}finally{req.body.fill(0);}});
+  router.get('/journals/facial-history' ,authenticate,requireVerifiedAi,async(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await service.faceHistory(req.auth!.id)});});
   router.post('/journals/:journalId/face',authenticate,requireVerifiedAi,raw({type:['image/jpeg','image/png','image/webp'],limit:'2mb'}),async(req,res)=>{if(!Buffer.isBuffer(req.body)){res.status(422).json({error:{message:'A camera image is required.'}});return;}try{await service.submitFace(req.auth!.id,String(req.params.journalId),req.body);res.status(202).json({success:true,data:{accepted:true}});}finally{req.body.fill(0);}});
   router.get('/journals/:journalId/face',authenticate,requireVerifiedAi,async(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await service.faceStatus(req.auth!.id,String(req.params.journalId))});});
   router.get("/journals", authenticate, controller.list);

@@ -4,6 +4,9 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 import { AlertTriangle } from "lucide-react";
+import { AnalysisRequestStatus } from "@/features/journal/components/analysis-request-status";
+import { realAnalysisInsights } from "@/features/journal/model/real-analysis-insights";
+import { AnalysisHistory } from "./analysis-history";
 import { useInsightsViewModel } from "../view-model/use-insights-view-model";
 import { RiskBadge } from "@/shared/components/data-display";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
@@ -15,8 +18,9 @@ function formatDay(date: string): string {
 
 export function RiskInsightsView() {
   const vm = useInsightsViewModel();
-  const latest = vm.overview?.latest;
-  const history = vm.overview?.distressTrend ?? [];
+  const overview = realAnalysisInsights(vm.overview);
+  const latest = overview?.latest;
+  const history = overview?.distressTrend ?? [];
 
   return (
     <div className="space-y-6">
@@ -27,6 +31,7 @@ export function RiskInsightsView() {
           description="These bands come from completed, optional journal analysis. They are support cues, not a diagnosis or emergency assessment."
         />
 
+        <AnalysisRequestStatus insights={overview} />
         {vm.error ? (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger/25 bg-crisis-soft p-4 text-sm text-foreground">
             <span>{vm.error}</span>
@@ -78,6 +83,7 @@ export function RiskInsightsView() {
           )}
         </EchoCard>
 
+        {overview ? <AnalysisHistory insights={overview} /> : null}
         <div className="rounded-2xl border border-danger/30 bg-crisis-soft p-5">
           <AlertTriangle className="h-5 w-5 text-danger" aria-hidden="true" />
           <p className="mt-3 text-sm leading-6 text-muted-foreground">

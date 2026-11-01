@@ -1,4 +1,7 @@
 "use client";
+import { realAnalysisInsights } from "@/features/journal/model/real-analysis-insights";
+import { AnalysisHistory } from "./analysis-history";
+import { AnalysisRequestStatus } from "@/features/journal/components/analysis-request-status";
 import { NativeAnalysis } from "@/features/journal/components/native-analysis";
 
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
@@ -107,7 +110,7 @@ function Metric({ icon: Icon, label, value, detail, delay }: {
   return (
     <Panel delay={delay} className="p-3 sm:p-3.5">
       <div className="flex items-start gap-2 sm:items-center sm:gap-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eaf2e6] text-primary sm:h-9 sm:w-9">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-primary sm:h-9 sm:w-9">
           <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden="true" />
         </span>
         <div className="min-w-0">
@@ -223,20 +226,20 @@ function EmptyState({ retry }: { retry: () => void }) {
   );
 }
 
-export function EmotionInsightsView({ preview = false, previewWhenEmpty = false }: { preview?: boolean; previewWhenEmpty?: boolean }) {
+export function EmotionInsightsView({ preview = false }: { preview?: boolean }) {
   const vm = useInsightsViewModel(preview);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
-  const insights = vm.overview;
+  const insights = preview ? vm.overview : realAnalysisInsights(vm.overview);
   const latest = insights?.latest?.schemaVersion === "echo-journal-analysis-v1" || insights?.latest?.schemaVersion === "echo-model-pipeline-v2" ? insights.latest : null;
   const native = insights?.latest?.schemaVersion === "echo-journal-analysis-v2" || insights?.latest?.schemaVersion === "echo-journal-analysis-v3" ? insights.latest : null;
   const period = insights?.period;
   const distressStart = insights?.distressTrend[0]?.value;
   const distressEnd = insights?.distressTrend.at(-1)?.value;
-  const direction = distressStart === undefined || distressEnd === undefined || distressStart === distressEnd
-    ? "Steady"
-    : distressEnd < distressStart ? "Easing" : "Rising";
+  const direction = (insights?.distressTrend.length ?? 0) < 2 || distressStart === undefined || distressEnd === undefined
+    ? "Not enough data"
+    : distressStart === distressEnd ? "Unchanged" : distressEnd < distressStart ? "Easing" : "Rising";
   const DirectionIcon = direction === "Easing" ? TrendingDown : direction === "Rising" ? TrendingUp : Minus;
 
   function applyCustom(event: FormEvent<HTMLFormElement>) {
@@ -249,14 +252,9 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
     vm.applyCustomRange(customFrom, customTo);
   }
 
-  if (previewWhenEmpty && process.env.NODE_ENV === "development" && !vm.isLoading && !vm.error && !latest) {
-    return <VerifiedFeatureGate featureName="AI insights"><EmotionInsightsView preview /></VerifiedFeatureGate>;
-  }
-
-  if (native) return <VerifiedFeatureGate featureName="AI insights"><NativeAnalysis result={native} insights={insights ?? undefined} /></VerifiedFeatureGate>;
   const dashboard = (
-    <div className="echo-insights-dashboard mx-auto max-w-[1440px] space-y-2.5 pb-4 sm:space-y-3">
-        <header className="relative overflow-visible rounded-[1.35rem] border border-primary/10 bg-[rgba(251,247,238,0.88)] px-4 py-4 shadow-[0_14px_34px_rgba(24,48,37,0.06)] sm:rounded-[1.5rem] sm:px-5">
+    <div aria-busy={vm.isLoading} className="echo-insights-dashboard mx-auto max-w-[1440px] space-y-2.5 pb-4 sm:space-y-3">
+        <header className="relative overflow-visible rounded-[1.35rem] border border-primary/10 bg-card/90 px-4 py-4 shadow-[0_14px_34px_rgba(24,48,37,0.06)] sm:rounded-[1.5rem] sm:px-5">
           <div className="pointer-events-none absolute inset-y-0 right-0 w-[38%] overflow-hidden lg:w-[44%]" aria-hidden="true">
             <Leaf className="absolute right-9 top-4 h-14 w-14 rotate-12 text-[#b9d1ac]/55 lg:right-16 lg:h-20 lg:w-20" strokeWidth={1} />
             <Leaf className="absolute right-0 top-11 h-20 w-20 -rotate-12 text-[#d9c981]/25 lg:right-2 lg:top-10 lg:h-28 lg:w-28" strokeWidth={0.8} />
@@ -289,8 +287,10 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
           </div>
         </header>
 
+        <AnalysisRequestStatus insights={insights} />
+        {vm.isLoading && insights ? <p role="status" className="text-sm text-muted-foreground">Updating saved analysis…</p> : null}
         {vm.error ? <div role="alert" className="flex items-center justify-between gap-4 rounded-xl border border-danger/20 bg-crisis-soft px-4 py-3 text-sm text-foreground"><span>{vm.error}</span><button type="button" onClick={vm.retry} className="font-bold text-primary">Retry</button></div> : null}
-        {vm.isLoading && !insights ? <LoadingState /> : !latest || !insights ? <EmptyState retry={vm.retry} /> : latest.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={latest} /> : (
+        {vm.error && !insights ? null : vm.isLoading && !insights ? <LoadingState /> : !insights || (!latest && !native) ? <EmptyState retry={vm.retry} /> : native ? <NativeAnalysis result={native} insights={insights} showHistory={false} /> : latest?.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={latest} /> : latest ? (
           <>
             <section className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4" aria-label="Analysis summary">
               <Metric icon={HeartPulse} label="Dominant emotion" value={titleCase((latest.combinedEmotionAnalysis ?? latest).dominantEmotion)} detail="Most present model signal" delay={60} />
@@ -308,7 +308,7 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
                     <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Dominant signal strength</p>
                     <TrendChart insights={insights} />
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] font-semibold">
-                      <span className="rounded-full bg-[#eaf2e6] px-2 py-1 text-primary">Text output ready</span>
+                      <span className="rounded-full bg-secondary px-2 py-1 text-primary">Text output ready</span>
                       <span className="rounded-full bg-secondary px-2 py-1 text-muted-foreground">{facialStatusCopy[insights.facialStatus ?? "not_requested"]}</span>
                     </div>
                   </div>
@@ -316,10 +316,10 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
               </Panel>
 
               <Panel id="sanctuary-perspective" delay={310} className="relative col-span-2 p-3.5 sm:p-4 xl:col-span-5">
-                <PanelHeading icon={Sparkles} eyebrow="Sanctuary perspective" title="A kinder view of the whole pattern" aside={latest.sanctuaryPerspective ? <span className="rounded-full bg-[#eaf2e6] px-2.5 py-1 text-[9px] font-bold text-primary">AI perspective</span> : <span className="rounded-full bg-secondary px-2.5 py-1 text-[9px] font-bold text-muted-foreground">Provider pending</span>} />
+                <PanelHeading icon={Sparkles} eyebrow="Sanctuary perspective" title="A kinder view of the whole pattern" aside={latest.sanctuaryPerspective ? <span className="rounded-full bg-secondary px-2.5 py-1 text-[9px] font-bold text-primary">AI perspective</span> : <span className="rounded-full bg-secondary px-2.5 py-1 text-[9px] font-bold text-muted-foreground">Provider pending</span>} />
                 {latest.sanctuaryPerspective ? (
                   <div className="mt-4 flex gap-4">
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-[#e8f0df] text-primary"><Leaf className="h-7 w-7" aria-hidden="true" /></span>
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-secondary text-primary"><Leaf className="h-7 w-7" aria-hidden="true" /></span>
                     <div><h3 className="text-xl font-semibold text-foreground [font-family:var(--font-echo-display)]">{latest.sanctuaryPerspective.headline}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{latest.sanctuaryPerspective.narrative}</p></div>
                   </div>
                 ) : (
@@ -340,7 +340,7 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
 
               <Panel id="distress-classification" delay={410} className="p-3.5 max-[359px]:col-span-2 sm:p-4 xl:col-span-4">
                 <PanelHeading icon={Activity} eyebrow="Distress classification" title="Current support signal" />
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-1 sm:mt-4 sm:gap-4"><p className="text-3xl font-medium capitalize text-foreground [font-family:var(--font-echo-display)] sm:text-4xl">{latest.distressBand}</p><span className="rounded-full bg-[#eaf2e6] px-2 py-1 text-[9px] font-bold text-primary sm:px-3 sm:py-1.5 sm:text-[10px]">{Math.round(latest.distressConfidence * 100)}% confidence</span></div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-1 sm:mt-4 sm:gap-4"><p className="text-3xl font-medium capitalize text-foreground [font-family:var(--font-echo-display)] sm:text-4xl">{latest.distressBand}</p><span className="rounded-full bg-secondary px-2 py-1 text-[9px] font-bold text-primary sm:px-3 sm:py-1.5 sm:text-[10px]">{Math.round(latest.distressConfidence * 100)}% confidence</span></div>
                 <div className="mt-4 flex h-2 gap-1" aria-label={`Distress band: ${latest.distressBand}`}>{["low", "mild", "moderate", "high", "severe"].map((band) => <span key={band} className={`flex-1 rounded-full ${band === latest.distressBand ? "bg-primary" : "bg-secondary"}`} />)}</div>
                 <p className="mt-3 text-[11px] leading-5 text-muted-foreground">Used to guide supportive wording. It does not predict harm or replace professional assessment.</p>
               </Panel>
@@ -352,8 +352,9 @@ export function EmotionInsightsView({ preview = false, previewWhenEmpty = false 
               </Panel>
             </section>
           </>
-        )}
-        <p className="flex items-center gap-2 px-1 text-[10px] leading-4 text-muted-foreground"><LockKeyhole className="h-3.5 w-3.5 text-primary" aria-hidden="true" />Private analysis is loaded only for your authenticated account. Simulated outputs remain labelled and are excluded in production.</p>
+        ) : null}
+        {insights ? <AnalysisHistory insights={insights} /> : null}
+        <p className="flex items-center gap-2 px-1 text-[10px] leading-4 text-muted-foreground"><LockKeyhole className="h-3.5 w-3.5 text-primary" aria-hidden="true" />Private analysis is loaded only for your authenticated account. Only saved, non-simulated model results are shown in your account.</p>
     </div>
   );
   return preview ? dashboard : <VerifiedFeatureGate featureName="AI insights">{dashboard}</VerifiedFeatureGate>;

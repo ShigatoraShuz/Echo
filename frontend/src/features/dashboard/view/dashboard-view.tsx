@@ -23,6 +23,7 @@ import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
 import { WellnessCheckin } from "../components/wellness-checkin";
+import { analysisSummary } from "@/features/journal/model/analysis-summary";
 import { OverallAnalysis } from "../components/overall-analysis";
 
 function DashboardCard({
@@ -90,7 +91,7 @@ function buildWellbeingActivity(
 }
 
 export function DashboardView({ preview = false }: { preview?: boolean }) {
-  const { data, isLoading, error } = useDashboardViewModel("7d", preview ? dashboardPreviewService : undefined);
+  const { data, isLoading, error, retry } = useDashboardViewModel("7d", preview && process.env.NODE_ENV !== "production" ? dashboardPreviewService : undefined);
 
   const [activityWeeks, setActivityWeeks] = useState(26);
 
@@ -100,10 +101,10 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
   if (error || !data) {
     return (
-      <ErrorState
+      <div className="space-y-3"><ErrorState
         title="Could not load dashboard"
         description={error ?? "No data available."}
-      />
+      /><button type="button" onClick={() => void retry()} className="echo-button-secondary">Retry dashboard</button></div>
     );
   }
 
@@ -114,6 +115,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   } = data;
 
   const latestAnalysis = data.analysisInsights?.latest;
+  const latestSummary = analysisSummary(latestAnalysis);
   const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && (latestAnalysis.schemaVersion === "echo-journal-analysis-v1" ? ["moderate", "high", "severe"].includes(latestAnalysis.distressBand) : latestAnalysis.schemaVersion === "echo-model-pipeline-v2" ? false : latestAnalysis.supportReviewRequired);
 
   const recentEntries = journalEntries.slice(0, 3);
@@ -127,10 +129,10 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <WellnessCheckin preview={preview} />
 
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-12">
-          <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 lg:col-span-2 xl:col-span-6">
+          <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 lg:col-span-2 xl:col-span-4">
             <div className="min-w-0">
               <h1 className="break-words text-[clamp(1.75rem,2.5vw,2.5rem)] font-medium leading-tight tracking-[-0.035em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
-                Good evening, {userProfile.name}
+                Welcome back, {userProfile.name}
               </h1>
 
               <p className="mt-1 text-xs text-[var(--landing-muted)]">
@@ -166,12 +168,12 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
             </p>
 
             <h2 className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-              Current distress
+              {latestSummary.distressKind === "band" ? "Journal distress" : "Journal category"}
             </h2>
 
             <div className="mt-3 flex items-end gap-1.5">
               <span className="text-4xl font-semibold tracking-[-0.06em]">
-                {latestAnalysis?.isSimulated ? "Sample only" : latestAnalysis?.schemaVersion === "echo-journal-analysis-v1" ? latestAnalysis.distressBand : "Not assessed"}
+                {latestAnalysis?.isSimulated ? "Sample only" : latestSummary.distress ?? "Not assessed"}
               </span>
 
               <span className="pb-1 text-sm text-muted-foreground">
@@ -199,7 +201,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               {latestAnalysis?.isSimulated
                 ? "This development example does not describe your wellbeing."
                 : latestAnalysis
-                  ? "From your latest optional journal analysis. This band is not a diagnosis or current safety assessment."
+                  ? latestSummary.distressKind === "band" ? "From your latest saved analysis. This band is not a diagnosis or current safety assessment." : "A dataset category from your latest saved analysis. It is not clinical severity or a current safety assessment."
                   : "No analysis result is available. Your saved reflections do not imply a low distress score."}
             </p>
             <Link href="/insights/risk" className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-primary underline underline-offset-4">

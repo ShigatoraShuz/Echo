@@ -85,3 +85,18 @@ it.each([
   expect(screen.getByText(/Estimated on/)).toBeInTheDocument();
   expect(screen.getByText(/shortened version/)).toBeInTheDocument();
 });
+
+
+it("presents complete and partial result states with accessible provenance", async () => {
+  const { axe } = await import("jest-axe");
+  const { container } = render(<NativeAnalysis result={journalAnalysisV3ResultSchema.parse({
+    ...fixture, schemaVersion: "echo-journal-analysis-v3", journalScreening: {
+      status: "failed", experimental: true, inferenceVersion: "fictional-unit", items: null, coverage: 0, subtotal: null, total: null,
+    },
+  })} />);
+  expect(screen.getByText("Partial analysis")).toBeInTheDocument();
+  expect(screen.getByText(/Journal estimate failed/)).toBeInTheDocument();
+  expect(screen.getByText("Model provenance")).toBeInTheDocument();
+  expect(screen.queryByText(/Complete model estimate/)).not.toBeInTheDocument();
+  expect(await axe(container)).toHaveNoViolations();
+});

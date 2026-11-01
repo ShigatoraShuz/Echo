@@ -133,7 +133,7 @@ export class ExperienceService {
 
   async buddyPrivacy(userId: string) {
     return { buddyHistoryEnabled: await this.historyEnabled(userId),
-      responderState: "DEMO_FALLBACK" as const };
+      responderState: this.coreClient ? undefined : "DEMO_FALLBACK" as const };
   }
 
   private titleOf(row: DatabaseRow): string {
@@ -155,7 +155,7 @@ export class ExperienceService {
   async dashboard(userId: string, _range = "7d") {
     const [entries, analysisInsights, profileResult, preferenceResult] = await Promise.all([
       this.journals.listSummaries(userId),
-      this.journals.dashboardInsights(userId),
+      this.journals.dashboardInsights(userId, { range: "30d" }, true),
       this.reader.schema("user_service").from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
       this.reader
         .schema("user_service")

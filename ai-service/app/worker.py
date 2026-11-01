@@ -12,6 +12,7 @@ class Worker:
     def __init__(self, runtime, settings):
         self.runtime = runtime
         self.settings = settings
+        self.worker_id = getattr(settings, "ai_worker_id", "local-worker")
         self.client = httpx.AsyncClient(
             base_url=settings.backend_url.rstrip("/") + "/",
             headers={"Authorization": "Bearer " + settings.ai_worker_token},
@@ -33,7 +34,7 @@ class Worker:
                 await asyncio.sleep(1)
 
     async def callback(self, job, kind, payload=None):
-        body = {"workerId": "local-worker", "leaseToken": job["leaseToken"]}
+        body = {"workerId": self.worker_id, "leaseToken": job["leaseToken"]}
         if payload is not None:
             body["payload"] = payload
         return await self.post(f"jobs/{job['jobId']}/{kind}", body)
@@ -45,7 +46,7 @@ class Worker:
             await self.post(
                 "worker-health",
                 {
-                    "workerId": "local-worker",
+                    "workerId": self.worker_id,
                     "acceptingJobs": True,
                     "modelStatus": "verified-local-artifacts",
                     "modelVersion": "echo-core-v2",
@@ -111,13 +112,13 @@ class Worker:
                     await self.post(
                         "worker-health",
                         {
-                            "workerId": "local-worker",
+                            "workerId": self.worker_id,
                             "acceptingJobs": True,
                             "modelStatus": "verified-local-artifacts",
                             "modelVersion": "echo-core-v2",
                         },
                     )
-                    job = await self.post("jobs/claim", {"workerId": "local-worker"})
+                    job = await self.post("jobs/claim", {"workerId": self.worker_id})
                     if job:
                         await self.process(job)
                     else:

@@ -51,6 +51,8 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     private readonly journals: JournalService,
     private readonly workerSecret: string,
     private readonly authorizedWorkerId = "local-worker",
+    private readonly allowNativeEncryptedResults = false,
+    private readonly scope?: { userIds: string[]; createdAfter: string },
   ) {}
 
   authenticate(token: string | undefined): void {
@@ -97,11 +99,19 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     };
   }
   async releaseExpiredLeases(): Promise<number> {
+    if (this.scope) return 0; // Scoped recovery handles only this development worker's leases.
     const { data, error } = await this.database.schema("ai_analysis").rpc("release_expired_worker_leases");
     if (error) workerDatabaseError(error);
     return Number(data ?? 0);
   }
   async recover(): Promise<void> {
+    if (this.scope) {
+      const { error } = await this.database.schema("ai_analysis").rpc("recover_native_jobs", {
+        p_worker_id: this.authorizedWorkerId, p_user_ids: this.scope.userIds, p_started_after: this.scope.createdAfter,
+      });
+      if (error) workerDatabaseError(error);
+      return;
+    }
     await this.releaseExpiredLeases();
     const { data, error } = await this.database
       .schema("ai_analysis")
@@ -128,7 +138,10 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const leaseToken = randomBytes(32).toString("base64url");
     const { data, error } = await this.database
       .schema("ai_analysis")
-      .rpc("claim_worker_job", { p_worker_id: workerId, p_lease_hash: hash(leaseToken) });
+      .rpc(this.scope ? "claim_native_job" : "claim_worker_job", {
+        p_worker_id: workerId, p_lease_hash: hash(leaseToken),
+        ...(this.scope ? { p_user_ids: this.scope.userIds, p_started_after: this.scope.createdAfter } : {}),
+      });
     if (error) workerDatabaseError(error);
     if (!data) return null;
     const journal = await this.journals.get(String(data.userId), String(data.journalId));
@@ -211,7 +224,11 @@ export class LocalWorkerService implements LocalWorkerProtocol {
   async finalResult(jobId: string, workerId: string, leaseToken: string, key: string | undefined, payload: unknown) {
     this.authenticateIdentity(workerId);
     const result = this.parse(journalAnalysisResultSchema, payload);
-    if (result.schemaVersion !== "echo-journal-analysis-v1")
+    if (result.schemaVersion !== "echo-journal-analysis-v1" && !(
+      this.allowNativeEncryptedResults &&
+      ["echo-journal-analysis-v2", "echo-journal-analysis-v3"].includes(result.schemaVersion) &&
+      !result.isSimulated
+    ))
       throw new AuthorizationError("Experimental model callbacks are disconnected.");
     const identity = this.identity(key, payload);
     const receipt = await this.probe("final_result", jobId, workerId, leaseToken, identity);

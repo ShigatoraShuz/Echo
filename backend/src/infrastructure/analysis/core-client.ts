@@ -24,25 +24,52 @@ export class CoreClient {
   constructor(
     private readonly url: string,
     private readonly token: string,
-  ) {}
+  ) {
+    const endpoint = new URL(url);
+    if (endpoint.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(endpoint.hostname) ||
+        endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== "/" || token.length < 32)
+      throw new Error("Core inference requires a loopback origin and dedicated credential.");
+  }
+  private async readResponse(response: Response, limit = 1024 * 1024): Promise<unknown> {
+    if (Number(response.headers.get("content-length") ?? 0) > limit || !response.body) throw new Error();
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > limit) throw new Error();
+        chunks.push(value);
+      }
+      return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+    } finally {
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+  }
   private async request(path: string, body: unknown, signal?: AbortSignal) {
     try {
+      const encoded = JSON.stringify(body);
+      const limit = path === "/v2/speech" ? 14 * 1024 * 1024 : path === "/v1/face" || path === "/v1/talk" ? 3 * 1024 * 1024 : 64 * 1024;
+      if (Buffer.byteLength(encoded, "utf8") > limit) throw new Error();
       const response = await fetch(`${this.url.replace(/\/$/, "")}${path}`, {
         method: "POST",
         redirect: "error", cache: "no-store",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: encoded,
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(300_000)]) : AbortSignal.timeout(300_000),
       });
       if (!response.ok) {
         if (response.status === 503) {
-          const value = await response.json().catch(() => null);
+          const value = await this.readResponse(response).catch(() => null) as { detail?: { code?: string } } | null;
           if (value?.detail?.code === "TALK_BUSY")
             throw new ExternalServiceError("TALK_BUSY", "Journal inference is waiting while Talk is active.");
         }
         throw new Error();
       }
-      return await response.json();
+      return await this.readResponse(response, path === "/v2/speech" ? 32 * 1024 * 1024 : 1024 * 1024);
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
@@ -127,15 +154,7 @@ export class CoreClient {
   }
   async chat(messages: ChatTurn[]) {
     try {
-      const response = await fetch(`${this.url.replace(/\/$/, "")}/v2/chat`, {
-        method: "POST",
-        redirect: "error", cache: "no-store",
-        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
-        signal: AbortSignal.timeout(300_000),
-      });
-      if (!response.ok) throw new Error();
-      const value = responseSchema.parse(await response.json());
+      const value = responseSchema.parse(await this.request("/v2/chat", { messages }));
       if (!value.supportRequired && !value.reply) throw new Error();
       return value;
     } catch {

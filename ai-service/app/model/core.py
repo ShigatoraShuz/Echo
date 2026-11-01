@@ -15,12 +15,13 @@ EMOTIONS = ["joy", "trust", "fear", "surprise", "sadness", "disgust", "anger", "
 
 
 class CoreRuntime:
-    def __init__(self, settings):
+    def __init__(self, settings, *, text_only=False):
         self.root = Path(settings.models_root).resolve()
         self.lock = threading.RLock()
         self.slots = threading.BoundedSemaphore(settings.queue_limit)
         self.active = None
         self.instance = None
+        self.resident = {} if text_only else None
         self.loaded = False
         self.load_milliseconds = {}
         self.model_name = "echo-core"
@@ -64,7 +65,7 @@ class CoreRuntime:
                     self.screening_unavailable='MODEL_INTEGRITY_FAILED'
                 else:raise
         voice_manifest=self.root/'voice/manifest.json'
-        if voice_manifest.exists():
+        if not text_only and voice_manifest.exists():
             for item in json.loads(voice_manifest.read_text()):
                 target=(self.root/item['path']).resolve()
                 if not target.is_relative_to(self.root/'voice') or target.stat().st_size!=item['size']:
@@ -79,7 +80,7 @@ class CoreRuntime:
             raise ModelUnavailableError("CUDA is required for the configured core runtime.")
         torch.cuda.reset_peak_memory_stats()
         try:
-            for name in ("xlmr", "e4", "phq8", "cbt"):
+            for name in (() if text_only else ("xlmr", "e4", "phq8", "cbt")):
                 if name=='phq8' and self.screening_unavailable:continue
                 try:self._load(name)
                 except Exception:
@@ -90,14 +91,17 @@ class CoreRuntime:
             self.release()
         self.loaded = True
         self._talk_context=threading.local()
-        from app.model.talk import TalkRuntime
-        self.talk=TalkRuntime(self)
+        if not text_only:
+            from app.model.talk import TalkRuntime
+            self.talk=TalkRuntime(self)
 
     def require_ready(self):
         if not self.loaded:
             raise ModelUnavailableError("Core model runtime unavailable.")
 
     def release(self):
+        if isinstance(getattr(self, "resident", None), dict):
+            self.resident.clear()
         self.instance = None
         self.active = None
         gc.collect()
@@ -108,7 +112,32 @@ class CoreRuntime:
     def _load(self, name):
         if self.active == name:
             return self.instance
-        self.release()
+        resident = getattr(self, "resident", None)
+        if isinstance(resident, dict) and name in ("xlmr", "e4", "cbt"):
+            if name in resident:
+                self.instance, self.active = resident[name], name
+                return self.instance
+            self.instance, self.active = None, None
+            # Retain the three fixed text models only while the memory budget fits.
+            # No inputs or predictions are cached. Generation settings stay unchanged.
+            gc.collect()
+            import torch
+
+            torch.cuda.empty_cache()
+            # Measured installed-model peaks rounded up, plus 2 GiB free headroom.
+            required = {"xlmr": 2, "e4": 2, "cbt": 7}[name] * 1024**3
+            for previous in list(resident):
+                if torch.cuda.mem_get_info()[0] >= required + 2 * 1024**3:
+                    break
+                # Evict only under pressure; prefer retaining the safety classifier.
+                if previous != "xlmr":
+                    del resident[previous]
+                    gc.collect()
+                    torch.cuda.empty_cache()
+            if torch.cuda.mem_get_info()[0] < required + 2 * 1024**3:
+                self.release()
+        else:
+            self.release()
         started = time.perf_counter()
         if name == "xlmr":
             from app.vendor.xlmr.classifier import Classifier
@@ -151,6 +180,8 @@ class CoreRuntime:
             raise ValueError("Unknown model")
         self.instance = obj
         self.active = name
+        if isinstance(resident, dict):
+            resident[name] = obj
         self.load_milliseconds[name] = (time.perf_counter() - started) * 1000
         return obj
 
@@ -162,7 +193,9 @@ class CoreRuntime:
             "talkActive": bool(getattr(self,"talk",None) and self.talk.owner),
             "screeningReady": getattr(self,"screening_unavailable",None) is None,
             "activeModel": self.active,
-            "residentModelCount": int(self.instance is not None or self.active=="speech")+int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None)),
+            "residentModelCount": (len(self.resident) if isinstance(getattr(self, "resident", None), dict)
+                                   else int(self.instance is not None or self.active == "speech"))
+                                  + int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None)),
             "freeGpuBytes": torch.cuda.mem_get_info()[0],
             "speechPeakAllocatedBytes": getattr(self,"speech_peak_allocated",None),
             "peakAllocatedBytes": torch.cuda.max_memory_allocated(),

@@ -28,7 +28,7 @@ describe("dashboard welcome motion", () => {
     const first = render(<DashboardView />);
     expect(first.container.querySelector(".echo-dashboard-welcome")).toBeInTheDocument();
     expect(first.container.querySelector("[data-echo-reveal]")).not.toBeInTheDocument();
-    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("Current distress");
+    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("Journal category");
     first.unmount();
 
     const second = render(<DashboardView />);

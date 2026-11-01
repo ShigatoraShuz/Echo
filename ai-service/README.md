@@ -45,7 +45,7 @@ The native core owns `/v2/analyze`, `/v2/classify`, `/v2/chat`, `/v2/speech`,
 Both require the server-only internal token. No compatibility redirect exists.
 The frontend continues to call authenticated Express routes only.
 
-**Native activation is blocked**, including standalone FastAPI startup with
+**Historical containment baseline (2026-10-31):** native activation was blocked with
 `CORE_MODELS_ENABLED=true` or `WORKER_ENABLED=true`, before loaders/worker callbacks.
 Native speech uses plaintext temporary subprocess files; core and speech also
 need incompatible libraries. The retained optional CBT research cascade also writes
@@ -55,7 +55,7 @@ approved application profile. A disabled native API returns unavailable, never a
 fabricated model result. Do not run the native launcher or smoke scripts to work
 around this guard. Default base service and metadata-only registry remain usable.
 
-Express rejects `AI_ANALYSIS_MODE=local_json` or any `AI_SERVICE_URL` during
+That baseline rejected `AI_ANALYSIS_MODE=local_json` or any `AI_SERVICE_URL` during
 configuration validation. This prevents constructing plaintext local stores or
 sending user content to native core in the application. No automatic substitution
 of storage/backend, encryption backfill, record deletion or account change occurs.
@@ -76,3 +76,56 @@ Re-enabling native service also requires reviewed non-plaintext subprocess trans
 retention/consent/account isolation, native result callback compatibility and isolated
 verification. New encrypted local persistence is deferred. No activation is implied
 by these preparation instructions or the passing synthetic contract tests.
+
+
+## Installed native bundle paths (2026-11-01)
+
+The `echo-core-models-v1` bundle belongs at this checkout's `backend/models/manifest.json`.
+`Settings.models_root` now resolves that absolute default independently of the current
+working directory. A private `MODELS_ROOT` override is still honored. The retained
+native launcher uses the same default and accepts `-ModelsRoot <absolute path>`;
+the newer bounded text profile below now supplies safe launcher behavior.
+No environment file or native/worker/Talk activation flag is changed by this update.
+
+The native bundle is for `app.model.core.CoreRuntime`; it is not an
+`echo-model-manifest-v1` research-registry bundle. Do not force it into
+`ECHO_ACTIVE_MODELS` or change its schema/adapter provenance to make another validator
+accept it. The separate engineering registry and its saved selections stay unchanged.
+
+Native core expects `xlmr-v2`, `e4-c`, `cbt/base`, `cbt/adapter`, and
+`phq8-seallms/adapter` below this root. Speech uses `voice/manifest.json` and the
+separate speech interpreter; face uses `face_model/model_manifest.json` and the
+separate face interpreter. Browser VAD files belong under
+`frontend/public/vendor/buddy-vad`, not inside `voice/realtime`. Existing training
+paths in adapter JSON are provenance; the native loader explicitly passes the local
+`cbt/base` model object into both adapters. Do not rewrite hash-protected JSON to
+replace those historical E: paths.
+
+Artifact hashes, static shape/tokenizer checks, CUDA diagnostics and model readiness
+are recorded in `artifacts/model-integration/LEO-INSTALLED-MODELS-VERIFICATION.md`.
+Hash verification alone does not activate any runtime, prove inference compatibility,
+or resolve the privacy and environment blockers above. Historical smoke scripts still
+encode Leo's sibling `CODEX/models` layout; they are not safe installation checks and
+must not be run to bypass activation safeguards.
+
+
+## Bounded text-memory profile (2026-11-01)
+
+The approved development exception requires `CORE_MODELS_ENABLED=true`, `CORE_TRANSPORT=text_memory`,
+loopback host, a 32+ character internal token, no engineering active selections and Talk off.
+`TextRuntime` uses bounded stdin/stdout JSON in an isolated child: no payload files, inherited DB/service
+credentials or private logs; one request at a time; a maximum 270-second deadline kills/reaps failures.
+The child verifies exact code/weight hashes, probes an actual CUDA kernel, and lazily loads text models.
+Speech/face methods remain denied; the optional source is preserved. PHQ-8 is semantically unverified
+and unavailable in the served profile. A failed model never generates a replacement success.
+
+For application jobs, Express additionally requires `AI_CORE_PROFILE=local_encrypted_worker`,
+`AI_ANALYSIS_MODE=local_worker`, separate service/worker tokens and a loopback local Supabase target.
+It seals native v2/v3 results using the existing AES-GCM history format and the existing authenticated
+lease/idempotency/gate transaction. Plaintext `local_json`, hosted targets and Talk remain denied.
+No new storage scheme or migration was introduced. New worker activation was tested with mocks only.
+
+Use the pinned Windows environments and startup procedure in
+[the runtime report](../artifacts/model-integration/ECHO-LOCAL-MODEL-RUNTIME-READY.md).
+The earlier environment/blocker paragraphs are historical; they do not authorize the old tempfile IPC,
+research cascade or historical live smoke scripts. Do not combine the Transformers 4.57 and 5.5 environments.

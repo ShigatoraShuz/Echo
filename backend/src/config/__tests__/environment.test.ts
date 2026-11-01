@@ -49,3 +49,22 @@ describe("backend environment", () => {
       expect(loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_MODE: "windows_defender", VERIFICATION_PDFINFO_PATH: "C:\\tools\\pdfinfo.exe" }).VERIFICATION_SCANNER_MODE).toBe("windows_defender");
   });
 });
+
+describe("hosted native development scope", () => {
+  const hosted = { ...validEnvironment, NODE_ENV: "development", ECHO_HTTP_ONLY_MODE: "1",
+    AI_CORE_PROFILE: "hosted_encrypted_worker", AI_ANALYSIS_MODE: "local_worker",
+    SUPABASE_URL: "https://scoped-test.supabase.co", AI_HOSTED_PROJECT_REF: "scoped-test",
+    AI_DEVELOPMENT_USER_IDS: "e0000000-0000-4000-8000-000000000001", AI_NATIVE_CREATED_AFTER: "2026-11-01T00:00:00Z",
+    AI_SERVICE_URL: "http://127.0.0.1:8002", AI_WORKER_TOKEN: "w".repeat(48), AI_SERVICE_TOKEN: "s".repeat(48) };
+  it("accepts the explicit hosted scope and preserves encryption configuration", () => {
+    expect(loadEnvironment(hosted).JOURNAL_ENCRYPTION_KEY_BASE64).toBe(validEnvironment.JOURNAL_ENCRYPTION_KEY_BASE64);
+  });
+  it.each([
+    { AI_HOSTED_PROJECT_REF: "another-project" }, { AI_DEVELOPMENT_USER_IDS: "" },
+    { AI_DEVELOPMENT_USER_IDS: "------------------------------------" }, { AI_NATIVE_CREATED_AFTER: "invalid" },
+    { AI_NATIVE_CREATED_AFTER: undefined }, { NODE_ENV: "production" }, { ECHO_HTTP_ONLY_MODE: "0" },
+    { AI_CORE_PROFILE: "local_encrypted_worker" }, { AI_SERVICE_URL: "https://external.example.test" },
+  ])("rejects invalid/unscoped native configuration: %j", override => {
+    expect(() => loadEnvironment({ ...hosted, ...override })).toThrow();
+  });
+});

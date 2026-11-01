@@ -55,4 +55,27 @@ describe("Journal analysis availability and request isolation", () => {
     await act(async () => { resolveOld({ success: true, data: pending }); });
     expect(result.current.analysisAvailability?.journalId).toBe("two");
   });
+  it("clears the entry and rejects late analysis after account invalidation", async () => {
+    let resolveOld!: (value: unknown) => void;
+    service.getEntry.mockResolvedValue(entry("one"));
+    service.getAnalysis.mockReturnValue(new Promise(resolve => { resolveOld = resolve; }));
+    const { result } = renderHook(() => useJournalDetailViewModel("one"));
+    await waitFor(() => expect(service.getAnalysis).toHaveBeenCalled());
+    act(() => window.dispatchEvent(new Event("echo:sensitive-state-cleared")));
+    await act(async () => resolveOld({ success: true, data: { entryId: "one", summary: "Fictional old result" } }));
+    expect(result.current.entry).toBeNull(); expect(result.current.analysis).toBeNull();
+    act(() => window.dispatchEvent(new Event("echo:analysis-completed")));
+    expect(service.getEntry).toHaveBeenCalledTimes(1);
+  });
+  it("reports a failed private result read and supports retry", async () => {
+    service.getEntry.mockResolvedValue(entry("one"));
+    service.getAnalysis.mockResolvedValueOnce({ success: false, error: { code: "UNKNOWN", message: "Analysis could not be loaded." } })
+      .mockResolvedValue({ success: true, data: { entryId: "one", summary: "Fictional saved analysis" } });
+    const { result } = renderHook(() => useJournalDetailViewModel("one"));
+    await waitFor(() => expect(result.current.error).toBe("Analysis could not be loaded."));
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.analysis?.summary).toBe("Fictional saved analysis"));
+    expect(result.current.error).toBeNull();
+  });
+
 });

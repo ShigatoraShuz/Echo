@@ -110,10 +110,10 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
             Emotional patterns
           </p>
           <h2 id="emotion-wheel-title" className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-            Your emotion wheel
+            Your recorded moods
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            See which feelings appear most often in your reflections.
+            Your own mood selections and journal tags, separate from AI results.
           </p>
         </div>
 

@@ -11,4 +11,4 @@ def readiness(request: Request, response: Response) -> ReadinessResponse:
     if not runtime.loaded:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadinessResponse(status="not_ready", model_loaded=False)
-    return ReadinessResponse(status="ready", model_loaded=True)
+    return ReadinessResponse(status="ready", model_loaded=getattr(runtime, "model_loaded", True))

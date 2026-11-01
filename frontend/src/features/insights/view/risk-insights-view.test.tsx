@@ -12,7 +12,7 @@ vi.mock("@/features/verification", () => ({
 describe("RiskInsightsView", () => {
   it("shows unavailable analysis without a fabricated low score", () => {
     vi.mocked(useInsightsViewModel).mockReturnValue({
-      overview: { latest: null, distressTrend: [] }, isLoading: false, error: null,
+      overview: { latest: null, distressTrend: [], emotionTrend: [] }, isLoading: false, error: null,
     } as unknown as ReturnType<typeof useInsightsViewModel>);
 
     render(<RiskInsightsView />);
@@ -21,10 +21,11 @@ describe("RiskInsightsView", () => {
     expect(screen.queryByLabelText(/out of 100/)).not.toBeInTheDocument();
   });
 
-  it("labels simulated bands and does not convert them into scores", () => {
+  it("excludes simulated bands and does not convert them into scores", () => {
     vi.mocked(useInsightsViewModel).mockReturnValue({
       overview: {
-        latest: { distressBand: "mild", isSimulated: true, providerName: "fixture", modelVersion: "sample-v1" },
+        emotionTrend: [],
+        latest: { schemaVersion: "echo-journal-analysis-v1", distressBand: "mild", isSimulated: true, providerName: "fixture", modelVersion: "sample-v1" },
         distressTrend: [{ date: "2026-10-16", band: "mild", value: 0.25, isSimulated: true }],
       },
       isLoading: false,
@@ -33,9 +34,9 @@ describe("RiskInsightsView", () => {
 
     render(<RiskInsightsView />);
 
-    expect(screen.getByText("Simulated development result")).toBeInTheDocument();
-    expect(screen.getByText("This example does not describe your wellbeing.")).toBeInTheDocument();
-    expect(screen.getByText("Simulated")).toBeInTheDocument();
+    expect(screen.queryByText("Simulated development result")).not.toBeInTheDocument();
+    expect(screen.getByText(/A missing result does not mean low distress/)).toBeInTheDocument();
+    expect(screen.queryByText("Simulated")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/out of 100/)).not.toBeInTheDocument();
   });
 });

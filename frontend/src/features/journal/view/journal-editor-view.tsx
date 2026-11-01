@@ -474,7 +474,7 @@ export function JournalEditorView() {
                 {journalAiAllowed === null
                   ? "Analysis follows your journal-analysis consent in Privacy settings."
                   : journalAiAllowed
-                    ? "Saving runs analysis on this computer. Results stay in local JSON files."
+                    ? "Saving starts private analysis. Your reflection and model results are stored encrypted."
                     : "Your reflection will be saved without analysis because journal analysis is disabled."}{" "}
                 <Link href="/settings/privacy" className="underline">
                   Privacy settings

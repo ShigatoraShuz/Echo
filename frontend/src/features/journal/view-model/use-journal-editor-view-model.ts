@@ -420,14 +420,16 @@ export function useJournalEditorViewModel() {
           ) {
             const token = await supabaseAuthTokenProvider.getAccessToken();
             try {
-              await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
+              const faceResponse=await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
                 method: "POST",
                 headers: { Authorization: "Bearer " + token, "Content-Type": "image/jpeg" },
                 body: facial.image,
-                signal: AbortSignal.timeout(15000),
+                signal: AbortSignal.timeout(65000),
               });
+              if(!faceResponse.ok)throw new Error('Face result was not saved.');
+              window.dispatchEvent(new CustomEvent('echo:analysis-completed',{detail:{journalId}}));
             } catch {
-              /* Journal remains saved; facial status is shown independently. */
+              dispatch({type:"SAVE_ERROR",error:"Your reflection is saved, but face analysis was not saved. Start the camera and retry saving."}); return;
             }
           }
           const attached = await service.attachDraftImages(journalId);

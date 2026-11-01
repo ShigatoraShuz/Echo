@@ -209,3 +209,12 @@ describe("BuddyView", () => {
     expect(screen.getByLabelText(/message buddy/i)).toHaveValue("Please stay with me");
   });
 });
+
+it("announces generation without malformed loading text", () => {
+  const mock=setupMock();
+  mock.isSending=true;
+  vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+  render(<BuddyView />);
+  expect(screen.getByRole("status")).toHaveTextContent("Buddy is reflecting");
+  expect(screen.queryByText(/â/)).not.toBeInTheDocument();
+});

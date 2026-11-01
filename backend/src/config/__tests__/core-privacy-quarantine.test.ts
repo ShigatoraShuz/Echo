@@ -23,3 +23,21 @@ it.each([
 ])("quarantines unapproved core-backed persistence: %j", (settings) => {
   expect(() => loadEnvironment({ ...base, ...settings })).toThrow("pending privacy approval");
 });
+
+const approved = {
+  NODE_ENV: "development", ECHO_HTTP_ONLY_MODE: "1",
+  AI_CORE_PROFILE: "local_encrypted_worker", AI_ANALYSIS_MODE: "local_worker",
+  AI_WORKER_TOKEN: "w".repeat(32), AI_SERVICE_URL: "http://127.0.0.1:8000",
+  AI_SERVICE_TOKEN: "s".repeat(32),
+};
+it("permits only the explicitly selected local encrypted worker profile", () => {
+  expect(loadEnvironment({ ...base, ...approved }).AI_CORE_PROFILE).toBe("local_encrypted_worker");
+});
+it.each([
+  { SUPABASE_URL: "https://example.supabase.co" }, { NODE_ENV: "production" },
+  { AI_ANALYSIS_MODE: "local_json" }, { AI_WORKER_TOKEN: undefined },
+  { AI_SERVICE_URL: undefined }, { SUPABASE_URL: "http://127.0.0.1.example.com" },
+  { ECHO_HTTP_ONLY_MODE: undefined },
+])("denies hosted or incomplete encrypted profiles: %j", settings => {
+  expect(() => loadEnvironment({ ...base, ...approved, ...settings })).toThrow();
+});

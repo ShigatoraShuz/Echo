@@ -48,17 +48,26 @@ def test_worker_pauses_flagged_jobs_before_emotion_inference():
     asyncio.run(run())
 
 
-def test_core_api_rejects_empty_input_without_loading_models():
+def test_core_api_rejects_empty_input_without_loading_models(monkeypatch):
     from fastapi.testclient import TestClient
 
+    from app.core.config import get_settings
     from app.main import app
 
+    monkeypatch.setenv("ECHO_ISOLATED_TEST", "true")
+    monkeypatch.setenv("CORE_MODELS_ENABLED", "true")
+    monkeypatch.setenv("CORE_TRANSPORT", "text_memory")
+    monkeypatch.setenv("WORKER_ENABLED", "false")
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("AI_SERVICE_TOKEN", "test-internal-token-with-32-characters")
+    get_settings.cache_clear()
     with TestClient(app, client=("core-validation-test", 50001)) as client:
         response = client.post(
             "/v2/analyze",
             json={"text": ""},
-            headers={"Authorization": "Bearer test-internal-token"},
+            headers={"Authorization": "Bearer test-internal-token-with-32-characters"},
         )
+    get_settings.cache_clear()
     assert response.status_code == 422
 
 

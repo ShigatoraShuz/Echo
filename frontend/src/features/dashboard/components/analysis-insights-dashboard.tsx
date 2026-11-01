@@ -1,16 +1,20 @@
 "use client";
 
+import {SavedFaceResults} from "@/features/journal/components/saved-face-results";
 import { Activity, ChevronDown, HeartPulse, Radar } from "lucide-react";
 import type { DashboardInsights, LegacyJournalAnalysisResult as JournalAnalysisResult } from "@echo/contracts";
 import dynamic from "next/dynamic";
 const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 import { AnalysisBuddyAction } from "./analysis-buddy-action";
+import { analysisSummary } from "@/features/journal/model/analysis-summary";
+import { AnalysisRequestStatus } from "@/features/journal/components/analysis-request-status";
 import { NativeAnalysis } from "@/features/journal/components/native-analysis";
 
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
-  if (!insights?.latest)
+  if (!insights?.latest || insights.latest.isSimulated)
     return (
-      <section className="echo-compact-card min-w-0 xl:col-span-3 xl:p-4" aria-labelledby="analysis-empty-title">
+      <section className="echo-compact-card [background:hsl(var(--card))] min-w-0 xl:col-span-3 xl:p-4" aria-labelledby="analysis-empty-title">
+        <AnalysisRequestStatus insights={insights} />
         <h2 id="analysis-empty-title" className="text-sm font-semibold text-foreground">
           Journal analysis
         </h2>
@@ -21,11 +25,32 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
       </section>
     );
   const result = insights.latest;
-  if(result.schemaVersion==="echo-model-pipeline-v2") return <div className="min-w-0 xl:col-span-3"><ModelPipelinePanel result={result} /></div>;
-  if (result.schemaVersion !== "echo-journal-analysis-v1") return <NativeAnalysis result={result} insights={insights} />;
+  const summary = analysisSummary(result);
+  if (result.schemaVersion !== "echo-journal-analysis-v1") return (
+    <section className="min-w-0 rounded-3xl border border-primary/15 bg-card p-5 shadow-card lg:col-span-2 xl:col-span-5 has-[details[open]]:col-span-full" aria-label="Saved AI result summary">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">From your saved reflection</p>
+          <h2 className="mt-1 font-[family-name:var(--font-echo-display)] text-2xl text-foreground">Journal analysis</h2>
+          {insights.latestAnalyzedAt ? <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-xs text-muted-foreground">{new Date(insights.latestAnalyzedAt).toLocaleString()}</time> : null}
+        </div>
+        <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">{summary.status === "complete" ? "Complete analysis" : "Partial analysis"}</span>
+      </header>
+      <dl className="mt-4 grid grid-cols-2 gap-3">
+        <div className="min-w-0 rounded-2xl bg-secondary/50 p-4"><dt className="text-xs text-foreground/80">Strongest emotion signal</dt><dd className="mt-2 break-words text-2xl font-semibold capitalize text-foreground">{summary.emotion ?? "Unavailable"}</dd></div>
+        <div className="min-w-0 rounded-2xl border border-border p-4"><dt className="text-xs text-foreground/80">Journal category</dt><dd className="mt-2 break-words text-2xl font-semibold text-foreground">{summary.distress ?? "Unavailable"}</dd></div>
+      </dl>
+      <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved model signals support reflection. They are not a diagnosis or a measure of your safety.</p>
+      <SavedFaceResults insights={insights}/>
+      <AnalysisRequestStatus insights={insights} />
+      <details className="group mt-4 border-t border-border pt-2">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl text-sm font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-ring/20">Explore saved result<ChevronDown className="h-4 w-4 group-open:rotate-180" aria-hidden="true" /></summary>
+        <div className="mt-3">{result.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={result} /> : <NativeAnalysis result={result} insights={insights} />}</div>
+      </details>
+    </section>
+  );
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (
-    <details className="echo-compact-card group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="analysis-insights-title">
+    <details className="echo-compact-card [background:hsl(var(--card))] group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="analysis-insights-title">
       <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0">
           <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">Journal analysis</h2>
@@ -33,6 +58,8 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             {result.isSimulated ? "Sample analysis preview" : `${result.dominantEmotion} emotion · ${result.distressBand} distress`}
           </p>
           <p className="mt-1 text-xs text-[var(--landing-muted)]">Reflective estimate, not a diagnosis.</p>
+          {insights.latestAnalyzedAt ? <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-xs text-muted-foreground">{new Date(insights.latestAnalyzedAt).toLocaleString()}</time> : null}
+          <AnalysisRequestStatus insights={insights} />
           {result.isSimulated ? (
             <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
               Simulated analysis

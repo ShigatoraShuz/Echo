@@ -155,7 +155,7 @@ describe("buddy HTTP adapter", () => {
     }));
   });
 
-  it("uses the shared 30-second request deadline for Buddy messages", async () => {
+  it("allows cold native inference while keeping a bounded request deadline", async () => {
     const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     vi.useFakeTimers();
     try {
@@ -164,7 +164,7 @@ describe("buddy HTTP adapter", () => {
         init?.signal?.addEventListener("abort", () => { aborted = true; reject(new DOMException("Aborted", "AbortError")); });
       })));
       const pending = createBuddyHttpAdapter().sendMessage({ content: "Fictional test" });
-      await vi.advanceTimersByTimeAsync(29_999);
+      await vi.advanceTimersByTimeAsync(314_999);
       expect(aborted).toBe(false);
       await vi.advanceTimersByTimeAsync(2);
       expect(await pending).toMatchObject({ success: false });

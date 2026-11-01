@@ -18,6 +18,8 @@ interface DetailState {
 }
 
 type DetailAction =
+  | { type: "CLEAR" }
+  | { type: "ANALYSIS_ERROR"; error: string }
   | { type: "ANALYSIS_AVAILABILITY"; value: JournalAnalysisAvailability | null }
   | { type: "ENTRY_LOAD_START" }
   | { type: "ENTRY_LOAD_SUCCESS"; entry: JournalEntry }
@@ -34,6 +36,8 @@ type DetailAction =
 
 function reducer(state: DetailState, action: DetailAction): DetailState {
   switch (action.type) {
+    case "CLEAR": return { ...initialState, isLoading: false };
+    case "ANALYSIS_ERROR": return { ...state, error: action.error };
     case "ANALYSIS_AVAILABILITY": return { ...state, analysisAvailability: action.value };
     case "ENTRY_LOAD_START":
       return { ...state, isLoading: true, error: null, notFound: false, analysis: null, analysisAvailability: null };
@@ -80,11 +84,13 @@ export function useJournalDetailViewModel(id: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getJournalService();
   const lastLoadedAt = useRef(0);
+  const active = useRef(true);
   const loadEpoch = useRef(0);
   const invalidateLoads = useCallback(() => { ++loadEpoch.current; }, []);
 
   const loadEntry = useCallback(
     async (entryId: string) => {
+      if (!active.current) return;
       const epoch = ++loadEpoch.current;
       dispatch({ type: "ENTRY_LOAD_START" });
       const result = await service.getEntry(entryId);
@@ -102,8 +108,9 @@ export function useJournalDetailViewModel(id: string) {
               const availability = await service.getAnalysisAvailability(entryId);
               if (epoch !== loadEpoch.current) return;
               if (availability.success) dispatch({ type: "ANALYSIS_AVAILABILITY", value: availability.data });
+              else dispatch({ type: "ANALYSIS_ERROR", error: availability.error.message });
             }
-          }
+          } else dispatch({ type: "ANALYSIS_ERROR", error: analysisResult.error.message });
         }
       } else {
         dispatch({
@@ -117,6 +124,9 @@ export function useJournalDetailViewModel(id: string) {
   );
 
   useEffect(() => {
+    active.current = true;
+    const clear = () => { active.current = false; invalidateLoads(); dispatch({ type: "CLEAR" }); };
+    window.addEventListener("echo:sensitive-state-cleared", clear);
     if (id) loadEntry(id);
     const refresh = () => {
       if (id) void loadEntry(id);
@@ -129,7 +139,9 @@ export function useJournalDetailViewModel(id: string) {
     document.addEventListener("visibilitychange", refreshPhotos);
     const interval = window.setInterval(refreshPhotos, 60_000);
     return () => {
+      active.current = false;
       invalidateLoads();
+      window.removeEventListener("echo:sensitive-state-cleared", clear);
       window.removeEventListener("echo:analysis-completed", refresh);
       document.removeEventListener("visibilitychange", refreshPhotos);
       window.clearInterval(interval);
@@ -141,6 +153,7 @@ export function useJournalDetailViewModel(id: string) {
     const result = await service.deleteEntry(id);
     if (result.success) {
       dispatch({ type: "DELETE_SUCCESS" });
+      window.dispatchEvent(new Event("echo:journal-changed"));
     } else {
       dispatch({ type: "DELETE_ERROR", error: result.error.message });
     }
