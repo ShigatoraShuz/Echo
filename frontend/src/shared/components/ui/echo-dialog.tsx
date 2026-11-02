@@ -15,6 +15,7 @@ interface EchoDialogProps {
   children: React.ReactNode;
   className?: string;
   size?: "small" | "medium" | "large";
+  dismissible?: boolean;
 }
 
 const sizeStyles = {
@@ -26,7 +27,7 @@ const sizeStyles = {
 let dialogScrollLocks = 0;
 let previousBodyOverflow = "";
 
-export function EchoDialog({ open, onClose, title, description, children, className, size = "medium" }: EchoDialogProps) {
+export function EchoDialog({ open, onClose, title, description, children, className, size = "medium", dismissible = true }: EchoDialogProps) {
   const [present, setPresent] = useState(open);
   const overlayRef = useRef<HTMLDivElement>(null);
   // Presence may mount one render after open; attach the trap only once its
@@ -36,10 +37,15 @@ export function EchoDialog({ open, onClose, title, description, children, classN
   const descriptionId = useId();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const dismissibleRef = useRef(dismissible);
+  dismissibleRef.current = dismissible;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeRef.current();
+      if (e.key === "Escape") {
+        if (dismissibleRef.current) closeRef.current();
+        else { e.preventDefault(); e.stopPropagation(); }
+      }
     },
     []
   );
@@ -85,7 +91,7 @@ export function EchoDialog({ open, onClose, title, description, children, classN
       aria-hidden={!open}
       inert={!open}
       className="echo-dialog-overlay fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4"
-      onClick={(e) => { if (open && e.target === overlayRef.current) onClose(); }}
+      onClick={(e) => { if (open && dismissible && e.target === overlayRef.current) onClose(); }}
     >
       <div
         ref={dialogRef}
@@ -107,14 +113,14 @@ export function EchoDialog({ open, onClose, title, description, children, classN
               <p id={descriptionId} className="text-sm text-muted-foreground">{description}</p>
             )}
           </div>
-          <button
+          {dismissible && <button
             type="button"
             onClick={onClose}
             className="shrink-0 rounded-lg p-1.5 text-muted-foreground outline-none transition hover:bg-muted hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/20"
             aria-label="Close dialog"
           >
             <X className="h-5 w-5" />
-          </button>
+          </button>}
         </div>
         <div className="mt-5">{children}</div>
       </div>

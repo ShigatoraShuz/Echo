@@ -1,6 +1,7 @@
 "use client";
+import { markSupportVisitArrived } from "@/features/journal/model/support-journey";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, ChevronDown, Clock3, Heart, Leaf, Moon,
@@ -151,6 +152,7 @@ function GroundingSession({
 }
 
 export function GroundingView() {
+  useEffect(() => { markSupportVisitArrived("grounding"); }, []);
   const vm = useGroundingViewModel();
   const [category, setCategory] = useState<GroundingCategory>("All");
   const [query, setQuery] = useState("");

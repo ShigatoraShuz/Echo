@@ -13,7 +13,7 @@ export function clearSensitiveBrowserState(): void {
       const storage = window[storageName];
       const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i));
       for (const key of keys) {
-        if (key && (key === "journal-draft" || key.startsWith("echo:active-analysis") || /^(?:echo[:.-])?journal[:.-](?:draft|autosave)/.test(key))) storage.removeItem(key);
+        if (key && (key === "journal-draft" || key.startsWith("echo:active-analysis") || key.startsWith("echo:journal-support") || /^(?:echo[:.-])?journal[:.-](?:draft|autosave)/.test(key))) storage.removeItem(key);
       }
     } catch { /* Browser policy can disable storage. */ }
   }

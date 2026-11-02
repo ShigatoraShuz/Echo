@@ -30,6 +30,7 @@ import {
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
 import { env } from "@/config/environment";
 import { getJournalService } from "@/services/journal/journal-service.factory";
+import { JournalSupportPanel } from "./journal-support-panel";
 import { TrustedSupportRequest } from "./trusted-support-request";
 
 const STORAGE_KEY = "echo:active-analysis";
@@ -149,6 +150,9 @@ export function AnalysisStatusExperience({
   const [pollingPaused, setPollingPaused] = useState(false);
   const [pollingEpoch, setPollingEpoch] = useState(0);
   const [country, setCountry] = useState("PH");
+  const [resourceState, setResourceState] = useState<"loading" | "ready" | "error">("loading");
+  const [resourceEpoch, setResourceEpoch] = useState(0);
+  const [resourceCountry, setResourceCountry] = useState("");
   const [resources, setResources] = useState<
     Array<{
       id: string;
@@ -317,21 +321,19 @@ export function AnalysisStatusExperience({
 
   useEffect(() => {
     if (progress?.status !== "safety_action_required") return;
-    if (!/^[A-Z]{2}$/.test(country)) {
-      setResources([]);
-      return;
-    }
+    setResources([]);
+    if (!/^[A-Z]{2}$/.test(country)) { setResourceState("error"); return; }
     let active = true;
-    void getJournalService()
-      .resolveSupportResources?.(country)
-      .then((result) => {
-        if (!active) return;
-        if (result.success) setResources(result.data);
-      });
-    return () => {
-      active = false;
-    };
-  }, [progress?.status, country]);
+    setResourceState("loading");
+    const service = getJournalService();
+    if (!service.resolveSupportResources) { setResourceState("error"); return; }
+    void service.resolveSupportResources(country).then(result => {
+      if (!active) return;
+      if (result.success) { setResources(result.data); setResourceCountry(country); setResourceState("ready"); }
+      else setResourceState("error");
+    }).catch(() => { if (active) setResourceState("error"); });
+    return () => { active = false; };
+  }, [progress?.status, country, resourceEpoch]);
 
   useEffect(() => {
     if (embedded || !submission || minimized || dismissed) return;
@@ -460,7 +462,8 @@ export function AnalysisStatusExperience({
           ) : null}
           {safety ? (
             <>
-              <label className="mt-3 block text-sm">
+              <JournalSupportPanel resources={resourceCountry === country ? resources : []} loading={resourceState === "loading"} failed={resourceState === "error"} onRetry={() => setResourceEpoch(value => value + 1)} />
+              <label className="mt-5 block text-xs text-muted-foreground">
                 Support country code
                 <input
                   value={country}
@@ -470,7 +473,7 @@ export function AnalysisStatusExperience({
                   className="ml-2 w-24 rounded-lg border border-border bg-card p-2"
                 />
               </label>
-              <SafetyContent resources={resources} />
+
               <div className="mt-4">
                 <TrustedSupportRequest jobId={submission.analysisJobId} />
               </div>
@@ -563,71 +566,6 @@ export function AnalysisStatusExperience({
           ) : null}
         </div>
       </div>
-    </div>
-  );
-}
-
-function SafetyContent({
-  resources,
-}: {
-  resources: Array<{
-    id: string;
-    resource_name: string;
-    organization_name: string;
-    phone_number?: string;
-    sms_number?: string;
-    website_url?: string;
-    availability_text?: string;
-  }>;
-}) {
-  return (
-    <div className="mt-4 space-y-4 text-sm leading-6 text-foreground">
-      <p>If you may be in immediate danger, contact local emergency services now. ECHO is not an emergency service.</p>
-      <div className="rounded-2xl border border-primary/15 bg-card/80 p-4">
-        <p className="font-semibold">For the next minute</p>
-        <p className="text-muted-foreground">
-          Let your exhale be a little longer, name five things you can see, or move closer to someone you trust.
-        </p>
-      </div>
-      {resources.length ? (
-        <ul className="space-y-2">
-          {resources.map((resource) => (
-            <li key={resource.id} className="rounded-2xl border border-border/70 bg-card p-4">
-              <p className="font-semibold">{resource.resource_name}</p>
-              <p className="text-muted-foreground">
-                {resource.organization_name}
-                {resource.availability_text ? ` · ${resource.availability_text}` : ""}
-              </p>
-              <div className="mt-2 flex gap-3">
-                {resource.phone_number ? (
-                  <a className="font-semibold text-primary underline" href={`tel:${resource.phone_number}`}>
-                    Call
-                  </a>
-                ) : null}
-                {resource.sms_number ? (
-                  <a className="font-semibold text-primary underline" href={`sms:${resource.sms_number}`}>
-                    Text
-                  </a>
-                ) : null}
-                {resource.website_url ? (
-                  <a
-                    className="font-semibold text-primary underline"
-                    href={resource.website_url}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Website
-                  </a>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Link href="/crisis-help" className="font-semibold text-primary underline">
-          Open verified support options
-        </Link>
-      )}
     </div>
   );
 }

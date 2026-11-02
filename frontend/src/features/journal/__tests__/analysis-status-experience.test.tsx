@@ -2,6 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnalysisStatusExperience } from "../components/analysis-status-experience";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 const api = vi.hoisted(() => ({ getAnalysisStatus: vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => api }));
 vi.mock("@/config/environment", () => ({ env: { enableAnalysisPreview: true } }));
