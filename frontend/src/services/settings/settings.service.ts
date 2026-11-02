@@ -31,7 +31,11 @@ export interface SettingsService {
   getDeletionCenter(): Promise<DeletionCenter>;
   cancelDeletion(id: string): Promise<DeletionRequest>;
   getSecurityAuditEvents(limit?: number): Promise<{ auditEvents: SecurityAuditEvent[] }>;
-  changePassword(input: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<{ passwordChanged: true }>;
+  changePassword(input: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }): Promise<{ passwordChanged: true }>;
   signOutAllDevices(): Promise<{ signedOut: true }>;
 }
 
@@ -77,23 +81,29 @@ export const settingsService: SettingsService = {
       },
       body: file,
     });
-    const body = (await response.json()) as
-      | ApiEnvelope<SettingsSnapshot>
-      | { error?: { message?: string } };
+    const body = (await response.json()) as ApiEnvelope<SettingsSnapshot> | { error?: { message?: string } };
 
     if (!response.ok || !("data" in body)) {
       throw new Error(
-        "error" in body && body.error?.message
-          ? body.error.message
-          : "The profile photo could not be uploaded.",
+        "error" in body && body.error?.message ? body.error.message : "The profile photo could not be uploaded.",
       );
     }
 
     return body.data;
   },
-  updatePrivacy(updates) {
-    const { buddyHistoryAvailable: _availability, ...choices } = updates;
-    return unwrap(client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", choices));
+  async updatePrivacy(updates) {
+    const privacy = await unwrap(
+      client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", updates),
+    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("echo:privacy-changed"));
+      try {
+        localStorage.setItem("echo:privacy-updated", String(Date.now()));
+      } catch {
+        /* This tab still receives the privacy event. */
+      }
+    }
+    return privacy;
   },
   updateNotifications(updates) {
     const { quietHoursAvailable: _availability, ...choices } = updates;
@@ -101,16 +111,23 @@ export const settingsService: SettingsService = {
       delete choices.quietHoursStart;
       delete choices.quietHoursEnd;
     }
-    return unwrap(client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>("/settings/notifications", choices));
+    return unwrap(
+      client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>(
+        "/settings/notifications",
+        choices,
+      ),
+    );
   },
   createContact(input) {
     return unwrap(client.post<ApiEnvelope<TrustedContact>, TrustedContactInput>("/settings/trusted-contacts", input));
   },
   updateContact(id, input) {
-    return unwrap(client.patch<ApiEnvelope<TrustedContact>, TrustedContactInput>(
-      `/settings/trusted-contacts/${encodeURIComponent(id)}`,
-      input,
-    ));
+    return unwrap(
+      client.patch<ApiEnvelope<TrustedContact>, TrustedContactInput>(
+        `/settings/trusted-contacts/${encodeURIComponent(id)}`,
+        input,
+      ),
+    );
   },
   async removeContact(id) {
     await client.delete(`/settings/trusted-contacts/${encodeURIComponent(id)}`);
@@ -125,9 +142,16 @@ export const settingsService: SettingsService = {
     const token = await supabaseAuthTokenProvider.getAccessToken();
     if (!token) throw new Error("Sign in again before downloading your export.");
     const response = await fetch(endpoint(`/settings/data-exports/${encodeURIComponent(id)}/download`), {
-      method: "GET", cache: "no-store", headers: { Authorization: `Bearer ${token}` },
+      method: "GET",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new Error(response.status === 403 ? "Sign in again before downloading your export." : "This export is unavailable, expired or already downloaded.");
+    if (!response.ok)
+      throw new Error(
+        response.status === 403
+          ? "Sign in again before downloading your export."
+          : "This export is unavailable, expired or already downloaded.",
+      );
     return response.blob();
   },
   requestDeletion() {
@@ -137,20 +161,21 @@ export const settingsService: SettingsService = {
     return unwrap(client.get<ApiEnvelope<DeletionCenter>>("/settings/account-deletion"));
   },
   cancelDeletion(id) {
-    return unwrap(client.patch<ApiEnvelope<DeletionRequest>>(
-      `/settings/account-deletion/${encodeURIComponent(id)}/cancel`,
-    ));
+    return unwrap(
+      client.patch<ApiEnvelope<DeletionRequest>>(`/settings/account-deletion/${encodeURIComponent(id)}/cancel`),
+    );
   },
   getSecurityAuditEvents(limit = 50) {
-    return unwrap(client.get<ApiEnvelope<{ auditEvents: SecurityAuditEvent[] }>>(
-      `/settings/security/audit-events?limit=${encodeURIComponent(String(limit))}`,
-    ));
+    return unwrap(
+      client.get<ApiEnvelope<{ auditEvents: SecurityAuditEvent[] }>>(
+        `/settings/security/audit-events?limit=${encodeURIComponent(String(limit))}`,
+      ),
+    );
   },
   changePassword(input) {
-    return unwrap(client.patch<ApiEnvelope<{ passwordChanged: true }>, typeof input>(
-      "/settings/security/password",
-      input,
-    ));
+    return unwrap(
+      client.patch<ApiEnvelope<{ passwordChanged: true }>, typeof input>("/settings/security/password", input),
+    );
   },
   signOutAllDevices() {
     return unwrap(client.post<ApiEnvelope<{ signedOut: true }>>("/settings/security/sign-out-all-devices"));

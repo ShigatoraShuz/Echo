@@ -1,5 +1,5 @@
 "use client";
-import { NativeAnalysis } from "./native-analysis";
+const NativeAnalysis = dynamic(() => import("./native-analysis").then(m => m.NativeAnalysis), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 import Link from "next/link";
 import dynamic from "next/dynamic";
 const ModelPipelinePanel=dynamic(()=>import("./model-pipeline-panel").then(m=>m.ModelPipelinePanel));

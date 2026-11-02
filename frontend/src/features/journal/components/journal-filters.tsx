@@ -15,22 +15,11 @@ interface JournalFiltersProps {
   isFiltered: boolean;
 }
 
-const MOOD_OPTIONS: Array<{ key: JournalMood | null; label: string; emoji: string }> = [
-  { key: null, label: "All moods", emoji: "✨" },
-  { key: "calm", label: "Calm", emoji: "🌿" },
-  { key: "happy", label: "Happy", emoji: "☀️" },
-  { key: "neutral", label: "Neutral", emoji: "🍃" },
-  { key: "anxious", label: "Anxious", emoji: "🌧️" },
-  { key: "sad", label: "Sad", emoji: "💧" },
-  { key: "angry", label: "Angry", emoji: "🔥" },
-];
-
 export function JournalFilters({
   filters,
   searchInput,
   onSearchChange,
   onSearchApply,
-  onMoodChange,
   onSortChange,
   onReset,
   isFiltered,
@@ -87,30 +76,7 @@ export function JournalFilters({
         </div>
       </div>
 
-      {/* ── Quick Mood Filter Pills ──────────────────────────────────── */}
-      <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-1 sm:pb-0" role="group" aria-label="Filter by mood">
-        <span className="mr-1 hidden text-[11px] font-bold uppercase tracking-wider text-[var(--landing-muted)] sm:inline">
-          Mood:
-        </span>
-        {MOOD_OPTIONS.map((item) => {
-          const isSelected = filters.mood === item.key;
-          return (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => onMoodChange(item.key)}
-              className={`inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full px-3 text-xs font-semibold transition-all duration-150 active:scale-95 sm:min-h-0 sm:py-1 ${
-                isSelected
-                  ? "bg-[var(--landing-primary)] text-white shadow-xs"
-                  : "border border-black/10 bg-white text-[var(--landing-muted)] hover:border-[var(--landing-primary-15)] hover:bg-[var(--landing-surface)] hover:text-[var(--landing-ink)]"
-              }`}
-            >
-              <span className="text-[11px]">{item.emoji}</span>
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-
+      <div className="flex justify-end">
         {isFiltered && (
           <button
             type="button"

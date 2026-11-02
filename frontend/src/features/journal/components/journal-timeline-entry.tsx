@@ -5,7 +5,6 @@ import { ArrowRight, Clock, FileText, Lock, Sparkles } from "lucide-react";
 import type { JournalEntry } from "../model/journal.model";
 import {
   formatJournalDate,
-  getMoodVisual,
   calculateReadingTime,
 } from "../utils/journal-formatters";
 
@@ -16,7 +15,7 @@ interface JournalTimelineEntryProps {
 
 export function JournalTimelineEntry({ entry, isLast = false }: JournalTimelineEntryProps) {
   const { fullDate, timeString, relativeTime, dayNumber, monthName, weekday } = formatJournalDate(entry.createdAt);
-  const moodVisual = getMoodVisual(entry.mood);
+  const accentColor = "hsl(var(--primary))";
   const { words, readingTime } = calculateReadingTime(entry.body || entry.excerpt);
 
   return (
@@ -40,7 +39,7 @@ export function JournalTimelineEntry({ entry, isLast = false }: JournalTimelineE
         <div
           className="my-2 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ring-2"
           style={{
-            backgroundColor: moodVisual.dotColor,
+            backgroundColor: accentColor,
             borderColor: "white",
           }}
           aria-hidden="true"
@@ -61,24 +60,12 @@ export function JournalTimelineEntry({ entry, isLast = false }: JournalTimelineE
         className="relative mb-6 flex-1 overflow-hidden rounded-[1.75rem] border border-[var(--landing-primary-15)] bg-white p-5 shadow-[0_8px_30px_rgba(47,53,39,0.06)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgba(47,53,39,0.1)] sm:p-6"
         style={{
           borderLeftWidth: "4px",
-          borderLeftColor: moodVisual.dotColor,
+          borderLeftColor: accentColor,
         }}
       >
         {/* Top Meta Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 pb-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Mood pill badge */}
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-bold text-xs shadow-xs"
-              style={{
-                backgroundColor: moodVisual.badgeBg,
-                color: moodVisual.badgeText,
-              }}
-            >
-              <span>{moodVisual.emoji}</span>
-              <span>{moodVisual.label}</span>
-            </span>
-
             {/* Time & relative indicator */}
             <span className="flex items-center gap-1 text-[11px] font-medium text-[var(--landing-muted)]">
               <Clock className="h-3 w-3" aria-hidden="true" />

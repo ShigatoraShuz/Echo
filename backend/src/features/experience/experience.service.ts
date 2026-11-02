@@ -192,13 +192,10 @@ export class ExperienceService {
     // Keep the existing empty-chart contract instead of inventing a scalar trend.
     const moodTrend: Array<{ label: string; value: number }> = [];
 
-    const moodCounts = new Map<string, number>();
-    for (const entry of entries) moodCounts.set(entry.mood, (moodCounts.get(entry.mood) ?? 0) + 1);
-    const topMood = [...moodCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calm";
     const weeklyDigest = entries.length
       ? [
           `You kept ${entries.length} private reflection${entries.length === 1 ? "" : "s"} close.`,
-          `${topMood[0]?.toUpperCase() ?? ""}${topMood.slice(1)} appeared most often in your recent entries.`,
+          "Open a saved reflection to revisit its model results.",
           entries.some((entry) => entry.tags.length > 0)
             ? "Your saved tags can help you revisit recurring themes."
             : "Adding a small tag can make recurring themes easier to revisit.",
@@ -433,25 +430,10 @@ export class ExperienceService {
   }
 
   async emotionInsights(userId: string) {
-    const entries = await this.journals.listSummaries(userId);
-    const moods = ["calm", "happy", "neutral", "anxious", "sad", "angry"];
-    const counts = new Map(moods.map((mood) => [mood, 0]));
-    for (const entry of entries) counts.set(entry.mood, (counts.get(entry.mood) ?? 0) + 1);
-    const total = Math.max(entries.length, 1);
-    const emotionWheel = moods.map((mood) => ({
-      label: mood[0].toUpperCase() + mood.slice(1),
-      mood,
-      value: Math.round(((counts.get(mood) ?? 0) / total) * 100),
-    }));
-    const moodTrend: Array<{ label: string; value: number }> = [];
-    const strongest = [...emotionWheel].sort((a, b) => b.value - a.value)[0];
-    return {
-      emotionWheel,
-      moodTrend,
-      summary: entries.length
-        ? `${strongest.label} is the most frequent self-reported mood across ${entries.length} recent reflection${entries.length === 1 ? "" : "s"}.`
-        : "No patterns are shown until you save a reflection.",
-    };
+    const insights = await this.journals.dashboardInsights(userId, { range: "30d" });
+    const latest = insights.latest;
+    const emotionWheel = latest && "emotionDistribution" in latest && !latest.isSimulated ? latest.emotionDistribution.map(({ emotion, value }) => ({ label: emotion, mood: emotion, value: Math.round(value * 100) })) : [];
+    return { emotionWheel, moodTrend: [], summary: emotionWheel.length ? "Emotion signals from your latest saved model analysis." : "No saved model emotion results yet." };
   }
 
   async completeGrounding(userId: string, input: { sessionId?: string; technique: string; durationSeconds: number; pace: string }) {

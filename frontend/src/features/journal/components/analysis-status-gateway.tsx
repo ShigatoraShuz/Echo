@@ -31,5 +31,5 @@ export function AnalysisStatusGateway() {
     return () => window.removeEventListener("echo:analysis-submitted", onSubmitted);
   }, [pathname]);
 
-  return active && pathname !== "/deletion" ? <AnalysisStatusExperience initialSubmission={initialSubmission} /> : null;
+  return active && pathname !== "/deletion" && !pathname.startsWith("/journal") ? <AnalysisStatusExperience initialSubmission={initialSubmission} /> : null;
 }

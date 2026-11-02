@@ -43,14 +43,13 @@ describe("validateCreateJournalInput", () => {
     expect(result.errors.title).toBeDefined();
   });
 
-  it("rejects invalid mood", () => {
+  it("accepts a journal without manual mood", () => {
     const result = validateCreateJournalInput({
       title: "My day",
-      body: "It was a good day.",
-      mood: "invalid-mood",
+      body: "It was a good day.", privacyStatus: "private",
     });
-    expect(result.valid).toBe(false);
-    expect(result.errors.mood).toBeDefined();
+    expect(result.valid).toBe(true);
+    expect(result.errors.mood).toBeUndefined();
   });
 
   it("accepts valid privacy status", () => {

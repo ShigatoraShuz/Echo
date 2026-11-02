@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getInsightsService } from "@/services/insights/insights-service.factory";
 import { LockKeyhole } from "lucide-react";
+import type { DashboardInsights } from "@echo/contracts";
 import type { DashboardEntry } from "../model/dashboard.model";
 
 type EmotionRange = "day" | "week" | "1m" | "3m" | "6m";
 
 interface DominantEmotionWheelProps {
   entries: DashboardEntry[];
+  insights?: DashboardInsights | null;
 }
 
 const RANGE_OPTIONS: Array<{
@@ -45,9 +48,7 @@ const EMOTION_COLORS: Record<string, string> = {
 const FALLBACK_COLORS = ["#47715b", "#bf8650", "#7a88a8", "#a36f86", "#8a995d", "#a76358"];
 
 function formatEmotion(value: string) {
-  return value
-    .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return value.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function startOfLocalPeriod(reference: Date, days: number) {
@@ -57,28 +58,91 @@ function startOfLocalPeriod(reference: Date, days: number) {
   return start.getTime();
 }
 
-function isEntryInPeriod(entry: DashboardEntry, reference: Date, days: number) {
+function isEntryInPeriod(entry: Pick<DashboardEntry, "createdAt">, reference: Date, days: number) {
   const timestamp = new Date(entry.createdAt).getTime();
-  return Number.isFinite(timestamp) && timestamp >= startOfLocalPeriod(reference, days) && timestamp <= reference.getTime();
+  return (
+    Number.isFinite(timestamp) && timestamp >= startOfLocalPeriod(reference, days) && timestamp <= reference.getTime()
+  );
 }
 
-export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
+export function DominantEmotionWheel({ entries, insights }: DominantEmotionWheelProps) {
   const [range, setRange] = useState<EmotionRange>(() => {
     const now = new Date();
-    return RANGE_OPTIONS.slice(1).find((option) => entries.some((entry) => isEntryInPeriod(entry, now, option.days)))?.value ?? "week";
+    return (
+      RANGE_OPTIONS.slice(1).find((option) => entries.some((entry) => isEntryInPeriod(entry, now, option.days)))
+        ?.value ?? "week"
+    );
   });
   const selectedRange = RANGE_OPTIONS.find((option) => option.value === range) ?? RANGE_OPTIONS[1];
+
+  const [history, setHistory] = useState<{
+    range: EmotionRange;
+    data: DashboardInsights | null;
+    failed: boolean;
+  } | null>(null);
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const needsHistory = insights !== undefined && selectedRange.days > 30;
+  useEffect(() => {
+    if (!needsHistory) return;
+    const controller = new AbortController();
+    setHistory({ range, data: null, failed: false });
+    const to = new Date().toISOString().slice(0, 10);
+    const from = new Date(Date.now() - 179 * 86_400_000).toISOString().slice(0, 10);
+    void getInsightsService()
+      .getAnalysisOverview(
+        range === "3m" ? "90d" : "custom",
+        range === "6m" ? { from, to } : undefined,
+        controller.signal,
+      )
+      .then((response) => {
+        if (!controller.signal.aborted)
+          setHistory({ range, data: response.success ? response.data : null, failed: !response.success });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setHistory({ range, data: null, failed: true });
+      });
+    return () => controller.abort();
+  }, [needsHistory, range, insights, historyRetry]);
+  const activeInsights = needsHistory ? (history?.range === range ? history.data : null) : insights;
+  const historyFailed = needsHistory && history?.range === range && history.failed;
+  const historyLoading = needsHistory && !historyFailed && (history?.range !== range || !history.data);
 
   const insight = useMemo(() => {
     const now = new Date();
     const filteredEntries = entries.filter((entry) => isEntryInPeriod(entry, now, selectedRange.days));
 
-    const counts = new Map<string, number>();
-    for (const entry of filteredEntries) {
-      const signals = entry.emotions.length > 0 ? entry.emotions : [entry.mood];
-      const uniqueSignals = new Set(signals.map((emotion) => emotion.trim().toLowerCase()).filter(Boolean));
-      for (const emotion of uniqueSignals) counts.set(emotion, (counts.get(emotion) ?? 0) + 1);
+    const modelMode = insights !== undefined;
+    const points = (activeInsights?.emotionTrend ?? []).filter(
+      (point) =>
+        !point.isSimulated && isEntryInPeriod({ createdAt: `${point.date}T00:00:00` }, now, selectedRange.days),
+    );
+    const latest = activeInsights?.latest;
+    if (
+      !points.length &&
+      latest &&
+      !latest.isSimulated &&
+      "emotionDistribution" in latest &&
+      activeInsights?.latestAnalyzedAt &&
+      isEntryInPeriod({ createdAt: activeInsights.latestAnalyzedAt }, now, selectedRange.days)
+    ) {
+      points.push({
+        date: activeInsights.latestAnalyzedAt.slice(0, 10),
+        values: Object.fromEntries(latest.emotionDistribution.map((item) => [item.emotion, item.value])),
+        isSimulated: false,
+      });
     }
+    const counts = new Map<string, number>();
+    if (modelMode)
+      for (const point of points)
+        for (const [emotion, value] of Object.entries(point.values)) {
+          if (Number.isFinite(value) && value > 0) counts.set(emotion, (counts.get(emotion) ?? 0) + value);
+        }
+    if (!modelMode)
+      for (const entry of filteredEntries) {
+        const signals = entry.emotions;
+        const uniqueSignals = new Set(signals.map((emotion) => emotion.trim().toLowerCase()).filter(Boolean));
+        for (const emotion of uniqueSignals) counts.set(emotion, (counts.get(emotion) ?? 0) + 1);
+      }
 
     const ranked = [...counts.entries()]
       .map(([emotion, count]) => ({ emotion, count }))
@@ -89,7 +153,8 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
     const visible = otherCount > 0 ? [...leading, { emotion: "other", count: otherCount }] : leading;
 
     return {
-      entries: filteredEntries,
+      modelMode,
+      entries: modelMode ? points.map((point) => ({ createdAt: point.date })) : filteredEntries,
       dominant: ranked[0] ?? null,
       totalSignals,
       segments: visible.map((item, index) => ({
@@ -98,7 +163,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
         percentage: totalSignals > 0 ? (item.count / totalSignals) * 100 : 0,
       })),
     };
-  }, [entries, selectedRange.days]);
+  }, [entries, insights, activeInsights, selectedRange.days]);
 
   let offset = 0;
 
@@ -106,14 +171,14 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
     <section aria-labelledby="emotion-wheel-title">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
-            Emotional patterns
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Emotional patterns</p>
           <h2 id="emotion-wheel-title" className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-            Your recorded moods
+            Your emotion wheel
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Your own mood selections and journal tags, separate from AI results.
+            {insight.modelMode
+              ? "Patterns from your saved AI analyses, at your own pace."
+              : "Emotion tags from saved reflections. Open your journal for model analysis."}
           </p>
         </div>
 
@@ -145,14 +210,33 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
         </div>
       </div>
 
-      {insight.dominant ? (
+      {historyLoading ? (
+        <div role="status" className="grid min-h-44 place-items-center text-sm text-muted-foreground">
+          Loading your saved analyses…
+        </div>
+      ) : historyFailed ? (
+        <div role="status" className="py-8 text-center text-sm text-muted-foreground">
+          Saved analysis history could not be loaded.{" "}
+          <button
+            type="button"
+            className="font-semibold text-primary underline"
+            onClick={() => setHistoryRetry((value) => value + 1)}
+          >
+            Try again
+          </button>
+        </div>
+      ) : insight.dominant ? (
         <div className="mt-5 grid items-center gap-5 sm:grid-cols-[minmax(0,190px)_1fr] xl:mt-3 xl:gap-3 xl:grid-cols-[minmax(0,150px)_1fr]">
           <div className="relative mx-auto h-[184px] w-[184px] xl:h-[148px] xl:w-[148px]">
             <svg
               key={range}
               viewBox="0 0 200 200"
               role="img"
-              aria-label={`${formatEmotion(insight.dominant.emotion)} is the most present emotion for ${selectedRange.description}, appearing in ${insight.dominant.count} of ${insight.entries.length} reflections.`}
+              aria-label={
+                insight.modelMode
+                  ? `${formatEmotion(insight.dominant.emotion)} is the strongest saved model signal for ${selectedRange.description}.`
+                  : `${formatEmotion(insight.dominant.emotion)} is the most present emotion for ${selectedRange.description}, appearing in ${insight.dominant.count} of ${insight.entries.length} reflections.`
+              }
               className="echo-chart-wheel-reveal h-full w-full -rotate-90 drop-shadow-[0_12px_24px_rgba(35,62,39,0.13)]"
             >
               <circle cx="100" cy="100" r="76" fill="none" stroke="rgba(71,113,91,0.10)" strokeWidth="27" />
@@ -171,7 +255,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
                     strokeWidth="27"
                     strokeDasharray={`${Math.max(0, segment.percentage - 0.8)} ${100 - Math.max(0, segment.percentage - 0.8)}`}
                     strokeDashoffset={-segmentOffset}
-                    strokeLinecap="round"
+                    strokeLinecap={segment.percentage >= 1 ? "round" : "butt"}
                   />
                 );
               })}
@@ -184,7 +268,8 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
                 {formatEmotion(insight.dominant.emotion)}
               </strong>
               <span className="mt-0.5 text-[10px] font-semibold text-primary">
-                {Math.round((insight.dominant.count / insight.totalSignals) * 100)}% of tags
+                {Math.round((insight.dominant.count / insight.totalSignals) * 100)}%{" "}
+                {insight.modelMode ? "of scores" : "of tags"}
               </span>
             </div>
           </div>
@@ -198,15 +283,26 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
                 {formatEmotion(insight.dominant.emotion)}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Appeared in {insight.dominant.count} of {insight.entries.length}{" "}
-                {insight.entries.length === 1 ? "reflection" : "reflections"} {selectedRange.description === "today" ? "today" : `across ${selectedRange.description}`}.
+                {insight.modelMode ? (
+                  `Average of ${insight.entries.length} saved analysis day${insight.entries.length === 1 ? "" : "s"} ${selectedRange.description === "today" ? "today" : `across ${selectedRange.description}`}.`
+                ) : (
+                  <>
+                    Appeared in {insight.dominant.count} of {insight.entries.length}{" "}
+                    {insight.entries.length === 1 ? "reflection" : "reflections"}{" "}
+                    {selectedRange.description === "today" ? "today" : `across ${selectedRange.description}`}.
+                  </>
+                )}
               </p>
             </div>
 
             <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 xl:mt-2" aria-label="Emotion distribution">
               {insight.segments.map((segment) => (
                 <li key={segment.emotion} className="flex min-w-0 items-center gap-2 text-[11px]">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} aria-hidden="true" />
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: segment.color }}
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1 truncate capitalize text-muted-foreground">
                     {formatEmotion(segment.emotion)}
                   </span>
@@ -221,16 +317,22 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
           <div className="flex h-16 w-16 items-center justify-center rounded-full border-[10px] border-secondary/80 xl:h-12 xl:w-12 xl:border-[8px]">
             <span className="h-2.5 w-2.5 rounded-full bg-primary/45" aria-hidden="true" />
           </div>
-          <p className="mt-3 text-sm font-semibold text-foreground">No emotions recorded {selectedRange.description}.</p>
+          <p className="mt-3 text-sm font-semibold text-foreground">
+            {insight.modelMode ? "No saved analysis" : "No emotions recorded"} {selectedRange.description}.
+          </p>
           <p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">
-            Add an emotion to a reflection and its pattern will appear here.
+            {insight.modelMode
+              ? "Save a reflection with analysis enabled. Real model signals will appear here."
+              : "Add an emotion to a reflection and its pattern will appear here."}
           </p>
         </div>
       )}
 
       <p className="mt-4 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground xl:mt-2">
         <LockKeyhole className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
-        Calculated privately from your saved emotion tags. This pattern is not a diagnosis.
+        {insight.modelMode
+          ? "Relative model scores from dated saved results. Not a diagnosis."
+          : "Calculated privately from your saved emotion tags. This pattern is not a diagnosis."}
       </p>
     </section>
   );

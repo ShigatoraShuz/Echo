@@ -93,15 +93,15 @@ describe("journal list", () => {
     expect(result.entries[0].id).toBe("journal-1");
   });
 
-  it("applies mood and inclusive UTC date filters before counting and sorting", async () => {
+  it("ignores retired mood and applies inclusive UTC date filters before counting and sorting", async () => {
     const { service, calls } = harness([row(1), row(2), row(3)]);
     const result = await service.listPage("owner", {
       page: 1, pageSize: 10, query: "", mood: "calm",
       dateFrom: "2026-10-01", dateTo: "2026-10-01", sort: "oldest",
     });
-    expect(result.entries.map((entry) => entry.id)).toEqual(["journal-1", "journal-3"]);
-    expect(result.total).toBe(2);
-    expect(calls[0].filters).toMatchObject({ mood: "calm", "created_at:gte": "2026-10-01T00:00:00.000Z", "created_at:lt": "2026-10-02T00:00:00.000Z" });
+    expect(result.entries.map((entry) => entry.id)).toEqual(["journal-1", "journal-2", "journal-3"]);
+    expect(result.total).toBe(3);
+    expect(calls[0].filters).toMatchObject({ "created_at:gte": "2026-10-01T00:00:00.000Z", "created_at:lt": "2026-10-02T00:00:00.000Z" });
   });
 
   it("paginates owner-scoped records before loading analysis and photos", async () => {

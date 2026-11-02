@@ -25,7 +25,7 @@ describe("journal HTTP pagination", () => {
       page: 2, pageSize: 10, totalItems: 110, totalPages: 11,
     } } });
     expect(fetch).toHaveBeenCalledWith(
-      "http://api.example.test/api/v1/journals?page=2&pageSize=10&query=focus&mood=calm&sort=oldest",
+      "http://api.example.test/api/v1/journals?page=2&pageSize=10&query=focus&sort=oldest",
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer access-token" }) }),
     );
   });
@@ -42,7 +42,7 @@ describe("journal HTTP pagination", () => {
     });
     const request = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(request.body))).toEqual({
-      title: "Note", body: "A thought", mood: "calm", emotions: [], tags: [],
+      title: "Note", body: "A thought", emotions: [], tags: [],
       privacyStatus: "private", analysisConsent: false,
     });
   });

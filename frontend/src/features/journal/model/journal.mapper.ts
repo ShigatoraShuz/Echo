@@ -14,9 +14,9 @@ import type {
   CreateJournalRequestDTO,
 } from "./journal.dto";
 
-function mapMood(mood: string): JournalMood {
+function mapMood(mood?: string): JournalMood | undefined {
   const valid: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
-  return valid.includes(mood as JournalMood) ? (mood as JournalMood) : "neutral";
+  return valid.includes(mood as JournalMood) ? (mood as JournalMood) : undefined;
 }
 
 function mapPrivacyStatus(status: string): JournalPrivacyStatus {
@@ -83,7 +83,7 @@ export function mapCreateInputToRequest(input: CreateJournalInput): CreateJourna
   return {
     title: input.title,
     body: input.body,
-    mood: input.mood,
+
     emotions: input.emotions,
     tags: input.tags,
     privacy_status: input.privacyStatus,

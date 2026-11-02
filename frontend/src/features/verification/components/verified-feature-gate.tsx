@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BadgeCheck, LockKeyhole } from "lucide-react";
 import { getVerificationService } from "@/services/verification/verification-service.factory";
 
@@ -15,15 +15,20 @@ export function VerifiedFeatureGate({
   const [access, setAccess] = useState<"loading" | "allowed" | "verification" | "trusted_contact" | "error">("loading");
   const [retry, setRetry] = useState(0);
 
+  const pending = useRef<ReturnType<ReturnType<typeof getVerificationService>["getStatus"]> | null>(null);
   useEffect(() => {
     let active = true;
-    void getVerificationService()
-      .getStatus()
+    if (!pending.current) {
+      const read = getVerificationService().getStatus();
+      pending.current = read;
+      void read.finally(() => { if (pending.current === read) pending.current = null; }).catch(() => {});
+    }
+    void pending.current
       .then((result) => {
         if (active) setAccess(result.success
           ? result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification"
           : "error");
-      });
+      }).catch(() => { if (active) setAccess("error"); });
     return () => {
       active = false;
     };

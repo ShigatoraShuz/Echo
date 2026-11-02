@@ -105,3 +105,6 @@ frontend/assets/e2d821df-*.png
 /ai-service/.venv-core/
 /ai-service/.venv-speech/
 /ai-service/.venv-face/
+
+# Local physical-camera verification captures and biometric mesh screenshots.
+/artifacts/model-integration/face-studio/

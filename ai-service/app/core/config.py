@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     core_models_enabled: bool = False
     core_transport: Literal["disabled", "text_memory"] = "disabled"
     core_request_timeout_seconds: int = Field(default=270, ge=1, le=270)
-    models_root: str = str(Path(__file__).resolve().parents[3] / "backend" / "models")
+    models_root: str = str(Path(__file__).resolve().parents[4] / "models")
     backend_url: str = "http://127.0.0.1:4200/api/v1/internal/ai"
     ai_worker_token: str = ""
     ai_worker_id: str = "local-worker"

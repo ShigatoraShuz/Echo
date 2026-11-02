@@ -1,198 +1,304 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Camera, CameraOff, Check, Eye, LoaderCircle, RefreshCw, ShieldCheck } from "lucide-react";
-import type { FaceMeshCapture } from "@echo/contracts";
-
+import Link from "next/link";
+import { memo, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { CameraOff, Fingerprint, LoaderCircle, RefreshCw, ScanFace, ShieldCheck } from "lucide-react";
+import { facialExpressionResultSchema, type FaceMeshCapture } from "@echo/contracts";
 import { env } from "@/config/environment";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 type CameraState = "idle" | "requesting" | "loading_mesh" | "active" | "denied" | "unavailable" | "error";
 type Connection = { start: number; end: number };
-
 export interface JournalFaceCaptureHandle {
   getCapture(): FaceMeshCapture | undefined;
-  stop(): void;
   getStill(): Promise<Blob | undefined>;
+  stop(): void;
 }
-
-interface JournalFaceCaptureProps {
-  requested: boolean;
-  onRequestedChange(requested: boolean): void;
+interface Props {
+  running: boolean;
 }
-
 const MODEL_VERSION = "mediapipe-face-landmarker-float16-v1";
 
-export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFaceCaptureProps>(
-  function JournalFaceCapture({ requested, onRequestedChange }, ref) {
-    const [state, setState] = useState<CameraState>("idle");
-    const [evaluating,setEvaluating]=useState(false);
-    const [expression,setExpression]=useState("");
-    const evaluationAbort=useRef<AbortController|null>(null);
-    const [hasFace, setHasFace] = useState(false);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    const workerRef = useRef<Worker | null>(null);
-    const timerRef = useRef<number | null>(null);
-    const busyRef = useRef(false);
-    const requestGeneration = useRef(0);
-    const connectionsRef = useRef<Connection[]>([]);
-    const latestCaptureRef = useRef<FaceMeshCapture | undefined>(undefined);
+export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Props>(function JournalFaceCapture(
+  { running },
+  ref,
+) {
+  const [state, setState] = useState<CameraState>("idle");
+  const [hasFace, setHasFace] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [expression, setExpression] = useState("");
+  const videoRef = useRef<HTMLVideoElement>(null),
+    canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null),
+    workerRef = useRef<Worker | null>(null);
+  const frames = useRef<ReturnType<typeof setInterval> | null>(null),
+    evaluations = useRef<ReturnType<typeof setInterval> | null>(null);
+  const busy = useRef(false),
+    generation = useRef(0),
+    saving = useRef(false);
+  const connections = useRef<Connection[]>([]),
+    latest = useRef<FaceMeshCapture | undefined>(undefined);
+  const stableSince = useRef(0),
+    lastAttempt = useRef(0),
+    inFlight = useRef<Promise<void> | null>(null);
+  const evaluationAbort = useRef<AbortController | null>(null);
 
-    const clearCanvas = useCallback(() => {
-      const canvas = canvasRef.current;
-      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    }, []);
+  const clearMesh = useCallback(() => {
+    const c = canvasRef.current;
+    c?.getContext("2d")?.clearRect(0, 0, c.width, c.height);
+  }, []);
+  const release = useCallback(() => {
+    ++generation.current;
+    if (frames.current) clearInterval(frames.current);
+    if (evaluations.current) clearInterval(evaluations.current);
+    frames.current = null;
+    evaluations.current = null;
+    evaluationAbort.current?.abort();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    busy.current = false;
+    latest.current = undefined;
+    stableSince.current = 0;
+    clearMesh();
+  }, [clearMesh]);
+  const stop = useCallback(() => {
+    release();
+    setState("idle");
+    setHasFace(false);
+    setEvaluating(false);
+    setExpression("");
+  }, [release]);
 
-    const stop = useCallback(() => {
-      requestGeneration.current += 1;
-      evaluationAbort.current?.abort(); setEvaluating(false); setExpression("");
-      if (timerRef.current !== null) window.clearInterval(timerRef.current);
-      timerRef.current = null;
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
-      workerRef.current?.terminate();
-      workerRef.current = null;
-      busyRef.current = false;
-      latestCaptureRef.current = undefined;
-      setHasFace(false);
-      clearCanvas();
-      setState("idle");
-    }, [clearCanvas]);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        getStill: async () => {
-          const video = videoRef.current;
-          if (!latestCaptureRef.current || !video?.videoWidth) return undefined;
-          const canvas = document.createElement("canvas");
-          const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
-          canvas.width = Math.round(video.videoWidth * scale);
-          canvas.height = Math.round(video.videoHeight * scale);
-          canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-          return new Promise((resolve) =>
-            canvas.toBlob(
-              (blob) => {
-                canvas.width = 0;
-                canvas.height = 0;
-                resolve(blob ?? undefined);
-              },
-              "image/jpeg",
-              0.9,
-            ),
-          );
+  const snapshot = useCallback(async () => {
+    const video = videoRef.current;
+    if (
+      !latest.current ||
+      Date.now() - Date.parse(latest.current.capturedAt) > 2000 ||
+      !video?.videoWidth ||
+      video.readyState < 2 ||
+      !streamRef.current
+    )
+      return undefined;
+    const still = document.createElement("canvas");
+    const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+    still.width = Math.round(video.videoWidth * scale);
+    still.height = Math.round(video.videoHeight * scale);
+    still.getContext("2d")?.drawImage(video, 0, 0, still.width, still.height);
+    return new Promise<Blob | undefined>((resolve) =>
+      still.toBlob(
+        (blob) => {
+          still.width = 0;
+          still.height = 0;
+          resolve(blob ?? undefined);
         },
-        getCapture: () => latestCaptureRef.current,
-        stop,
-      }),
-      [stop],
+        "image/jpeg",
+        0.9,
+      ),
     );
+  }, []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      getCapture: () =>
+        latest.current && Date.now() - Date.parse(latest.current.capturedAt) < 2000 ? latest.current : undefined,
+      getStill: async () => {
+        saving.current = true;
+        await inFlight.current;
+        return snapshot();
+      },
+      stop,
+    }),
+    [snapshot, stop],
+  );
 
-    async function evaluate() {
-      const video=videoRef.current;if(!video||!hasFace||evaluating)return;
-      const generation=requestGeneration.current;
-      const capture=document.createElement('canvas');capture.width=video.videoWidth;capture.height=video.videoHeight;
-      capture.getContext('2d')?.drawImage(video,0,0);
-      const blob=await new Promise<Blob|null>(done=>capture.toBlob(done,'image/jpeg',.9));capture.width=0;capture.height=0;
-      if(!blob||generation!==requestGeneration.current||!streamRef.current)return;
-      const abort=new AbortController();evaluationAbort.current=abort;setEvaluating(true);setExpression('');
-      try{const token=await supabaseAuthTokenProvider.getAccessToken();const response=await fetch(env.apiBaseUrl+'/journals/face/evaluate',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'image/jpeg'},body:blob,signal:AbortSignal.any([abort.signal,AbortSignal.timeout(65000)])});const body=await response.json();if(!response.ok)throw Error(body.error?.message??'Face analysis is unavailable.');if(!abort.signal.aborted)setExpression(body.data.status==='available'?`Expression signal: ${body.data.prediction}. Uncalibrated model output, not your emotional state.`:'No usable single face. Adjust lighting and try again.');}
-      catch(error){if(!abort.signal.aborted)setExpression(error instanceof Error?error.message:'Face analysis is unavailable.');}
-      finally{if(!abort.signal.aborted)setEvaluating(false);}
+  const drawMesh = useCallback((landmarks: number[][]) => {
+    const canvas = canvasRef.current,
+      video = videoRef.current;
+    if (!canvas || !video || landmarks.length !== 478) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const points = landmarks.map(([x, y, z]) => [x * (video.videoWidth || 640), y * (video.videoHeight || 480), z]);
+    const xs = points.map((p) => p[0]),
+      ys = points.map((p) => p[1]);
+    const left = Math.min(...xs),
+      right = Math.max(...xs),
+      top = Math.min(...ys),
+      bottom = Math.max(...ys);
+    const scale = Math.min(
+      (canvas.width * 0.7) / Math.max(1, right - left),
+      (canvas.height * 0.82) / Math.max(1, bottom - top),
+    );
+    const project = (p: number[]) => [
+      canvas.width / 2 - (p[0] - (left + right) / 2) * scale,
+      canvas.height / 2 + (p[1] - (top + bottom) / 2) * scale,
+    ];
+    const projected = points.map(project);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = "rgba(133,235,194,.48)";
+    context.lineWidth = 0.85;
+    context.shadowColor = "rgba(97,255,193,.40)";
+    context.shadowBlur = 3;
+    context.beginPath();
+    for (const { start, end } of connections.current) {
+      if (!points[start] || !points[end]) continue;
+      const a = projected[start],
+        b = projected[end];
+      context.moveTo(a[0], a[1]);
+      context.lineTo(b[0], b[1]);
     }
+    context.stroke();
+    context.shadowBlur = 0;
+    context.fillStyle = "rgba(216,255,236,.8)";
+    context.beginPath();
+    for (let i = 0; i < points.length; i += 3) {
+      const [x, y] = projected[i];
+      context.moveTo(x + 1.25, y);
+      context.arc(x, y, 1.25, 0, Math.PI * 2);
+    }
+    context.fill();
+  }, []);
 
-    const drawMesh = useCallback((landmarks: number[][]) => {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      if (!canvas || !video || landmarks.length !== 478) return;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.strokeStyle = "rgba(190, 235, 202, .58)";
-      context.lineWidth = Math.max(0.65, canvas.width / 900);
-      context.beginPath();
-      for (const { start, end } of connectionsRef.current) {
-        const a = landmarks[start];
-        const b = landmarks[end];
-        if (!a || !b) continue;
-        context.moveTo(a[0] * canvas.width, a[1] * canvas.height);
-        context.lineTo(b[0] * canvas.width, b[1] * canvas.height);
+  const evaluate = useCallback(() => {
+    if (
+      inFlight.current ||
+      saving.current ||
+      !latest.current ||
+      Date.now() - stableSince.current < 650 ||
+      Date.now() - lastAttempt.current < 15000
+    )
+      return;
+    const current = generation.current;
+    lastAttempt.current = Date.now();
+    const abort = new AbortController();
+    evaluationAbort.current = abort;
+    const operation = (async () => {
+      try {
+        const image = await snapshot();
+        if (!image || current !== generation.current || abort.signal.aborted) return;
+        setEvaluating(true);
+        const token = await supabaseAuthTokenProvider.getAccessToken();
+        if (abort.signal.aborted) return;
+        const response = await fetch(env.apiBaseUrl + "/journals/face/evaluate", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/jpeg" },
+          body: image,
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(65000)]),
+        });
+        const body = await response.json();
+        if (!response.ok) throw Error("Expression analysis is unavailable. The live mesh is still working.");
+        const result = facialExpressionResultSchema.parse(body.data);
+        if (current === generation.current && !abort.signal.aborted && latest.current)
+          setExpression(
+            result.status === "available"
+              ? `${result.prediction} expression signal`
+              : "No usable expression result yet. Adjust your lighting.",
+          );
+      } catch (error) {
+        if (current === generation.current && !abort.signal.aborted && latest.current)
+          setExpression(error instanceof Error ? error.message : "Expression analysis is unavailable.");
+      } finally {
+        if (current === generation.current) setEvaluating(false);
       }
-      context.stroke();
-    }, []);
+    })();
+    inFlight.current = operation;
+    void operation.finally(() => {
+      if (inFlight.current === operation) inFlight.current = null;
+    });
+  }, [snapshot]);
 
-    const beginFrames = useCallback(() => {
-      if (timerRef.current !== null) window.clearInterval(timerRef.current);
-      timerRef.current = window.setInterval(async () => {
-        const video = videoRef.current;
-        const worker = workerRef.current;
-        if (!video || !worker || video.readyState < 2 || busyRef.current || document.hidden) return;
-        busyRef.current = true;
-        try {
-          const frame = await createImageBitmap(video);
-          worker.postMessage({ type: "frame", frame, timestamp: performance.now() }, [frame]);
-        } catch {
-          busyRef.current = false;
-        }
-      }, 100);
-    }, []);
-
-    const start = useCallback(async () => {
-      const generation = ++requestGeneration.current;
-      onRequestedChange(true);
-      latestCaptureRef.current = undefined;
-      setHasFace(false);
-      setState("requesting");
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setState("unavailable");
+  const start = useCallback(async () => {
+    release();
+    saving.current = false;
+    lastAttempt.current = 0;
+    const current = generation.current;
+    setHasFace(false);
+    setExpression("");
+    setEvaluating(false);
+    setState("requesting");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setState("unavailable");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      if (current !== generation.current) {
+        stream.getTracks().forEach((track) => track.stop());
         return;
       }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false,
-        });
-        if (generation !== requestGeneration.current) {
-          stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      stream.getVideoTracks?.().forEach((track) =>
+        track.addEventListener(
+          "ended",
+          () => {
+            if (current === generation.current) {
+              release();
+              setHasFace(false);
+              setEvaluating(false);
+              setExpression("");
+              setState("unavailable");
+            }
+          },
+          { once: true },
+        ),
+      );
+      if (!videoRef.current) throw Error("Camera surface unavailable");
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      if (current !== generation.current) return;
+      setState("loading_mesh");
+      const worker = new Worker(new URL("../workers/face-mesh.worker.ts", import.meta.url), { type: "module" });
+      workerRef.current = worker;
+      worker.onmessage = (event: MessageEvent) => {
+        if (current !== generation.current) return;
+        const message = event.data as {
+          type: string;
+          connections?: Connection[];
+          landmarks?: number[][];
+          blendshapes?: FaceMeshCapture["blendshapes"];
+        };
+        if (message.type === "ready") {
+          connections.current = message.connections ?? [];
+          setState("active");
+          frames.current = setInterval(async () => {
+            const video = videoRef.current;
+            if (!video || video.readyState < 2 || busy.current || document.hidden) return;
+            busy.current = true;
+            try {
+              const frame = await createImageBitmap(video);
+              if (current !== generation.current) {
+                frame.close();
+                return;
+              }
+              worker.postMessage({ type: "frame", frame, timestamp: performance.now() }, [frame]);
+            } catch {
+              busy.current = false;
+            }
+          }, 100);
+          evaluations.current = setInterval(evaluate, 1000);
           return;
         }
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-        setState("loading_mesh");
-        const worker = new Worker(new URL("../workers/face-mesh.worker.ts", import.meta.url), { type: "module" });
-        workerRef.current = worker;
-        worker.onmessage = (event: MessageEvent) => {
-          if (generation !== requestGeneration.current) return;
-          const message = event.data as {
-            type: "ready" | "result" | "error" | "frame_error";
-            connections?: Connection[];
-            landmarks?: number[][];
-            blendshapes?: Array<{ name: string; score: number }>;
-          };
-          if (message.type === "ready") {
-            connectionsRef.current = message.connections ?? [];
-            setState("active");
-            beginFrames();
-            return;
-          }
-          if (message.type === "result") {
-            busyRef.current = false;
-            const landmarks = message.landmarks ?? [];
-            const blendshapes = message.blendshapes ?? [];
-            const valid = landmarks.length === 478 && blendshapes.length === 52;
-            setHasFace(valid);
-            if (!valid) {
-              latestCaptureRef.current = undefined;
-              clearCanvas();
-              return;
-            }
+        busy.current = false;
+        if (message.type === "error") {
+          release();
+          setState("error");
+          setHasFace(false);
+          return;
+        }
+        if (message.type === "result") {
+          const landmarks = message.landmarks ?? [],
+            blendshapes = message.blendshapes ?? [];
+          const valid = landmarks.length === 478 && blendshapes.length === 52;
+          setHasFace(valid);
+          if (valid) {
+            if (!stableSince.current) stableSince.current = Date.now();
             drawMesh(landmarks);
-            latestCaptureRef.current = {
+            latest.current = {
               schemaVersion: "echo-face-mesh-v1",
               capturedAt: new Date().toISOString(),
               modelVersion: MODEL_VERSION,
@@ -201,144 +307,154 @@ export const JournalFaceCapture = forwardRef<JournalFaceCaptureHandle, JournalFa
             };
             return;
           }
-          busyRef.current = false;
-          if (message.type === "error") {
-            stop();
-            setState("error");
-          }
-        };
-        worker.onerror = () => {
-          if (generation !== requestGeneration.current) return;
-          stop();
+        }
+        latest.current = undefined;
+        stableSince.current = 0;
+        setHasFace(false);
+        clearMesh();
+        setExpression("");
+      };
+      worker.onerror = () => {
+        if (current === generation.current) {
+          release();
           setState("error");
-        };
-        worker.postMessage({
-          type: "init",
-          wasmRoot: new URL("/vendor/mediapipe", window.location.origin).toString(),
-          modelUrl: new URL("/models/face_landmarker.task", window.location.origin).toString(),
-        });
-      } catch (error) {
-        if (generation !== requestGeneration.current) return;
-        stop();
-        setState(
-          error instanceof DOMException && ["NotAllowedError", "PermissionDeniedError"].includes(error.name)
-            ? "denied"
-            : "unavailable",
-        );
-      }
-    }, [beginFrames, clearCanvas, drawMesh, onRequestedChange, stop]);
-
-    useEffect(() => {
-      if (videoRef.current && streamRef.current && (state === "active" || state === "loading_mesh"))
-        videoRef.current.srcObject = streamRef.current;
-    }, [state]);
-
-    useEffect(() => {
-      const handleVisibility = () => {
-        if (document.hidden) stop();
+          setHasFace(false);
+        }
       };
-      document.addEventListener("visibilitychange", handleVisibility);
-      return () => {
-        document.removeEventListener("visibilitychange", handleVisibility);
-        stop();
-      };
-    }, [stop]);
+      worker.postMessage({
+        type: "init",
+        wasmRoot: new URL("/vendor/mediapipe", location.origin).toString(),
+        modelUrl: new URL("/models/face_landmarker.task", location.origin).toString(),
+      });
+    } catch (error) {
+      if (current !== generation.current) return;
+      release();
+      setState(
+        error instanceof DOMException && ["NotAllowedError", "PermissionDeniedError"].includes(error.name)
+          ? "denied"
+          : "unavailable",
+      );
+    }
+  }, [clearMesh, drawMesh, evaluate, release]);
 
-    useEffect(() => {
-      if (!requested && state !== "idle") stop();
-    }, [requested, state, stop]);
+  useEffect(() => {
+    if (running && !document.hidden) void start();
+    else stop();
+    const hidden = () => {
+      if (document.hidden) stop();
+    };
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      release();
+    };
+  }, [running, start, stop, release]);
 
-    const active = state === "active" || state === "loading_mesh";
-    const statusText =
-      state === "requesting"
-        ? "Requesting camera permissionâ€¦"
-        : state === "loading_mesh"
-          ? "Starting the private face meshâ€¦"
-          : state === "active" && hasFace
-            ? "Face analysis ready"
-            : state === "active"
-              ? "Center one face in the frame"
-              : state === "denied"
-                ? "Camera permission was denied"
-                : state === "unavailable"
-                  ? "No camera is available"
-                  : state === "error"
-                    ? "Face analysis could not start"
-                    : "Camera stays off until you choose to start it";
-
-    return (
-      <section className="overflow-hidden rounded-[1.35rem] border border-primary/15 bg-[linear-gradient(145deg,hsl(var(--card)),hsl(var(--secondary)/.38))] shadow-subtle">
-        <div className="flex items-start justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-              <Eye className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Optional facial expression capture</h3>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Optional face analysis. Your camera image and mesh stay hidden; only the analysis indicator is shown. Choose Analyze expression to process one temporary frame with the final v4 model.</p>
-            </div>
-          </div>
-          {active ? (
-            <button
-              type="button"
-              onClick={stop}
-              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-card px-3 text-xs font-semibold text-foreground transition-[transform,background-color] duration-150 ease-out hover:bg-secondary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/15 active:scale-[.97]"
-            >
-              <CameraOff className="h-3.5 w-3.5" aria-hidden="true" /> Stop
-            </button>
-          ) : null}
+  const failed = ["denied", "unavailable", "error"].includes(state);
+  const status =
+    state === "requesting"
+      ? "Requesting camera permission…"
+      : state === "loading_mesh"
+        ? "Preparing your live mesh…"
+        : state === "active"
+          ? hasFace
+            ? evaluating
+              ? "Facial analysis running"
+              : "Face mesh live"
+            : "Looking for a face…"
+          : state === "denied"
+            ? "Camera access is blocked"
+            : state === "unavailable"
+              ? "No camera is available"
+              : state === "error"
+                ? "Face tracking could not start"
+                : "Ready when you start writing";
+  return (
+    <section className="journal-face-studio" aria-label="Live facial analysis">
+      <header className="face-studio-heading">
+        <span className="face-studio-icon">
+          <Fingerprint size={21} aria-hidden="true" />
+        </span>
+        <div>
+          <p>PRIVATE FACE STUDIO</p>
+          <h3>Live expression mesh</h3>
         </div>
-
-        {active ? (
-          <div className="relative flex min-h-24 items-center justify-center overflow-hidden border-y border-primary/10 bg-primary/5">
-            <video ref={videoRef} autoPlay muted playsInline className="absolute h-px w-px opacity-0 pointer-events-none" aria-hidden="true" tabIndex={-1} />
-            <canvas
-              ref={canvasRef}
-              className="hidden"
-              aria-hidden="true"
-            />
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur ${hasFace ? "bg-emerald-50/90 text-emerald-800" : "bg-card/90 text-muted-foreground"}`}
-            >
-              {hasFace ? (
-                <Check className="h-3 w-3" />
-              ) : (
-                <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-              )}
-              {hasFace ? "Face analysis ready" : "Waiting for one face"}
-            </span>
-          </div>
-        ) : (
-          <div className="mx-4 grid min-h-28 place-items-center rounded-2xl border border-dashed border-primary/20 bg-primary/[.035] px-4 py-5 text-center">
-            <Camera className="h-7 w-7 text-primary/55" aria-hidden="true" />
-            <p className="mt-2 text-xs text-muted-foreground">{statusText}</p>
-            <button
-              type="button"
-              onClick={() => void start()}
-              disabled={state === "requesting"}
-              className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground transition-transform duration-150 ease-out focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[.97] disabled:opacity-60"
-            >
-              {state === "requesting" ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : state === "idle" ? (
-                <Camera className="h-3.5 w-3.5" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              {state === "idle" ? "Start camera" : state === "requesting" ? "Requestingâ€¦" : "Try again"}
-            </button>
+        <span className="face-studio-mode">MESH ONLY</span>
+      </header>
+      <div className="face-studio-viewport" data-tracking={hasFace}>
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          aria-hidden="true"
+          tabIndex={-1}
+          className="absolute h-px w-px opacity-0 pointer-events-none"
+        />
+        <canvas
+          ref={canvasRef}
+          width={960}
+          height={640}
+          role="img"
+          aria-label="Live face landmark mesh; camera image is not displayed"
+          className="face-studio-canvas"
+        />
+        <div className="face-studio-grid" aria-hidden="true" />
+        <span className="face-studio-bracket face-studio-bracket--tl" />
+        <span className="face-studio-bracket face-studio-bracket--tr" />
+        <span className="face-studio-bracket face-studio-bracket--bl" />
+        <span className="face-studio-bracket face-studio-bracket--br" />
+        <div className="face-studio-corner" role="status">
+          <span data-live={state === "active" && hasFace} />
+          {status}
+        </div>
+        {!hasFace && (
+          <div className="face-studio-empty">
+            {failed ? (
+              <CameraOff size={32} aria-hidden="true" />
+            ) : state === "requesting" || state === "loading_mesh" ? (
+              <LoaderCircle size={32} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            ) : (
+              <ScanFace size={38} aria-hidden="true" />
+            )}
+            <p>
+              {failed
+                ? "Allow camera access in your browser, then retry."
+                : running
+                  ? "Keep your face comfortably in view."
+                  : "Your mesh will appear here while you write."}
+            </p>
           </div>
         )}
-
-        {active && <div className="px-4 py-3"><button type="button" disabled={!hasFace||evaluating} onClick={()=>void evaluate()} className="echo-button-secondary disabled:opacity-50">{evaluating?'Analyzing expression...':'Analyze expression'}</button><p role="status" className="mt-2 text-xs">{expression}</p></div>}
-        <div className="flex items-center gap-2 px-4 py-3 text-[11px] font-medium text-primary/80">
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          On-device mesh Â· no photo or video is saved
+        {hasFace && <div className="face-studio-scan" aria-hidden="true" />}
+        <span className="face-studio-watermark" aria-hidden="true">
+          ECHO / LIVE LANDMARKS
+        </span>
+      </div>
+      <div className="face-studio-result" aria-live="polite">
+        <span className={evaluating ? "face-studio-processing" : ""} />
+        <div>
+          <p>{evaluating ? "Reading your expression…" : expression || "A quiet layer of understanding"}</p>
+          <small>
+            {expression
+              ? "Uncalibrated model signal, not a measure of how you feel."
+              : "The mesh follows your movement. Your camera image stays hidden."}
+          </small>
         </div>
-        <p className="sr-only" aria-live="polite">
-          {statusText}
-        </p>
-      </section>
-    );
-  },
-);
+      </div>
+      {failed && running && (
+        <button type="button" onClick={() => void start()} className="echo-button-secondary m-4 mt-0">
+          <RefreshCw size={14} aria-hidden="true" />
+          Retry camera
+        </button>
+      )}
+      <footer>
+        <ShieldCheck size={14} aria-hidden="true" />
+        <span>No photo or video is saved. The result is saved with your journal.</span>
+      </footer>
+      <p className="face-studio-settings">
+        Automatic analysis is on. <Link href="/settings/privacy">Manage in Privacy settings</Link>
+      </p>
+    </section>
+  );
+}));

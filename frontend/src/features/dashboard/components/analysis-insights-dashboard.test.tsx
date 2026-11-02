@@ -62,19 +62,25 @@ describe("analysis dashboard", () => {
       ],
     };
     render(<AnalysisInsightsDashboard insights={insights} />);
-    await userEvent.setup().click(screen.getByText("Journal analysis"));
+    await userEvent.setup().click(screen.getByRole("button", {name:"Details"}));
     expect(screen.getByText("Start with ECHO Buddy")).toBeInTheDocument();
     expect(screen.queryByText(/Only simulated points/i)).not.toBeInTheDocument();
   });
-  it("keeps newer pending status visible beside a completed native summary", () => {
+  it("keeps pending status visible and opens the native report from Details", async () => {
     const insights: DashboardInsights = {
       latest: journalAnalysisV2ResultSchema.parse(native), recommendation: null, emotionTrend: [], distressTrend: [],
       latestRequest: { status: "queued", updatedAt: "2026-10-31T01:00:00Z" }, latestAnalyzedAt: "2000-01-01T00:00:00Z",
     };
     render(<AnalysisInsightsDashboard insights={insights} />);
     const card = screen.getByRole("region", { name: "Saved AI result summary" });
-    expect(screen.getByText("Journal category")).toBeVisible();
-    expect(screen.getAllByText(native.distressCategory, { exact: true })[0]).toBeVisible();
+    const trigger = screen.getByRole("button", {name:"Details"});
+    expect(card).toHaveTextContent(native.distressCategory);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByRole("heading", {name:"Your reflection patterns"})).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", {name:"Close dialog"}));
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(/A newer analysis is pending/)).toBeVisible();
     expect(screen.getAllByText(native.dominantEmotion, { exact: false }).length).toBeGreaterThan(0);
     expect(card?.querySelector('time')).toHaveAttribute("datetime", "2000-01-01T00:00:00Z");

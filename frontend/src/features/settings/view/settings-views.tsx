@@ -757,8 +757,8 @@ export function PrivacySettingsView() {
                       value,
                   })
                 }
-                label="Facial Check-ins"
-                description="Enable camera-based emotion tracking during reflections."
+                label="Automatic facial analysis"
+                description="When on, starts automatically while you write in your journal. Only a live face mesh is displayed, never your camera image. Expression results are saved with the reflection. Requires journal analysis consent; save your privacy choices to apply."
               />
 
               <Toggle

@@ -13,7 +13,7 @@ export interface JournalEntry {
   title: string;
   body: string;
   excerpt: string;
-  mood: JournalMood;
+  mood?: JournalMood;
   emotions: string[];
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
@@ -31,7 +31,7 @@ export interface JournalDraft {
   id: string;
   title: string;
   body: string;
-  mood: JournalMood;
+  mood?: JournalMood;
   emotions: string[];
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
@@ -61,7 +61,7 @@ export type JournalCreationOutcome =
 export interface CreateJournalInput {
   title: string;
   body: string;
-  mood: JournalMood;
+  mood?: JournalMood;
   emotions: string[];
   tags: string[];
   privacyStatus: JournalPrivacyStatus;

@@ -10,7 +10,7 @@ interface PrivacyControlsProps {
 
 export function PrivacyControlsSection({ facialAnalysisEnabled, crisisSupportVisible, lockScreenPrivate, onToggle }: PrivacyControlsProps) {
   const items = [
-    { key: "facialAnalysisEnabled", label: "Facial expression analysis", description: "Allow optional camera-based mood insights", icon: Eye, enabled: facialAnalysisEnabled },
+    { key: "facialAnalysisEnabled", label: "Automatic facial analysis", description: "Starts while you write. Shows your live face mesh without the camera image.", icon: Eye, enabled: facialAnalysisEnabled },
     { key: "crisisSupportVisible", label: "Crisis support resources", description: "Show crisis support resources in the sidebar", icon: Shield, enabled: crisisSupportVisible },
     { key: "lockScreenPrivate", label: "Lock screen privacy", description: "Hide message previews on the lock screen", icon: Lock, enabled: lockScreenPrivate },
   ];

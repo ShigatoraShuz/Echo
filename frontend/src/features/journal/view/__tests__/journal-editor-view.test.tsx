@@ -5,7 +5,11 @@ import { JournalEditorView } from "../journal-editor-view";
 import { useJournalEditorViewModel } from "@/features/journal/view-model/use-journal-editor-view-model";
 import { getJournalService } from "@/services/journal/journal-service.factory";
 
-vi.mock("@/services/settings",()=>({settingsService:{get:async()=>({privacy:{facialAnalysisEnabled:false,journalAiAnalysisEnabled:false}})}}));
+vi.mock("@/services/settings", () => ({
+  settingsService: {
+    get: async () => ({ privacy: { facialAnalysisEnabled: false, journalAiAnalysisEnabled: false } }),
+  },
+}));
 vi.mock("next/image", () => ({
   default: (props: { alt: string }) => <img alt={props.alt} />,
 }));
@@ -87,10 +91,12 @@ describe("JournalEditorView", () => {
     URL.revokeObjectURL = originalRevokeObjectURL;
   });
 
-  it("wires writing, mood and save with privacy-controlled automatic analysis", async () => {
+  it("wires writing and save without mood choices with privacy-controlled automatic analysis", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
 
     render(<JournalEditorView />);
 
@@ -98,22 +104,26 @@ describe("JournalEditorView", () => {
 
     await user.type(screen.getByLabelText(/title/i), "Morning reflection");
     await user.type(screen.getByLabelText(/start writing/i), "I felt steady today.");
-    await user.click(screen.getByRole("button", { name: /happy/i }));
-    await user.click(screen.getByText("More options"));
+    expect(screen.queryByRole("button", { name: /happy/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Journal analysis workspace" })).toBeVisible();
+    expect(screen.queryByText("More options")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Tags (optional)")).toBeVisible();
     expect(screen.queryByLabelText(/allow a reflective summary after saving/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/journal analysis is disabled/i)).toBeInTheDocument();
+    expect(screen.getByText(/Journal analysis is off/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /save reflection/i }));
 
     expect(mock.setTitle).toHaveBeenCalled();
     expect(mock.setBody).toHaveBeenCalled();
-    expect(mock.setMood).toHaveBeenCalledWith("happy");
+    expect(mock.setMood).not.toHaveBeenCalled();
 
     expect(mock.save).toHaveBeenCalled();
   });
 
   it("does not render the removed prompt and privacy notice cards", () => {
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
 
     render(<JournalEditorView />);
 
@@ -124,7 +134,9 @@ describe("JournalEditorView", () => {
   it("saves pending writing before returning to the overview", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
     render(<JournalEditorView />);
     await user.click(screen.getByRole("link", { name: /all reflections/i }));
     expect(mock.saveDraftNow).toHaveBeenCalledOnce();
@@ -133,11 +145,21 @@ describe("JournalEditorView", () => {
   it("protects selected photos when a sidebar link would leave the editor", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
-    render(<><JournalEditorView /><a href="/dashboard">Dashboard</a></>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
+    render(
+      <>
+        <JournalEditorView />
+        <a href="/dashboard">Dashboard</a>
+      </>,
+    );
     await waitFor(() => expect(screen.getByLabelText("Upload journal photos")).toBeEnabled());
     uploadDraftImage.mockReturnValue(new Promise(() => undefined));
-    await user.upload(screen.getByLabelText("Upload journal photos"), new File(["photo"], "moment.png", { type: "image/png" }));
+    await user.upload(
+      screen.getByLabelText("Upload journal photos"),
+      new File(["photo"], "moment.png", { type: "image/png" }),
+    );
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
 
     await user.click(screen.getByRole("link", { name: "Dashboard" }));
@@ -154,11 +176,16 @@ describe("JournalEditorView", () => {
   it("keeps selected photos after cancelling browser Back and saves writing before leaving", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
     render(<JournalEditorView />);
     await waitFor(() => expect(screen.getByLabelText("Upload journal photos")).toBeEnabled());
     uploadDraftImage.mockReturnValue(new Promise(() => undefined));
-    await user.upload(screen.getByLabelText("Upload journal photos"), new File(["photo"], "moment.png", { type: "image/png" }));
+    await user.upload(
+      screen.getByLabelText("Upload journal photos"),
+      new File(["photo"], "moment.png", { type: "image/png" }),
+    );
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
 
@@ -179,11 +206,16 @@ describe("JournalEditorView", () => {
     const user = userEvent.setup();
     const mock = setupMock();
     mock.saveDraftNow.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error("offline"));
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
     render(<JournalEditorView />);
     await waitFor(() => expect(screen.getByLabelText("Upload journal photos")).toBeEnabled());
     uploadDraftImage.mockReturnValue(new Promise(() => undefined));
-    await user.upload(screen.getByLabelText("Upload journal photos"), new File(["photo"], "moment.png", { type: "image/png" }));
+    await user.upload(
+      screen.getByLabelText("Upload journal photos"),
+      new File(["photo"], "moment.png", { type: "image/png" }),
+    );
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
 
@@ -199,12 +231,18 @@ describe("JournalEditorView", () => {
   it("retries a failed photo upload and restores the saved photo after reopening", async () => {
     const user = userEvent.setup();
     const mock = setupMock();
-    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
-    uploadDraftImage.mockResolvedValueOnce({ success: false, error: { message: "Upload unavailable" } })
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(
+      mock as unknown as ReturnType<typeof useJournalEditorViewModel>,
+    );
+    uploadDraftImage
+      .mockResolvedValueOnce({ success: false, error: { message: "Upload unavailable" } })
       .mockResolvedValue({ success: true, data: { id: "saved-photo" } });
     const page = render(<JournalEditorView />);
     await waitFor(() => expect(screen.getByLabelText("Upload journal photos")).toBeEnabled());
-    await user.upload(screen.getByLabelText("Upload journal photos"), new File(["photo"], "moment.png", { type: "image/png" }));
+    await user.upload(
+      screen.getByLabelText("Upload journal photos"),
+      new File(["photo"], "moment.png", { type: "image/png" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("Upload unavailable");
     expect(screen.getByRole("button", { name: /save reflection/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Retry moment.png" }));
@@ -213,7 +251,10 @@ describe("JournalEditorView", () => {
     expect(uploadDraftImage.mock.calls[1][0]).toBe(savedId);
     page.unmount();
 
-    listDraftImages.mockResolvedValue({ success: true, data: [{ id: savedId, url: "https://storage.example.test/signed-photo" }] });
+    listDraftImages.mockResolvedValue({
+      success: true,
+      data: [{ id: savedId, url: "https://storage.example.test/signed-photo" }],
+    });
     render(<JournalEditorView />);
     expect(await screen.findByRole("img", { name: "Draft photo 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save reflection/i })).toBeEnabled();

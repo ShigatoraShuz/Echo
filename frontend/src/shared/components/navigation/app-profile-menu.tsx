@@ -134,10 +134,15 @@ export function AppProfileMenu() {
 
   const [avatar, setAvatar] = useState<string | null>(null);
 
+  const profileRead = useRef<ReturnType<typeof settingsService.getProfileSummary> | null>(null);
   useEffect(() => {
     let active = true;
-    void settingsService
-      .getProfileSummary()
+    if (!profileRead.current) {
+      const read = settingsService.getProfileSummary();
+      profileRead.current = read;
+      void read.finally(() => { if (profileRead.current === read) profileRead.current = null; }).catch(() => {});
+    }
+    void profileRead.current
       .then((profile) => {
         if (active) {
           setDisplayName(profile.displayName);

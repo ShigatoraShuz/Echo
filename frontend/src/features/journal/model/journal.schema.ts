@@ -17,7 +17,7 @@ export const createJournalSchema = z.object({
     .string()
     .min(1, "Body is required")
     .max(JOURNAL_MAX_BODY_LENGTH, `Body must be ${JOURNAL_MAX_BODY_LENGTH} characters or less`),
-  mood: journalMoodSchema,
+
   emotions: z.array(z.string()).default([]),
   tags: z.array(z.string()).max(JOURNAL_MAX_TAGS, `Maximum ${JOURNAL_MAX_TAGS} tags allowed`).default([]),
   privacyStatus: journalPrivacyStatusSchema,

@@ -38,7 +38,7 @@ const journalDraftSchema = z.strictObject({
   submissionKey: z.string().uuid().optional(),
   title: z.string().trim().max(200).default(""),
   body: z.string().trim().max(20_000).default(""),
-  mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]),
+  mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]).optional(),
   emotions: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   tags: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   privacyStatus: z.enum(["private", "shared"]).default("private"),

@@ -5,14 +5,14 @@ from app.core.config import Settings
 from app.model.runtime import ModelRuntime
 
 
-def test_native_and_registry_defaults_resolve_to_this_checkout_after_cwd_changes(tmp_path, monkeypatch):
+def test_native_sibling_root_and_separate_registry_are_independent_of_cwd(tmp_path, monkeypatch):
     monkeypatch.delenv("MODELS_ROOT", raising=False)
     monkeypatch.delenv("ECHO_MODELS_DIR", raising=False)
     monkeypatch.chdir(tmp_path)
     settings = Settings(_env_file=None)
     expected = Path(__file__).resolve().parents[2] / "backend" / "models"
     assert Path(settings.models_root).is_absolute()
-    assert Path(settings.models_root) == expected
+    assert Path(settings.models_root) == expected.parents[2] / "models"
     assert settings.echo_models_dir == expected
 
 

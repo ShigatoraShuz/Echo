@@ -6,7 +6,7 @@ export interface JournalEntryResponseDTO {
   title: string;
   body: string;
   excerpt: string;
-  mood: string;
+  mood?: string;
   emotions: string[];
   tags: string[];
   privacy_status: string;
@@ -31,7 +31,7 @@ export interface JournalDraftResponseDTO {
   id: string;
   title: string;
   body: string;
-  mood: string;
+  mood?: string;
   emotions: string[];
   tags: string[];
   privacy_status: string;
@@ -57,7 +57,7 @@ export interface JournalAnalysisResponseDTO {
 export interface CreateJournalRequestDTO {
   title: string;
   body: string;
-  mood: string;
+  mood?: string;
   emotions: string[];
   tags: string[];
   privacy_status: string;

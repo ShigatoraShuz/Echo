@@ -80,7 +80,7 @@ by these preparation instructions or the passing synthetic contract tests.
 
 ## Installed native bundle paths (2026-11-01)
 
-The `echo-core-models-v1` bundle belongs at this checkout's `backend/models/manifest.json`.
+The `echo-core-models-v1` bundle belongs at the sibling `../models/manifest.json`, matching Leo's original layout.
 `Settings.models_root` now resolves that absolute default independently of the current
 working directory. A private `MODELS_ROOT` override is still honored. The retained
 native launcher uses the same default and accepts `-ModelsRoot <absolute path>`;
@@ -116,8 +116,7 @@ loopback host, a 32+ character internal token, no engineering active selections 
 `TextRuntime` uses bounded stdin/stdout JSON in an isolated child: no payload files, inherited DB/service
 credentials or private logs; one request at a time; a maximum 270-second deadline kills/reaps failures.
 The child verifies exact code/weight hashes, probes an actual CUDA kernel, and lazily loads text models.
-Speech/face methods remain denied; the optional source is preserved. PHQ-8 is semantically unverified
-and unavailable in the served profile. A failed model never generates a replacement success.
+Speech/face methods on the text transport remain denied; final v4 face evaluation has a separate memory-only CPU bridge. PHQ-8 uses the installed adapter and a nullable adapter-disabled base pass; only matching estimates survive and missing/disagreeing values remain null. These correlated passes do not establish clinical accuracy. A failed model never generates a replacement success.
 
 For application jobs, Express additionally requires `AI_CORE_PROFILE=local_encrypted_worker`,
 `AI_ANALYSIS_MODE=local_worker`, separate service/worker tokens and a loopback local Supabase target.

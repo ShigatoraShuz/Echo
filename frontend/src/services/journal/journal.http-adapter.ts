@@ -98,7 +98,7 @@ export function createJournalHttpAdapter(): JournalService {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
         if (filters.query) params.set("query", filters.query);
-        if (filters.mood) params.set("mood", filters.mood);
+
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         params.set("sort", filters.sort);
@@ -191,7 +191,7 @@ export function createJournalHttpAdapter(): JournalService {
         const { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent } = draft;
         const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, Pick<JournalDraft, "submissionKey" | "title" | "body" | "mood" | "emotions" | "tags" | "privacyStatus" | "analysisConsent">>(
           "/journals/draft",
-          { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent },
+          { submissionKey, title, body, emotions, tags, privacyStatus, analysisConsent },
         );
         return { success: true, data: mapDraftResponseToDomain(response.data) };
       } catch (error) {

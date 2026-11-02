@@ -18,17 +18,21 @@ export function useDashboardViewModel(initialTimeRange = "7d", serviceOverride?:
   // Pending reads only: no fulfilled private snapshot is cached between mounts.
   const pending = useRef(new Map<string, ReturnType<DashboardService["getDashboardData"]>>());
 
+  const pendingService = useRef(service);
+
   useEffect(() => {
     active.current = true;
     const currentRevision = revision;
     const requests = pending.current;
+    if (pendingService.current !== service) { requests.clear(); pendingService.current = service; }
     const clear = () => {
       active.current = false; currentRevision.current++; requests.clear();
       setData(null); setIsLoading(false); setError(null);
     };
     window.addEventListener("echo:sensitive-state-cleared", clear);
     return () => {
-      active.current = false; currentRevision.current++; requests.clear();
+      active.current = false; currentRevision.current++;
+      // Keep only unresolved reads across Strict Mode effect replay; logout still clears them.
       window.removeEventListener("echo:sensitive-state-cleared", clear);
     };
   }, [service]);

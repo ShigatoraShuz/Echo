@@ -57,16 +57,20 @@ export function useInsightsViewModel(preview = false) {
   const active = useRef(true);
   const pending = useRef(new Map<string, ReturnType<typeof service.getAnalysisOverview>>());
 
+  const pendingService = useRef(service);
+
   useEffect(() => {
     active.current = true;
     const requests = pending.current;
+    if (pendingService.current !== service) { requests.clear(); pendingService.current = service; }
     const sequence = revision;
     const clear = () => {
       active.current = false; ++sequence.current; requests.clear(); dispatch({ type: "CLEAR" });
     };
     window.addEventListener("echo:sensitive-state-cleared", clear);
     return () => {
-      active.current = false; ++sequence.current; requests.clear();
+      active.current = false; ++sequence.current;
+      // Reuse unresolved reads during effect replay, never fulfilled private snapshots.
       window.removeEventListener("echo:sensitive-state-cleared", clear);
     };
   }, [service]);

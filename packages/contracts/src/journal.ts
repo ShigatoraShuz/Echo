@@ -6,7 +6,7 @@ export const journalIdSchema = z.string().uuid();
 export const journalSubmissionObjectSchema = z.object({
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(20_000),
-  mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]),
+
   emotions: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   tags: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   privacyStatus: z.enum(["private", "shared"]).default("private"),

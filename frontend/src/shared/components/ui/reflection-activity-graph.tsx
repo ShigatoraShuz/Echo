@@ -48,13 +48,7 @@ function getDotColor(count: number): string {
   return "#1e3314";
 }
 
-const levelClasses = [
-  "bg-secondary/70",
-  "bg-primary/25",
-  "bg-primary/45",
-  "bg-primary/70",
-  "bg-primary",
-] as const;
+const levelClasses = ["bg-secondary/70", "bg-primary/25", "bg-primary/45", "bg-primary/70", "bg-primary"] as const;
 
 const weekdayLabels = ["M", "T", "W", "T", "F", "S", "S"] as const;
 
@@ -74,10 +68,7 @@ function addDays(date: Date, days: number): Date {
   return result;
 }
 
-export function buildReflectionActivityWeeks(
-  activity: ReflectionActivity[],
-  weekCount: number,
-): ActivityCell[][] {
+export function buildReflectionActivityWeeks(activity: ReflectionActivity[], weekCount: number): ActivityCell[][] {
   const safeWeekCount = Math.max(4, Math.min(52, Math.round(weekCount)));
   const totals = new Map<string, number>();
 
@@ -87,37 +78,24 @@ export function buildReflectionActivityWeeks(
   }
 
   const today = new Date();
-  const end = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
-  );
+  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const mondayBasedDay = (end.getUTCDay() + 6) % 7;
   const finalSunday = addDays(end, 6 - mondayBasedDay);
   const firstMonday = addDays(finalSunday, -(safeWeekCount * 7 - 1));
   const maxCount = Math.max(1, ...totals.values());
   const cells: ActivityCell[] = [];
 
-  for (
-    let date = firstMonday;
-    date <= finalSunday;
-    date = addDays(date, 1)
-  ) {
+  for (let date = firstMonday; date <= finalSunday; date = addDays(date, 1)) {
     const key = toISODate(date);
     const count = totals.get(key) ?? 0;
-    const level =
-      count === 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((count / maxCount) * 4)));
+    const level = count === 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((count / maxCount) * 4)));
     cells.push({ date: key, count, level });
   }
 
-  return Array.from({ length: safeWeekCount }, (_, index) =>
-    cells.slice(index * 7, index * 7 + 7),
-  );
+  return Array.from({ length: safeWeekCount }, (_, index) => cells.slice(index * 7, index * 7 + 7));
 }
 
-function formatActivityLabel(
-  cell: ActivityCell,
-  singularLabel: string,
-  pluralLabel: string,
-): string {
+function formatActivityLabel(cell: ActivityCell, singularLabel: string, pluralLabel: string): string {
   const parsed = parseDate(cell.date);
   const dateStr = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -135,7 +113,12 @@ function getFormattedDateComponents(dateKey: string) {
   const parsed = parseDate(dateKey);
   const d = parsed ?? new Date();
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(d);
-  const monthDayYear = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(d);
+  const monthDayYear = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(d);
   return { weekday, monthDayYear };
 }
 
@@ -155,14 +138,11 @@ interface TooltipPortalProps {
   pluralLabel: string;
 }
 
-function TooltipPortal({
-  hoveredCell,
-  reducedMotion,
-  singularLabel,
-  pluralLabel,
-}: TooltipPortalProps) {
+function TooltipPortal({ hoveredCell, reducedMotion, singularLabel, pluralLabel }: TooltipPortalProps) {
   const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => { setMounted(true); }, []);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
   if (!mounted) return null;
 
   const { weekday, monthDayYear } = getFormattedDateComponents(hoveredCell.cell.date);
@@ -172,8 +152,8 @@ function TooltipPortal({
     count === 0
       ? `No ${pluralLabel} recorded`
       : count === 1
-      ? `1 ${singularLabel} entry`
-      : `${count} ${singularLabel} entries`;
+        ? `1 ${singularLabel} entry`
+        : `${count} ${singularLabel} entries`;
   const dotColor = getDotColor(count);
 
   const yOffset = hoveredCell.placement === "above" ? "-100%" : "0%";
@@ -189,8 +169,7 @@ function TooltipPortal({
           top: hoveredCell.top,
           x: "-50%",
           y: yOffset,
-          transformOrigin:
-            hoveredCell.placement === "above" ? "center bottom" : "center top",
+          transformOrigin: hoveredCell.placement === "above" ? "center bottom" : "center top",
           zIndex: 99999,
         }}
         initial={{ opacity: 0, scale: 0.88, y: yInitial }}
@@ -199,14 +178,10 @@ function TooltipPortal({
         transition={{ duration: reducedMotion ? 0 : 0.13, ease: "easeOut" }}
       >
         {/* Day name — prominent dark green */}
-        <span className="text-sm font-black tracking-tight text-[#1e3314] leading-tight">
-          {weekday}
-        </span>
+        <span className="text-sm font-black tracking-tight text-[#1e3314] leading-tight">{weekday}</span>
 
         {/* Full date — dark green muted subtitle */}
-        <span className="text-[11px] font-bold text-[#536733] leading-none">
-          {monthDayYear}
-        </span>
+        <span className="text-[11px] font-bold text-[#536733] leading-none">{monthDayYear}</span>
 
         {/* Divider */}
         <div className="my-0.5 h-px w-full bg-[rgba(83,103,51,0.2)]" aria-hidden="true" />
@@ -218,9 +193,7 @@ function TooltipPortal({
             style={{ backgroundColor: dotColor }}
             aria-hidden="true"
           />
-          <span className="text-xs font-extrabold text-[#1e3314]">
-            {countText}
-          </span>
+          <span className="text-xs font-extrabold text-[#1e3314]">{countText}</span>
         </div>
 
         {/* Intensity dots — 5 segments light → dark green */}
@@ -230,10 +203,7 @@ function TooltipPortal({
               key={seg}
               className="h-1.5 w-4 rounded-full transition-colors"
               style={{
-                backgroundColor:
-                  seg <= level
-                    ? "#3d5424"
-                    : "rgba(83, 103, 51, 0.16)",
+                backgroundColor: seg <= level ? "#3d5424" : "rgba(83, 103, 51, 0.16)",
               }}
             />
           ))}
@@ -257,14 +227,21 @@ export function ReflectionActivityGraph({
   pluralLabel = "reflections",
   className,
 }: ReflectionActivityGraphProps) {
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const showRecent = () => {
+      viewport.scrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    };
+    showRecent();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(showRecent);
+    observer?.observe(viewport);
+    return () => observer?.disconnect();
+  }, [weeks, cellSize, cellGap]);
   const reducedMotion = usePrefersReducedMotion();
-  const activityWeeks = React.useMemo(
-    () => buildReflectionActivityWeeks(data, weeks),
-    [data, weeks],
-  );
-  const graphWidth =
-    activityWeeks.length * cellSize +
-    Math.max(0, activityWeeks.length - 1) * cellGap;
+  const activityWeeks = React.useMemo(() => buildReflectionActivityWeeks(data, weeks), [data, weeks]);
+  const graphWidth = activityWeeks.length * cellSize + Math.max(0, activityWeeks.length - 1) * cellGap;
   const monthMarkers = React.useMemo(
     () =>
       activityWeeks.flatMap((week, weekIndex) => {
@@ -277,9 +254,7 @@ export function ReflectionActivityGraph({
 
         return [
           {
-            label: new Intl.DateTimeFormat("en", { month: "short" }).format(
-              parsed,
-            ),
+            label: new Intl.DateTimeFormat("en", { month: "short" }).format(parsed),
             weekIndex,
           },
         ];
@@ -293,27 +268,21 @@ export function ReflectionActivityGraph({
     placement: "above" | "below";
   } | null>(null);
 
-  const showTooltip = React.useCallback(
-    (element: HTMLButtonElement, cell: ActivityCell) => {
-      const rect = element.getBoundingClientRect();
-      const placement = rect.top > 64 ? "above" : "below";
+  const showTooltip = React.useCallback((element: HTMLButtonElement, cell: ActivityCell) => {
+    const rect = element.getBoundingClientRect();
+    const placement = rect.top > 64 ? "above" : "below";
 
-      setHoveredCell({
-        cell,
-        left: Math.min(
-          Math.max(rect.left + rect.width / 2, 92),
-          window.innerWidth - 92,
-        ),
-        top: placement === "above" ? rect.top - 8 : rect.bottom + 8,
-        placement,
-      });
-    },
-    [],
-  );
+    setHoveredCell({
+      cell,
+      left: Math.min(Math.max(rect.left + rect.width / 2, 92), window.innerWidth - 92),
+      top: placement === "above" ? rect.top - 8 : rect.bottom + 8,
+      placement,
+    });
+  }, []);
 
   return (
     <div className={cn("max-w-full", className)}>
-      <div className="overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div ref={viewportRef} className="overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="min-w-max">
           <div
             className="relative mb-1.5 h-4 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
@@ -338,11 +307,7 @@ export function ReflectionActivityGraph({
               aria-hidden="true"
             >
               {weekdayLabels.map((label, index) => (
-                <span
-                  key={`${label}-${index}`}
-                  className="grid place-items-center"
-                  style={{ height: cellSize }}
-                >
+                <span key={`${label}-${index}`} className="grid place-items-center" style={{ height: cellSize }}>
                   {label}
                 </span>
               ))}
@@ -363,32 +328,24 @@ export function ReflectionActivityGraph({
                   role="row"
                 >
                   {week.map((cell, dayIndex) => (
-                      <button
-                        key={cell.date}
-                        type="button"
-                        role="gridcell"
-                        aria-label={formatActivityLabel(
-                          cell,
-                          singularLabel,
-                          pluralLabel,
-                        )}
-                        className={cn(
-                          "echo-heatmap-tile relative cursor-pointer rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow] duration-150 hover:brightness-110 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
-                        )}
-                        style={{
-                          width: cellSize,
-                          height: cellSize,
-                          animationDelay: `${420 + Math.min(weekIndex * 18 + dayIndex * 10, 720)}ms`,
-                          ...getCellStyle(cell.level),
-                        }}
-                        onMouseEnter={(event) =>
-                          showTooltip(event.currentTarget, cell)
-                        }
-                        onFocus={(event) =>
-                          showTooltip(event.currentTarget, cell)
-                        }
-                        onBlur={() => setHoveredCell(null)}
-                      />
+                    <button
+                      key={cell.date}
+                      type="button"
+                      role="gridcell"
+                      aria-label={formatActivityLabel(cell, singularLabel, pluralLabel)}
+                      className={cn(
+                        "echo-heatmap-tile relative cursor-pointer rounded-[4px] outline-none ring-offset-2 ring-offset-card transition-[filter,box-shadow] duration-150 hover:brightness-110 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary/55",
+                      )}
+                      style={{
+                        width: cellSize,
+                        height: cellSize,
+                        animationDelay: `${420 + Math.min(weekIndex * 18 + dayIndex * 10, 720)}ms`,
+                        ...getCellStyle(cell.level),
+                      }}
+                      onMouseEnter={(event) => showTooltip(event.currentTarget, cell)}
+                      onFocus={(event) => showTooltip(event.currentTarget, cell)}
+                      onBlur={() => setHoveredCell(null)}
+                    />
                   ))}
                 </div>
               ))}
@@ -401,11 +358,7 @@ export function ReflectionActivityGraph({
         <div className="mt-3 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
           <span className="mr-1">Quiet</span>
           {levelClasses.map((levelClass) => (
-            <span
-              key={levelClass}
-              className={cn("h-3 w-3 rounded-[3px]", levelClass)}
-              aria-hidden="true"
-            />
+            <span key={levelClass} className={cn("h-3 w-3 rounded-[3px]", levelClass)} aria-hidden="true" />
           ))}
           <span className="ml-1">Reflective</span>
         </div>

@@ -46,7 +46,7 @@ import type { CoreClient } from "../../infrastructure/analysis/core-client.js";
 export interface JournalInput {
   title: string;
   body: string;
-  mood: "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
+  mood?: "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
   emotions: string[];
   tags: string[];
   privacyStatus: "private" | "shared";
@@ -61,7 +61,7 @@ export interface JournalResponse {
   title: string;
   body: string;
   excerpt: string;
-  mood: string;
+  mood?: string;
   emotions: string[];
   tags: string[];
   privacy_status: string;
@@ -108,7 +108,7 @@ export interface JournalDraftInput {
   submissionKey?: string;
   title: string;
   body: string;
-  mood: JournalInput["mood"];
+  mood?: JournalInput["mood"];
   emotions: string[];
   tags: string[];
   privacyStatus: JournalInput["privacyStatus"];
@@ -120,7 +120,7 @@ export interface JournalDraftResponse {
   id: string;
   title: string;
   body: string;
-  mood: string;
+  mood?: string;
   emotions: string[];
   tags: string[];
   privacy_status: string;
@@ -208,9 +208,16 @@ export class JournalService {
       if(!await this.hasGlobalFacialConsent(user))return [];
       const {data,error}=await this.database.schema('ai_analysis').from('journal_face_results').select('journal_id,result_ciphertext').eq('user_id',user).order('created_at',{ascending:false}).limit(30);
       if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Face history could not be loaded.');
-      const values=[];
-      for(const row of data??[]){try{await this.get(user,row.journal_id);}catch(error){if(error instanceof NotFoundError)continue;throw error;}values.push({journalId:row.journal_id,result:facialExpressionResultSchema.parse(JSON.parse(decryptText(row.result_ciphertext,this.encryption)))});}
-      return values;
+      if (!data?.length) return [];
+      // Only ownership/deletion is needed here; do not load every journal's body, analysis and photos.
+      const owned = await this.reader.schema('journal_service').from('journals').select('id')
+        .eq('user_id', user).is('deleted_at', null).in('id', data.map(row => row.journal_id));
+      if (owned.error) throw new ExternalServiceError('DATABASE_UNAVAILABLE', 'Face history could not be loaded.');
+      const ids = new Set((owned.data ?? []).map(row => row.id));
+      return data.filter(row => ids.has(row.journal_id)).map(row => ({
+        journalId: row.journal_id,
+        result: facialExpressionResultSchema.parse(JSON.parse(decryptText(row.result_ciphertext, this.encryption))),
+      }));
     }
     if(!this.localResults||!await this.hasGlobalFacialConsent(user))return [];
     const results=[];
@@ -473,7 +480,7 @@ export class JournalService {
       title: journal.title,
       body: journal.body,
       excerpt: journal.body.slice(0, 180),
-      mood: asString(row.mood, "neutral"),
+
       emotions: asStringArray(row.emotions),
       tags: asStringArray(row.tags),
       privacy_status: asString(row.privacy_status, "private"),
@@ -499,7 +506,7 @@ export class JournalService {
     const base = () => {
       let query = this.reader.schema("journal_service").from("journals")
         .select("*", { count: "exact" }).eq("user_id", userId).is("deleted_at", null);
-      if (options.mood) query = query.eq("mood", options.mood);
+
       if (options.dateFrom) query = query.gte("created_at", `${options.dateFrom}T00:00:00.000Z`);
       if (options.dateTo) query = query.lt("created_at", new Date(Date.parse(`${options.dateTo}T00:00:00.000Z`) + 86_400_000).toISOString());
       return query.order("created_at", { ascending: options.sort === "oldest" }).order("id", { ascending: options.sort === "oldest" });
@@ -554,19 +561,19 @@ export class JournalService {
   }
 
   async listSummaries(userId: string): Promise<Array<{
-    id: string; mood: string; emotions: string[]; tags: string[]; created_at: string;
+    id: string; mood?: string; emotions: string[]; tags: string[]; created_at: string;
   }>> {
-    const summaries = [] as Array<{ id: string; mood: string; emotions: string[]; tags: string[]; created_at: string }>;
+    const summaries = [] as Array<{ id: string; mood?: string; emotions: string[]; tags: string[]; created_at: string }>;
     for (let offset = 0; ; offset += 500) {
       const { data, error } = await this.reader.schema("journal_service").from("journals")
-        .select("id,mood,emotions,tags,created_at")
+        .select("id,emotions,tags,created_at")
         .eq("user_id", userId).is("deleted_at", null)
         .order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 499);
       if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "list journal summaries" }, "The journal service is temporarily unavailable.");
       const batch = (data ?? []) as JournalRow[];
       summaries.push(...batch.map((row) => ({
         id: asString(row.id),
-        mood: asString(row.mood, "neutral"), emotions: asStringArray(row.emotions),
+   emotions: asStringArray(row.emotions),
         tags: asStringArray(row.tags), created_at: asString(row.created_at),
       })));
       if (batch.length < 500) break;
@@ -740,7 +747,7 @@ export class JournalService {
       p_encryption_auth_tag: bytea(encrypted.authenticationTag),
       p_encryption_key_version: encrypted.keyVersion,
       p_word_count: input.body.trim() ? input.body.trim().split(/\s+/).length : 0,
-      p_mood: input.mood,
+      p_mood: null, // Ignored legacy RPC parameter; no mood is stored.
       p_emotions: input.emotions,
       p_tags: input.tags,
       p_privacy_status: input.privacyStatus,
@@ -1050,7 +1057,7 @@ export class JournalService {
     const next: JournalInput = {
       title: input.title ?? current.title,
       body: input.body ?? current.body,
-      mood: input.mood ?? (current.mood as JournalInput["mood"]),
+
       emotions: input.emotions ?? current.emotions,
       tags: input.tags ?? current.tags,
       privacyStatus: input.privacyStatus ?? (current.privacy_status as JournalInput["privacyStatus"]),
@@ -1069,7 +1076,7 @@ export class JournalService {
         encryption_auth_tag: bytea(encrypted.authenticationTag),
         encryption_key_version: encrypted.keyVersion,
         word_count: next.body.trim() ? next.body.trim().split(/\s+/).length : 0,
-        mood: next.mood,
+
         emotions: next.emotions,
         tags: next.tags,
         privacy_status: next.privacyStatus,
@@ -1104,7 +1111,7 @@ export class JournalService {
       id: asString(row.id, asString(row.user_id)),
       title: draft.title,
       body: draft.body,
-      mood: asString(row.mood, "calm"),
+
       emotions: asStringArray(row.emotions),
       tags: asStringArray(row.tags),
       privacy_status: asString(row.privacy_status, "private"),
@@ -1127,7 +1134,7 @@ export class JournalService {
           encryption_iv: bytea(encrypted.iv),
           encryption_auth_tag: bytea(encrypted.authenticationTag),
           encryption_key_version: encrypted.keyVersion,
-          mood: input.mood,
+
           emotions: input.emotions,
           tags: input.tags,
           privacy_status: input.privacyStatus,
@@ -1290,12 +1297,13 @@ export class JournalService {
       .eq("user_id", userId).eq("analysis_requests.user_id", userId)
       .eq("analysis_requests.status", "completed").is("analysis_requests.deleted_at", null)
       .eq("is_simulated", false).not("result_payload", "is", null);
-    const [history, latestHistory, latestJob] = await Promise.all([
+    const [history, latestHistory, latestJob, facialHistory] = await Promise.all([
       resultQuery(true).gte("created_at", from.toISOString()).lte("created_at", to.toISOString())
         .order("created_at", { ascending: false }).limit(1000),
       includeLatestOutsidePeriod ? resultQuery().order("created_at", { ascending: false }).limit(1) : null,
       this.database.schema("ai_analysis").from("analysis_requests").select("id,status,created_at")
         .eq("user_id", userId).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      this.faceHistory(userId),
     ]);
     if (history.error || latestHistory?.error || latestJob.error)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Dashboard insights are temporarily unavailable.");
@@ -1332,7 +1340,7 @@ export class JournalService {
       .select("updated_at").eq("job_id", latestJob.data.id).eq("user_id", userId).maybeSingle() : null;
     if (projection?.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Dashboard insights are temporarily unavailable.");
     return {
-      facialResults:(await this.faceHistory(userId)).filter(row=>includeLatestOutsidePeriod||!row.result.generatedAt||(Date.parse(row.result.generatedAt)>=from.getTime()&&Date.parse(row.result.generatedAt)<=to.getTime())),
+      facialResults:facialHistory.filter(row=>includeLatestOutsidePeriod||!row.result.generatedAt||(Date.parse(row.result.generatedAt)>=from.getTime()&&Date.parse(row.result.generatedAt)<=to.getTime())),
       latest,
       latestResultId: latestRow ? asString(latestRow.id) : null,
       recommendation,

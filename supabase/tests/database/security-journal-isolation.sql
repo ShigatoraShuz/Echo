@@ -2,9 +2,9 @@ begin;
 insert into auth.users(id,email) values
  ('10000000-0000-4000-8000-000000000001','read-a@example.test'),
  ('10000000-0000-4000-8000-000000000002','read-b@example.test');
-insert into journal_service.journals(id,user_id,title,content_ciphertext,encryption_iv,encryption_auth_tag,encryption_key_version,mood) values
- ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','[encrypted]','syntheticcipher','syntheticiv','synthetictag',1,'calm'),
- ('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002','[encrypted]','syntheticcipher','syntheticiv','synthetictag',1,'calm');
+insert into journal_service.journals(id,user_id,title,content_ciphertext,encryption_iv,encryption_auth_tag,encryption_key_version) values
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','[encrypted]','syntheticcipher','syntheticiv','synthetictag',1),
+ ('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002','[encrypted]','syntheticcipher','syntheticiv','synthetictag',1);
 -- Explicit synthetic Auth sessions model the claims supplied by PostgREST.
 insert into user_service.profiles(user_id,account_status) select id,'active' from auth.users on conflict(user_id) do nothing;
 insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing;

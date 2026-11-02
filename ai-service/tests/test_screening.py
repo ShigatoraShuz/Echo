@@ -32,6 +32,10 @@ def test_long_input_retains_budget_and_does_not_impute_nulls():
     class Model:
         device = "cpu"
 
+        def disable_adapter(self):
+            from contextlib import nullcontext
+            return nullcontext()
+
         def generate(self, **kwargs):
             ids = kwargs["input_ids"]
             assert ids.shape[1] == 1700
@@ -82,3 +86,16 @@ def test_screening_failure_preserves_native_outputs(unavailable,expected):
     assert result['journalScreening']['total'] is None
     assert result['categoryScores']==fixture['categoryScores']
     assert result['emotionDistribution']==fixture['emotionDistribution']
+
+
+def test_agreement_rejects_default_zeros_and_disagreements():
+    from app.model.screening import agreed_items
+    zero = dict.fromkeys(ITEMS, 0)
+    assert agreed_items(zero, dict.fromkeys(ITEMS))["total"] is None
+    assert agreed_items(zero, dict.fromkeys(ITEMS))["coverage"] == 0
+    partial = dict.fromkeys(ITEMS)
+    partial["sleep"] = 1
+    assert agreed_items({**zero, "sleep": 1}, partial)["items"] == partial
+    assert agreed_items({**zero, "sleep": 2}, partial)["coverage"] == 0
+    assert agreed_items(dict.fromkeys(ITEMS, 3), dict.fromkeys(ITEMS, 3))["total"] == 24
+    assert agreed_items(zero, zero)["total"] == 0

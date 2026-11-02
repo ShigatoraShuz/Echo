@@ -85,6 +85,8 @@ export function useJournalDetailViewModel(id: string) {
   const service = getJournalService();
   const lastLoadedAt = useRef(0);
   const active = useRef(true);
+  const entryReads = useRef(new Map<string, ReturnType<typeof service.getEntry>>());
+  const entryReadService = useRef(service);
   const loadEpoch = useRef(0);
   const invalidateLoads = useCallback(() => { ++loadEpoch.current; }, []);
 
@@ -93,7 +95,15 @@ export function useJournalDetailViewModel(id: string) {
       if (!active.current) return;
       const epoch = ++loadEpoch.current;
       dispatch({ type: "ENTRY_LOAD_START" });
-      const result = await service.getEntry(entryId);
+      if (entryReadService.current !== service) { entryReads.current.clear(); entryReadService.current = service; }
+      let read = entryReads.current.get(entryId);
+      if (!read) {
+        read = service.getEntry(entryId);
+        entryReads.current.set(entryId, read);
+        const created = read;
+        void read.finally(() => { if (entryReads.current.get(entryId) === created) entryReads.current.delete(entryId); }).catch(() => {});
+      }
+      const result = await read;
       if (epoch !== loadEpoch.current) return;
       if (result.success) {
         lastLoadedAt.current = Date.now();
@@ -125,7 +135,7 @@ export function useJournalDetailViewModel(id: string) {
 
   useEffect(() => {
     active.current = true;
-    const clear = () => { active.current = false; invalidateLoads(); dispatch({ type: "CLEAR" }); };
+    const clear = () => { active.current = false; entryReads.current.clear(); invalidateLoads(); dispatch({ type: "CLEAR" }); };
     window.addEventListener("echo:sensitive-state-cleared", clear);
     if (id) loadEntry(id);
     const refresh = () => {

@@ -2,7 +2,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
 
-const service = vi.hoisted(() => ({ createEntry: vi.fn(), saveDraft: vi.fn(), deleteDraft: vi.fn(), attachDraftImages:vi.fn() }));
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({
+  supabaseAuthTokenProvider: { getAccessToken: async () => "synthetic-test-token" },
+}));
+const service = vi.hoisted(() => ({
+  createEntry: vi.fn(),
+  saveDraft: vi.fn(),
+  deleteDraft: vi.fn(),
+  attachDraftImages: vi.fn(),
+}));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 vi.mock("@/config/environment", () => ({ env: { enableAnalysisFixtures: false } }));
 beforeEach(() => {
@@ -29,22 +37,35 @@ function editor() {
   return hook;
 }
 describe("journal submission retry contract", () => {
-  it("retries failed draft-photo attachment without submitting another journal", async()=>{
-    service.createEntry.mockResolvedValue({success:true,data:{id:"saved-journal"}});
-    service.attachDraftImages.mockResolvedValueOnce({success:false,error:{message:"Photo attachment failed"}}).mockResolvedValue({success:true,data:{attached:1}});
-    const {result}=editor();
-    await act(async()=>result.current.save());
+  it("retries failed draft-photo attachment without submitting another journal", async () => {
+    service.createEntry.mockResolvedValue({ success: true, data: { id: "saved-journal" } });
+    service.attachDraftImages
+      .mockResolvedValueOnce({ success: false, error: { message: "Photo attachment failed" } })
+      .mockResolvedValue({ success: true, data: { attached: 1 } });
+    const { result } = editor();
+    await act(async () => result.current.save());
     expect(service.deleteDraft).not.toHaveBeenCalled();
-    await act(async()=>result.current.save());
+    await act(async () => result.current.save());
     expect(service.createEntry).toHaveBeenCalledTimes(1);
     expect(service.attachDraftImages).toHaveBeenCalledTimes(2);
     expect(service.deleteDraft).toHaveBeenCalledWith(service.createEntry.mock.calls[0][1].idempotencyKey);
   });
-  it("stops autosave after successful analysis submission",async()=>{
-    service.createEntry.mockResolvedValue({success:true,data:{kind:"analysis",submission:{journalId:"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",analysisJobId:"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",status:"queued"}}});
-    const {result}=editor();await act(async()=>result.current.save());
-    const saved=service.saveDraft.mock.calls.length;
-    await act(async()=>vi.advanceTimersByTimeAsync(60_000));
+  it("stops autosave after successful analysis submission", async () => {
+    service.createEntry.mockResolvedValue({
+      success: true,
+      data: {
+        kind: "analysis",
+        submission: {
+          journalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          analysisJobId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          status: "queued",
+        },
+      },
+    });
+    const { result } = editor();
+    await act(async () => result.current.save());
+    const saved = service.saveDraft.mock.calls.length;
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
     expect(service.saveDraft).toHaveBeenCalledTimes(saved);
   });
   it("preserves draft and the same key through unchanged gate retries", async () => {
@@ -109,4 +130,32 @@ describe("journal submission retry contract", () => {
     expect(service.deleteDraft).toHaveBeenCalledTimes(1);
     window.removeEventListener("echo:analysis-submitted", listener);
   });
+});
+
+it("waits out a busy live model without creating another journal or losing the saved face", async () => {
+  const submission = {
+    journalId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    analysisJobId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    status: "queued",
+  };
+  service.createEntry.mockResolvedValue({ success: true, data: { kind: "analysis", submission } });
+  const post = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: "FACE_BUSY" } }), { status: 503 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
+  vi.stubGlobal("fetch", post);
+  const { result } = editor();
+  await act(async () => {
+    const saving = result.current.save({
+      requested: true,
+      image: new Blob(["synthetic test frame"], { type: "image/jpeg" }),
+    });
+    await vi.advanceTimersByTimeAsync(2000);
+    await saving;
+  });
+  expect(post).toHaveBeenCalledTimes(2);
+  expect(service.createEntry).toHaveBeenCalledTimes(1);
+  expect(service.deleteDraft).toHaveBeenCalledOnce();
+  expect(result.current.analysisSubmission).toEqual(submission);
+  vi.unstubAllGlobals();
 });

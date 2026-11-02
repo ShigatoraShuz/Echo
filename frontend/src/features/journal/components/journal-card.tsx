@@ -5,10 +5,9 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import journalLandscape from "../../../../assets/growth-doorway-hill.png";
 import type { JournalEntry } from "../model/journal.model";
-import { formatJournalDate, getMoodVisual } from "../utils/journal-formatters";
+import { formatJournalDate } from "../utils/journal-formatters";
 
 export function JournalCard({ entry, index = 0 }: { entry: JournalEntry; index?: number }) {
-  const mood = getMoodVisual(entry.mood);
   const date = formatJournalDate(entry.createdAt);
   const firstPhoto = entry.images?.[0];
   const extraPhotos = Math.max(0, (entry.images?.length ?? 0) - 1);
@@ -37,7 +36,6 @@ export function JournalCard({ entry, index = 0 }: { entry: JournalEntry; index?:
       </Link>
       <div className="px-2 pt-3">
         <p className="line-clamp-2 text-sm leading-5 text-muted-foreground">{entry.excerpt || entry.body || "A quiet moment worth keeping."}</p>
-        <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium" style={{ color: mood.badgeText }}><span aria-hidden="true">{mood.emoji}</span>{mood.label}</span>
       </div>
     </article>
   );

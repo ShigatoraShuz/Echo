@@ -179,7 +179,7 @@ export async function generateEchoPdfExport({
 
   const totalEntries = entries.length;
   const moodCounts = entries.reduce<Record<string, number>>((acc, e) => {
-    acc[e.mood] = (acc[e.mood] ?? 0) + 1;
+    for (const emotion of e.emotions) acc[emotion] = (acc[emotion] ?? 0) + 1;
     return acc;
   }, {});
   const topMood = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
@@ -194,7 +194,7 @@ export async function generateEchoPdfExport({
 
   const stats = [
     { label: "Total Reflections", value: String(totalEntries) },
-    { label: "Primary Mood", value: moodEmoji(topMood) },
+    { label: "Top emotion signal", value: moodEmoji(topMood) },
     { label: "Avg. Distress Score", value: avgRisk === null ? "Unavailable" : `${avgRisk} / 100` },
   ];
 
@@ -214,7 +214,7 @@ export async function generateEchoPdfExport({
 
   // Mood breakdown bar chart (simple)
   setFont("bold", 11, PALETTE.text);
-  doc.text("Mood Distribution", MARGIN, y);
+  doc.text("Saved emotion signals", MARGIN, y);
   y += 6;
 
   const moods = Object.keys(moodCounts);
@@ -289,7 +289,7 @@ export async function generateEchoPdfExport({
     doc.setFillColor(...PALETTE.primaryBg);
     doc.roundedRect(MARGIN + 35, y, 32, 7, 2, 2, "F");
     setFont("normal", 7.5, PALETTE.muted);
-    doc.text(`Mood: ${capitalize(entry.mood)}`, MARGIN + 37, y + 4.8);
+    doc.text(`Emotion signals: ${entry.emotions.map(capitalize).join(", ") || "None recorded"}`, MARGIN + 37, y + 4.8);
 
     if (entry.emotions.length > 0) {
       setFont("normal", 7.5, PALETTE.muted);

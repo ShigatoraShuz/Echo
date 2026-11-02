@@ -1,3 +1,4 @@
+import { createElement, StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { getInsightsService } from "@/services/insights/insights-service.factory";
@@ -56,4 +57,14 @@ describe("Insights private read lifecycle", () => {
     await act(async () => { await result.current.retry(); });
     expect(result.current.error).toBeNull(); expect(result.current.overview).not.toBeNull();
   });
+});
+
+it("reuses one pending private read during Strict Mode replay", async () => {
+  const pending = deferred(); const read = vi.fn().mockReturnValue(pending.promise); service(read);
+  const wrapper = ({ children }: { children: React.ReactNode }) => createElement(StrictMode, null, children);
+  const { result } = renderHook(() => useInsightsViewModel(), { wrapper });
+  expect(read).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve(snapshot(1)));
+  expect(result.current.isLoading).toBe(false);
+  expect(result.current.overview?.period?.analyzedReflectionCount).toBe(1);
 });

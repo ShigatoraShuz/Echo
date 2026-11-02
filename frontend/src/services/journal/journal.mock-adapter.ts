@@ -218,7 +218,7 @@ export function createJournalMockAdapter(): JournalService {
     async createEntry(input) {
       await delay(200 + Math.random() * 200);
       const id = `entry-${getNextId()}`;
-      const score = calculateRiskScore(input.mood);
+      const score = input.mood ? calculateRiskScore(input.mood) : 0;
       const now = new Date().toISOString().split("T")[0];
       const entry: JournalEntry = {
         id,
@@ -226,7 +226,7 @@ export function createJournalMockAdapter(): JournalService {
         body: input.body,
         excerpt: generateExcerpt(input.body),
         mood: input.mood,
-        emotions: input.emotions.length > 0 ? input.emotions : moodEmotionMap[input.mood].slice(0, 2),
+        emotions: input.emotions.length > 0 ? input.emotions : input.mood ? moodEmotionMap[input.mood].slice(0, 2) : [],
         tags: input.tags,
         privacyStatus: input.privacyStatus,
         analysisConsent: input.analysisConsent,
@@ -307,7 +307,7 @@ export function createJournalMockAdapter(): JournalService {
         id: `analysis-${entryId}`,
         entryId: entry.id,
         summary: entry.summary,
-        perspective: generatePerspective(entry.mood),
+        perspective: entry.mood ? generatePerspective(entry.mood) : "No model result available in this development adapter.",
         moodInsight: `Your mood trend shows a pattern of ${entry.mood} reflections.`,
         riskIndication: `Current risk signal is ${entry.riskBand}.`,
         isDemoData: true,

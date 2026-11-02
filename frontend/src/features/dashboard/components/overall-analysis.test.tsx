@@ -31,10 +31,11 @@ describe("overall dashboard analysis", () => {
     render(<OverallAnalysis entries={[entry(60, "calm")]} />);
     expect(screen.getByText("0 reflections in this period")).toBeInTheDocument();
     expect(screen.getByText("No journal estimate comparison yet.")).toBeInTheDocument();
-    const disclosure = screen.getByText("Past 30 days").closest("details");
-    expect(disclosure).not.toHaveAttribute("open");
-    await userEvent.setup().click(screen.getByText("Past 30 days"));
-    expect(disclosure).toHaveAttribute("open");
+    const trigger = screen.getByRole("button", {name:"Details"});
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", {name:"Your past 30 days"})).toBeVisible();
     expect(screen.getByText(/At least three days with real analysis/i)).toBeInTheDocument();
   });
 
@@ -53,8 +54,8 @@ describe("overall dashboard analysis", () => {
     render(<OverallAnalysis entries={[entry(1, "calm"), entry(2, "happy"), entry(3, "calm")]} insights={insights} />);
     expect(screen.getByText("3 reflections across 3 days")).toBeInTheDocument();
     expect(screen.getByText("Journal distress estimate: lower across 3 real analysis days.")).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByText("Past 30 days"));
+    await userEvent.setup().click(screen.getByRole("button", {name:"Details"}));
     expect(screen.getByText(/These summaries describe saved reflections/i)).toBeInTheDocument();
-    expect(screen.getByText("Moods you recorded")).toBeInTheDocument();
+    expect(screen.getByText("Saved AI analysis days")).toBeInTheDocument();
   });
 });

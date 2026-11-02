@@ -3,7 +3,7 @@ param([string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
 $ErrorActionPreference = 'Stop'
 $echoRoot = Split-Path $PSScriptRoot -Parent
 if (!$Python) { $Python = Join-Path $echoRoot 'ai-service/.venv-core/Scripts/python.exe' }
-if (!$ModelsRoot) { $ModelsRoot = Join-Path $echoRoot 'backend/models' }
+if (!$ModelsRoot) { $ModelsRoot = Join-Path (Split-Path $echoRoot -Parent) 'models' }
 if (!(Test-Path -LiteralPath $Python) -or !(Test-Path -LiteralPath (Join-Path $ModelsRoot 'manifest.json'))) {
     throw 'Prepare the isolated core environment and verified installed manifest first.'
 }

@@ -10,7 +10,7 @@ export async function evaluateFinalFace(image: Buffer) {
     const fail=()=>reject(new ExternalServiceError("FACE_UNAVAILABLE","Face analysis could not complete. Please try again."));
     const env:NodeJS.ProcessEnv={PYTHONDONTWRITEBYTECODE:"1",PYTHONIOENCODING:"utf-8"};
     for(const key of ["SYSTEMROOT","WINDIR","PATH","TEMP","TMP","LOCALAPPDATA","USERPROFILE"])if(process.env[key])env[key]=process.env[key];
-    const child=spawn(resolve("../ai-service/.venv-face/Scripts/python.exe"),["-B",resolve("../ai-service/app/face_eval_memory.py"),resolve("models/face-final")],{env,windowsHide:true,stdio:["pipe","pipe","ignore"]});
+    const child=spawn(resolve("../ai-service/.venv-face/Scripts/python.exe"),["-B",resolve("../ai-service/app/face_eval_memory.py"),resolve(process.env.MODELS_ROOT || "../../models", "face-final")],{env,windowsHide:true,stdio:["pipe","pipe","ignore"]});
     let output=Buffer.alloc(0);
     const timer=setTimeout(()=>{child.kill();fail();},60000);
     child.stdout.on("data",chunk=>{output=Buffer.concat([output,chunk]);if(output.length>1024*1024){child.kill();fail();}});

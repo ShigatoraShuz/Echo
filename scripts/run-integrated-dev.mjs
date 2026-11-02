@@ -36,7 +36,7 @@ try {
     await Promise.all([3000, 4200, 8002].map(port => checkPort(port)));
     const configured = { ...parseEnv(readFileSync(path.join(root, 'backend/.env'), 'utf8')), ...process.env };
     const python = configured.ECHO_MODEL_PYTHON || path.join(root, 'ai-service/.venv-core/Scripts/python.exe');
-    const models = configured.MODELS_ROOT || path.join(root, 'backend/models');
+    const models = path.resolve(root, configured.MODELS_ROOT || '../models');
     if (!existsSync(python) || !existsSync(path.join(models, 'manifest.json'))) throw Error('Install the model bundle and ai-service/.venv-core before starting models.');
     const settingsPath = path.join(root, 'backend/.local-development/native-runtime.json');
     if (!existsSync(settingsPath)) throw Error('Configure backend/.local-development/native-runtime.json with the intended Supabase project and development account IDs first. See docs/setup/INTEGRATED_MODELS.md.');

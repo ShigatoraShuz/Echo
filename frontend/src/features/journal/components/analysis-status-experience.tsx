@@ -59,8 +59,10 @@ const checkPresentation: Record<AnalysisCheckId, { label: string; icon: LucideIc
 
 function CheckStatusIcon({ state }: { state: AnalysisCheckProgress["state"] }) {
   if (state === "complete") return <Check className="h-4 w-4" aria-hidden="true" />;
-  if (state === "running") return <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />;
-  if (state === "attention_required" || state === "failed") return <AlertTriangle className="h-4 w-4" aria-hidden="true" />;
+  if (state === "running")
+    return <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />;
+  if (state === "attention_required" || state === "failed")
+    return <AlertTriangle className="h-4 w-4" aria-hidden="true" />;
   if (state === "partial" || state === "skipped") return <Minus className="h-4 w-4" aria-hidden="true" />;
   return <Circle className="h-3.5 w-3.5" aria-hidden="true" />;
 }
@@ -72,12 +74,18 @@ function AnalysisCheckList({ checks }: { checks: AnalysisCheckProgress[] }) {
         const presentation = checkPresentation[check.id];
         const Icon = presentation.icon;
         return (
-          <li key={check.id} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-[border-color,background-color] duration-200 ease-out ${
-            check.state === "running" ? "border-primary/25 bg-primary/[.07]" :
-            check.state === "complete" ? "border-emerald-700/10 bg-emerald-50/55" :
-            check.state === "attention_required" || check.state === "failed" ? "border-warning/25 bg-warning/[.08]" :
-            "border-border/55 bg-card/55"
-          }`}>
+          <li
+            key={check.id}
+            className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-[border-color,background-color] duration-200 ease-out ${
+              check.state === "running"
+                ? "border-primary/25 bg-primary/[.07]"
+                : check.state === "complete"
+                  ? "border-emerald-700/10 bg-emerald-50/55"
+                  : check.state === "attention_required" || check.state === "failed"
+                    ? "border-warning/25 bg-warning/[.08]"
+                    : "border-border/55 bg-card/55"
+            }`}
+          >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-card text-primary shadow-sm">
               <Icon className="h-4 w-4" aria-hidden="true" />
             </span>
@@ -85,12 +93,20 @@ function AnalysisCheckList({ checks }: { checks: AnalysisCheckProgress[] }) {
               <p className="text-sm font-semibold text-foreground">{presentation.label}</p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{check.detail}</p>
             </div>
-            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-              check.state === "complete" ? "bg-emerald-700 text-white" :
-              check.state === "running" ? "bg-primary text-primary-foreground" :
-              check.state === "attention_required" || check.state === "failed" ? "bg-warning text-white" :
-              check.state === "partial" ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"
-            }`} aria-label={check.state.replaceAll("_", " ")}>
+            <span
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
+                check.state === "complete"
+                  ? "bg-emerald-700 text-white"
+                  : check.state === "running"
+                    ? "bg-primary text-primary-foreground"
+                    : check.state === "attention_required" || check.state === "failed"
+                      ? "bg-warning text-white"
+                      : check.state === "partial"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-secondary text-muted-foreground"
+              }`}
+              aria-label={check.state.replaceAll("_", " ")}
+            >
               <CheckStatusIcon state={check.state} />
             </span>
           </li>
@@ -119,13 +135,19 @@ function clearStoredAnalysis() {
   }
 }
 
-export function AnalysisStatusExperience({ initialSubmission = null }: { initialSubmission?: JournalSubmissionResponse | null }) {
+export function AnalysisStatusExperience({
+  initialSubmission = null,
+  embedded = false,
+}: {
+  initialSubmission?: JournalSubmissionResponse | null;
+  embedded?: boolean;
+}) {
   const [submission, setSubmission] = useState<JournalSubmissionResponse | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [pollingPaused,setPollingPaused]=useState(false);
-  const [pollingEpoch,setPollingEpoch]=useState(0);
+  const [pollingPaused, setPollingPaused] = useState(false);
+  const [pollingEpoch, setPollingEpoch] = useState(0);
   const [country, setCountry] = useState("PH");
   const [resources, setResources] = useState<
     Array<{
@@ -142,16 +164,19 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   const currentProgress = useRef<AnalysisProgress | null>(null);
   const notifiedJob = useRef<string | null>(null);
 
-  const changeVisibility = useCallback((state: "open" | "minimized" | "dismissed") => {
-    try {
-      if (state === "open") localStorage.removeItem(VISIBILITY_KEY);
-      else if (submission) localStorage.setItem(VISIBILITY_KEY, `${submission.analysisJobId}:${state}`);
-    } catch {
-      /* The current view still responds when browser storage is unavailable. */
-    }
-    setMinimized(state === "minimized");
-    setDismissed(state === "dismissed");
-  }, [submission]);
+  const changeVisibility = useCallback(
+    (state: "open" | "minimized" | "dismissed") => {
+      try {
+        if (state === "open") localStorage.removeItem(VISIBILITY_KEY);
+        else if (submission) localStorage.setItem(VISIBILITY_KEY, `${submission.analysisJobId}:${state}`);
+      } catch {
+        /* The current view still responds when browser storage is unavailable. */
+      }
+      setMinimized(state === "minimized");
+      setDismissed(state === "dismissed");
+    },
+    [submission],
+  );
 
   const update = useCallback((next: AnalysisProgress) => {
     const current = currentProgress.current;
@@ -161,34 +186,44 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
     currentProgress.current = monotonic;
     setProgress(monotonic);
     if (next.status === "safety_action_required" && current?.status !== "safety_action_required") {
-      try { localStorage.removeItem(VISIBILITY_KEY); } catch { /* Keep urgent support visible. */ }
+      try {
+        localStorage.removeItem(VISIBILITY_KEY);
+      } catch {
+        /* Keep urgent support visible. */
+      }
       setMinimized(false);
       setDismissed(false);
       window.dispatchEvent(new CustomEvent("echo:safety-support", { detail: { journalId: next.journalId } }));
     }
     if (next.status === "completed" && notifiedJob.current !== next.jobId) {
       notifiedJob.current = next.jobId;
-      window.dispatchEvent(new CustomEvent("echo:analysis-completed", {
-        detail: { journalId: next.journalId, analysisJobId: next.jobId },
-      }));
+      window.dispatchEvent(
+        new CustomEvent("echo:analysis-completed", {
+          detail: { journalId: next.journalId, analysisJobId: next.jobId },
+        }),
+      );
       window.dispatchEvent(new Event("echo:notifications-changed"));
     }
   }, []);
 
   useEffect(() => {
-    const saved = initialSubmission ?? storedSubmission();
+    const saved = initialSubmission ?? (embedded ? null : storedSubmission());
     setSubmission(saved);
     if (saved) {
       try {
         const visibility = localStorage.getItem(VISIBILITY_KEY);
-        setMinimized(visibility === `${saved.analysisJobId}:minimized`);
-        setDismissed(visibility === `${saved.analysisJobId}:dismissed`);
+        setMinimized(!embedded && visibility === `${saved.analysisJobId}:minimized`);
+        setDismissed(!embedded && visibility === `${saved.analysisJobId}:dismissed`);
       } catch {
         /* A fresh view is available when browser storage cannot be read. */
       }
     }
     const listener = (event: Event) => {
-      try { localStorage.removeItem(VISIBILITY_KEY); } catch { /* New progress still opens. */ }
+      try {
+        localStorage.removeItem(VISIBILITY_KEY);
+      } catch {
+        /* New progress still opens. */
+      }
       setProgress(null);
       currentProgress.current = null;
       setSubmission((event as CustomEvent<JournalSubmissionResponse>).detail);
@@ -215,21 +250,25 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
       window.removeEventListener("echo:analysis-submitted", listener);
       unsubscribe?.();
     };
-  }, [initialSubmission]);
+  }, [initialSubmission, embedded]);
 
   useEffect(() => {
     if (!submission) return;
     let cancelled = false;
-    let inFlight=false;
-    const deadline=Date.now()+5*60_000;
+    let inFlight = false;
+    const deadline = Date.now() + 5 * 60_000;
     const service = getJournalService();
     const poll = async () => {
-      if(inFlight || cancelled || Date.now()>=deadline)return;
-      inFlight=true;
-      let result:Awaited<ReturnType<NonNullable<typeof service.getAnalysisStatus>>>|undefined;
-      try {result = await service.getAnalysisStatus?.(submission.analysisJobId);}
-      catch {return;}
-      finally {inFlight=false;}
+      if (inFlight || cancelled || Date.now() >= deadline) return;
+      inFlight = true;
+      let result: Awaited<ReturnType<NonNullable<typeof service.getAnalysisStatus>>> | undefined;
+      try {
+        result = await service.getAnalysisStatus?.(submission.analysisJobId);
+      } catch {
+        return;
+      } finally {
+        inFlight = false;
+      }
       if (cancelled) return;
       if (result?.success) update(result.data);
       else if (result && ["NOT_FOUND", "UNAUTHORIZED", "FORBIDDEN"].includes(result.error.code)) {
@@ -241,26 +280,31 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
     };
     void poll();
     const interval = window.setInterval(() => {
-      if(Date.now()>=deadline){clearInterval(interval);setPollingPaused(true);return;}
+      if (Date.now() >= deadline) {
+        clearInterval(interval);
+        setPollingPaused(true);
+        return;
+      }
       if (!["completed", "failed"].includes(currentProgress.current?.status ?? "")) void poll();
     }, 5_000);
     let channel: ReturnType<ReturnType<typeof createBrowserSupabaseClient>["channel"]> | undefined;
     try {
-      if(submission.storage!=="local_json")channel = createBrowserSupabaseClient()
-        .channel(`analysis-status:${submission.analysisJobId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "analysis_status_projection",
-            filter: `job_id=eq.${submission.analysisJobId}`,
-          },
-          () => {
-            void poll();
-          },
-        )
-        .subscribe();
+      if (submission.storage !== "local_json")
+        channel = createBrowserSupabaseClient()
+          .channel(`analysis-status:${submission.analysisJobId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "analysis_status_projection",
+              filter: `job_id=eq.${submission.analysisJobId}`,
+            },
+            () => {
+              void poll();
+            },
+          )
+          .subscribe();
     } catch {
       /* polling remains authoritative fallback */
     }
@@ -269,7 +313,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
       clearInterval(interval);
       if (channel) void createBrowserSupabaseClient().removeChannel(channel);
     };
-  }, [submission, update,pollingEpoch]);
+  }, [submission, update, pollingEpoch]);
 
   useEffect(() => {
     if (progress?.status !== "safety_action_required") return;
@@ -290,7 +334,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   }, [progress?.status, country]);
 
   useEffect(() => {
-    if (!submission || minimized || dismissed) return;
+    if (embedded || !submission || minimized || dismissed) return;
     dialogRef.current?.focus();
     const previousFocus = document.activeElement as HTMLElement | null;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -319,7 +363,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
       window.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [submission, minimized, dismissed, progress?.status, changeVisibility]);
+  }, [submission, minimized, dismissed, progress?.status, changeVisibility, embedded]);
 
   if (!submission || dismissed) return null;
   const status = progress?.status ?? submission.status;
@@ -327,7 +371,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   const label = status === "queued" && value >= 70 ? "Trying again safely" : stageLabels[status];
   const facialStatus = progress?.facialStatus ?? submission.facialStatus;
   const checks = progress?.checks ?? analysisChecksFor(status, facialStatus, value);
-  if (minimized)
+  if (minimized && !embedded)
     return (
       <button
         type="button"
@@ -344,16 +388,24 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
   const safety = status === "safety_action_required";
   return (
     <div
-      className="analysis-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-[rgba(16,42,36,.32)] p-4 backdrop-blur-sm"
+      className={
+        embedded
+          ? "journal-inline-analysis"
+          : "analysis-modal-backdrop fixed inset-0 z-[70] grid place-items-center bg-[rgba(16,42,36,.32)] p-4 backdrop-blur-sm"
+      }
       role="presentation"
     >
       <div
         ref={dialogRef}
         tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
+        role={embedded ? "region" : "dialog"}
+        aria-modal={embedded ? undefined : true}
         aria-labelledby="analysis-dialog-title"
-        className="analysis-modal-surface max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,253,247,.99),rgba(230,239,224,.97))] p-5 shadow-[0_30px_90px_rgba(16,42,36,.22)] outline-none sm:p-7"
+        className={
+          embedded
+            ? "outline-none"
+            : "analysis-modal-surface max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,253,247,.99),rgba(230,239,224,.97))] p-5 shadow-[0_30px_90px_rgba(16,42,36,.22)] outline-none sm:p-7"
+        }
       >
         <div className="flex items-start justify-between gap-4">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
@@ -365,7 +417,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
               <Leaf aria-hidden="true" />
             )}
           </div>
-          {!safety ? (
+          {!embedded && !safety ? (
             <div className="flex gap-1">
               <button
                 type="button"
@@ -396,7 +448,11 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
           >
             {label}
           </h2>
-          {waiting ? <p className="mt-3 text-sm leading-6 text-muted-foreground">Your journal was saved securely. Analysis will begin when the private provider is available.</p> : null}
+          {waiting ? (
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Your journal was saved securely. Analysis will begin when the private provider is available.
+            </p>
+          ) : null}
           {failed ? (
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Your journal remains saved securely. You can return to it at any time.
@@ -440,7 +496,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
               >
                 <div
                   className="h-full origin-left rounded-full bg-primary transition-transform duration-200 ease-out motion-reduce:transition-none"
-                  style={{ transform: `scaleX(${value/100})` }}
+                  style={{ transform: `scaleX(${value / 100})` }}
                 />
               </div>
               <p className="mt-2 text-right text-xs font-medium text-muted-foreground">{value}%</p>
@@ -448,16 +504,36 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
           ) : null}
           {!complete && !safety ? (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/10 bg-card/55 px-4 py-3">
-              <p className="text-xs leading-5 text-muted-foreground">You can safely close this window. Your analysis will continue in the background.</p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Your journal is saved. Analysis continues here and in the background.
+              </p>
               {env.enableAnalysisPreview ? (
-                <Link href="/analysis-preview" onClick={() => changeVisibility("dismissed")} className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15">
+                <Link
+                  href="/analysis-preview"
+                  onClick={() => changeVisibility("dismissed")}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-primary/15"
+                >
                   Preview analysis page <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               ) : null}
             </div>
           ) : null}
-          {pollingPaused && !complete && !failed && !safety ? <p role="status" className="mt-3 text-xs text-muted-foreground">Automatic status checks paused after five minutes. Your journal is saved. <button type="button" className="font-semibold text-primary underline" onClick={()=>{setPollingPaused(false);setPollingEpoch(epoch=>epoch+1);}}>Check status again</button></p> : null}
-          {complete ? (
+          {pollingPaused && !complete && !failed && !safety ? (
+            <p role="status" className="mt-3 text-xs text-muted-foreground">
+              Automatic status checks paused after five minutes. Your journal is saved.{" "}
+              <button
+                type="button"
+                className="font-semibold text-primary underline"
+                onClick={() => {
+                  setPollingPaused(false);
+                  setPollingEpoch((epoch) => epoch + 1);
+                }}
+              >
+                Check status again
+              </button>
+            </p>
+          ) : null}
+          {complete && !embedded ? (
             <>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Processing is complete. Open your saved reflection to see available results and model limitations.
@@ -476,7 +552,7 @@ export function AnalysisStatusExperience({ initialSubmission = null }: { initial
               </div>
             </>
           ) : null}
-          {failed ? (
+          {failed && !embedded ? (
             <button
               type="button"
               onClick={() => changeVisibility("dismissed")}

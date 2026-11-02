@@ -1,19 +1,24 @@
 "use client";
 
-import {SavedFaceResults} from "@/features/journal/components/saved-face-results";
+import { useState } from "react";
+import { EchoDialog } from "@/shared/components/ui/echo-dialog";
+import { SavedFaceResults } from "@/features/journal/components/saved-face-results";
 import { Activity, ChevronDown, HeartPulse, Radar } from "lucide-react";
 import type { DashboardInsights, LegacyJournalAnalysisResult as JournalAnalysisResult } from "@echo/contracts";
 import dynamic from "next/dynamic";
-const ModelPipelinePanel=dynamic(()=>import("@/features/journal/components/model-pipeline-panel").then(m=>m.ModelPipelinePanel));
+const ModelPipelinePanel = dynamic(() =>
+  import("@/features/journal/components/model-pipeline-panel").then((m) => m.ModelPipelinePanel),
+);
 import { AnalysisBuddyAction } from "./analysis-buddy-action";
 import { analysisSummary } from "@/features/journal/model/analysis-summary";
 import { AnalysisRequestStatus } from "@/features/journal/components/analysis-request-status";
-import { NativeAnalysis } from "@/features/journal/components/native-analysis";
+const NativeAnalysis = dynamic(() => import("@/features/journal/components/native-analysis").then(m => m.NativeAnalysis), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
+  const [detailOpen, setDetailOpen] = useState(false);
   if (!insights?.latest || insights.latest.isSimulated)
     return (
-      <section className="echo-compact-card [background:hsl(var(--card))] min-w-0 xl:col-span-3 xl:p-4" aria-labelledby="analysis-empty-title">
+      <section className="dashboard-analysis-summary min-w-0" aria-labelledby="analysis-empty-title">
         <AnalysisRequestStatus insights={insights} />
         <h2 id="analysis-empty-title" className="text-sm font-semibold text-foreground">
           Journal analysis
@@ -26,39 +31,84 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
     );
   const result = insights.latest;
   const summary = analysisSummary(result);
-  if (result.schemaVersion !== "echo-journal-analysis-v1") return (
-    <section className="min-w-0 rounded-3xl border border-primary/15 bg-card p-5 shadow-card lg:col-span-2 xl:col-span-5 has-[details[open]]:col-span-full" aria-label="Saved AI result summary">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">From your saved reflection</p>
-          <h2 className="mt-1 font-[family-name:var(--font-echo-display)] text-2xl text-foreground">Journal analysis</h2>
-          {insights.latestAnalyzedAt ? <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-xs text-muted-foreground">{new Date(insights.latestAnalyzedAt).toLocaleString()}</time> : null}
+  if (result.schemaVersion !== "echo-journal-analysis-v1")
+    return (
+      <section className="dashboard-analysis-summary min-w-0" aria-label="Saved AI result summary">
+        <div>
+          <div className="dashboard-summary-trigger">
+            <div className="min-w-0">
+              <h2 className="dashboard-eyebrow">Journal analysis</h2>
+              <p className="mt-2 text-lg font-semibold capitalize text-foreground">
+                {summary.emotion ?? "Emotion unavailable"} <span className="text-primary/30">·</span>{" "}
+                {summary.distress ?? "Category unavailable"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {summary.status === "complete" ? "Complete" : "Partial"} saved analysis · not a diagnosis
+              </p>
+              {insights.latestAnalyzedAt && (
+                <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-[10px] text-muted-foreground">
+                  {new Date(insights.latestAnalyzedAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </time>
+              )}
+            </div>
+            <button
+              type="button"
+              className="dashboard-details-label"
+              aria-haspopup="dialog"
+              aria-expanded={detailOpen}
+              onClick={() => setDetailOpen(true)}
+            >
+              Details
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+          </div>
+          <EchoDialog
+            open={detailOpen}
+            onClose={() => setDetailOpen(false)}
+            title="Journal analysis details"
+            description="Your saved model report and its limitations."
+            size="large"
+            className="dashboard-detail-dialog"
+          >
+            <div className="dashboard-detail-intro">
+              <p className="text-sm text-muted-foreground">
+                Your saved model report. Missing results stay unavailable.
+              </p>
+            </div>
+            <SavedFaceResults insights={insights} />
+            {result.schemaVersion === "echo-model-pipeline-v2" ? (
+              <ModelPipelinePanel result={result} />
+            ) : (
+              <NativeAnalysis result={result} insights={insights} />
+            )}
+          </EchoDialog>
         </div>
-        <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">{summary.status === "complete" ? "Complete analysis" : "Partial analysis"}</span>
-      </header>
-      <dl className="mt-4 grid grid-cols-2 gap-3">
-        <div className="min-w-0 rounded-2xl bg-secondary/50 p-4"><dt className="text-xs text-foreground/80">Strongest emotion signal</dt><dd className="mt-2 break-words text-2xl font-semibold capitalize text-foreground">{summary.emotion ?? "Unavailable"}</dd></div>
-        <div className="min-w-0 rounded-2xl border border-border p-4"><dt className="text-xs text-foreground/80">Journal category</dt><dd className="mt-2 break-words text-2xl font-semibold text-foreground">{summary.distress ?? "Unavailable"}</dd></div>
-      </dl>
-      <p className="mt-3 text-xs leading-5 text-muted-foreground">Saved model signals support reflection. They are not a diagnosis or a measure of your safety.</p>
-      <SavedFaceResults insights={insights}/>
-      <AnalysisRequestStatus insights={insights} />
-      <details className="group mt-4 border-t border-border pt-2">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl text-sm font-semibold text-primary outline-none focus-visible:ring-4 focus-visible:ring-ring/20">Explore saved result<ChevronDown className="h-4 w-4 group-open:rotate-180" aria-hidden="true" /></summary>
-        <div className="mt-3">{result.schemaVersion === "echo-model-pipeline-v2" ? <ModelPipelinePanel result={result} /> : <NativeAnalysis result={result} insights={insights} />}</div>
-      </details>
-    </section>
-  );
+        <AnalysisRequestStatus insights={insights} />
+      </section>
+    );
   const realTrend = insights.emotionTrend.filter((point) => !point.isSimulated);
   return (
-    <details className="echo-compact-card [background:hsl(var(--card))] group min-w-0 open:lg:col-span-2 xl:col-span-3 xl:p-4 open:xl:col-span-12" aria-labelledby="analysis-insights-title">
-      <summary className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-ring/20 [&::-webkit-details-marker]:hidden">
+    <section className="dashboard-analysis-summary group min-w-0" aria-labelledby="analysis-insights-title">
+      <div className="dashboard-summary-trigger">
         <div className="min-w-0">
-          <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">Journal analysis</h2>
+          <h2 id="analysis-insights-title" className="text-sm font-semibold text-foreground">
+            Journal analysis
+          </h2>
           <p className="mt-1 text-lg font-semibold capitalize text-foreground">
-            {result.isSimulated ? "Sample analysis preview" : `${result.dominantEmotion} emotion · ${result.distressBand} distress`}
+            {result.isSimulated
+              ? "Sample analysis preview"
+              : `${result.dominantEmotion} emotion · ${result.distressBand} distress`}
           </p>
           <p className="mt-1 text-xs text-[var(--landing-muted)]">Reflective estimate, not a diagnosis.</p>
-          {insights.latestAnalyzedAt ? <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-xs text-muted-foreground">{new Date(insights.latestAnalyzedAt).toLocaleString()}</time> : null}
+          {insights.latestAnalyzedAt ? (
+            <time dateTime={insights.latestAnalyzedAt} className="mt-1 block text-xs text-muted-foreground">
+              {new Date(insights.latestAnalyzedAt).toLocaleString()}
+            </time>
+          ) : null}
           <AnalysisRequestStatus insights={insights} />
           {result.isSimulated ? (
             <span className="mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">
@@ -66,77 +116,99 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
             </span>
           ) : null}
         </div>
-        <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+        <button
+          type="button"
+          className="dashboard-details-label"
+          aria-haspopup="dialog"
+          aria-expanded={detailOpen}
+          onClick={() => setDetailOpen(true)}
+        >
           <span>Details</span>
-          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-        </span>
-      </summary>
-      <div className="mt-4 grid gap-4 lg:grid-cols-12">
-        {result.isSimulated ? (
-          <p role="note" className="rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 lg:col-span-12">
-            These figures are a development example. They do not describe your wellbeing or represent a validated model result.
-          </p>
-        ) : null}
-        <article className="border-t border-border/70 pt-4 lg:col-span-5">
-          <div className="flex items-center gap-3">
-            <Radar className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h3 className="font-semibold">Emotion distribution</h3>
-          </div>
-          <EmotionRadar result={result} />
-        </article>
-        <article className="border-t border-border/70 pt-4 lg:col-span-3">
-          <div className="flex items-center gap-3">
-            <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h3 className="font-semibold">Distress classification</h3>
-          </div>
-          <p className="mt-5 font-[family-name:var(--font-echo-display)] text-4xl font-semibold capitalize">
-            {result.distressBand}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Confidence {Math.round(result.distressConfidence * 100)}%
-          </p>
-        </article>
-        <article className="border-t border-border/70 pt-4 lg:col-span-4">
-          <div className="flex items-center gap-3">
-            <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h3 className="font-semibold">AI-estimated depressive-symptom range</h3>
-          </div>
-          <p className="mt-5 font-[family-name:var(--font-echo-display)] text-4xl font-semibold">
-            {result.depressiveSymptomRange.lower}–{result.depressiveSymptomRange.upper}
-          </p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            This AI-generated estimate is not a diagnosis or completed PHQ-8 assessment.
-          </p>
-        </article>
-        <article className="border-t border-border/70 pt-4 lg:col-span-7">
-          <h3 className="font-semibold">Thirty-day emotion and distress mapping</h3>
-          {insights.emotionTrend.length < 2 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              There is not enough dated analysis to describe a trend yet.
-            </p>
-          ) : (
-            <TrendBars insights={insights} />
-          )}
-          {realTrend.length === 0 && insights.emotionTrend.length > 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Only simulated points are shown; they are excluded from production aggregates.
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+      <EchoDialog
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title="Journal analysis details"
+        description="Your saved model report and its limitations."
+        size="large"
+        className="dashboard-detail-dialog"
+      >
+        <div className="grid gap-4 lg:grid-cols-12">
+          {result.isSimulated ? (
+            <p role="note" className="rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 lg:col-span-12">
+              These figures are a development example. They do not describe your wellbeing or represent a validated
+              model result.
             </p>
           ) : null}
-        </article>
-        <article className="border-t border-border/70 pt-4 lg:col-span-5">
-          <h3 className="font-semibold">Reviewed CBT-informed recommendation</h3>
-          {insights.recommendation ? (
-            <>
-              <p className="mt-4 text-lg font-semibold">{insights.recommendation.title}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{insights.recommendation.description}</p>
-              {result.isSimulated ? <p className="mt-3 text-xs text-muted-foreground">Buddy handoff is unavailable for a simulated result.</p> : <AnalysisBuddyAction resultId={insights.latestResultId} />}
-            </>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">No reviewed recommendation is available.</p>
-          )}
-        </article>
-      </div>
-    </details>
+          <article className="border-t border-border/70 pt-4 lg:col-span-5">
+            <div className="flex items-center gap-3">
+              <Radar className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h3 className="font-semibold">Emotion distribution</h3>
+            </div>
+            <EmotionRadar result={result} />
+          </article>
+          <article className="border-t border-border/70 pt-4 lg:col-span-3">
+            <div className="flex items-center gap-3">
+              <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h3 className="font-semibold">Distress classification</h3>
+            </div>
+            <p className="mt-5 font-[family-name:var(--font-echo-display)] text-4xl font-semibold capitalize">
+              {result.distressBand}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Confidence {Math.round(result.distressConfidence * 100)}%
+            </p>
+          </article>
+          <article className="border-t border-border/70 pt-4 lg:col-span-4">
+            <div className="flex items-center gap-3">
+              <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h3 className="font-semibold">AI-estimated depressive-symptom range</h3>
+            </div>
+            <p className="mt-5 font-[family-name:var(--font-echo-display)] text-4xl font-semibold">
+              {result.depressiveSymptomRange.lower}–{result.depressiveSymptomRange.upper}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              This AI-generated estimate is not a diagnosis or completed PHQ-8 assessment.
+            </p>
+          </article>
+          <article className="border-t border-border/70 pt-4 lg:col-span-7">
+            <h3 className="font-semibold">Thirty-day emotion and distress mapping</h3>
+            {insights.emotionTrend.length < 2 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                There is not enough dated analysis to describe a trend yet.
+              </p>
+            ) : (
+              <TrendBars insights={insights} />
+            )}
+            {realTrend.length === 0 && insights.emotionTrend.length > 0 ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Only simulated points are shown; they are excluded from production aggregates.
+              </p>
+            ) : null}
+          </article>
+          <article className="border-t border-border/70 pt-4 lg:col-span-5">
+            <h3 className="font-semibold">Reviewed CBT-informed recommendation</h3>
+            {insights.recommendation ? (
+              <>
+                <p className="mt-4 text-lg font-semibold">{insights.recommendation.title}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{insights.recommendation.description}</p>
+                {result.isSimulated ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Buddy handoff is unavailable for a simulated result.
+                  </p>
+                ) : (
+                  <AnalysisBuddyAction resultId={insights.latestResultId} />
+                )}
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">No reviewed recommendation is available.</p>
+            )}
+          </article>
+        </div>
+      </EchoDialog>
+    </section>
   );
 }
 

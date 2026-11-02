@@ -31,7 +31,6 @@ def main():
         runtime = CoreRuntime(
             SimpleNamespace(models_root=sys.argv[1], queue_limit=1), text_only=True
         )
-        runtime.screening_unavailable = runtime.screening_unavailable or "SEMANTIC_VALIDATION_PENDING"
     emit({"ready": True})
     try:
         while True:

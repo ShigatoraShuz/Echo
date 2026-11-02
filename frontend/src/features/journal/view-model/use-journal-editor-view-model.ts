@@ -2,13 +2,7 @@
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type {
-  JournalMood,
-  JournalPrivacyStatus,
-  CreateJournalInput,
-  JournalEntry,
-  JournalDraft,
-} from "../model/journal.model";
+import type { JournalPrivacyStatus, CreateJournalInput, JournalEntry, JournalDraft } from "../model/journal.model";
 import { JOURNAL_AUTOSAVE_INTERVAL_MS } from "../model/journal.constants";
 import { validateCreateJournalInput } from "../model/journal.schema";
 import { getJournalService } from "@/services/journal/journal-service.factory";
@@ -20,7 +14,6 @@ export type AutosaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 interface EditorState {
   title: string;
   body: string;
-  mood: JournalMood;
   emotions: string[];
   tags: string[];
   privacyStatus: JournalPrivacyStatus;
@@ -38,7 +31,7 @@ interface EditorState {
 
 type EditorAction =
   | { type: "RESTORE_DRAFT"; draft: JournalDraft }
-  | { type: "SET_FIELD"; field: "title" | "body" | "mood" | "privacyStatus"; value: string }
+  | { type: "SET_FIELD"; field: "title" | "body" | "privacyStatus"; value: string }
   | { type: "SET_EMOTIONS"; emotions: string[] }
   | { type: "SET_TAGS"; tags: string[] }
   | { type: "SET_ANALYSIS_CONSENT"; analysisConsent: boolean }
@@ -117,7 +110,7 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
 const initialEditorState: EditorState = {
   title: "",
   body: "",
-  mood: "calm",
+
   emotions: [],
   tags: [],
   privacyStatus: "private",
@@ -150,11 +143,16 @@ export function useJournalEditorViewModel() {
   const revision = useRef(0);
   const savedRevision = useRef(0);
 
+  const draftRead = useRef<ReturnType<NonNullable<typeof service.getDraft>> | null>(null);
   useEffect(() => {
     let active = true;
-    void service
-      .getDraft?.("current")
-      .then((result) => {
+    if (!draftRead.current && service.getDraft) {
+      const read = service.getDraft("current");
+      draftRead.current = read;
+      void read.finally(() => { if (draftRead.current === read) draftRead.current = null; }).catch(() => {});
+    }
+    void draftRead.current
+      ?.then((result) => {
         if (!active) return;
         if (result.success && result.data && !edited.current) {
           idempotencyKeyRef.current = result.data.submissionKey ?? crypto.randomUUID();
@@ -189,7 +187,7 @@ export function useJournalEditorViewModel() {
   }, []);
 
   const setField = useCallback(
-    (field: "title" | "body" | "mood" | "privacyStatus", value: string) => {
+    (field: "title" | "body" | "privacyStatus", value: string) => {
       if (!requestChanged()) return;
       dispatch({ type: "SET_FIELD", field, value });
     },
@@ -198,7 +196,6 @@ export function useJournalEditorViewModel() {
 
   const setTitle = useCallback((title: string) => setField("title", title), [setField]);
   const setBody = useCallback((body: string) => setField("body", body), [setField]);
-  const setMood = useCallback((mood: JournalMood) => setField("mood", mood), [setField]);
   const setPrivacyStatus = useCallback(
     (privacyStatus: JournalPrivacyStatus) => setField("privacyStatus", privacyStatus),
     [setField],
@@ -245,7 +242,7 @@ export function useJournalEditorViewModel() {
           id: state.savedEntry?.id ?? `draft-${Date.now()}`,
           title: state.title.trim(),
           body: state.body.trim(),
-          mood: state.mood,
+
           emotions: state.emotions,
           tags: state.tags,
           privacyStatus: state.privacyStatus,
@@ -277,7 +274,6 @@ export function useJournalEditorViewModel() {
   }, [
     state.title,
     state.body,
-    state.mood,
     state.emotions,
     state.tags,
     state.privacyStatus,
@@ -325,7 +321,6 @@ export function useJournalEditorViewModel() {
   }, [
     state.title,
     state.body,
-    state.mood,
     state.tags,
     state.privacyStatus,
     state.analysisConsent,
@@ -362,7 +357,7 @@ export function useJournalEditorViewModel() {
       const input: Record<string, unknown> = {
         title: state.title,
         body: state.body,
-        mood: state.mood,
+
         privacyStatus: state.privacyStatus,
       };
       const validation = validateCreateJournalInput(input);
@@ -379,7 +374,7 @@ export function useJournalEditorViewModel() {
         const createInput: CreateJournalInput = {
           title: state.title.trim(),
           body: state.body.trim(),
-          mood: state.mood,
+
           emotions: state.emotions,
           tags: state.tags,
           privacyStatus: state.privacyStatus,
@@ -420,16 +415,27 @@ export function useJournalEditorViewModel() {
           ) {
             const token = await supabaseAuthTokenProvider.getAccessToken();
             try {
-              const faceResponse=await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
-                method: "POST",
-                headers: { Authorization: "Bearer " + token, "Content-Type": "image/jpeg" },
-                body: facial.image,
-                signal: AbortSignal.timeout(65000),
-              });
-              if(!faceResponse.ok)throw new Error('Face result was not saved.');
-              window.dispatchEvent(new CustomEvent('echo:analysis-completed',{detail:{journalId}}));
+              const deadline = Date.now() + 65000;
+              while (true) {
+                const faceResponse = await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
+                  method: "POST",
+                  headers: { Authorization: "Bearer " + token, "Content-Type": "image/jpeg" },
+                  body: facial.image,
+                  signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+                });
+                if (faceResponse.ok) break;
+                const failure = await faceResponse.json().catch(() => null);
+                if (failure?.error?.code !== "FACE_BUSY" || Date.now() + 1000 >= deadline)
+                  throw new Error("Face result was not saved.");
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
+              window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId } }));
             } catch {
-              dispatch({type:"SAVE_ERROR",error:"Your reflection is saved, but face analysis was not saved. Start the camera and retry saving."}); return;
+              dispatch({
+                type: "SAVE_ERROR",
+                error: "Your reflection is saved, but face analysis was not saved. Check your camera and retry saving.",
+              });
+              return;
             }
           }
           const attached = await service.attachDraftImages(journalId);
@@ -476,7 +482,6 @@ export function useJournalEditorViewModel() {
     [
       state.title,
       state.body,
-      state.mood,
       state.emotions,
       state.tags,
       state.privacyStatus,
@@ -505,7 +510,6 @@ export function useJournalEditorViewModel() {
     draftReady,
     title: state.title,
     body: state.body,
-    mood: state.mood,
     emotions: state.emotions,
     tags: state.tags,
     privacyStatus: state.privacyStatus,
@@ -521,7 +525,6 @@ export function useJournalEditorViewModel() {
     fixture: state.fixture,
     setTitle,
     setBody,
-    setMood,
     setEmotions,
     setTags,
     setPrivacyStatus,

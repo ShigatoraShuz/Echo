@@ -6,20 +6,39 @@ This branch connects native text inference and final v4 face evaluation to Echo,
 
 1. Install Node 24+ and run `npm ci`.
 2. Supply the existing backend `.env` for your intended Supabase project. Preserve its encryption/idempotency keys. Never generate replacement encryption keys for an existing database.
-3. Obtain the existing approved text bundle from the team's model handover and install its manifest/files under `backend/models`. The immutable vendor bytes must match the bundle manifest. Use Python 3.12 and the isolated environments described in `ai-service/README.md` and `requirements-core-windows.lock`.
+3. Obtain the existing approved text bundle from the team's model handover and install its manifest/files under the sibling `../models` folder. The immutable vendor bytes must match the bundle manifest. Use Python 3.12 and the isolated environments described in `ai-service/README.md` and `requirements-core-windows.lock`.
 4. Obtain the COMPLETE final v4 `model-final/model` export from the team (six files including `package_checksums.json`). Run `python scripts/install-final-face.py "PATH_TO_MODEL_FINAL/model"`. Create `ai-service/.venv-face` and install `ai-service/requirements-face-windows.lock` there. Do not mix v3 and v4 runtime files.
-5. Apply repository migrations to a fresh database, or apply the two new 20261101 migrations to a matching existing database. They are already applied to the owner's hosted test project. Do not replay existing migrations blindly against an existing project.
+5. Apply repository migrations to a fresh database, or apply the native-worker and final-face migrations plus `20261101220000_remove_manual_journal_mood.sql` to a matching existing database. They are already applied to the owner's hosted test project. Do not replay existing migrations blindly against an existing project.
 6. Configure the ignored account/project scope as explained in [INTEGRATED_MODELS.md](INTEGRATED_MODELS.md). Use your intended development account IDs and a stable activation time. No credentials, weights or account-specific scope are included in Git.
 7. Run `npm run dev` once. The launcher starts native models, backend and frontend; hosted Supabase does not require Docker Desktop. First inference still loads model weights. Stop the old development terminal before starting another instance.
 
 ## Review flow
 
-Sign in with an approved adult test account, complete the normal verification/trusted-contact/policy gates, and enable journal/facial analysis in Privacy settings. Open Journal > New > More options > Start camera. Only the face-analysis status and controls should appear. Analyze expression evaluates a temporary frame using v4. Save a reflection while one usable face is detected; its separate face result must appear on the journal after reload, and in dashboard/insights saved facial signals. Stop camera or leave the page to release capture. Denying camera access must not prevent text-only journaling.
+Sign in with an approved adult test account, complete the normal verification/trusted-contact/policy gates, and enable journal/facial analysis in Privacy settings. In Settings > Privacy, turn Automatic facial analysis On and save Privacy. Open Journal > New and start writing: the live landmark mesh and corner status appear automatically; the raw webcam image remains hidden. More options and manual mood choices have been removed. The left card is the journal; the right card contains capture, model progress and the saved tabbed report. Save a reflection while one usable face is detected; its separate face result must appear on the journal after reload, and in dashboard/insights saved facial signals. Leave the page or turn the setting Off to release capture. Denying camera access must not prevent text-only journaling.
 
-Face frames are transient local inference inputs. Only the validated expression output is stored encrypted. Expression scores are uncalibrated, separate from text emotion and not evidence of a person's actual emotional state or a diagnosis. No neutral class exists in this model. PHQ-8 model estimates remain unavailable/null pending artifact semantic validation. Voice and realtime Talk are not enabled by this profile.
+Face frames are transient local inference inputs. Only the validated expression output is stored encrypted. Expression scores are uncalibrated, separate from text emotion and not evidence of a person's actual emotional state or a diagnosis. No neutral class exists in this model. PHQ-8 experimental estimates use conservative adapter/base agreement; missing or disagreeing criteria stay null, partial coverage is an unscaled subtotal, and only eight numeric criteria produce a total. The model outputs are not questionnaire responses or a diagnosis. Voice and realtime Talk are not enabled by this profile.
 
 ## Validation performed
 
-Actual physical camera -> browser indicator-only capture -> final v4 -> encrypted hosted journal result -> journal reload -> dashboard and insights was verified. No simulated camera was used for that completed run. SQL ownership/consent/browser-access checks passed in 24 disposable database suites; frontend/backend type checks and affected journal/dashboard/insights checks passed. The wider frontend suite previously passed 1,179 tests; it predates the final face persistence addition. Model reuse was compared with four identical before/after outputs; warm timings are workload observations, not universal latency guarantees.
+Actual physical camera -> browser capture with hidden raw video -> final v4 -> encrypted hosted journal result -> journal reload -> dashboard and insights was verified. No simulated camera was used for that completed run. SQL ownership/consent/browser-access checks passed in 24 disposable database suites; frontend/backend type checks and affected journal/dashboard/insights checks passed. The wider frontend suite previously passed 1,179 tests; it predates the final face persistence addition. Model reuse was compared with four identical before/after outputs; warm timings are workload observations, not universal latency guarantees.
 
 The local app is verified; production deployment and independent face-model accuracy were not evaluated. Local credentials, model files, original camera-test records, screenshots and private test artifacts are intentionally excluded from this review branch.
+
+
+## Latest UI and performance review (2026-11-02)
+
+- Dashboard and Insights use saved real outputs. Open Details, full reports, history and PHQ-8 criteria; try period filters, keyboard navigation and mobile layouts.
+- PHQ-8 SEA LLM was tested through a new journal UI submission, actual inference, persisted result reload, dashboard and insights. A fictional fully specified example produced 8/8 criteria and 24/24; a partial example retained 1/8 and a subtotal of 1 with no invented total. The PHQ tab distinguishes successful inference with missing evidence from unavailable results.
+- Three local-development measurements per page gave median readiness: dashboard 7,982 → 2,571 ms; insights 8,076 → 2,495 ms; editor 3,275 → 2,265 ms; saved journal report 4,029 → 3,519 ms. These are observations on the owner's running stack, not production or cross-machine guarantees.
+- Optimizations remove duplicate pending reads, batch account-scoped face-history checks, parallelize independent reads, defer secondary reports, coalesce hover updates per animation frame and reuse projected mesh coordinates. Layouts, animation timing, model weights and inference settings are preserved.
+- Latest checks: 171 frontend tests, 11 backend tests, frontend/backend type checks and production frontend build passed. Actual browser dashboard/insights dialogs, filters, responsive layout and focus checks passed.
+- The latest physical-camera performance check passed startup, worker readiness, Off/On, track cleanup and saved face-result propagation. No face was detected during that run, so fresh live-face inference was not revalidated; the earlier actual-camera inference/save verification remains separate.
+
+Repeat browser checks with `ECHO_TEST_EMAIL` and `ECHO_TEST_PASSWORD` set for your development account:
+
+```powershell
+node frontend/scripts/check-dashboard-premium.cjs
+node frontend/scripts/check-insights-premium.cjs
+```
+
+For camera checks with a person in view use `check-face-studio-physical.cjs` followed by `check-face-studio-lifecycle.cjs`. The physical check can create an explicitly fictional journal when there is no existing draft; review its saved evidence locally. For loading measurements set `ECHO_TEST_JOURNAL_ID` to an existing analyzed test journal and run `node frontend/scripts/measure-polished-pages.cjs`. These scripts require the already configured local app; credentials and model bundles are supplied separately.
