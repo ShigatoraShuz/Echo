@@ -213,7 +213,6 @@ export class SettingsService {
   }
 
   async get(userId: string) {
-    await this.ensureDefaults(userId);
     const [profileResult, notificationResult, privacyResult, contactsResult, exportResult, deletionResult] =
       await Promise.all([
         this.database

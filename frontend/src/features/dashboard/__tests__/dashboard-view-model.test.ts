@@ -69,5 +69,26 @@ describe("useDashboardViewModel", () => {
     });
 
     expect(result.current.timeRange).toBe("90d");
+    expect(mockService.getDashboardData).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the newest range when an older request finishes last", async () => {
+    const pending = new Map<string, (value: unknown) => void>();
+    const mockService = {
+      getDashboardData: vi.fn((range: string) => new Promise((resolve) => pending.set(range, resolve))),
+    };
+    vi.mocked(getDashboardService).mockReturnValue(mockService as ReturnType<typeof createMockService>);
+    const { result } = renderHook(() => useDashboardViewModel());
+    await waitFor(() => expect(pending.has("7d")).toBe(true));
+
+    act(() => result.current.setTimeRange("90d"));
+    await waitFor(() => expect(pending.has("90d")).toBe(true));
+    await act(async () => {
+      pending.get("90d")?.({ success: true, data: { userProfile: { name: "Newer" } } });
+    });
+    await act(async () => {
+      pending.get("7d")?.({ success: true, data: { userProfile: { name: "Older" } } });
+    });
+    expect(result.current.data?.userProfile.name).toBe("Newer");
   });
 });

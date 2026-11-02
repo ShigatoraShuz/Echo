@@ -78,7 +78,7 @@ export function CalendarView() {
               </span>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1 lg:min-h-0 lg:flex-1 lg:auto-rows-fr" aria-busy={loading}>
+          <div key={`${month.getFullYear()}-${month.getMonth()}`} className="echo-calendar-month-enter grid grid-cols-7 gap-1 lg:min-h-0 lg:flex-1 lg:auto-rows-fr" aria-busy={loading}>
             {days.map((day) => {
               const key = toLocalDateKey(day);
               const count = entryCounts.get(key) ?? 0;
@@ -91,7 +91,7 @@ export function CalendarView() {
                   onClick={() => setSelected(key)}
                   aria-label={`${dateLabel.format(day)}: ${count} reflections, ${plans} calendar items, ${appointments} appointments`}
                   aria-pressed={selected === key}
-                  className={`echo-workspace-tile aspect-square min-w-0 rounded-xl border p-1.5 text-left text-xs outline-none focus-visible:ring-4 focus-visible:ring-ring/20 sm:text-sm lg:aspect-auto lg:min-h-0 ${selected === key ? "border-[var(--landing-primary)] bg-[var(--landing-sage-soft)] text-[var(--landing-primary)]" : "border-[var(--landing-primary-10)] bg-[var(--landing-surface)] hover:border-[var(--landing-primary)]"} ${day.getMonth() !== month.getMonth() ? "opacity-45" : ""}`}
+                  className={`echo-workspace-tile echo-calendar-day aspect-square min-w-0 rounded-xl border p-1.5 text-left text-xs outline-none focus-visible:ring-4 focus-visible:ring-ring/20 sm:text-sm lg:aspect-auto lg:min-h-0 ${selected === key ? "border-[var(--landing-primary)] bg-[var(--landing-sage-soft)] text-[var(--landing-primary)] echo-calendar-day-selected" : "border-[var(--landing-primary-10)] bg-[var(--landing-surface)] hover:border-[var(--landing-primary)]"} ${day.getMonth() !== month.getMonth() ? "opacity-45" : ""}`}
                 >
                   <span className="font-semibold">{day.getDate()}</span>
                   <span className="mt-1 flex gap-1">

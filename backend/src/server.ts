@@ -17,7 +17,6 @@ import { JournalImagesService } from "./features/journals/journal-images.service
 import { SettingsService } from "./features/settings/settings.service.js";
 import { ExperienceService } from "./features/experience/experience.service.js";
 import { VerificationService } from "./features/verification/verification.service.js";
-import { basicDocumentValidator } from "./infrastructure/security/basic-document-validator.js";
 import { createHttpDocumentScanner, quarantineScanner } from "./infrastructure/security/document-scanner.js";
 import { createWindowsDefenderScanner } from "./infrastructure/security/windows-defender-scanner.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
@@ -120,7 +119,7 @@ const verificationService = new VerificationService(
     ? createHttpDocumentScanner(environment.VERIFICATION_SCANNER_URL, environment.VERIFICATION_SCANNER_TOKEN)
     : environment.VERIFICATION_SCANNER_MODE === "windows_defender"
       ? createWindowsDefenderScanner(environment.VERIFICATION_PDFINFO_PATH!)
-      : environment.NODE_ENV === "development" ? basicDocumentValidator : quarantineScanner,
+      : quarantineScanner,
 );
 const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
 const notificationService = new NotificationService(

@@ -14,6 +14,10 @@ const eslintConfig = [
     ignores: [".next/**", ".next-*/**", "node_modules/**", "out/**", "next-env.d.ts", "coverage/**", "assets/**", "public/**", "tmp/**"],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ];
 
 export default eslintConfig;

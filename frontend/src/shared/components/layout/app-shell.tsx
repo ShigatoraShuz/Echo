@@ -23,6 +23,7 @@ import {
 import { findActiveNavigation, appNavigation } from "@/config/navigation.config";
 import { AppTopbar } from "@/shared/components/navigation/app-topbar";
 import { NotificationBell } from "@/shared/components/navigation/notification-bell";
+import { UserMessagesTrigger } from "@/shared/components/navigation/user-messages-trigger";
 import { RadialBackground } from "@/shared/components/ui/light-theme-tailwind-css-background-snippet";
 
 const navigationIcons = {
@@ -328,7 +329,7 @@ export function AppShell({
         }`}
       >
         {/* MOBILE TOP BAR (Trigger) */}
-        <div className="sticky top-0 z-[200] grid shrink-0 grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2 border-b border-black/5 bg-[#fcfaf6]/90 px-4 py-2 backdrop-blur-md lg:hidden">
+        <div className="sticky top-0 z-[200] grid shrink-0 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2 border-b border-black/5 bg-[#fcfaf6]/90 px-4 py-2 backdrop-blur-md lg:hidden">
           <button
             ref={menuButtonRef}
             type="button"
@@ -345,7 +346,7 @@ export function AppShell({
             {preview ? "Dashboard preview" : currentSection}
           </span>
           {!preview && !publicAccess && !staticAccountControls ? (
-            notificationViewport === "mobile" ? <NotificationBell /> : <span aria-hidden="true" />
+            <div className="flex items-center gap-1"><UserMessagesTrigger />{notificationViewport === "mobile" && <NotificationBell />}</div>
           ) : (
             <Link
               href="/crisis"

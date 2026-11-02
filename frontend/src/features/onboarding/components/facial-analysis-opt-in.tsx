@@ -14,7 +14,7 @@ export function FacialAnalysisOptIn({ enabled, onToggle }: FacialAnalysisOptInPr
           <Camera className="h-5 w-5 text-primary" />
           <div>
             <p className="text-sm font-medium text-foreground">Facial expression analysis</p>
-            <p className="text-xs text-muted-foreground">Optionally use your camera for mood insights</p>
+            <p className="text-xs text-muted-foreground">Optionally use your camera for visible expression signals</p>
           </div>
         </div>
         <button type="button" role="switch" aria-checked={enabled} onClick={() => onToggle(!enabled)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${enabled ? "bg-primary" : "bg-secondary/40"}`}>
@@ -23,7 +23,7 @@ export function FacialAnalysisOptIn({ enabled, onToggle }: FacialAnalysisOptInPr
       </div>
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-secondary/30 p-3 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <p>Facial analysis is entirely optional. A single camera still is sent only to this installation's local inference service and deleted after processing. Only experimental expression results are saved locally. No image is sent to Supabase.</p>
+        <p>Facial analysis is optional. Camera frames are processed locally and raw images are not stored. With your consent, encrypted expression results may be saved with your journal. These signals cannot determine your feelings or provide a diagnosis.</p>
       </div>
     </div>
   );

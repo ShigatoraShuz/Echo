@@ -12,6 +12,9 @@ vi.mock("@/shared/components/navigation/app-topbar", () => ({
 vi.mock("@/shared/components/navigation/notification-bell", () => ({
   NotificationBell: () => <button type="button">Notifications</button>,
 }));
+vi.mock("@/shared/components/navigation/user-messages-trigger", () => ({
+  UserMessagesTrigger: () => <button type="button">Professional messages</button>,
+}));
 vi.mock("@/shared/components/ui/light-theme-tailwind-css-background-snippet", () => ({
   RadialBackground: () => null,
 }));
@@ -37,6 +40,7 @@ describe("AppShell mobile navigation", () => {
       within(screen.getByRole("button", { name: "Open navigation" }).parentElement!).getByText("Journal"),
     ).toBeVisible();
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Professional messages" })).toBeInTheDocument();
 
     const trigger = screen.getByRole("button", { name: "Open navigation" });
     await user.click(trigger);
@@ -58,6 +62,7 @@ describe("AppShell mobile navigation", () => {
       </AppShell>,
     );
     expect(screen.queryByRole("button", { name: "Notifications" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Professional messages" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Crisis support" })).toHaveAttribute("href", "/crisis");
     await user.click(screen.getByRole("button", { name: "Open navigation" }));
     const menu = within(screen.getByRole("dialog", { name: "App navigation" }));
