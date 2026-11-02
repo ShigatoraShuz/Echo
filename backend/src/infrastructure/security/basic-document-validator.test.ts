@@ -32,7 +32,7 @@ describe("basic document validation — not malware scanning", () => {
   });
 
   it("allows 20 PDF pages but rejects 21 and empty page trees", async () => {
-    await expect(inspectDocument(basicDocumentValidator, await pdf(20), "application/pdf")).resolves.toMatchObject({ scan_status: "clean" });
+    await expect(inspectDocument(basicDocumentValidator, await pdf(20), "application/pdf")).resolves.toMatchObject({ scan_status: "quarantined" });
     for (const count of [0, 21]) await expect(inspectDocument(basicDocumentValidator, await pdf(count), "application/pdf")).rejects.toThrow();
   });
 
@@ -110,10 +110,13 @@ describe("basic document validation — not malware scanning", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("preserves the clean-document gate and default quarantine behavior", async () => {
+  it("keeps structural-only validation and the default scanner outside the malware approval gate", async () => {
     const bytes = await image("png");
     const clean = await inspectDocument(basicDocumentValidator, bytes, "image/png");
-    expect(() => assertDocumentsClean([clean])).not.toThrow();
+    expect(clean.scan_status).toBe("quarantined");
+    expect(() => assertDocumentsClean([clean])).toThrow();
+    expect(() => assertDocumentsClean([{ scan_status: "clean", scanned_at: new Date().toISOString(),
+      scanner_version: BASIC_DOCUMENT_VALIDATOR_VERSION }])).toThrow();
     const unchanged = { scan_status: "quarantined", scanned_at: null, scanner_version: null };
     expect(() => assertDocumentsClean([unchanged])).toThrow();
     expect(unchanged.scan_status).toBe("quarantined");

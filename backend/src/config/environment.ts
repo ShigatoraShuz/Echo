@@ -119,6 +119,9 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
 
   if (parsed.data.NODE_ENV === "production" && parsed.data.AI_ANALYSIS_MODE === "development_stub")
     throw new Error("Development stub analysis is not permitted in production.");
+  if (parsed.data.NODE_ENV === "production" &&
+      (parsed.data.AI_ANALYSIS_MODE !== "disabled" || parsed.data.AI_DEVELOPMENT_USER_IDS.trim()))
+    throw new Error("Production analysis and development user allowlists require the separate model safety release gate.");
   if (parsed.data.AI_ANALYSIS_MODE === "local_worker" && !parsed.data.AI_WORKER_TOKEN)
     throw new Error("AI_WORKER_TOKEN is required in local_worker mode.");
   if (parsed.data.AI_SERVICE_URL && (!parsed.data.AI_SERVICE_TOKEN || !["127.0.0.1", "localhost"].includes(new URL(parsed.data.AI_SERVICE_URL).hostname)))

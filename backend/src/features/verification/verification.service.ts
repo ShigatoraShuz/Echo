@@ -1,4 +1,4 @@
-import { assertDocumentsClean, inspectDocument, quarantineScanner, validateDocument, type DocumentScanner } from "../../infrastructure/security/document-scanner.js";
+import { assertDocumentsClean, hasApprovedScan, inspectDocument, quarantineScanner, validateDocument, type DocumentScanner } from "../../infrastructure/security/document-scanner.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertTrustedContact, hasValidTrustedContact } from "../settings/trusted-contact-access.js";
@@ -507,7 +507,7 @@ export class VerificationService {
     const documents = await this.documentsForVerification(verificationId);
     const reviewedDocuments = await Promise.all(
       documents.map(async (document) => {
-        const scanStatus = document.scan_status === "clean" && document.scanned_at && document.scanner_version
+        const scanStatus = hasApprovedScan(document)
           ? "clean" : document.scan_status === "rejected" ? "rejected" : "quarantined";
         if (scanStatus !== "clean") {
           return { ...this.documentResponse(document), scanStatus, signedUrl: null };
@@ -589,7 +589,7 @@ export class VerificationService {
 
   private async rescanStoredDocuments(documents: Row[]) {
     for (const document of documents) {
-      if (document.scan_status === "clean") continue;
+      if (hasApprovedScan(document)) continue;
       if (document.scan_status === "rejected")
         throw new ConflictError("DOCUMENT_SCAN_REJECTED", "A rejected document must be replaced by the applicant.");
       const path = stringValue(document.storage_path);
@@ -608,7 +608,7 @@ export class VerificationService {
         .update(scan)
         .eq("id", document.id)
         .eq("sha256_hex", document.sha256_hex)
-        .eq("scan_status", "quarantined")
+        .eq("scan_status", document.scan_status)
         .select("id")
         .maybeSingle();
       if (updateError) throw databaseError("The document scan result could not be recorded.");

@@ -115,15 +115,15 @@ const mockAnalyses: Record<PreviewState, { analysis: JournalAnalysis; facialStat
         depressiveSymptomRange: { lower: 0, upper: 4 },
         recommendationFeatures: ["paced_breathing", "grounding"],
         facialExpressionAnalysis: {
-          detectedEmotion: "Calm",
+          detectedEmotion: "Joy",
           emotionDistribution: [
-            { emotion: "calm", value: 0.72 },
-            { emotion: "neutral", value: 0.18 },
-            { emotion: "joy", value: 0.1 },
+            { emotion: "joy", value: 0.72 },
+            { emotion: "trust", value: 0.18 },
+            { emotion: "anticipation", value: 0.1 },
           ],
           confidence: 0.85,
-          providerName: "echo-self-hosted-preview",
-          modelVersion: "face-blendshapes-v1",
+          providerName: "echo-development-preview",
+          modelVersion: "fixed-example-no-model-v1",
         },
       },
     },
@@ -359,7 +359,7 @@ export function JournalAnalysisPreviewView() {
                 onClick={triggerLiveModal}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-transform duration-150 ease-out focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[.97]"
               >
-                <Play className="h-3 w-3" aria-hidden="true" /> Launch live modal
+                <Play className="h-3 w-3" aria-hidden="true" /> Launch sample modal
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Analysis preview states">
@@ -631,7 +631,7 @@ export function JournalAnalysisPreviewView() {
                       ))}
                     </div>
                     <p className="mt-3 text-[10px] leading-5 text-muted-foreground">
-                      These private AI-generated estimates are for reflection only. They do not diagnose, treat, or replace professional care.
+                      These fixed preview values illustrate the interface only. They are not model output, a diagnosis, or a substitute for professional care.
                     </p>
                   </>
                 ) : (
@@ -650,7 +650,7 @@ export function JournalAnalysisPreviewView() {
                 </p>
               </article>
               <article className="rounded-[1.5rem] border border-border/70 bg-card/80 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">When integration is ready</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-primary">When a model result is available</p>
                 <h2 className="mt-1.5 text-sm font-semibold text-foreground">Your saved result appears here</h2>
                 <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
                   The same layout will use the completed, consented analysis returned for that journal entry.
@@ -659,6 +659,23 @@ export function JournalAnalysisPreviewView() {
             </div>
           </>
         )}
+        <section className="rounded-[1.75rem] border border-primary/15 bg-card p-5" aria-labelledby="screening-examples-heading">
+          <span className="rounded-full border border-amber-700/15 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-amber-900">Fixed examples · no model run</span>
+          <h2 id="screening-examples-heading" className="mt-3 text-lg font-semibold">Experimental journal PHQ-8 estimate examples</h2>
+          <p className="mt-1 text-sm text-muted-foreground">These fictional values show complete and partial coverage for wording review. They are not questionnaire answers, predictions, or diagnoses.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <article className="rounded-2xl border border-border p-4">
+              <h3 className="font-semibold">Complete fixed example</h3>
+              <p className="mt-2 text-sm">Eight of eight criteria evidenced; illustrative total: 6 of 24.</p>
+              <p className="mt-1 text-xs text-muted-foreground">A complete estimate still needs professional interpretation. It is not a completed PHQ-8 assessment.</p>
+            </article>
+            <article className="rounded-2xl border border-border p-4">
+              <h3 className="font-semibold">Partial fixed example</h3>
+              <p className="mt-2 text-sm">Three of eight criteria evidenced; illustrative unscaled subtotal: 2. No total or severity category is assigned.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Missing evidence stays unknown; it is never scored as zero.</p>
+            </article>
+          </div>
+        </section>
       </div>
     </>
   );
