@@ -25,7 +25,8 @@ describe("restricted storage", () => {
   it("requires a matching digest, scanner version and bounded decoded metadata", async () => {
     const clean = { status: "clean" as const, sha256: createHash("sha256").update(pdf).digest("hex"), scannerVersion: "test-only", pages: 1 };
     expect((await inspectDocument({ inspect: async () => clean }, pdf, "application/pdf")).scan_status).toBe("clean");
-    for (const patch of [{ sha256: "wrong" }, { pages: 21 }, { scannerVersion: undefined }])
+    for (const patch of [{ sha256: "wrong" }, { pages: 21 }, { scannerVersion: undefined },
+      { scannerVersion: "basic-document-validation-v1-not-malware-scan" }])
       expect((await inspectDocument({ inspect: async () => ({ ...clean, ...patch }) }, pdf, "application/pdf")).scan_status).toBe("quarantined");
   });
   it("fails closed on scanner outages and rejects detected active content", async () => {

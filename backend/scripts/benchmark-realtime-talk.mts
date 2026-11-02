@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import net from "node:net";
-import { mkdir, mkdtemp, writeFile, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";

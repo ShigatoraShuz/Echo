@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-this-alias -- Browser API test doubles use dynamic callbacks. */
 import { it, expect, vi, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useBuddyVoiceControls } from "./use-buddy-voice-controls";
@@ -11,15 +12,11 @@ it("stops tracks, transcribes locally once, and delivers only final text", async
   const stop = vi.fn();
   const stream = { getTracks: () => [{ stop }] };
   Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia: async () => stream }, configurable: true });
-  let recorder: any;
   class Recorder {
     state = "inactive";
     mimeType = "audio/webm";
     ondataavailable: any;
     onstop: any;
-    constructor() {
-      recorder = this;
-    }
     start() {
       this.state = "recording";
     }

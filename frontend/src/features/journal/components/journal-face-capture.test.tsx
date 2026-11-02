@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-this-alias -- Worker test doubles expose their instance for lifecycle assertions. */
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { JournalFaceCapture } from "./journal-face-capture";

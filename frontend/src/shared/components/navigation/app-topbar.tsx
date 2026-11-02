@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { BookOpen, LayoutDashboard, Leaf, MessageCircleHeart, PenLine } from "lucide-react";
 import { AppProfileMenu } from "./app-profile-menu";
 import { NotificationBell } from "./notification-bell";
+import { UserMessagesTrigger } from "./user-messages-trigger";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -70,6 +71,7 @@ export function AppTopbar({
                 <PenLine className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Write reflection</span>
               </Link>
+              <UserMessagesTrigger />
               {showNotifications && <NotificationBell />}
               <AppProfileMenu />
             </>

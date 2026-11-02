@@ -12,6 +12,11 @@ describe("JournalAnalysisPreviewView", () => {
     expect(screen.getByRole("tab", { name: /Fully-ready/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Processing/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Safety attention required/i })).toBeInTheDocument();
+    expect(screen.getByText(/fixed preview values illustrate the interface only/i)).toBeInTheDocument();
+    expect(screen.queryByText(/AI-generated estimates/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Complete fixed example" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Partial fixed example" })).toBeInTheDocument();
+    expect(screen.getByText(/No total or severity category is assigned/i)).toBeInTheDocument();
   });
 
   it("switches between analysis preview states", () => {
@@ -29,5 +34,9 @@ describe("JournalAnalysisPreviewView", () => {
     // Switch to partial-ready
     fireEvent.click(screen.getByRole("tab", { name: /Partial-ready/i }));
     expect(screen.getAllByText(/Mesh captured — analysis provider not connected/i).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Fully-ready/i }));
+    expect(screen.getByText("Joy signal ready")).toBeInTheDocument();
+    expect(screen.queryByText(/neutral/i)).not.toBeInTheDocument();
   });
 });

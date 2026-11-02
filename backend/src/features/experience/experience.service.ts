@@ -67,11 +67,24 @@ function calculateStreak(entries: Array<{ created_at: string }>): number {
   return streak;
 }
 
+function requiresUrgentBuddySupport(message: string): boolean {
+  return /\b(suicide|kill myself|end my life|take my life|hurt myself|harm myself|self[ -]harm|want to die|overdos\w*|(?:can't|cannot|can not|don't think i can|do not think i can) keep myself safe|not safe tonight)\b/i.test(message);
+}
+
 function buddyReply(message: string, urgent: boolean): string {
   if (urgent) {
-    return "Thank you for telling me. Your immediate safety matters most. Please open Find help or Crisis support now and contact a trusted person who can stay with you.";
+    return "Thank you for telling me. Your immediate safety matters most. Please open Find help or Crisis support now and contact a trusted person who can stay with you. If you are in immediate danger, contact local emergency services now.";
   }
   const normalized = message.toLowerCase();
+  if (/\b(no thanks|no thank you|stop (?:this |the )?conversation|stop (?:talking|chatting)|leave me alone|(?:don't|do not) want suggestions)\b/.test(normalized)) {
+    return "Okay. We can stop here. You can close this chat whenever you choose. Support options are available if you want them later.";
+  }
+  if (/\b(do i have|diagnos\w*|medication|medicine|antidepressant\w*|prescription|take or stop)\b/.test(normalized)) {
+    return "I cannot diagnose a condition or advise you to start, change, or stop medication. A qualified health professional can help you assess this safely. You can open Find help if you want support finding one.";
+  }
+  if (/\b(counselor|counsellor|therapist|professional help|talk to a professional)\b/.test(normalized)) {
+    return "Talking with a counselor or another qualified professional is a reasonable next step. You can open Find help to explore support options, and you can choose whether to continue here.";
+  }
   if (normalized.includes("anx") || normalized.includes("overwhelm") || normalized.includes("tight")) {
     return "Let us make this moment smaller. Place both feet down, take one unforced breath, and name one thing around you that feels steady.";
   }
@@ -343,7 +356,7 @@ export class ExperienceService {
     this.temporary.set(key,{turns,expires:Date.now()+1800000});return {conversationId:null,message,messages:[...turns]};
   }
   async generateTalk(user:string,sessionId:string,messages:ChatTurn[],signal:AbortSignal){
-    await this.validateTalk(user);let urgent=/\b(suicide|kill myself|end my life|hurt myself|self harm|want to die)\b/i.test(messages.at(-1)!.content);
+    await this.validateTalk(user);let urgent=requiresUrgentBuddySupport(messages.at(-1)!.content);
     let generated:any;
     while(messages.length>1&&(messages.length>20||messages.reduce((a,m)=>a+m.content.length,0)>20000))messages.shift();
     if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages},signal);urgent=generated.supportRequired;}
@@ -366,7 +379,7 @@ export class ExperienceService {
     if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
     // Preserve ownership verification before either model or prewritten support.
     if (selectedConversationId) await this.ownedConversation(userId, selectedConversationId);
-    let urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm|want to die)\b/i.test(content);
+    let urgent = requiresUrgentBuddySupport(content);
     let provenance:Record<string,unknown>|undefined;
     let reply: string;
     if (this.coreClient && !urgent) {

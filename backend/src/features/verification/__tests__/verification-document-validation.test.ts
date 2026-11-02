@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { PDFDocument } from "pdf-lib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VerificationService } from "../verification.service.js";
-import { basicDocumentValidator, BASIC_DOCUMENT_VALIDATOR_VERSION } from "../../../infrastructure/security/basic-document-validator.js";
+import { basicDocumentValidator } from "../../../infrastructure/security/basic-document-validator.js";
 
 beforeEach(() => vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Live network forbidden"); })));
 afterEach(() => vi.unstubAllGlobals());
@@ -23,7 +23,7 @@ function fixture() {
 }
 
 describe("VerificationService explicit basic validator injection", () => {
-  it.each(["image/png", "image/jpeg", "application/pdf"])("valid %s uploads become review-eligible without approving the application", async mime => {
+  it.each(["image/png", "image/jpeg", "application/pdf"])("valid %s uploads remain quarantined after structural-only validation", async mime => {
     let bytes: Buffer;
     if (mime === "application/pdf") {
       const pdf = await PDFDocument.create(); pdf.addPage(); bytes = Buffer.from(await pdf.save());
@@ -34,8 +34,8 @@ describe("VerificationService explicit basic validator injection", () => {
     await expect(service.uploadDocument("fictional-owner", "user_government_id", mime, bytes)).resolves.toMatchObject({ status: "draft" });
     expect(upload).toHaveBeenCalledOnce();
     expect(documents.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      user_id: "fictional-owner", verification_id: "fictional-application", scan_status: "clean",
-      scanned_at: expect.any(String), scanner_version: BASIC_DOCUMENT_VALIDATOR_VERSION,
+      user_id: "fictional-owner", verification_id: "fictional-application", scan_status: "quarantined",
+      scanned_at: null, scanner_version: null,
     }), { onConflict: "verification_id,document_kind" });
     expect(documents.upsert.mock.calls[0][0]).not.toHaveProperty("verification_status");
   });
@@ -59,6 +59,11 @@ describe("VerificationService explicit basic validator injection", () => {
     const inspect = vi.fn(basicDocumentValidator.inspect);
     const service = new VerificationService(database as never, {} as never, { inspect });
     vi.spyOn(service, "assertAdmin").mockResolvedValue(undefined);
+    await expect(service.getForAdmin("fictional-admin", "fictional-application")).resolves.toMatchObject({
+      documents: [expect.objectContaining({ scanStatus: "quarantined", signedUrl: null })],
+    });
+    documents.order.mockResolvedValueOnce({ data: [{ ...quarantined, scan_status: "clean",
+      scanned_at: new Date().toISOString(), scanner_version: "basic-document-validation-v1-not-malware-scan" }], error: null });
     await expect(service.getForAdmin("fictional-admin", "fictional-application")).resolves.toMatchObject({
       documents: [expect.objectContaining({ scanStatus: "quarantined", signedUrl: null })],
     });

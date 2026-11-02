@@ -143,7 +143,9 @@ try {
       if (typeof data === "string") {
         try {
           if (JSON.parse(data).type === "cancel") target.__cancels.push(performance.now());
-        } catch {}
+        } catch {
+          // Non-JSON WebSocket frames are unrelated to cancellation timing.
+        }
       }
       return send.call(this, data);
     };

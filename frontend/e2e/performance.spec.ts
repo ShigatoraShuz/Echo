@@ -60,7 +60,6 @@ for (const width of [1440, 390]) {
       await expect(page.getByRole("heading", { name: "Professional sign in", exact: true })).toBeVisible();
       await expect(page.getByText("Fictional shared message for browser tests", { exact: true })).toHaveCount(0);
       const checks = state.calls.filter(c => c.method === "memberships").length;
-      await page.getByRole("button", { name: "Password", exact: true }).click();
       await page.getByRole("textbox", { name: /Email address/ }).fill("fictional@example.invalid");
       await page.locator('input[type="password"]').fill("Synthetic-local-password1!");
       await page.getByRole("button", { name: "Sign in", exact: true }).click();

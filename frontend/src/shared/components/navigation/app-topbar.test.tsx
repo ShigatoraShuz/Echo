@@ -14,6 +14,9 @@ vi.mock("./notification-bell", () => ({
 vi.mock("./app-profile-menu", () => ({
   AppProfileMenu: () => <div data-testid="profile-menu" />,
 }));
+vi.mock("./user-messages-trigger", () => ({
+  UserMessagesTrigger: () => <button type="button">Professional messages</button>,
+}));
 
 describe("AppTopbar", () => {
   it("can omit the desktop bell when the phone bell is mounted", () => {
@@ -21,6 +24,7 @@ describe("AppTopbar", () => {
 
     expect(screen.queryByTestId("notification-bell")).not.toBeInTheDocument();
     expect(screen.getByTestId("profile-menu")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Professional messages" })).toBeInTheDocument();
   });
 
   it("uses public actions without mounting authenticated controls", () => {
@@ -30,5 +34,6 @@ describe("AppTopbar", () => {
     expect(screen.getByRole("link", { name: "Start privately" })).toHaveAttribute("href", "/signup");
     expect(screen.queryByTestId("notification-bell")).not.toBeInTheDocument();
     expect(screen.queryByTestId("profile-menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Professional messages" })).not.toBeInTheDocument();
   });
 });

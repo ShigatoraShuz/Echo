@@ -28,6 +28,16 @@ describe("backend environment", () => {
     expect(() => loadEnvironment({ ...validEnvironment, NODE_ENV: "production" })).toThrow("Development stub");
   });
 
+  it("keeps production analysis disabled until the separate model safety release gate", () => {
+    const production = { ...validEnvironment, NODE_ENV: "production", FRONTEND_URL: "https://echo.example.test",
+      SUPABASE_URL: "https://project.supabase.co", SIGNUP_DRAFT_SECRET: "s".repeat(32), AI_ANALYSIS_MODE: "disabled" };
+    expect(loadEnvironment(production).AI_ANALYSIS_MODE).toBe("disabled");
+    expect(() => loadEnvironment({ ...production, AI_ANALYSIS_MODE: "local_worker", AI_WORKER_TOKEN: "w".repeat(32) }))
+      .toThrow("model safety release gate");
+    expect(() => loadEnvironment({ ...production, AI_DEVELOPMENT_USER_IDS: "e0000000-0000-4000-8000-000000000001" }))
+      .toThrow("model safety release gate");
+  });
+
   it("requires a verified sender and SMTP credentials before enabling email alerts", () => {
     expect(() => loadEnvironment({ ...validEnvironment, EMAIL_PROVIDER: "smtp" })).toThrow("EMAIL_FROM");
     expect(() => loadEnvironment({

@@ -15,9 +15,10 @@ interface EchoSheetProps {
   children: React.ReactNode;
   side?: "left" | "right";
   className?: string;
+  contentClassName?: string;
 }
 
-export function EchoSheet({ open, onClose, title, description, children, side = "right", className }: EchoSheetProps) {
+export function EchoSheet({ open, onClose, title, description, children, side = "right", className, contentClassName }: EchoSheetProps) {
   const [present, setPresent] = useState(open);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useFocusTrap(open);
@@ -100,7 +101,7 @@ export function EchoSheet({ open, onClose, title, description, children, side = 
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div data-lenis-prevent className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div data-lenis-prevent className={cn("flex-1 overflow-y-auto px-6 py-5", contentClassName)}>{children}</div>
       </div>
     </div>,
     document.body,

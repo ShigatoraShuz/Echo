@@ -45,7 +45,6 @@ test("coordinator assigns through scoped metadata without fetching clinical case
 test("login validates locally and never grants professional access", async ({ page }) => {
   const state = await fixtures(page);
   await page.goto("/professional/login");
-  await page.getByRole("button", { name: "Password", exact: true }).click();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Email address" })).toBeFocused();
   expect(state.calls.some((call) => call.method === "login")).toBe(false);

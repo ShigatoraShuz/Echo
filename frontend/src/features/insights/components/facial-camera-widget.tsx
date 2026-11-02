@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff } from "lucide-react";
 import { EchoCard } from "@/shared/components/ui/echo-card";
 
@@ -7,15 +7,45 @@ type CameraState = "idle" | "requesting" | "active" | "denied" | "unavailable";
 
 export function FacialCameraWidget() {
   const [cameraState, setCameraState] = useState<CameraState>("idle");
-  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mounted = useRef(false);
+
+  const releaseCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      releaseCamera();
+    };
+  }, [releaseCamera]);
+
+  const attachVideo = useCallback((video: HTMLVideoElement | null) => {
+    videoRef.current = video;
+    if (video && streamRef.current) video.srcObject = streamRef.current;
+  }, []);
 
   async function requestCamera() {
     setCameraState("requesting");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraState("unavailable");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      if (videoRef) videoRef.srcObject = stream;
+      if (!mounted.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      streamRef.current = stream;
       setCameraState("active");
     } catch (err) {
+      if (!mounted.current) return;
       if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "PermissionDeniedError")) {
         setCameraState("denied");
       } else {
@@ -25,10 +55,7 @@ export function FacialCameraWidget() {
   }
 
   function stopCamera() {
-    if (videoRef?.srcObject) {
-      (videoRef.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
-      videoRef.srcObject = null;
-    }
+    releaseCamera();
     setCameraState("idle");
   }
 
@@ -64,7 +91,7 @@ export function FacialCameraWidget() {
     <EchoCard title="Facial expression" description="Optional camera-based mood insight">
       {cameraState === "active" ? (
         <div className="space-y-3">
-          <video ref={setVideoRef} autoPlay muted playsInline className="w-full rounded-xl bg-black" />
+          <video ref={attachVideo} autoPlay muted playsInline className="w-full rounded-xl bg-black" />
           <button type="button" onClick={stopCamera} className="rounded-full bg-danger px-4 py-2 text-sm font-bold text-white hover:bg-danger/90">
             <CameraOff className="mr-1.5 inline h-4 w-4" /> Stop camera
           </button>

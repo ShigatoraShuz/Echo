@@ -52,13 +52,22 @@ export async function inspectDocument(scanner: DocumentScanner, bytes: Buffer, m
     if (result.status === "rejected") throw new ValidationError({ document: ["This document failed document validation."] });
     const validDimensions = mime === "application/pdf" ? Number.isInteger(result.pages) && result.pages! > 0 && result.pages! <= 20 :
       Number.isInteger(result.width) && Number.isInteger(result.height) && result.width! > 0 && result.height! > 0 && result.width! * result.height! <= 40_000_000;
-    if (result.status === "clean" && result.sha256 === sha256 && result.scannerVersion && result.scannerVersion.length <= 100 && validDimensions)
+    // Structural document validation cannot satisfy the malware-scan approval gate.
+    const malwareScanVersion = typeof result.scannerVersion === "string" &&
+      result.scannerVersion.length > 0 && result.scannerVersion.length <= 100 &&
+      !/basic-document-validation|not-malware-scan/i.test(result.scannerVersion);
+    if (result.status === "clean" && result.sha256 === sha256 && malwareScanVersion && validDimensions)
       return { scan_status: "clean", scanned_at: new Date().toISOString(), scanner_version: result.scannerVersion };
   } catch (error) { if (error instanceof ValidationError) throw error; }
   finally { if (timer) clearTimeout(timer); }
   return { scan_status: "quarantined", scanned_at: null, scanner_version: null };
 }
+export function hasApprovedScan(document: Record<string, unknown>): boolean {
+  return document.scan_status === "clean" && Boolean(document.scanned_at) &&
+    typeof document.scanner_version === "string" && document.scanner_version.length > 0 &&
+    !/basic-document-validation|not-malware-scan/i.test(document.scanner_version);
+}
 export function assertDocumentsClean(documents: Array<Record<string, unknown>>): void {
-  if (documents.some((document) => document.scan_status !== "clean" || !document.scanned_at || !document.scanner_version))
+  if (documents.some((document) => !hasApprovedScan(document)))
     throw new ConflictError("DOCUMENT_SCAN_PENDING", "Documents have not passed security scanning. Try again when the scanner is available.");
 }

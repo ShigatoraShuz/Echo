@@ -92,6 +92,26 @@ describe("ExperienceService.buddyHistory", () => {
 });
 
 describe("ExperienceService.Buddy privacy", () => {
+  it.each([
+    ["I want to die and may hurt myself tonight.", "immediate danger"],
+    ["I don't think I can keep myself safe tonight.", "immediate danger"],
+    ["Do I have depression? Should I take or stop medication?", "cannot diagnose"],
+    ["I want to talk to a counselor.", "qualified professional"],
+    ["No thanks. Stop this conversation.", "We can stop here"],
+  ])("uses the deterministic Buddy fallback for %s", async (message, expected) => {
+    const privacy = {
+      select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: { buddy_history_enabled: false }, error: null })),
+    };
+    privacy.select.mockReturnValue(privacy);
+    privacy.eq.mockReturnValue(privacy);
+    const audit = { insert: vi.fn(async () => ({ error: null })) };
+    const database = { schema: vi.fn(() => ({ from: vi.fn((table: string) => table === "audit_events" ? audit : privacy) })) };
+    const service = new ExperienceService(database as never, {} as JournalService, {} as EncryptionService);
+    const result = await service.sendBuddyMessage("owner", message);
+    expect(result.messages[1].content).toContain(expected);
+    expect(result).toMatchObject({ conversationId: null, persisted: false });
+  });
+
   it("reads encrypted original and historical model replies without a running model", async () => {
     const encryption = createEncryptionService(Buffer.alloc(32, 7).toString("base64"), 1, {});
     const generation = {

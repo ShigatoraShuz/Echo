@@ -1,6 +1,6 @@
 # Model integration review
 
-This branch connects native text inference and final v4 face evaluation to Echo, adds encrypted journal-linked facial results and displays saved model outputs in dashboard/insights. Buddy inference queues overlapping requests; memory-budgeted model reuse avoids reloading the writer between journal and Buddy calls. Face camera UI shows indicators only: video and mesh remain hidden.
+This branch connects native text inference and final v4 face evaluation to Echo, adds encrypted journal-linked facial results and displays saved model outputs in dashboard/insights. Buddy inference queues overlapping requests; memory-budgeted model reuse avoids reloading the writer between journal and Buddy calls. The camera UI shows the landmark mesh and status indicators; the raw video remains hidden.
 
 ## Setup
 
