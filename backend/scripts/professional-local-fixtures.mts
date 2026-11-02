@@ -93,7 +93,7 @@ async function main() {
     // No fixture cases or journals are created, and no journal dependency is called.
     const professional = new ProfessionalService(database, encryption, undefined as unknown as JournalService);
     const onboarding = new OnboardingService(database);
-    const registration = new RegistrationService(database, publicClient, state.registrationSecret, "", "http://127.0.0.1:3000");
+    const registration = new RegistrationService(database, publicClient, state.registrationSecret, "http://127.0.0.1:3000");
     const id = (name: Identity) => requireValue(state.accounts[name]?.id, `Missing ${name} identity.`);
     const table = (name: string) => database.schema("professional_service").from(name);
     const allUsers: User[] = checked(await database.auth.admin.listUsers({ page: 1, perPage: 1000 }), "Local account lookup").users;

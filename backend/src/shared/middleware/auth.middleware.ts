@@ -10,7 +10,7 @@ export interface AccessTokenVerifier {
 const verifiedRequests = new WeakMap<Request, { token: string; verifier: AccessTokenVerifier; user: AuthenticatedUser }>();
 
 export function createAuthMiddleware(verifier: AccessTokenVerifier) {
-  return async (request: Request, _response: Response, next: NextFunction): Promise<void> => {
+  return async (request: Request, response: Response, next: NextFunction): Promise<void> => {
     try {
       const authorization = request.header("authorization");
       if (!authorization?.startsWith("Bearer ")) {
@@ -25,14 +25,19 @@ export function createAuthMiddleware(verifier: AccessTokenVerifier) {
       }
 
       let user: AuthenticatedUser | null;
+      const previous = verifiedRequests.get(request);
+      const reused = previous?.token === accessToken && previous.verifier === verifier;
+      const startedAt = performance.now();
       try {
-        const previous = verifiedRequests.get(request);
-        user = previous?.token === accessToken && previous.verifier === verifier
+        user = reused
           ? previous.user
           : await verifier.getUser(accessToken);
       } catch {
         console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "signature_failure" }));
         user = null;
+      } finally {
+        if (!reused)
+          response.locals.authVerificationMs = (response.locals.authVerificationMs ?? 0) + Math.round(performance.now() - startedAt);
       }
       if (!user) {
         console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "user_verification_failure" }));

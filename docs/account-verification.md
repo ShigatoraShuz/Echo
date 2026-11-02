@@ -10,8 +10,8 @@ user can open Buddy or request AI-supported journal analysis.
 2. Users under 18 must also provide a parent or legal guardian's contact,
    address, ID reference, consent, and supporting documents.
 3. The user uploads the documents requested for their age path.
-4. The application is submitted and locked while an administrator reviews it.
-5. The administrator approves, requests changes, or rejects the application.
+4. Once all required files are uploaded, the user submits the application. It enters the administrator queue and is locked while under review.
+5. The administrator runs security scanning before opening documents, then approves, requests changes, or rejects the application. If scanning cannot clear a file, the administrator can request a replacement.
 6. Only an active, unexpired approval unlocks Buddy and AI-supported analysis.
 
 Public crisis and support resources, grounding, and ordinary private journaling

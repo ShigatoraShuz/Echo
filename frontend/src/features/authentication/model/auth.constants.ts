@@ -1,5 +1,6 @@
 export const AUTH_ERROR_MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS: "Invalid email or password.",
+  EMAIL_NOT_CONFIRMED: "Verify your email address before logging in.",
   EMAIL_IN_USE: "An account with this email already exists.",
   WEAK_PASSWORD: "Password must be at least 8 characters.",
   INVALID_TOKEN: "This reset link is invalid or has expired.",

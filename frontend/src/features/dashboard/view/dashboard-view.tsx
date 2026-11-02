@@ -112,6 +112,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
     journalEntries,
     weeklyDigest,
   } = data;
+  const totalReflections = data.totalReflections ?? journalEntries.length;
 
   const latestAnalysis = data.analysisInsights?.latest;
   const needsSupport = latestAnalysis && !latestAnalysis.isSimulated && ["moderate", "high", "severe"].includes(latestAnalysis.distressBand);
@@ -134,7 +135,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
               </h1>
 
               <p className="mt-1 text-xs text-[var(--landing-muted)]">
-                {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"} <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
+                {totalReflections} total reflection{totalReflections === 1 ? "" : "s"} <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
               </p>
             </div>
 
@@ -155,12 +156,12 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <div className="echo-card-motion-grid grid gap-3 lg:grid-cols-12">
 
           {/* EMOTION WHEEL */}
-          <DashboardCard className="bg-[linear-gradient(145deg,rgba(255,253,247,0.92),rgba(230,239,224,0.82))] lg:col-span-5">
+          <DashboardCard className="bg-[linear-gradient(145deg,rgba(255,253,247,0.92),rgba(230,239,224,0.82))] lg:col-span-7 xl:col-span-5">
             <DominantEmotionWheel entries={journalEntries} />
           </DashboardCard>
 
           {/* CURRENT DISTRESS */}
-          <DashboardCard className="echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
+          <DashboardCard className="echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-5 xl:col-span-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
               Wellbeing signal
             </p>
@@ -208,7 +209,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           </DashboardCard>
 
           {/* REFLECTION SPACE */}
-          <DashboardCard className="relative min-h-[250px] overflow-hidden lg:col-span-4 xl:min-h-[220px]">
+          <DashboardCard className="relative min-h-[250px] overflow-hidden lg:col-span-12 xl:col-span-4 xl:min-h-[220px]">
             <div className="relative z-10 max-w-[60%] sm:max-w-[56%]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Reflection space

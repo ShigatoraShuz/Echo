@@ -1,12 +1,50 @@
 <!doctype html>
 <html lang="en">
-  <body style="margin: 0; padding: 32px; font-family: Arial, sans-serif; color: #183c32; background: #f8faf7">
-    <main style="max-width: 480px; margin: auto">
-      <h1 style="font-size: 24px">Your ECHO sign-in code</h1>
-      <p>Enter this one-time code on the ECHO sign-in page:</p>
-      <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px">{{ .Token }}</p>
-      <p>This code expires. If it no longer works, request a new code from ECHO.</p>
-      <p>If you did not request this email, you can ignore it. Do not share this code.</p>
-    </main>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your ECHO sign-in code</title>
+  </head>
+  <body style="margin: 0; padding: 0; background: #f5f4ee; color: #2f3527; font-family: Arial, Helvetica, sans-serif">
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent">
+      Your one-time ECHO sign-in code is inside.
+    </div>
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #f5f4ee">
+      <tr>
+        <td align="center" style="padding: 40px 16px">
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; border: 1px solid #d8d2bf; border-radius: 20px; overflow: hidden; background: #fbf7ee">
+            <tr>
+              <td style="padding: 30px 36px; background: #102718; color: #fffaf0">
+                <p style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.18em">ECHO</p>
+                <p style="margin: 9px 0 0; color: #dce8d6; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase">Account access</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 38px 36px 34px">
+                <p style="margin: 0 0 12px; color: #536733; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase">One-time code</p>
+                <h1 style="margin: 0 0 16px; color: #2f3527; font-size: 30px; line-height: 1.2; font-weight: 700">Sign in to ECHO</h1>
+                <p style="margin: 0; color: #5f6857; font-size: 16px; line-height: 1.6">Enter this code on the ECHO sign-in page to continue.</p>
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0 22px; border: 1px solid #c9d7c2; border-radius: 14px; background: #edf2e9">
+                  <tr>
+                    <td align="center" style="padding: 25px 12px">
+                      <p style="margin: 0 0 10px; color: #536733; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase">Your sign-in code</p>
+                      <p style="margin: 0; color: #102718; font-family: 'Courier New', Courier, monospace; font-size: 36px; line-height: 1.2; font-weight: 700; letter-spacing: 0.16em">{{ .Token }}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin: 0; color: #5f6857; font-size: 14px; line-height: 1.6">This code expires soon. If it no longer works, request a new one from ECHO.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 22px 36px 28px; border-top: 1px solid #e5e0d3; background: #f8f5ed">
+                <p style="margin: 0 0 8px; color: #2f3527; font-size: 13px; line-height: 1.6; font-weight: 700">Keep this code private.</p>
+                <p style="margin: 0; color: #5f6857; font-size: 13px; line-height: 1.6">ECHO will never ask you to share it. If you did not request this email, you can safely ignore it.</p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin: 20px 0 0; color: #5f6857; font-size: 12px; line-height: 1.5">ECHO · Account email</p>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>

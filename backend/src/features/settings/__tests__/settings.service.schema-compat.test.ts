@@ -3,8 +3,9 @@ import { SettingsService } from "../settings.service.js";
 
 const userId = "40000000-0000-4000-8000-000000000001";
 
-function legacyDatabase() {
+function legacyDatabase(missingPreferences = false) {
   const updates: Array<Record<string, unknown>> = [];
+  const upserts: string[] = [];
   const privacy = {
     facial_analysis_enabled: false,
     journal_ai_analysis_enabled: false,
@@ -13,8 +14,8 @@ function legacyDatabase() {
   };
   const rows: Record<string, unknown> = {
     profiles: { display_name: "Lloyd", timezone: "Asia/Manila" },
-    notification_preferences: {},
-    privacy_preferences: privacy,
+    notification_preferences: missingPreferences ? null : {},
+    privacy_preferences: missingPreferences ? null : privacy,
     trusted_contacts: [],
     data_export_requests: [],
     account_deletion_requests: null,
@@ -23,7 +24,10 @@ function legacyDatabase() {
     let updating = false;
     let updateError: { code: string; message: string } | null = null;
     const query = {
-      upsert: vi.fn(async () => ({ error: null })),
+      upsert: vi.fn(async () => {
+        upserts.push(table);
+        return { error: null };
+      }),
       select: vi.fn(() => query),
       order: vi.fn(() => query),
       limit: vi.fn(() => query),
@@ -44,10 +48,17 @@ function legacyDatabase() {
     };
     return query;
   });
-  return { database: { schema: vi.fn(() => ({ from })) }, from, updates };
+  return { database: { schema: vi.fn(() => ({ from })) }, from, updates, upserts };
 }
 
 describe("SettingsService with an older Buddy schema", () => {
+  it("reads only owner profile fields for the navigation menu", async () => {
+    const mocks = legacyDatabase();
+    const profile = await new SettingsService(mocks.database as never).getProfileSummary(userId);
+    expect(profile).toEqual({ displayName: "Lloyd", avatarPath: null });
+    expect(mocks.from).toHaveBeenCalledExactlyOnceWith("profiles");
+  });
+
   it("loads other settings and marks Buddy history controls unavailable", async () => {
     const mocks = legacyDatabase();
     const service = new SettingsService(mocks.database as never);
@@ -56,6 +67,25 @@ describe("SettingsService with an older Buddy schema", () => {
     expect(snapshot.privacy).toMatchObject({ buddyHistoryEnabled: true, buddyHistoryAvailable: false });
     expect(snapshot.notifications).toMatchObject({ quietHoursAvailable: false, quietHoursStart: null, quietHoursEnd: null });
     expect(mocks.from).toHaveBeenCalledWith("privacy_preferences");
+    expect(mocks.upserts).toEqual([]);
+  });
+
+  it("uses safe defaults when an older account has no preference rows", async () => {
+    const mocks = legacyDatabase(true);
+    const snapshot = await new SettingsService(mocks.database as never).get(userId);
+    expect(snapshot.privacy).toMatchObject({
+      facialAnalysisEnabled: false,
+      journalAiAnalysisEnabled: false,
+      buddyHistoryAvailable: false,
+      crisisSupportVisible: true,
+      lockScreenPrivate: true,
+    });
+    expect(snapshot.notifications).toMatchObject({
+      emailEnabled: false,
+      inAppEnabled: true,
+      quietHoursAvailable: false,
+    });
+    expect(mocks.upserts).toEqual([]);
   });
 
   it("saves unrelated privacy settings without silently disabling Buddy history", async () => {

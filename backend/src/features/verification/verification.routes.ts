@@ -33,6 +33,7 @@ export function createVerificationRouter(service: VerificationService, verifier:
   router.get("/admin/verifications", authenticate, controller.adminList);
   router.get("/admin/verifications/:verificationId", authenticate, controller.adminDetail);
   router.post("/admin/verifications/:verificationId/claim", authenticate, controller.adminClaim);
+  router.post("/admin/verifications/:verificationId/rescan", authenticate, controller.adminRescan);
   router.post("/admin/verifications/:verificationId/decision", authenticate, controller.adminDecision);
   return router;
 }

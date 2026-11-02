@@ -180,7 +180,7 @@ export class VerificationService {
     const { data, error } = await this.database
       .schema("verification_service")
       .from("verification_documents")
-      .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path, scan_status, scanned_at, scanner_version")
+      .select("id, document_kind, mime_type, size_bytes, uploaded_at, storage_path, sha256_hex, scan_status, scanned_at, scanner_version")
       .eq("verification_id", verificationId)
       .order("uploaded_at", { ascending: true });
     if (error) throw databaseError("Verification documents could not be loaded.");
@@ -505,15 +505,20 @@ export class VerificationService {
     if (!data) throw new NotFoundError("The verification application was not found.");
     const row = data as Row;
     const documents = await this.documentsForVerification(verificationId);
-    assertDocumentsClean(documents);
     const reviewedDocuments = await Promise.all(
       documents.map(async (document) => {
+        const scanStatus = document.scan_status === "clean" && document.scanned_at && document.scanner_version
+          ? "clean" : document.scan_status === "rejected" ? "rejected" : "quarantined";
+        if (scanStatus !== "clean") {
+          return { ...this.documentResponse(document), scanStatus, signedUrl: null };
+        }
         const path = stringValue(document.storage_path);
         const signed = await this.database.storage.from(VERIFICATION_BUCKET).createSignedUrl(path, 300);
         if (signed.error)
           throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be opened.");
         return {
           ...this.documentResponse(document),
+          scanStatus,
           signedUrl: signed.data.signedUrl,
         };
       }),
@@ -535,6 +540,11 @@ export class VerificationService {
 
   async claimForReview(adminUserId: string, verificationId: string) {
     await this.assertAdmin(adminUserId);
+    const pending = await this.getForAdmin(adminUserId, verificationId);
+    if (pending.userId === adminUserId)
+      throw new AuthorizationError("Another administrator must review your own application.");
+    if (pending.status !== "submitted")
+      throw new ConflictError("VERIFICATION_ALREADY_REVIEWED", "This application is no longer awaiting review.");
     const { data, error } = await this.database
       .schema("verification_service")
       .from("identity_verifications")
@@ -554,6 +564,56 @@ export class VerificationService {
       }
     }
     return this.getForAdmin(adminUserId, verificationId);
+  }
+
+  async rescanForAdmin(adminUserId: string, verificationId: string) {
+    await this.assertAdmin(adminUserId);
+    if (this.scanner === quarantineScanner)
+      throw new ExternalServiceError("DOCUMENT_SCANNER_UNAVAILABLE", "Document scanning is not configured.");
+    const { data, error } = await this.database
+      .schema("verification_service")
+      .from("identity_verifications")
+      .select("user_id, verification_status")
+      .eq("id", verificationId)
+      .maybeSingle();
+    if (error) throw databaseError("The verification application could not be loaded.");
+    if (!data) throw new NotFoundError("The verification application was not found.");
+    if (data.user_id === adminUserId)
+      throw new AuthorizationError("Another administrator must review your own application.");
+    if (!["submitted", "under_review"].includes(data.verification_status))
+      throw new ConflictError("VERIFICATION_ALREADY_REVIEWED", "This application is no longer awaiting review.");
+
+    await this.rescanStoredDocuments(await this.documentsForVerification(verificationId));
+    return this.getForAdmin(adminUserId, verificationId);
+  }
+
+  private async rescanStoredDocuments(documents: Row[]) {
+    for (const document of documents) {
+      if (document.scan_status === "clean") continue;
+      if (document.scan_status === "rejected")
+        throw new ConflictError("DOCUMENT_SCAN_REJECTED", "A rejected document must be replaced by the applicant.");
+      const path = stringValue(document.storage_path);
+      const downloaded = await this.database.storage.from(VERIFICATION_BUCKET).download(path);
+      if (downloaded.error || !downloaded.data)
+        throw new ExternalServiceError("STORAGE_UNAVAILABLE", "A verification document could not be scanned.");
+      const bytes = Buffer.from(await downloaded.data.arrayBuffer());
+      if (createHash("sha256").update(bytes).digest("hex") !== document.sha256_hex)
+        throw new ConflictError("DOCUMENT_INTEGRITY_FAILED", "The stored document does not match its upload record.");
+      const scan = await inspectDocument(this.scanner, bytes, stringValue(document.mime_type));
+      if (scan.scan_status !== "clean")
+        throw new ConflictError("DOCUMENT_SCAN_PENDING", "Document scanning did not complete. Try again after the scanner is available.");
+      const { data: updated, error: updateError } = await this.database
+        .schema("verification_service")
+        .from("verification_documents")
+        .update(scan)
+        .eq("id", document.id)
+        .eq("sha256_hex", document.sha256_hex)
+        .eq("scan_status", "quarantined")
+        .select("id")
+        .maybeSingle();
+      if (updateError) throw databaseError("The document scan result could not be recorded.");
+      if (!updated) throw new ConflictError("DOCUMENT_CHANGED", "The document changed during scanning. Refresh the review.");
+    }
   }
 
   async decide(adminUserId: string, verificationId: string, input: VerificationDecisionInput) {

@@ -52,20 +52,47 @@ function getRecognitionConstructor(): EchoSpeechRecognitionConstructor | null {
 
 export function useBuddyVoiceControls() {
   const recognitionRef = useRef<EchoSpeechRecognition | null>(null);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [inputPhase, setInputPhase] = useState<"idle" | "starting" | "listening" | "stopping">("idle");
+  const [playbackPhase, setPlaybackPhase] = useState<"idle" | "starting" | "speaking">("idle");
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
   const voiceSupported = useMemo(() => getRecognitionConstructor() !== null, []);
   const speechSupported = typeof window !== "undefined" && "speechSynthesis" in window;
 
+  useEffect(() => {
+    if (!speechSupported) return;
+    const synthesis = window.speechSynthesis;
+    const updateVoices = () => {
+      const voices = synthesis.getVoices();
+      const conversationVoices = voices.filter((voice) => /^(en|fil|tl)(-|$)/i.test(voice.lang));
+      setAvailableVoices((conversationVoices.length ? conversationVoices : voices).sort((a, b) => {
+        const rank = (voice: SpeechSynthesisVoice) => voice.localService ? (/natural|neural/i.test(voice.name) ? 0 : 1) : 2;
+        return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      }));
+    };
+    updateVoices();
+    synthesis.addEventListener("voiceschanged", updateVoices);
+    return () => synthesis.removeEventListener("voiceschanged", updateVoices);
+  }, [speechSupported]);
+
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setIsListening(false);
-    setInterimTranscript("");
-  }, []);
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    if (inputPhase === "starting") {
+      recognitionRef.current = null;
+      recognition.abort();
+      setInputPhase("idle");
+      setInterimTranscript("");
+      return;
+    }
+    setInputPhase("stopping");
+    recognition.stop();
+  }, [inputPhase]);
 
   const startListening = useCallback(
     (onTranscript: (transcript: string) => void) => {
@@ -81,24 +108,27 @@ export function useBuddyVoiceControls() {
       recognition.interimResults = true;
       recognition.lang = "en-US";
       recognition.onstart = () => {
-        setVoiceError(null);
-        setInterimTranscript("");
-        setIsListening(true);
+        if (recognitionRef.current === recognition) setInputPhase("listening");
       };
       recognition.onend = () => {
-        setIsListening(false);
+        if (recognitionRef.current !== recognition) return;
+        recognitionRef.current = null;
+        setInputPhase("idle");
         setInterimTranscript("");
       };
       recognition.onerror = (event) => {
-        setIsListening(false);
+        if (recognitionRef.current !== recognition) return;
+        recognitionRef.current = null;
+        setInputPhase("idle");
         setInterimTranscript("");
         setVoiceError(
           event.error === "not-allowed"
-            ? "Microphone permission was blocked."
+            ? "The browser could not start voice input. Check microphone access and try again."
             : "Voice input stopped. Please try again.",
         );
       };
       recognition.onresult = (event) => {
+        if (recognitionRef.current !== recognition) return;
         let finalText = "";
         let interimText = "";
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -112,11 +142,15 @@ export function useBuddyVoiceControls() {
       };
 
       recognitionRef.current = recognition;
+      setVoiceError(null);
+      setInterimTranscript("");
+      setInputPhase("starting");
       try {
         recognition.start();
       } catch {
+        recognitionRef.current = null;
         setVoiceError("Voice input could not start. Please try again.");
-        setIsListening(false);
+        setInputPhase("idle");
       }
     },
     [],
@@ -124,12 +158,16 @@ export function useBuddyVoiceControls() {
 
   const stopSpeaking = useCallback(() => {
     if (!speechSupported) return;
-    window.speechSynthesis.cancel();
-    setIsSpeaking(false);
+    const hadUtterance = utteranceRef.current !== null;
+    utteranceRef.current = null;
+    if (speechStartTimerRef.current) clearTimeout(speechStartTimerRef.current);
+    speechStartTimerRef.current = null;
+    if (hadUtterance) window.speechSynthesis.cancel();
+    setPlaybackPhase("idle");
   }, [speechSupported]);
 
   const speak = useCallback(
-    (text: string) => {
+    (text: string, voiceURI = selectedVoiceURI) => {
       if (!speechSupported) {
         setVoiceError("Text-to-speech is not supported in this browser.");
         return;
@@ -137,25 +175,69 @@ export function useBuddyVoiceControls() {
       const content = text.trim();
       if (!content) return;
 
-      window.speechSynthesis.cancel();
+      stopSpeaking();
+      const synthesis = window.speechSynthesis;
+      const voices = synthesis.getVoices();
+      const localEnglishVoices = voices.filter((voice) => voice.localService && /^en(-|$)/i.test(voice.lang));
+      const selectedVoice = voices.find((voice) => voice.voiceURI === voiceURI)
+        ?? localEnglishVoices.find((voice) => /natural|neural/i.test(voice.name))
+        ?? localEnglishVoices.find((voice) => voice.default)
+        ?? localEnglishVoices[0]
+        ?? voices.find((voice) => voice.localService && /^(fil|tl)(-|$)/i.test(voice.lang));
       const utterance = new SpeechSynthesisUtterance(content);
-      utterance.rate = 0.92;
-      utterance.pitch = 0.96;
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        setVoiceError("Speech playback stopped. Please try again.");
+      if (selectedVoice) utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice?.lang ?? "en-US";
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      let started = false;
+      utterance.onstart = () => {
+        if (utteranceRef.current !== utterance) return;
+        started = true;
+        if (speechStartTimerRef.current) clearTimeout(speechStartTimerRef.current);
+        speechStartTimerRef.current = null;
+        setPlaybackPhase("speaking");
       };
+      utterance.onend = () => {
+        if (utteranceRef.current !== utterance) return;
+        utteranceRef.current = null;
+        if (speechStartTimerRef.current) clearTimeout(speechStartTimerRef.current);
+        speechStartTimerRef.current = null;
+        setPlaybackPhase("idle");
+        if (!started) setVoiceError("Browser speech ended without playing. Try another voice or browser.");
+      };
+      utterance.onerror = () => {
+        if (utteranceRef.current !== utterance) return;
+        utteranceRef.current = null;
+        if (speechStartTimerRef.current) clearTimeout(speechStartTimerRef.current);
+        speechStartTimerRef.current = null;
+        setPlaybackPhase("idle");
+        setVoiceError("Voice playback failed. Try another browser voice.");
+      };
+      utteranceRef.current = utterance;
       setVoiceError(null);
-      setIsSpeaking(true);
-      window.speechSynthesis.speak(utterance);
+      setPlaybackPhase("starting");
+      speechStartTimerRef.current = setTimeout(() => {
+        if (utteranceRef.current !== utterance) return;
+        stopSpeaking();
+        setVoiceError("Voice playback did not start. Try another browser voice.");
+      }, 8000);
+      try {
+        if (synthesis.paused) synthesis.resume();
+        synthesis.speak(utterance);
+      } catch {
+        stopSpeaking();
+        setVoiceError("Voice playback could not start. Try another browser voice.");
+      }
     },
-    [speechSupported],
+    [selectedVoiceURI, speechSupported, stopSpeaking],
   );
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort();
+      utteranceRef.current = null;
+      if (speechStartTimerRef.current) clearTimeout(speechStartTimerRef.current);
       if (speechSupported) window.speechSynthesis.cancel();
     };
   }, [speechSupported]);
@@ -163,8 +245,13 @@ export function useBuddyVoiceControls() {
   return {
     voiceSupported,
     speechSupported,
-    isListening,
-    isSpeaking,
+    inputPhase,
+    isListening: inputPhase === "listening",
+    playbackPhase,
+    isSpeaking: playbackPhase !== "idle",
+    availableVoices,
+    selectedVoiceURI,
+    setSelectedVoiceURI,
     interimTranscript,
     voiceError,
     startListening,

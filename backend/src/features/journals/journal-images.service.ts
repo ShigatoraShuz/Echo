@@ -13,6 +13,14 @@ export function validateJournalImage(bytes: Buffer, mime: string): void {
 export class JournalImagesService {
   constructor(private readonly database: SupabaseClient) {}
 
+  private async signedUrls(paths: string[]): Promise<Map<string, string> | null> {
+    if (paths.length === 0) return new Map();
+    const { data, error } = await this.database.storage.from("journal-images").createSignedUrls(paths, 300);
+    if (error || !data) return null;
+    return new Map(data.flatMap((item) =>
+      item.path && item.signedUrl && !item.error ? [[item.path, item.signedUrl] as const] : []));
+  }
+
   private async releaseDraftReservation(userId: string, imageId: string): Promise<void> {
     await this.database.schema("journal_service").from("journal_draft_images")
       .update({ reservation_expires_at: new Date().toISOString() })
@@ -64,12 +72,11 @@ export class JournalImagesService {
       .order("created_at", { ascending: true });
     if (["42P01", "PGRST205"].includes(error?.code ?? "")) return [];
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Draft photos could not be loaded.");
-    const signed = await Promise.all((data ?? []).map(async (image) => {
-      const result = await this.database.storage.from("journal-images").createSignedUrl(image.storage_path, 300);
-      if (result.error || !result.data) throw new ExternalServiceError("STORAGE_UNAVAILABLE", "Draft photos could not be opened.");
-      return { id: String(image.id), url: result.data.signedUrl };
-    }));
-    return signed;
+    const images = data ?? [];
+    const urls = await this.signedUrls(images.map((image) => image.storage_path));
+    if (!urls || images.some((image) => !urls.has(image.storage_path)))
+      throw new ExternalServiceError("STORAGE_UNAVAILABLE", "Draft photos could not be opened.");
+    return images.map((image) => ({ id: String(image.id), url: urls.get(image.storage_path)! }));
   }
 
   async removeDraft(userId: string, imageId: string): Promise<void> {
@@ -217,27 +224,11 @@ export class JournalImagesService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal photos could not be loaded.");
     }
 
-    return (
-      await Promise.all(
-        (data ?? []).map(async (row) => {
-          const result = await this.database.storage.from("journal-images").createSignedUrl(row.storage_path, 300);
-
-          return result.data
-            ? {
-                id: String(row.id),
-                url: result.data.signedUrl,
-              }
-            : null;
-        }),
-      )
-    ).filter(
-      (
-        item,
-      ): item is {
-        id: string;
-        url: string;
-      } => item !== null,
-    );
+    const urls = await this.signedUrls((data ?? []).map((row) => row.storage_path));
+    return (data ?? []).flatMap((row) => {
+      const url = urls?.get(row.storage_path);
+      return url ? [{ id: String(row.id), url }] : [];
+    });
   }
 
   async listForJournals(userId: string, journalIds: string[]): Promise<Map<string, Array<{ id: string; url: string }>>> {
@@ -252,15 +243,14 @@ export class JournalImagesService {
       .eq("uploaded", true)
       .order("created_at", { ascending: true });
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal photos could not be loaded.");
-    const signed = await Promise.all((data ?? []).map(async (row) => {
-      const result = await this.database.storage.from("journal-images").createSignedUrl(row.storage_path, 300);
-      return result.data ? { journalId: String(row.journal_id), id: String(row.id), url: result.data.signedUrl } : null;
-    }));
-    for (const image of signed) {
-      if (!image) continue;
-      const items = images.get(image.journalId) ?? [];
-      items.push({ id: image.id, url: image.url });
-      images.set(image.journalId, items);
+    const urls = await this.signedUrls((data ?? []).map((row) => row.storage_path));
+    for (const row of data ?? []) {
+      const url = urls?.get(row.storage_path);
+      if (!url) continue;
+      const journalId = String(row.journal_id);
+      const items = images.get(journalId) ?? [];
+      items.push({ id: String(row.id), url });
+      images.set(journalId, items);
     }
     return images;
   }

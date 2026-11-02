@@ -55,6 +55,15 @@ describe("DominantEmotionWheel", () => {
     expect(screen.getByText(/appeared in 1 of 1 reflection/i)).toBeInTheDocument();
   });
 
+  it("reveals the emotion ring clockwise from the top", () => {
+    const { container } = render(<DominantEmotionWheel entries={entries} />);
+    const wheel = screen.getByRole("img", { name: /most present emotion/i });
+    const mask = container.querySelector("mask .echo-emotion-wheel-sweep");
+    expect(mask).toHaveAttribute("stroke-dasharray", "100 0");
+    expect(wheel.querySelector("g[mask]")).toBeInTheDocument();
+    expect(wheel).toHaveClass("-rotate-90");
+  });
+
   it("expands to the nearest range containing saved reflections", () => {
     render(<DominantEmotionWheel entries={[entry("older", 40, [])]} />);
 

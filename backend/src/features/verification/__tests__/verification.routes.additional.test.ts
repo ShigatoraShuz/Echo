@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app.js";
 import type { VerificationService } from "../verification.service.js";
 
-function createHarness() {
+function createHarness(assuranceLevel = "aal2") {
   const verifier = {
-    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel: "aal2", authenticatedAt: Date.now() / 1000 }),
+    getUser: vi.fn().mockResolvedValue({ id: "user-1", email: "user@example.com", assuranceLevel, authenticatedAt: Date.now() / 1000 }),
   };
   const verification = {
     getStatus: vi.fn().mockResolvedValue({ status: "not_started" }),
@@ -15,6 +15,7 @@ function createHarness() {
     listForAdmin: vi.fn().mockResolvedValue([]),
     getForAdmin: vi.fn().mockResolvedValue({ id: "verification-1" }),
     claimForReview: vi.fn().mockResolvedValue({ id: "verification-1" }),
+    rescanForAdmin: vi.fn().mockResolvedValue({ id: "verification-1" }),
     decide: vi.fn().mockResolvedValue({ id: "verification-1" }),
     assertAiAccess: vi.fn().mockResolvedValue(undefined),
   };
@@ -109,5 +110,16 @@ describe("verification routes", () => {
 
     expect(response.status).toBe(200);
     expect(verification.listForAdmin).toHaveBeenCalledWith("user-1", "submitted");
+  });
+  it("requires an authenticated reviewer session to rescan a verification", async () => {
+    const { app, verification } = createHarness();
+    const path = "/api/v1/admin/verifications/00000000-0000-4000-8000-000000000001/rescan";
+    expect((await request(app).post(path)).status).toBe(401);
+    const response = await request(app).post(path).set("Authorization", "Bearer valid-token");
+    expect(response.status).toBe(200);
+    expect(verification.rescanForAdmin).toHaveBeenCalledWith("user-1", "00000000-0000-4000-8000-000000000001");
+    const withoutMfa = createHarness("aal1");
+    expect((await request(withoutMfa.app).post(path).set("Authorization", "Bearer valid-token")).status).toBe(403);
+    expect(withoutMfa.verification.rescanForAdmin).not.toHaveBeenCalled();
   });
 });

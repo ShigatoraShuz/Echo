@@ -6,8 +6,15 @@ import type { EncryptionService } from "../../infrastructure/encryption/encrypti
 import { encryptText, decryptText } from "../../infrastructure/encryption/encryption.service.js";
 import { logSupabaseError, type SupabaseOperation } from "../../infrastructure/supabase/supabase-diagnostics.js";
 import { ConflictError, ExternalServiceError, NotFoundError } from "../../shared/errors/app-error.js";
+import { buddyDemoReply } from "./buddy-demo-replies.js";
 
 type DatabaseRow = Record<string, unknown>;
+
+interface EmotionInsightsSummary {
+  total: number;
+  mood_counts: Record<string, number>;
+  daily_scores: Record<string, { count: number; sum: number }>;
+}
 
 const moodScores: Record<string, number> = {
   calm: 82,
@@ -71,23 +78,6 @@ function calculateStreak(entries: Array<{ created_at: string }>): number {
   return streak;
 }
 
-function buddyReply(message: string, urgent: boolean): string {
-  if (urgent) {
-    return "Thank you for telling me. Your immediate safety matters most. Please open Find help or Crisis support now and contact a trusted person who can stay with you.";
-  }
-  const normalized = message.toLowerCase();
-  if (normalized.includes("anx") || normalized.includes("overwhelm") || normalized.includes("tight")) {
-    return "Let us make this moment smaller. Place both feet down, take one unforced breath, and name one thing around you that feels steady.";
-  }
-  if (normalized.includes("sad") || normalized.includes("alone") || normalized.includes("lonely")) {
-    return "That sounds heavy to carry alone. What is one gentle thing you need most right now: rest, company, space, or a practical next step?";
-  }
-  if (normalized.includes("angry") || normalized.includes("frustrat")) {
-    return "There is room for that frustration here. Before deciding what to do, can you name what boundary or need feels most important underneath it?";
-  }
-  return "I am here with you. What part of that feels most present right now, and what would make the next few minutes a little gentler?";
-}
-
 function buddyTitle(message: string): string {
   const text = message.toLowerCase();
   if (/\b(overwhelmed?|anxious|anxiety|stressed?|tense)\b/.test(text)) return "Feeling overwhelmed today";
@@ -144,8 +134,10 @@ export class ExperienceService {
   }
 
   async dashboard(userId: string, range = "7d") {
-    const [entries, analysisInsights, profileResult, preferenceResult] = await Promise.all([
-      this.journals.listSummaries(userId),
+    const summaryStart = startOfUtcDay(new Date());
+    summaryStart.setUTCDate(summaryStart.getUTCDate() - 371);
+    const [{ entries, total }, analysisInsights, profileResult, preferenceResult] = await Promise.all([
+      this.journals.dashboardSummaries(userId, summaryStart.toISOString()),
       this.journals.dashboardInsights(userId),
       this.reader.schema("user_service").from("profiles").select("display_name").eq("user_id", userId).maybeSingle(),
       this.reader
@@ -178,6 +170,8 @@ export class ExperienceService {
     const profile = profileResult.data;
     const preferences = preferenceResult.data;
     const recentTitles = await this.journals.getJournalTitles(userId, entries.slice(0, 3).map((entry) => entry.id));
+    let streakDays = calculateStreak(entries);
+    if (streakDays >= 371) streakDays = calculateStreak(await this.journals.listSummaries(userId));
 
     const today = startOfUtcDay(new Date());
     let moodTrend: Array<{ label: string; value: number }>;
@@ -230,10 +224,12 @@ export class ExperienceService {
     const moodCounts = new Map<string, number>();
     for (const entry of entries) moodCounts.set(entry.mood, (moodCounts.get(entry.mood) ?? 0) + 1);
     const topMood = [...moodCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "calm";
-    const weeklyDigest = entries.length
+    const weeklyDigest = total
       ? [
-          `You kept ${entries.length} private reflection${entries.length === 1 ? "" : "s"} close.`,
-          `${topMood[0]?.toUpperCase() ?? ""}${topMood.slice(1)} appeared most often in your recent entries.`,
+          `You kept ${total} private reflection${total === 1 ? "" : "s"} close.`,
+          entries.length
+            ? `${topMood[0]?.toUpperCase() ?? ""}${topMood.slice(1)} appeared most often in your recent entries.`
+            : "Your earlier reflections are still available in Journal.",
           entries.some((entry) => entry.tags.length > 0)
             ? "Your saved tags can help you revisit recurring themes."
             : "Adding a small tag can make recurring themes easier to revisit.",
@@ -247,11 +243,12 @@ export class ExperienceService {
     return {
       userProfile: {
         name: asString((profile as DatabaseRow | null)?.display_name, "Friend"),
-        streakDays: calculateStreak(entries),
+        streakDays,
         nextCheckIn: asString((preferences as DatabaseRow | null)?.reminder_time, "Whenever you are ready"),
         privacyStatus: "Private",
       },
       latestEntry: entries[0] ? { ...entries[0], title: recentTitles.get(entries[0].id) ?? "" } : null,
+      totalReflections: total,
       journalEntries: entries.map((entry) => ({ ...entry, title: recentTitles.get(entry.id) ?? "" })),
       analysisInsights,
       moodTrend,
@@ -355,7 +352,7 @@ export class ExperienceService {
     const saving = await this.historyEnabled(userId);
     if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
     const urgent = /\b(suicide|kill myself|end my life|hurt myself|self harm)\b/i.test(content);
-    const reply = buddyReply(content, urgent);
+    const reply = buddyDemoReply(content, urgent);
     if (!saving) {
       if (urgent) {
         const { error } = await this.database.schema("user_service").from("audit_events").insert({
@@ -396,35 +393,37 @@ export class ExperienceService {
     return this.buddySession(userId, conversationId);
   }
 
-  async emotionInsights(userId: string) {
-    const entries = await this.journals.listSummaries(userId);
+  async emotionInsights(_userId: string) {
+    const { data, error } = await this.reader.schema("journal_service").rpc("emotion_insights_summary");
+    throwIfDatabaseError(error, {
+      module: "experience.insights", schema: "journal_service", table: "journals",
+      operation: "summarize journal emotions",
+    }, "Emotion insights are temporarily unavailable.");
+    if (!data) throw databaseError("Emotion insights are temporarily unavailable.");
+    const insights = data as EmotionInsightsSummary;
     const moods = ["calm", "happy", "neutral", "anxious", "sad", "angry"];
-    const counts = new Map(moods.map((mood) => [mood, 0]));
-    for (const entry of entries) counts.set(entry.mood, (counts.get(entry.mood) ?? 0) + 1);
-    const total = Math.max(entries.length, 1);
+    const total = Math.max(insights.total, 1);
     const emotionWheel = moods.map((mood) => ({
       label: mood[0].toUpperCase() + mood.slice(1),
       mood,
-      value: Math.round(((counts.get(mood) ?? 0) / total) * 100),
+      value: Math.round(((insights.mood_counts[mood] ?? 0) / total) * 100),
     }));
     const today = startOfUtcDay(new Date());
     const moodTrend = Array.from({ length: 7 }, (_, index) => {
       const day = new Date(today);
       day.setUTCDate(day.getUTCDate() - (6 - index));
-      const matching = entries.filter((entry) => dateKey(entry.created_at) === dateKey(day));
+      const daily = insights.daily_scores[dateKey(day)];
       return {
         label: day.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" }),
-        value: matching.length
-          ? Math.round(matching.reduce((sum, entry) => sum + (moodScores[entry.mood] ?? 60), 0) / matching.length)
-          : 0,
+        value: daily?.count ? Math.round(daily.sum / daily.count) : 0,
       };
     });
     const strongest = [...emotionWheel].sort((a, b) => b.value - a.value)[0];
     return {
       emotionWheel,
       moodTrend,
-      summary: entries.length
-        ? `${strongest.label} is the most frequent signal across ${entries.length} recent reflection${entries.length === 1 ? "" : "s"}.`
+      summary: insights.total
+        ? `${strongest.label} is the most frequent signal across ${insights.total} recent reflection${insights.total === 1 ? "" : "s"}.`
         : "No patterns are shown until you save a reflection.",
     };
   }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { JournalImagesService } from "../journal-images.service.js";
 import { JournalService } from "../journals.service.js";
 
 function row(id: number, userId = "owner") {
@@ -15,11 +16,17 @@ function row(id: number, userId = "owner") {
 
 function harness(rows: ReturnType<typeof row>[]) {
   const calls: Array<{ table: string; filters: Record<string, unknown>; start?: number; end?: number }> = [];
+  const selections: Array<{ table: string; count?: string }> = [];
   const createQuery = (table: string) => {
     const filters: Record<string, unknown> = {};
     let ascending = false;
+    let head = false;
     const query = {
-      select: () => query,
+      select: (_columns?: string, options?: { head?: boolean; count?: string }) => {
+        head = options?.head === true;
+        selections.push({ table, count: options?.count });
+        return query;
+      },
       eq: (field: string, value: unknown) => { filters[field] = value; return query; },
       is: (field: string, value: unknown) => { filters[field] = value; return query; },
       gte: (field: string, value: unknown) => { filters[`${field}:gte`] = value; return query; },
@@ -36,9 +43,14 @@ function harness(rows: ReturnType<typeof row>[]) {
         matched.sort((a, b) => ascending ? a.created_at.localeCompare(b.created_at) : b.created_at.localeCompare(a.created_at));
         return Promise.resolve({ data: matched.slice(start, end + 1), count: matched.length, error: null });
       },
+      maybeSingle: () => Promise.resolve({
+        data: rows.find((item) => item.id === filters.id && item.user_id === filters.user_id && item.deleted_at === filters.deleted_at) ?? null,
+        error: null,
+      }),
       then: (resolve: (value: { data: unknown[]; error: null }) => unknown) => {
         calls.push({ table, filters: { ...filters } });
-        return Promise.resolve({ data: [], error: null }).then(resolve);
+        const matched = rows.filter((item) => item.user_id === filters.user_id && item.deleted_at === filters.deleted_at);
+        return Promise.resolve({ data: head ? [] : matched, count: matched.length, error: null }).then(resolve);
       },
     };
     return query;
@@ -49,16 +61,45 @@ function harness(rows: ReturnType<typeof row>[]) {
   };
   const encryption = { decrypt: ({ ciphertext }: { ciphertext: string }) => Buffer.from(ciphertext, "base64").toString("utf8") };
   const service = new JournalService(database as never, encryption as never, {} as never);
-  return { service, calls };
+  return { service, calls, selections };
 }
 
 describe("journal list", () => {
+  it("bounds dashboard details to the visible year while preserving the lifetime count", async () => {
+    const older = { ...row(1), created_at: "2024-01-01T00:00:00.000Z" };
+    const recent = row(2);
+    const { service, calls } = harness([older, recent, row(3, "other")]);
+    const result = await service.dashboardSummaries("owner", "2025-10-01T00:00:00.000Z");
+    expect(result.entries.map((entry) => entry.id)).toEqual([recent.id]);
+    expect(result.total).toBe(2);
+    expect(calls.find((call) => call.start === 0)?.filters).toMatchObject({ user_id: "owner", "created_at:gte": "2025-10-01T00:00:00.000Z" });
+  });
+
   it("returns an empty first page without analysis or photo reads", async () => {
     const { service, calls } = harness([]);
     expect(await service.listPage("owner", { page: 1, pageSize: 10, query: "", sort: "newest" })).toEqual({
       entries: [], total: 0, page: 1, page_size: 10,
     });
     expect(calls.map((call) => call.table)).toEqual(["journals"]);
+  });
+
+  it("starts owned journal analysis and photo reads together", async () => {
+    const { service } = harness([row(1)]);
+    let finishAnalysis!: (value: null) => void;
+    const analysis = new Promise<null>((resolve) => { finishAnalysis = resolve; });
+    const latestAnalysis = vi.spyOn(service as unknown as { latestAnalysis: () => Promise<null> }, "latestAnalysis")
+      .mockReturnValue(analysis);
+    const photos = vi.spyOn(JournalImagesService.prototype, "list").mockResolvedValue([]);
+    try {
+      const result = service.get("owner", "journal-1");
+      await vi.waitFor(() => expect(photos).toHaveBeenCalledWith("owner", "journal-1"));
+      expect(latestAnalysis).toHaveBeenCalledWith("journal-1", "owner");
+      finishAnalysis(null);
+      await expect(result).resolves.toMatchObject({ id: "journal-1", images: [] });
+    } finally {
+      latestAnalysis.mockRestore();
+      photos.mockRestore();
+    }
   });
 
   it("returns exactly ten entries for a full first page", async () => {
@@ -93,10 +134,17 @@ describe("journal list", () => {
   });
 
   it("searches encrypted title, body, and tags without returning other owners' records", async () => {
-    const { service } = harness([row(1), row(2), row(3, "other")]);
+    const { service, selections } = harness([row(1), row(2), row(3, "other")]);
     const options = { page: 1, pageSize: 10, sort: "newest" as const };
     expect((await service.listPage("owner", { ...options, query: "title 1" })).entries.map((entry) => entry.id)).toEqual(["journal-1"]);
     expect((await service.listPage("owner", { ...options, query: "body 2" })).entries.map((entry) => entry.id)).toEqual(["journal-2"]);
     expect((await service.listPage("owner", { ...options, query: "focus" })).entries.map((entry) => entry.id)).toEqual(["journal-2"]);
+    expect(selections.filter((selection) => selection.table === "journals").every((selection) => selection.count === undefined)).toBe(true);
+  });
+
+  it("still requests an exact total for ordinary pagination", async () => {
+    const { service, selections } = harness([]);
+    await service.listPage("owner", { page: 1, pageSize: 10, query: "", sort: "newest" });
+    expect(selections.find((selection) => selection.table === "journals")?.count).toBe("exact");
   });
 });

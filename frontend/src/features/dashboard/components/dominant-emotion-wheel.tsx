@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { LockKeyhole } from "lucide-react";
 import type { DashboardEntry } from "../model/dashboard.model";
 
@@ -63,6 +63,7 @@ function isEntryInPeriod(entry: DashboardEntry, reference: Date, days: number) {
 }
 
 export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
+  const revealMaskId = useId();
   const [range, setRange] = useState<EmotionRange>(() => {
     const now = new Date();
     return RANGE_OPTIONS.slice(1).find((option) => entries.some((entry) => isEntryInPeriod(entry, now, option.days)))?.value ?? "week";
@@ -153,10 +154,15 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
               viewBox="0 0 200 200"
               role="img"
               aria-label={`${formatEmotion(insight.dominant.emotion)} is the most present emotion for ${selectedRange.description}, appearing in ${insight.dominant.count} of ${insight.entries.length} reflections.`}
-              className="echo-chart-wheel-reveal h-full w-full -rotate-90 drop-shadow-[0_12px_24px_rgba(35,62,39,0.13)]"
+              className="h-full w-full -rotate-90 drop-shadow-[0_12px_24px_rgba(35,62,39,0.13)]"
             >
+              <defs>
+                <mask id={revealMaskId}>
+                  <circle cx="100" cy="100" r="76" fill="none" stroke="white" strokeWidth="32" pathLength="100" strokeDasharray="100 0" className="echo-emotion-wheel-sweep" />
+                </mask>
+              </defs>
               <circle cx="100" cy="100" r="76" fill="none" stroke="rgba(71,113,91,0.10)" strokeWidth="27" />
-              {insight.segments.map((segment) => {
+              <g mask={`url(#${revealMaskId})`}>{insight.segments.map((segment) => {
                 const segmentOffset = offset;
                 offset += segment.percentage;
                 return (
@@ -174,7 +180,7 @@ export function DominantEmotionWheel({ entries }: DominantEmotionWheelProps) {
                     strokeLinecap="round"
                   />
                 );
-              })}
+              })}</g>
             </svg>
             <div className="absolute inset-[36px] flex flex-col items-center justify-center rounded-full border border-white/80 bg-[rgba(255,253,247,0.94)] text-center shadow-inner xl:inset-[28px]">
               <span className="text-[9px] font-bold uppercase tracking-[0.13em] text-muted-foreground">

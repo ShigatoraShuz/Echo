@@ -90,7 +90,7 @@ export interface AdminVerificationDetail {
   isMinor: boolean;
   ageAtSubmission: number;
   application: VerificationApplication;
-  documents: Array<VerificationDocument & { signedUrl: string }>;
+  documents: Array<VerificationDocument & { scanStatus: "clean" | "quarantined" | "rejected"; signedUrl: string | null }>;
   submittedAt: string | null;
   reviewedAt: string | null;
   reasonCode: string | null;
@@ -154,6 +154,13 @@ export const verificationApi = {
     return (
       await client.post<ApiEnvelope<AdminVerificationDetail>>(
         `/admin/verifications/${encodeURIComponent(verificationId)}/claim`,
+      )
+    ).data;
+  },
+  async adminRescan(verificationId: string): Promise<AdminVerificationDetail> {
+    return (
+      await client.post<ApiEnvelope<AdminVerificationDetail>>(
+        `/admin/verifications/${encodeURIComponent(verificationId)}/rescan`,
       )
     ).data;
   },

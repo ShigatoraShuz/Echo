@@ -137,11 +137,11 @@ export function AppProfileMenu() {
   useEffect(() => {
     let active = true;
     void settingsService
-      .get()
-      .then((settings) => {
+      .getProfileSummary()
+      .then((profile) => {
         if (active) {
-          setDisplayName(settings.profile.displayName);
-          setAvatar(settings.profile.avatarPath ?? null);
+          setDisplayName(profile.displayName);
+          setAvatar(profile.avatarPath ?? null);
         }
       })
       .catch(() => {

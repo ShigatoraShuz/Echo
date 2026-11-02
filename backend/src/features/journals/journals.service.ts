@@ -296,7 +296,7 @@ export class JournalService {
     const start = (options.page - 1) * options.pageSize;
     const base = () => {
       let query = this.reader.schema("journal_service").from("journals")
-        .select("*", { count: "exact" }).eq("user_id", userId).is("deleted_at", null);
+        .select("*", options.query ? undefined : { count: "exact" }).eq("user_id", userId).is("deleted_at", null);
       if (options.mood) query = query.eq("mood", options.mood);
       if (options.dateFrom) query = query.gte("created_at", `${options.dateFrom}T00:00:00.000Z`);
       if (options.dateTo) query = query.lt("created_at", new Date(Date.parse(`${options.dateTo}T00:00:00.000Z`) + 86_400_000).toISOString());
@@ -351,15 +351,17 @@ export class JournalService {
     };
   }
 
-  async listSummaries(userId: string): Promise<Array<{
+  async listSummaries(userId: string, since?: string): Promise<Array<{
     id: string; mood: string; emotions: string[]; tags: string[]; created_at: string;
   }>> {
     const summaries = [] as Array<{ id: string; mood: string; emotions: string[]; tags: string[]; created_at: string }>;
     for (let offset = 0; ; offset += 500) {
-      const { data, error } = await this.reader.schema("journal_service").from("journals")
+      let query = this.reader.schema("journal_service").from("journals")
         .select("id,mood,emotions,tags,created_at")
         .eq("user_id", userId).is("deleted_at", null)
-        .order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 499);
+        .order("created_at", { ascending: false }).order("id", { ascending: false });
+      if (since) query = query.gte("created_at", since);
+      const { data, error } = await query.range(offset, offset + 499);
       if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "list journal summaries" }, "The journal service is temporarily unavailable.");
       const batch = (data ?? []) as JournalRow[];
       summaries.push(...batch.map((row) => ({
@@ -370,6 +372,17 @@ export class JournalService {
       if (batch.length < 500) break;
     }
     return summaries;
+  }
+
+  async dashboardSummaries(userId: string, since: string) {
+    const [entries, { count, error }] = await Promise.all([
+      this.listSummaries(userId, since),
+      this.reader.schema("journal_service").from("journals")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId).is("deleted_at", null),
+    ]);
+    if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "count journal summaries" }, "The journal service is temporarily unavailable.");
+    return { entries, total: count ?? 0 };
   }
 
   async get(userId: string, journalId: string): Promise<JournalResponse> {
@@ -385,7 +398,11 @@ export class JournalService {
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal service is temporarily unavailable.");
     if (!data) throw new NotFoundError("The journal entry was not found.");
     const row = data as JournalRow;
-    return { ...this.toJournalResponse(row, await this.latestAnalysis(journalId, userId)), images: await new JournalImagesService(this.database).list(userId,journalId) };
+    const [analysis, images] = await Promise.all([
+      this.latestAnalysis(journalId, userId),
+      new JournalImagesService(this.database).list(userId, journalId),
+    ]);
+    return { ...this.toJournalResponse(row, analysis), images };
   }
 
   async uploadImage(userId:string,journalId:string,imageId:string,bytes:Buffer,mime:string) {

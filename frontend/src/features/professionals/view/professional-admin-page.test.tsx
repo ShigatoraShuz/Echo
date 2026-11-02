@@ -5,7 +5,7 @@ import AdminProfessionalsPage from "@/app/(protected)/admin/professionals/page";
 import {AppError} from "@/shared/errors/app-error";
 const m=vi.hoisted(()=>({adminOrganizations:vi.fn(),adminMembers:vi.fn(),adminAudit:vi.fn(),approveMember:vi.fn()}));
 vi.mock("@/services/professionals/professional-api",()=>({professionalApi:m}));
-vi.mock("@/shared/components/layout/echo-shells",()=>({AppShell:({children}:{children:React.ReactNode})=><main>{children}</main>}));
+vi.mock("@/shared/components/layout/admin-shell",()=>({AdminShell:({children}:{children:React.ReactNode})=><main>{children}</main>}));
 vi.mock("../components/professional-credential-review",()=>({ProfessionalCredentialReview:({organizationName}:{organizationName:string})=><section aria-label="Credential review">{organizationName}</section>}));
 const org={id:"org-one",name:"Fictional One",slug:"fictional-one",status:"active",description:"Fictional",serviceHours:""};
 beforeEach(()=>{vi.resetAllMocks();m.adminOrganizations.mockResolvedValue({organizations:[org]});m.adminMembers.mockResolvedValue({memberships:[]});m.adminAudit.mockResolvedValue({events:[]});m.approveMember.mockResolvedValue({membershipId:"fixture-member"});});

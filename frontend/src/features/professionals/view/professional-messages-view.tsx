@@ -232,7 +232,7 @@ export function ProfessionalMessagesView() {
                   messageClientId.current = null;
                 }}
                 aria-current={selectedId === item.id ? "true" : undefined}
-                className={`mb-1 w-full rounded-xl p-3 text-left transition-colors ${selectedId === item.id ? "bg-secondary text-primary" : "hover:bg-secondary/60"}`}
+                className={`echo-message-row mb-1 w-full rounded-xl p-3 text-left transition-colors ${selectedId === item.id ? "bg-secondary text-primary" : "hover:bg-secondary/60"}`}
               >
                 <strong className="block truncate text-sm">
                   {item.assignedProfessional?.displayName ?? organizationName(item.organizationId)}
@@ -245,8 +245,9 @@ export function ProfessionalMessagesView() {
             ))}
           </nav>
           <section
+            key={selectedId}
             aria-label="Selected conversation"
-            className="flex min-h-[480px] min-w-0 flex-col rounded-[1.3rem] border border-border/70 bg-card/95 shadow-subtle lg:h-[70vh]"
+            className="echo-message-view-enter flex min-h-[480px] min-w-0 flex-col rounded-[1.3rem] border border-border/70 bg-card/95 shadow-subtle lg:h-[70vh]"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 p-4">
               <div>

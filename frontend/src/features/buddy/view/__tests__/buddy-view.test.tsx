@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BuddyView } from "../buddy-view";
 import { useBuddyViewModel } from "@/features/buddy/view-model/use-buddy-view-model";
@@ -41,6 +41,21 @@ class MockRecognition {
         0: { isFinal: true, 0: { transcript } },
       },
     });
+  }
+
+  emitInterim(transcript: string) {
+    this.onresult?.({
+      resultIndex: 0,
+      results: {
+        length: 1,
+        0: { isFinal: false, 0: { transcript } },
+      },
+    });
+  }
+
+  emitError(error: string) {
+    this.onerror?.({ error });
+    this.onend?.();
   }
 }
 
@@ -172,16 +187,58 @@ describe("BuddyView", () => {
     const mock = setupMock();
     vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
     vi.stubGlobal("webkitSpeechRecognition", MockRecognition);
-    vi.stubGlobal("speechSynthesis", { speak: vi.fn(), cancel: vi.fn() });
+    vi.stubGlobal("speechSynthesis", { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [], addEventListener: vi.fn(), removeEventListener: vi.fn() });
 
     render(<BuddyView />);
 
     await user.click(screen.getByRole("button", { name: /start voice input/i }));
+    expect(screen.getByText("Mic on · Listening to you")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop voice input" })).toHaveAttribute("aria-pressed", "true");
+    act(() => {
+      MockRecognition.instance?.emitInterim("I feel");
+    });
+    expect(screen.getByText("Hearing: I feel")).toBeInTheDocument();
     act(() => {
       MockRecognition.instance?.emitFinal("I feel tense");
     });
 
     await waitFor(() => expect(screen.getByLabelText(/message buddy/i)).toHaveValue("I feel tense"));
+    expect(screen.getByRole("button", { name: /send message/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Stop voice input and review" }));
+    await waitFor(() => expect(screen.queryByText("Mic on · Listening to you")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /send message/i })).toBeEnabled();
+    expect(screen.getByLabelText(/message buddy/i)).toHaveValue("I feel tense");
+  });
+
+  it("shows microphone startup and lets the user cancel before listening begins", async () => {
+    const user = userEvent.setup();
+    const mock = setupMock();
+    class PendingRecognition extends MockRecognition {
+      start = vi.fn();
+    }
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    vi.stubGlobal("webkitSpeechRecognition", PendingRecognition);
+
+    render(<BuddyView />);
+    await user.click(screen.getByRole("button", { name: /start voice input/i }));
+    expect(screen.getByText("Opening microphone…")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel voice input" }));
+    expect(MockRecognition.instance?.abort).toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByText("Opening microphone…")).not.toBeInTheDocument());
+  });
+
+  it("clears the voice panel and explains a browser microphone denial", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+    vi.stubGlobal("webkitSpeechRecognition", MockRecognition);
+
+    render(<BuddyView />);
+    await user.click(screen.getByRole("button", { name: /start voice input/i }));
+    act(() => MockRecognition.instance?.emitError("not-allowed"));
+
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Voice input" })).not.toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("Check microphone access and try again");
+    expect(screen.getByRole("button", { name: /start voice input/i })).toBeEnabled();
   });
 
   it("speaks and stops the latest Buddy reply", async () => {
@@ -191,6 +248,9 @@ describe("BuddyView", () => {
       text: string;
       rate = 1;
       pitch = 1;
+      lang = "";
+      voice: SpeechSynthesisVoice | null = null;
+      onstart: (() => void) | null = null;
       onend: (() => void) | null = null;
       onerror: (() => void) | null = null;
 
@@ -198,19 +258,108 @@ describe("BuddyView", () => {
         this.text = text;
       }
     }
-    const speak = vi.fn();
+    const localVoice = { voiceURI: "local-en", name: "Natural English", lang: "en-US", localService: true, default: false } as SpeechSynthesisVoice;
+    const onlineVoice = { voiceURI: "online-fil", name: "Filipino voice", lang: "fil-PH", localService: false, default: false } as SpeechSynthesisVoice;
+    const speak = vi.fn((utterance: MockUtterance) => utterance.onstart?.());
     const cancel = vi.fn();
     vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
     vi.stubGlobal("webkitSpeechRecognition", MockRecognition);
-    vi.stubGlobal("speechSynthesis", { speak, cancel });
+    vi.stubGlobal("speechSynthesis", { speak, cancel, getVoices: () => [localVoice, onlineVoice], addEventListener: vi.fn(), removeEventListener: vi.fn() });
     vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
 
     render(<BuddyView />);
 
     await user.click(screen.getByRole("button", { name: /speak latest buddy reply/i }));
 
-    expect(cancel).toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
     expect(speak).toHaveBeenCalled();
+    expect(speak.mock.calls[0][0].voice).toBe(localVoice);
+    expect(speak.mock.calls[0][0].rate).toBe(1);
+    expect(speak.mock.calls[0][0].pitch).toBe(1);
+    expect(screen.getByText("Buddy is speaking")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start voice input/i })).toBeDisabled();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Browser voice" }), "online-fil");
+    expect(cancel).toHaveBeenCalled();
+    expect(speak.mock.calls[1][0].voice).toBe(onlineVoice);
+    await user.click(screen.getByRole("button", { name: "Stop Buddy playback" }));
+    await waitFor(() => expect(screen.queryByText("Buddy is speaking")).not.toBeInTheDocument());
+    expect(screen.getByText("Voice ready")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Play Buddy reply" }));
+    expect(speak).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps voice choices open when browser playback fails", async () => {
+    const user = userEvent.setup();
+    let utterance: { onerror: (() => void) | null } | null = null;
+    class MockUtterance {
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+    vi.stubGlobal("speechSynthesis", {
+      speak: vi.fn((next: MockUtterance) => { utterance = next; }),
+      cancel: vi.fn(),
+      getVoices: () => [],
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
+
+    render(<BuddyView />);
+    await user.click(screen.getByRole("button", { name: "Speak latest Buddy reply" }));
+    expect(screen.getByText("Preparing Buddy’s voice…")).toBeInTheDocument();
+    act(() => utterance?.onerror?.());
+    expect(screen.getByRole("alert")).toHaveTextContent("Voice playback failed");
+    expect(screen.getByRole("group", { name: "Voice playback" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play Buddy reply" })).toBeEnabled();
+  });
+
+  it("reports when the browser ends speech without starting audio", async () => {
+    const user = userEvent.setup();
+    let utterance: { onend: (() => void) | null } | null = null;
+    class MockUtterance {
+      onend: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+    vi.stubGlobal("speechSynthesis", {
+      speak: vi.fn((next: MockUtterance) => { utterance = next; }),
+      cancel: vi.fn(), getVoices: () => [], addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
+
+    render(<BuddyView />);
+    await user.click(screen.getByRole("button", { name: "Speak latest Buddy reply" }));
+    act(() => utterance?.onend?.());
+
+    expect(screen.getByRole("alert")).toHaveTextContent("ended without playing");
+    expect(screen.getByRole("group", { name: "Voice playback" })).toBeInTheDocument();
+  });
+
+  it("reports a silent browser speech engine instead of showing endless playback", () => {
+    vi.useFakeTimers();
+    try {
+      class MockUtterance {
+        constructor(public text: string) {}
+      }
+      const cancel = vi.fn();
+      vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+      vi.stubGlobal("speechSynthesis", {
+        speak: vi.fn(), cancel, getVoices: () => [], addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      });
+      vi.stubGlobal("SpeechSynthesisUtterance", MockUtterance);
+
+      render(<BuddyView />);
+      fireEvent.click(screen.getByRole("button", { name: "Speak latest Buddy reply" }));
+      expect(screen.getByText("Preparing Buddy’s voice…")).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(8000));
+
+      expect(cancel).toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("Voice playback did not start");
+      expect(screen.getByRole("button", { name: "Play Buddy reply" })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("disables voice input when speech recognition is unsupported", () => {

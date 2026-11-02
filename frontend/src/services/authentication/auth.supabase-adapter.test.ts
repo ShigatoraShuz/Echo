@@ -7,8 +7,6 @@ const SESSION_PERSISTENCE_KEY = "echo.auth.session-persistence";
 const VOLATILE_SESSION_MARKER_KEY = "echo.auth.volatile-session-active";
 
 const mocks = vi.hoisted(() => ({
-  signInWithOtp: vi.fn(),
-  verifyOtp: vi.fn(),
   signOut: vi.fn(),
   signInWithPassword: vi.fn(),
   signUp: vi.fn(),
@@ -21,8 +19,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/infrastructure/supabase/browser-client", () => ({
   createBrowserSupabaseClient: () => ({
     auth: {
-      signInWithOtp: mocks.signInWithOtp,
-      verifyOtp: mocks.verifyOtp,
       signOut: mocks.signOut,
       signInWithPassword: mocks.signInWithPassword,
       signUp: mocks.signUp,
@@ -59,122 +55,6 @@ function signInMock() {
     error: null,
   });
 }
-
-describe("email login codes", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-
-    mocks.signOut.mockResolvedValue({
-      error: null,
-    });
-  });
-
-  it("uses Supabase OTP without creating unregistered accounts", async () => {
-    mocks.signInWithOtp.mockResolvedValue({
-      error: null,
-    });
-
-    await createAuthSupabaseAdapter().sendLoginCode!("mira@test.com");
-
-    expect(mocks.signInWithOtp).toHaveBeenCalledWith({
-      email: "mira@test.com",
-      options: {
-        shouldCreateUser: false,
-      },
-    });
-  });
-
-  it("explains an OTP rate limit without exposing account existence", async () => {
-    mocks.signInWithOtp.mockResolvedValue({
-      error: { status: 429, code: "over_email_send_rate_limit", message: "rate limit exceeded" },
-    });
-
-    const result = await createAuthSupabaseAdapter().sendLoginCode!("mira@test.com");
-    expect(result).toMatchObject({
-      success: false,
-      error: { code: "RATE_LIMITED", message: expect.stringMatching(/wait and try again later/i) },
-    });
-  });
-
-  it("requires a verified OTP session and explains expired codes", async () => {
-    mocks.verifyOtp.mockResolvedValue({
-      data: {
-        session: null,
-      },
-      error: {
-        message: "expired",
-      },
-    });
-
-    const adapter = createAuthSupabaseAdapter();
-
-    expect(
-      await adapter.verifyLoginCode!({
-        email: "mira@test.com",
-        code: "123456",
-        rememberSession: true,
-      }),
-    ).toMatchObject({
-      success: false,
-      error: {
-        message: expect.stringMatching(/invalid or has expired/),
-      },
-    });
-
-    mocks.verifyOtp.mockResolvedValue({
-      data: {
-        session,
-      },
-      error: null,
-    });
-
-    expect(
-      await adapter.verifyLoginCode!({
-        email: "mira@test.com",
-        code: "654321",
-        rememberSession: true,
-      }),
-    ).toMatchObject({
-      success: true,
-      data: {
-        user: {
-          id: "user-1",
-        },
-      },
-    });
-
-    expect(mocks.verifyOtp).toHaveBeenLastCalledWith({
-      email: "mira@test.com",
-      token: "654321",
-      type: "email",
-    });
-  });
-
-  it("marks an unchecked OTP login as session-only", async () => {
-    mocks.verifyOtp.mockResolvedValue({
-      data: {
-        session,
-      },
-      error: null,
-    });
-
-    const adapter = createAuthSupabaseAdapter();
-
-    const result = await adapter.verifyLoginCode!({
-      email: "mira@test.com",
-      code: "654321",
-      rememberSession: false,
-    });
-
-    expect(result.success).toBe(true);
-
-    expect(window.localStorage.getItem(SESSION_PERSISTENCE_KEY)).toBe("session");
-
-    expect(window.sessionStorage.getItem(VOLATILE_SESSION_MARKER_KEY)).toBe("active");
-  });
-});
 
 describe("createAuthSupabaseAdapter logout", () => {
   beforeEach(() => {
@@ -307,6 +187,20 @@ describe("createAuthSupabaseAdapter session persistence", () => {
     expect(result).toMatchObject({
       success: false,
       error: { code: "RATE_LIMITED", message: expect.stringMatching(/wait and try again later/i) },
+    });
+  });
+
+  it("explains that a new email account must be confirmed before password login", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { session: null },
+      error: { status: 400, code: "email_not_confirmed", message: "Email not confirmed" },
+    });
+    const result = await createAuthSupabaseAdapter().login({
+      email: "mira@test.com", password: "SecurePass1", rememberSession: false,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: "EMAIL_NOT_CONFIRMED", message: "Verify your email address before logging in." },
     });
   });
 

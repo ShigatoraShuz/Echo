@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { BadgeCheck, BookOpen, HeartHandshake, History, LockKeyhole, Mic, MicOff, MoreHorizontal, Pencil, Pin, Plus, Send, ShieldAlert, Sparkles, Volume2, VolumeX, Wind } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
@@ -19,6 +20,7 @@ export function BuddyView() {
   const vm = useBuddyViewModel();
   const reducedMotion = usePrefersReducedMotion();
   const voice = useBuddyVoiceControls();
+  const { stopSpeaking } = voice;
   const [draft, setDraft] = useState("");
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
@@ -27,6 +29,7 @@ export function BuddyView() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [actionsId, setActionsId] = useState<string | null>(null);
   const [showPrompts, setShowPrompts] = useState(false);
+  const [playbackOpen, setPlaybackOpen] = useState(false);
   const conversationScrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const initialMessageIds = useRef(new Set<string>());
@@ -36,10 +39,13 @@ export function BuddyView() {
   const activeConversation = vm.conversations.find((conversation) => conversation.id === vm.activeConversationId);
   const savedChatReadOnly = Boolean(vm.activeConversationId && !vm.historyEnabled);
   const pinsAvailable = vm.pagination.pinsAvailable !== false;
+  const voiceInputActive = voice.inputPhase !== "idle";
 
   useEffect(() => {
     if (accessStatus !== "allowed") return;
     const syncFromUrl = () => {
+      stopSpeaking();
+      setPlaybackOpen(false);
       const id = new URLSearchParams(window.location.search).get("conversation");
       if (id) void selectConversation(id);
       else clearConversation();
@@ -47,7 +53,7 @@ export function BuddyView() {
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, [accessStatus, selectConversation, clearConversation]);
+  }, [accessStatus, selectConversation, clearConversation, stopSpeaking]);
 
   useEffect(() => {
     if (!vm.activeConversationId || !vm.historyEnabled) return;
@@ -114,12 +120,14 @@ export function BuddyView() {
 
   async function handleSend() {
     const content = draft.trim();
-    if (!content || vm.isSending || savedChatReadOnly) return;
+    if (!content || vm.isSending || savedChatReadOnly || voiceInputActive) return;
     if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");
   }
 
   function openConversation(id: string) {
     if (id === vm.activeConversationId) return;
+    voice.stopSpeaking();
+    setPlaybackOpen(false);
     setHistoryOpen(false);
     setActionsId(null);
     window.history.pushState(null, "", `/buddy?conversation=${encodeURIComponent(id)}`);
@@ -127,6 +135,8 @@ export function BuddyView() {
   }
 
   function startConversation() {
+    voice.stopSpeaking();
+    setPlaybackOpen(false);
     setHistoryOpen(false);
     setActionsId(null);
     window.history.replaceState(null, "", "/buddy");
@@ -203,7 +213,7 @@ export function BuddyView() {
                       </button>
                     </div>
                     {actionsId === conversation.id && (
-                      <div className="flex gap-1 px-1 pb-1 pt-1">
+                      <div className="echo-reading-swap flex gap-1 px-1 pb-1 pt-1">
                         <button type="button" onClick={() => openRename(conversation)} className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-[var(--landing-primary)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Rename
                         </button>
@@ -249,7 +259,7 @@ export function BuddyView() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.25rem)] min-h-[360px] min-w-0 overflow-hidden rounded-[1.2rem] border border-[var(--landing-primary-10)] bg-[#fffdf8] shadow-[0_18px_48px_rgba(30,53,34,0.07)] lg:h-full lg:min-h-0">
+    <div className="echo-workspace-enter flex h-[calc(100dvh-5.25rem)] min-h-[360px] min-w-0 overflow-hidden rounded-[1.2rem] border border-[var(--landing-primary-10)] bg-[#fffdf8] shadow-[0_18px_48px_rgba(30,53,34,0.07)] lg:h-full lg:min-h-0">
       <aside aria-label="Buddy conversations" className="hidden min-h-0 w-60 shrink-0 flex-col border-r border-[var(--landing-primary-10)] bg-[#f3f5ee] lg:flex xl:w-72">
         <div className="border-b border-[var(--landing-primary-10)] px-5 py-5">
           <p className="font-[family-name:var(--font-echo-display)] text-2xl text-[var(--landing-ink)]">Buddy</p>
@@ -299,7 +309,7 @@ export function BuddyView() {
         <div className="shrink-0 border-t border-[var(--landing-primary-10)] bg-[#fffdf8] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl">
             {showPrompts && (
-              <div aria-label="Prompt ideas" className="echo-panel-scroll mb-2 flex gap-2 overflow-x-auto pb-1">
+              <div aria-label="Prompt ideas" className="echo-panel-scroll echo-reading-swap mb-2 flex gap-2 overflow-x-auto pb-1">
                 {PROMPT_CHIPS.map((prompt) => (
                   <button key={prompt} type="button" onClick={() => { setDraft(prompt); setShowPrompts(false); composerRef.current?.focus(); }} className="min-h-11 shrink-0 rounded-full border border-[var(--landing-primary-20)] bg-white px-3 text-xs font-medium text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
                     {prompt}
@@ -308,8 +318,78 @@ export function BuddyView() {
               </div>
             )}
             {!vm.historyEnabled && <p className="mb-2 text-xs text-[var(--landing-muted)]">{savedChatReadOnly ? "Saved chats are read-only while history saving is off. Turn it on in Privacy settings to continue this chat." : "Temporary chat: messages disappear when you leave or refresh this page."}</p>}
-            {voice.interimTranscript && <p role="status" className="mb-2 text-xs text-[var(--landing-primary)]">Listening: {voice.interimTranscript}</p>}
-            <div className="rounded-[1.35rem] border border-[var(--landing-primary-20)] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(30,53,34,0.06)] focus-within:border-[var(--landing-primary)] focus-within:ring-2 focus-within:ring-[var(--landing-primary-10)]">
+            <AnimatePresence initial={false}>
+            {voiceInputActive && (
+              <motion.div
+                key="voice-input"
+                role="group"
+                aria-label="Voice input"
+                initial={reducedMotion ? false : { opacity: 0, y: 14, scale: 0.88 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.94 }}
+                transition={{ duration: reducedMotion ? 0.1 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                style={{ transformOrigin: "2rem calc(100% + 4rem)" }}
+                className="mb-2 flex items-start gap-3 rounded-2xl bg-[var(--landing-sage-soft)] px-3 py-3 text-[var(--landing-ink)] sm:px-4"
+              >
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[var(--landing-primary)]">
+                  <Mic className="h-4 w-4" aria-hidden="true" />
+                  {voice.isListening && <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-[var(--landing-primary)] ring-2 ring-[var(--landing-sage-soft)] motion-safe:animate-pulse" aria-hidden="true" />}
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p role="status" className="text-sm font-semibold">
+                    {voice.inputPhase === "starting" ? "Opening microphone…" : voice.inputPhase === "stopping" ? "Finishing your words…" : "Mic on · Listening to you"}
+                  </p>
+                  <p className="mt-0.5 break-words text-xs leading-5 text-[var(--landing-muted)]">
+                    {voice.interimTranscript ? `Hearing: ${voice.interimTranscript}` : voice.inputPhase === "starting" ? "Your browser may ask for microphone access." : voice.inputPhase === "stopping" ? "Review your message before sending." : "Speak naturally. Choose Done to review before sending."}
+                  </p>
+                </div>
+                <button type="button" onClick={voice.stopListening} disabled={voice.inputPhase === "stopping"} aria-label={voice.inputPhase === "starting" ? "Cancel voice input" : "Stop voice input and review"} className="min-h-10 shrink-0 rounded-full border border-[var(--landing-primary-20)] bg-white px-4 text-xs font-semibold text-[var(--landing-primary)] outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-50">
+                  {voice.inputPhase === "starting" ? "Cancel" : "Done"}
+                </button>
+              </motion.div>
+            )}
+            {playbackOpen && (
+              <motion.div
+                key="voice-playback"
+                role="group"
+                aria-label="Voice playback"
+                initial={reducedMotion ? false : { opacity: 0, y: 14, scale: 0.88 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.94 }}
+                transition={{ duration: reducedMotion ? 0.1 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                style={{ transformOrigin: "5.5rem calc(100% + 4rem)" }}
+                className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-[var(--landing-cream-95)] px-3 py-3 text-[var(--landing-ink)] sm:px-4"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[var(--landing-primary)]"><Volume2 className="h-4 w-4" aria-hidden="true" /></span>
+                <div className="min-w-0 flex-1">
+                  <p role="status" className="text-sm font-semibold">{voice.playbackPhase === "starting" ? "Preparing Buddy’s voice…" : voice.playbackPhase === "speaking" ? "Buddy is speaking" : voice.voiceError ? "Couldn’t play this voice" : "Voice ready"}</p>
+                  <p className="text-xs leading-5 text-[var(--landing-muted)]">Browser voice · Latest reply</p>
+                </div>
+                <button type="button" onClick={() => voice.isSpeaking ? voice.stopSpeaking() : voice.speak(latestBuddyReply)} aria-label={voice.isSpeaking ? "Stop Buddy playback" : "Play Buddy reply"} className="min-h-10 shrink-0 rounded-full border border-[var(--landing-primary-20)] bg-white px-4 text-xs font-semibold text-[var(--landing-primary)] outline-none hover:bg-white/70 focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">{voice.isSpeaking ? "Stop" : "Play"}</button>
+                <label className="flex w-full flex-wrap items-center gap-2 border-t border-[var(--landing-primary-10)] pt-2 text-xs font-semibold text-[var(--landing-ink)]">
+                  Voice
+                  <select
+                    aria-label="Browser voice"
+                    value={voice.selectedVoiceURI}
+                    onChange={(event) => {
+                      voice.setSelectedVoiceURI(event.target.value);
+                      voice.speak(latestBuddyReply, event.target.value);
+                    }}
+                    disabled={voice.availableVoices.length === 0}
+                    className="min-h-10 min-w-0 flex-1 rounded-lg border border-[var(--landing-primary-20)] bg-white px-2 text-xs font-medium text-[var(--landing-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-50"
+                  >
+                    <option value="">Automatic (prefer on-device)</option>
+                    {voice.availableVoices.map((browserVoice) => (
+                      <option key={browserVoice.voiceURI} value={browserVoice.voiceURI}>{browserVoice.name} · {browserVoice.lang} · {browserVoice.localService ? "on device" : "online"}</option>
+                    ))}
+                  </select>
+                </label>
+                {voice.availableVoices.some((browserVoice) => !browserVoice.localService) && <p className="w-full text-[11px] leading-4 text-[var(--landing-muted)]">Online voices may process the reply through your browser’s speech service.</p>}
+                {voice.voiceError && <p role="alert" className="w-full text-xs font-medium text-danger">{voice.voiceError}</p>}
+              </motion.div>
+            )}
+            </AnimatePresence>
+            <motion.div layout="position" transition={{ layout: { duration: reducedMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] } }} className="rounded-[1.35rem] border border-[var(--landing-primary-20)] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(30,53,34,0.06)] focus-within:border-[var(--landing-primary)] focus-within:ring-2 focus-within:ring-[var(--landing-primary-10)]">
               <textarea
                 ref={composerRef}
                 rows={1}
@@ -327,37 +407,54 @@ export function BuddyView() {
                 aria-label="Message Buddy"
               />
               <div className="flex items-center gap-1">
-                <button
+                <motion.button
                   type="button"
+                  whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                  transition={{ duration: 0.14 }}
                   onClick={() => {
-                    if (voice.isListening) voice.stopListening();
-                    else voice.startListening((transcript) => setDraft((current) => current + (current.trim() ? " " : "") + transcript));
+                    if (voiceInputActive) voice.stopListening();
+                    else {
+                      setPlaybackOpen(false);
+                      voice.startListening((transcript) => setDraft((current) => current + (current.trim() ? " " : "") + transcript));
+                    }
                   }}
-                  disabled={!voice.voiceSupported || vm.isSending || savedChatReadOnly}
-                  aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
-                  className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
+                  disabled={!voice.voiceSupported || vm.isSending || savedChatReadOnly || voice.isSpeaking || voice.inputPhase === "stopping"}
+                  aria-label={voiceInputActive ? "Stop voice input" : "Start voice input"}
+                  aria-pressed={voiceInputActive}
+                  className={`grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40 ${voiceInputActive ? "bg-[var(--landing-primary)] text-white" : "text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"}`}
                 >
-                  {voice.isListening ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
-                </button>
-                <button
+                  {voiceInputActive ? <MicOff className="h-4 w-4" aria-hidden="true" /> : <Mic className="h-4 w-4" aria-hidden="true" />}
+                </motion.button>
+                <motion.button
                   type="button"
-                  onClick={() => voice.isSpeaking ? voice.stopSpeaking() : voice.speak(latestBuddyReply)}
-                  disabled={!voice.speechSupported || !latestBuddyReply}
-                  aria-label={voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
-                  className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
+                  whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                  transition={{ duration: 0.14 }}
+                  onClick={() => {
+                    if (playbackOpen) {
+                      voice.stopSpeaking();
+                      setPlaybackOpen(false);
+                    } else {
+                      setPlaybackOpen(true);
+                      voice.speak(latestBuddyReply);
+                    }
+                  }}
+                  disabled={!voice.speechSupported || !latestBuddyReply || voiceInputActive}
+                  aria-label={playbackOpen ? "Close voice playback" : "Speak latest Buddy reply"}
+                  aria-pressed={playbackOpen}
+                  className={`grid h-11 w-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40 ${playbackOpen ? "bg-[var(--landing-primary)] text-white" : "text-[var(--landing-primary)] hover:bg-[var(--landing-sage-soft)]"}`}
                 >
-                  {voice.isSpeaking ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
-                </button>
+                  {playbackOpen ? <VolumeX className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+                </motion.button>
                 <button type="button" onClick={() => setShowPrompts((current) => !current)} aria-label={showPrompts ? "Hide prompt ideas" : "Show prompt ideas"} aria-expanded={showPrompts} className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <span className="ml-1 hidden text-[11px] text-[var(--landing-muted)] sm:inline">Reflective support, not emergency care</span>
-                <button type="button" onClick={() => void handleSend()} disabled={!draft.trim() || vm.isSending || savedChatReadOnly} aria-label="Send message" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--landing-primary)] text-white outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40">
+                <button type="button" onClick={() => void handleSend()} disabled={!draft.trim() || vm.isSending || savedChatReadOnly || voiceInputActive} aria-label="Send message" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--landing-primary)] text-white outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40">
                   <Send className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
-            </div>
-            {voice.voiceError && <p role="status" className="mt-2 text-xs text-[var(--landing-muted)]">{voice.voiceError}</p>}
+            </motion.div>
+            {voice.voiceError && !playbackOpen && <p role="alert" className="mt-2 text-xs font-medium text-danger">{voice.voiceError}</p>}
             {vm.error && (
               <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium text-danger">
                 <span>{vm.error}</span>

@@ -31,6 +31,10 @@ function failure(error: { message: string; code?: string; status?: number } | nu
 
   const code = limited
     ? "RATE_LIMITED"
+    : error?.code === "email_not_confirmed"
+    ? "EMAIL_NOT_CONFIRMED"
+    : error?.code === "invalid_credentials"
+    ? "INVALID_CREDENTIALS"
     : lower.includes("invalid login")
     ? "INVALID_CREDENTIALS"
       : lower.includes("password")
@@ -41,12 +45,12 @@ function failure(error: { message: string; code?: string; status?: number } | nu
     success: false,
     error: {
       code,
-      message: limited ? "Too many sign-in attempts. Please wait and try again later." : error?.code === "otp_expired" || lower.includes("invalid or has expired") ? "The code is invalid or has expired. Request a new code." : code === "INVALID_CREDENTIALS" ? "Invalid email or password." : code === "WEAK_PASSWORD" ? "The password does not meet the required policy." : "Authentication could not be completed. Please try again.",
+      message: limited ? "Too many sign-in attempts. Please wait and try again later." : error?.code === "otp_expired" || lower.includes("invalid or has expired") ? "The code is invalid or has expired. Request a new code." : code === "EMAIL_NOT_CONFIRMED" ? "Verify your email address before logging in." : code === "INVALID_CREDENTIALS" ? "Invalid email or password." : code === "WEAK_PASSWORD" ? "The password does not meet the required policy." : "Authentication could not be completed. Please try again.",
     },
   };
 }
 
-function configureSessionPersistence(rememberSession: boolean): void {
+export function configureSessionPersistence(rememberSession: boolean): void {
   if (typeof window === "undefined") return;
 
   try {
@@ -97,51 +101,6 @@ export function createAuthSupabaseAdapter(): AuthService {
   const client = createBrowserSupabaseClient();
 
   return {
-    async sendLoginCode(email) {
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
-
-      if (error) {
-        return failure({
-          message: "We could not send a code. Check your email address and try again shortly.",
-          code: error.code,
-          status: error.status,
-        });
-      }
-
-      return {
-        success: true,
-        data: {
-          message: "If this email has an ECHO account, a sign-in code is on its way.",
-        },
-      };
-    },
-
-    async verifyLoginCode(input) {
-      const { data, error } = await client.auth.verifyOtp({
-        email: input.email,
-        token: input.code,
-        type: "email",
-      });
-
-      if (error || !data.session) {
-        return failure({
-          message: "This code is invalid or has expired. Try again or request a new code.",
-        });
-      }
-
-      configureSessionPersistence(input.rememberSession);
-
-      return {
-        success: true,
-        data: toSession(data.session),
-      };
-    },
-
     async login(input) {
       const { data, error } = await client.auth.signInWithPassword({
         email: input.email,

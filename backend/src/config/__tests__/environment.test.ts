@@ -38,4 +38,14 @@ describe("backend environment", () => {
       SMTP_HOST: "smtp.example.test", SMTP_USER: "sender", SMTP_PASSWORD: "test-password",
     }).EMAIL_PROVIDER).toBe("smtp");
   });
+  it("requires an authenticated HTTPS or loopback document scanner", () => {
+    expect(() => loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_URL: "https://scan.example.test/inspect" })).toThrow();
+    expect(() => loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_URL: "http://scan.example.test/inspect", VERIFICATION_SCANNER_TOKEN: "x".repeat(32) })).toThrow();
+    expect(loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_URL: "http://127.0.0.1:8080/inspect", VERIFICATION_SCANNER_TOKEN: "x".repeat(32) }).VERIFICATION_SCANNER_URL).toBe("http://127.0.0.1:8080/inspect");
+  });
+  it("limits Windows Defender scanning to an explicitly configured local backend", () => {
+    expect(() => loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_MODE: "windows_defender" })).toThrow();
+    if (process.platform === "win32")
+      expect(loadEnvironment({ ...validEnvironment, VERIFICATION_SCANNER_MODE: "windows_defender", VERIFICATION_PDFINFO_PATH: "C:\\tools\\pdfinfo.exe" }).VERIFICATION_SCANNER_MODE).toBe("windows_defender");
+  });
 });

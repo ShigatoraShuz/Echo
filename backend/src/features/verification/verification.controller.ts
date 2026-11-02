@@ -132,6 +132,12 @@ export function createVerificationController(service: VerificationService) {
         await service.claimForReview(authenticatedUserId(request), requireUuidParam(request, "verificationId")),
       );
     },
+    async adminRescan(request: Request, response: Response) {
+      sendSuccess(
+        response,
+        await service.rescanForAdmin(authenticatedUserId(request), requireUuidParam(request, "verificationId")),
+      );
+    },
     async adminDecision(request: Request, response: Response) {
       sendSuccess(
         response,

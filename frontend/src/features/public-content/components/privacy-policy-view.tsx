@@ -81,8 +81,7 @@ const policySections = [
           security and activity logs needed to operate the app.
         </p>
         <p>
-          When you continue with Google, Supabase receives the OAuth response from Google. ECHO may use the
-          Google-provided email and recommended display name to create or find your account and prefill your profile.
+          ECHO uses your email address for account sign-in and account-related communication.
         </p>
         <p>
           If you enable email or device alerts, ECHO shares your email address with the configured mail provider or

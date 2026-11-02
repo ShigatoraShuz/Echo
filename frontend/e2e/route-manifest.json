@@ -81,6 +81,15 @@
     "failure": "Preserve input and explain retry"
   },
   {
+    "path": "/callback/finish",
+    "role": "public",
+    "fixture": "auth",
+    "action": "Finish email confirmation",
+    "expected": "Confirmed session redirects to onboarding",
+    "empty": "Show confirmation progress",
+    "failure": "Offer password login if the link is invalid"
+  },
+  {
     "path": "/forgot-password",
     "role": "public",
     "fixture": "auth",

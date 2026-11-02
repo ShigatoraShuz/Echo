@@ -33,9 +33,9 @@ describe("ExperienceService.dashboard", () => {
       }),
     };
     const journals = {
-      listSummaries: vi.fn().mockResolvedValue([
+      dashboardSummaries: vi.fn().mockResolvedValue({ entries: [
         { id: "entry-1", created_at: "2026-08-24T00:00:00.000Z", mood: "calm", tags: [], emotions: [] },
-      ]),
+      ], total: 12 }),
       dashboardInsights: vi.fn().mockResolvedValue({ latest: null, emotionTrend: [], distressTrend: [] }),
       getJournalTitles: vi.fn().mockResolvedValue(new Map([["entry-1", "A quiet entry"]])),
     };
@@ -45,11 +45,74 @@ describe("ExperienceService.dashboard", () => {
     const result = await service.dashboard("user-1");
 
     expect(result.userProfile.name).toBe("Friend");
+    expect(result.totalReflections).toBe(12);
+    expect(journals.dashboardSummaries).toHaveBeenCalledWith("user-1", expect.any(String));
     expect(database.schema).toHaveBeenCalledWith("user_service");
     expect(userSchema.from).toHaveBeenCalledWith("profiles");
     expect(userSchema.from).toHaveBeenCalledWith("notification_preferences");
     expect(profileChain.eq).toHaveBeenCalledWith("user_id", "user-1");
     expect(preferenceChain.eq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+});
+
+describe("ExperienceService.emotionInsights", () => {
+  it("uses the owner-scoped aggregate while preserving the insights response", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-26T12:00:00.000Z"));
+    try {
+      const rpc = vi.fn().mockResolvedValue({
+        data: {
+          total: 4,
+          mood_counts: { calm: 2, happy: 1, angry: 1 },
+          daily_scores: {
+            "2026-10-20": { count: 2, sum: 174 },
+            "2026-10-26": { count: 1, sum: 32 },
+          },
+        },
+        error: null,
+      });
+      const administrativeDatabase = { schema: vi.fn() };
+      const userDatabase = { schema: vi.fn(() => ({ rpc })) };
+      const journals = { listSummaries: vi.fn() };
+      const service = new ExperienceService(
+        administrativeDatabase as never, journals as unknown as JournalService,
+        {} as EncryptionService, undefined, () => userDatabase as never,
+      );
+
+      const result = await service.emotionInsights("owner");
+
+      expect(userDatabase.schema).toHaveBeenCalledWith("journal_service");
+      expect(rpc).toHaveBeenCalledWith("emotion_insights_summary");
+      expect(administrativeDatabase.schema).not.toHaveBeenCalled();
+      expect(journals.listSummaries).not.toHaveBeenCalled();
+      expect(result.emotionWheel).toEqual([
+        { label: "Calm", mood: "calm", value: 50 },
+        { label: "Happy", mood: "happy", value: 25 },
+        { label: "Neutral", mood: "neutral", value: 0 },
+        { label: "Anxious", mood: "anxious", value: 0 },
+        { label: "Sad", mood: "sad", value: 0 },
+        { label: "Angry", mood: "angry", value: 25 },
+      ]);
+      expect(result.moodTrend[0]).toEqual({ label: "Tue", value: 87 });
+      expect(result.moodTrend[6]).toEqual({ label: "Mon", value: 32 });
+      expect(result.summary).toBe("Calm is the most frequent signal across 4 recent reflections.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns the existing empty state when the owner has no journals", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { total: 0, mood_counts: {}, daily_scores: {} }, error: null,
+    });
+    const service = new ExperienceService(
+      { schema: vi.fn(() => ({ rpc })) } as never,
+      {} as JournalService, {} as EncryptionService,
+    );
+    const result = await service.emotionInsights("owner");
+    expect(result.emotionWheel.every((mood) => mood.value === 0)).toBe(true);
+    expect(result.moodTrend.every((day) => day.value === 0)).toBe(true);
+    expect(result.summary).toBe("No patterns are shown until you save a reflection.");
   });
 });
 
@@ -134,9 +197,10 @@ describe("ExperienceService.Buddy privacy", () => {
     });
     const database = { schema: vi.fn(() => ({ from })) };
     const service = new ExperienceService(database as never, {} as JournalService, {} as EncryptionService);
-    const result = await service.sendBuddyMessage("owner", "I feel tired");
+    const result = await service.sendBuddyMessage("owner", "Help me untangle a thought");
     expect(result).toMatchObject({ conversationId: null, persisted: false });
     expect(result.messages).toHaveLength(2);
+    expect(result.messages[1]).toMatchObject({ role: "buddy", content: expect.stringContaining("Demo reply (not AI-generated):") });
     expect(from).toHaveBeenCalledTimes(1);
   });
 

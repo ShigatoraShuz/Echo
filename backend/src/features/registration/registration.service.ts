@@ -1,7 +1,7 @@
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { OAuth2Client } from "google-auth-library";
 import { AppError, ConflictError, ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
+import { currentRequestId } from "../../shared/request-context.js";
 
 export const ELIGIBILITY_RULE_VERSION = "echo-adult-18-v1";
 export const PASSWORD_POLICY_VERSION = "supabase-echo-v1";
@@ -36,16 +36,12 @@ function safePolicyMarkdown(value: unknown): string {
 }
 
 export class RegistrationService {
-  private readonly google: OAuth2Client;
   constructor(
     private readonly database: SupabaseClient,
     private readonly publicAuthSource: SupabaseClient | (() => SupabaseClient),
     private readonly secret: string,
-    private readonly googleClientId: string,
     private readonly frontendUrl: string,
-  ) {
-    this.google = new OAuth2Client(googleClientId || undefined);
-  }
+  ) {}
 
   private get publicAuth(): SupabaseClient {
     return typeof this.publicAuthSource === "function" ? this.publicAuthSource() : this.publicAuthSource;
@@ -144,7 +140,7 @@ export class RegistrationService {
     });
   }
 
-  async registerEmail(token: string, csrf: string, email: string, password: string): Promise<DraftCredentials> {
+  async registerEmail(token: string, csrf: string, email: string, password: string): Promise<DraftCredentials | null> {
     const draft = await this.draft(token);
     this.verifyCsrf(draft, csrf);
     if (draft.state !== "account")
@@ -167,8 +163,9 @@ export class RegistrationService {
     if (reserveError || reserved !== true)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Email registration could not be prepared.");
     let failure: { code?: string; status?: number } | null = null;
+    let immediate = false;
     try {
-      const { error } = await this.publicAuth.auth.signUp({
+      const { data, error } = await this.publicAuth.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
@@ -176,11 +173,18 @@ export class RegistrationService {
           emailRedirectTo: `${this.frontendUrl.replace(/\/$/, "")}/callback?next=/onboarding`,
         },
       });
-      failure = error;
+      failure = error ?? (data.user ? null : {});
+      immediate = Boolean(data.session);
     } catch {
       failure = {};
     }
     if (failure && !["user_already_exists", "email_exists"].includes(failure.code ?? "")) {
+      console.error(JSON.stringify({
+        requestId: currentRequestId(),
+        event: "registration_auth_signup_failed",
+        providerCode: failure.code ?? "unknown",
+        providerStatus: failure.status ?? null,
+      }));
       const { data: restored, error: restoreError } = await this.database.rpc("echo_registration_update_draft", {
         draft_id: draft.id,
         expected_token_hash: draft.token_hash,
@@ -196,8 +200,13 @@ export class RegistrationService {
       if (failure.status === 429 || ["over_email_send_rate_limit", "over_request_rate_limit"].includes(failure.code ?? "")) {
         throw new AppError({ statusCode: 429, code: "EMAIL_SIGNUP_RATE_LIMITED", message: "Too many signup requests. Please wait before trying again." });
       }
+      if (failure.code === "email_address_not_authorized") {
+        throw new ExternalServiceError("EMAIL_DELIVERY_NOT_CONFIGURED", "Email registration is unavailable until email delivery is configured.");
+      }
       throw new ExternalServiceError("EMAIL_SIGNUP_FAILED", "Registration is temporarily unavailable. Please try again later.");
     }
+    // Auth already consumed the draft when email confirmation is disabled.
+    if (immediate || ["user_already_exists", "email_exists"].includes(failure?.code ?? "")) return null;
     return this.rotate({ ...draft, state: "verification_pending" }, { state: "verification_pending" });
   }
 
@@ -237,104 +246,5 @@ export class RegistrationService {
     });
     if (updateError || updated !== true)
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Verification status could not be updated.");
-  }
-
-  async createGoogleNonce(
-    token: string,
-    csrf: string,
-  ): Promise<{ nonce: string; hashedNonce: string; credentials: DraftCredentials }> {
-    const draft = await this.draft(token);
-    this.verifyCsrf(draft, csrf);
-    if (draft.state !== "account")
-      throw new ConflictError("SIGNUP_STEP_REQUIRED", "Complete the previous signup steps first.");
-    const nonce = randomBytes(32).toString("base64url");
-    const hashedNonce = createHash("sha256").update(nonce).digest("hex");
-    const credentials = await this.rotate(draft, { google_nonce_hash: this.hash(nonce) });
-    return { nonce, hashedNonce, credentials };
-  }
-
-  async verifyGoogleToken(idToken: string, nonce: string) {
-    if (!this.googleClientId)
-      throw new ExternalServiceError("GOOGLE_NOT_CONFIGURED", "Google authentication is not configured.");
-    const ticket = await this.google.verifyIdToken({ idToken, audience: this.googleClientId });
-    const payload = ticket.getPayload();
-    // GIS receives SHA-256(raw nonce); Supabase and our proof receive the raw
-    // nonce. Validate the signed Google claim against the value GIS received.
-    const expectedNonce = createHash("sha256").update(nonce).digest("hex");
-    if (
-      !payload ||
-      !payload.sub ||
-      !payload.email ||
-      payload.email_verified !== true ||
-      payload.nonce !== expectedNonce
-    ) {
-      throw new ValidationError({ google: ["The Google identity response could not be verified."] });
-    }
-    return { sub: payload.sub, email: payload.email.toLowerCase() };
-  }
-
-  async bindGoogleSignup(token: string, csrf: string, idToken: string, nonce: string) {
-    const draft = await this.draft(token);
-    this.verifyCsrf(draft, csrf);
-    if (draft.google_nonce_hash !== this.hash(nonce)) throw new ValidationError({ google: ["Google nonce mismatch."] });
-    const identity = await this.verifyGoogleToken(idToken, nonce);
-    const reservation = randomUUID();
-    const credentials = await this.rotate(draft, {
-      google_sub: identity.sub,
-      email: identity.email,
-      google_bound_at: new Date().toISOString(),
-      reservation_id: reservation,
-    });
-    return { identity, reservation, credentials };
-  }
-
-  async googleLoginStatus(idToken: string, nonce: string) {
-    const identity = await this.verifyGoogleToken(idToken, nonce);
-    const { data, error } = await this.database.rpc("echo_google_identity_status", {
-      google_subject: identity.sub,
-      verified_email: identity.email,
-    });
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Google account status could not be checked.");
-    const row = Array.isArray(data) ? data[0] : data;
-    return { status: (row as Row | null)?.status ?? "no_existing_account", identity };
-  }
-  createGoogleLoginNonce(): { nonce: string; hashedNonce: string; proof: string } {
-    const nonce = randomBytes(32).toString("base64url");
-    const expires = Date.now() + 5 * 60_000;
-    const nonceHash = this.hash(nonce);
-    const body = `${expires}.${nonceHash}`;
-    const mac = this.hash(body);
-    return { nonce, hashedNonce: createHash("sha256").update(nonce).digest("hex"), proof: `${body}.${mac}` };
-  }
-  verifyGoogleLoginProof(proof: string, nonce: string): void {
-    if (!proof)
-      throw new AppError({
-        statusCode: 400,
-        code: "GOOGLE_CHALLENGE_MISSING",
-        message: "The Google sign-in cookie was not received. Retry Google sign-in and allow cookies for ECHO.",
-      });
-    const parts = proof.split(".");
-    const [expires, nonceHash, mac] = parts;
-    const body = `${expires}.${nonceHash}`;
-    if (
-      parts.length !== 3 ||
-      !/^\d+$/.test(expires ?? "") ||
-      !Number.isSafeInteger(Number(expires)) ||
-      !/^[a-f0-9]{64}$/.test(nonceHash ?? "") ||
-      !/^[a-f0-9]{64}$/.test(mac ?? "") ||
-      !timingSafeEqual(Buffer.from(mac, "hex"), Buffer.from(this.hash(body), "hex")) ||
-      !timingSafeEqual(Buffer.from(nonceHash, "hex"), Buffer.from(this.hash(nonce), "hex"))
-    )
-      throw new AppError({
-        statusCode: 400,
-        code: "GOOGLE_CHALLENGE_INVALID",
-        message: "The Google sign-in challenge no longer matches this attempt. Retry Google sign-in.",
-      });
-    if (Number(expires) <= Date.now())
-      throw new AppError({
-        statusCode: 400,
-        code: "GOOGLE_CHALLENGE_EXPIRED",
-        message: "The Google sign-in challenge expired. Retry Google sign-in to start a fresh attempt.",
-      });
   }
 }

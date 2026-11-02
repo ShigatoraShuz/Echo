@@ -6,6 +6,7 @@ import { clearSensitiveBrowserState } from "./clear-sensitive-state";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_WRITE_INTERVAL_MS = 5_000;
+const SESSION_CHECK_TIMEOUT_MS = 10_000;
 
 function sessionIdFromToken(accessToken: string): string | null {
   try {
@@ -22,6 +23,8 @@ function sessionIdFromToken(accessToken: string): string | null {
 export function PrivateSessionBoundary({ userId, children }: { userId: string; children: ReactNode }) {
   const [blocked, setBlocked] = useState(false);
   const [ready, setReady] = useState(false);
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
+  const [sessionAttempt, setSessionAttempt] = useState(0);
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let invalidated = false;
@@ -30,6 +33,8 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
     let lastActivity = Date.now();
     let lastWrite = 0;
     let idleTimer: number | undefined;
+    let sessionTimer: number | undefined;
+    let sessionPending = true;
     let auth: ReturnType<typeof createBrowserSupabaseClient>["auth"] | undefined;
     const hide = () => {
       if (container.current) container.current.hidden = true;
@@ -111,8 +116,15 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
         if (nextUser !== userId) invalidate(nextUser ? "/dashboard" : "/login?error=session_changed");
       });
       unsubscribe = () => data.subscription.unsubscribe();
+      sessionTimer = window.setTimeout(() => {
+        if (!mounted || invalidated || !sessionPending) return;
+        sessionPending = false;
+        setSessionTimedOut(true);
+      }, SESSION_CHECK_TIMEOUT_MS);
       void auth.getSession().then(({ data: sessionData, error }) => {
-        if (!mounted || invalidated) return;
+        if (!mounted || invalidated || !sessionPending) return;
+        sessionPending = false;
+        window.clearTimeout(sessionTimer);
         const session = sessionData.session;
         const sessionId = session?.user.id === userId ? sessionIdFromToken(session.access_token) : null;
         if (error || !sessionId) { invalidate("/login?error=auth_unavailable"); return; }
@@ -128,12 +140,13 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
         } catch { /* Fall back to this tab's clock. */ }
         checkIdle();
         if (!invalidated) setReady(true);
-      }).catch(() => invalidate("/login?error=auth_unavailable"));
+      }).catch(() => { if (sessionPending) invalidate("/login?error=auth_unavailable"); });
     } catch {
       invalidate("/login?error=auth_unavailable");
     }
     return () => {
       mounted = false;
+      window.clearTimeout(sessionTimer);
       window.clearTimeout(idleTimer);
       unsubscribe?.();
       window.removeEventListener("echo:sensitive-state-cleared", cleared);
@@ -146,6 +159,19 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
         window.removeEventListener(event, onActivity);
       }
     };
-  }, [userId]);
-  return <div ref={container}>{blocked || !ready ? null : children}</div>;
+  }, [userId, sessionAttempt]);
+  return (
+    <div ref={container}>
+      {blocked ? null : ready ? children : sessionTimedOut ? (
+        <div role="alert" className="px-6 py-8 text-sm text-muted-foreground">
+          <p>We could not confirm your private session yet.</p>
+          <button type="button" className="mt-3 font-semibold text-primary underline" onClick={() => { setSessionTimedOut(false); setSessionAttempt((attempt) => attempt + 1); }}>
+            Retry session check
+          </button>
+        </div>
+      ) : (
+        <p role="status" className="px-6 py-8 text-sm text-muted-foreground">Checking your private session…</p>
+      )}
+    </div>
+  );
 }

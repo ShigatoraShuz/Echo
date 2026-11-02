@@ -8,11 +8,11 @@ import {
 } from "@/services/verification/verification-api";
 import { AppError } from "@/shared/errors/app-error";
 
-vi.mock("@/shared/components/layout/echo-shells", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+vi.mock("@/shared/components/layout/admin-shell", () => ({
+  AdminShell: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("@/services/verification/verification-api", () => ({
-  verificationApi: { adminList: vi.fn(), adminDetail: vi.fn(), adminClaim: vi.fn(), adminDecide: vi.fn() },
+  verificationApi: { adminList: vi.fn(), adminDetail: vi.fn(), adminClaim: vi.fn(), adminRescan: vi.fn(), adminDecide: vi.fn() },
 }));
 const summary: AdminVerificationSummary = {
   id: "application-one",
@@ -54,6 +54,7 @@ const detail: AdminVerificationDetail = {
       mimeType: "image/png",
       sizeBytes: 100,
       uploadedAt: "2026-08-31",
+      scanStatus: "clean",
       signedUrl: "https://example.invalid/protected-document",
     },
   ],
@@ -62,6 +63,7 @@ beforeEach(() => {
   vi.mocked(verificationApi.adminList).mockResolvedValue([summary]);
   vi.mocked(verificationApi.adminDetail).mockResolvedValue(detail);
   vi.mocked(verificationApi.adminClaim).mockResolvedValue({ ...detail, status: "under_review" });
+  vi.mocked(verificationApi.adminRescan).mockResolvedValue(detail);
   vi.mocked(verificationApi.adminDecide).mockResolvedValue({ ...detail, status: "approved" });
 });
 async function openReview() {
@@ -82,7 +84,7 @@ describe("Admin verification workspace", () => {
     await openReview();
     const review = screen.getByRole("button", { name: "Review decision" });
     expect(review).toBeDisabled();
-    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the identity/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the available application/ }));
     fireEvent.click(review);
     expect(verificationApi.adminDecide).not.toHaveBeenCalled();
     expect(screen.getByText(/Confirm approved for Sample Applicant/)).toBeVisible();
@@ -100,7 +102,7 @@ describe("Admin verification workspace", () => {
     render(<AdminPage />);
     await openReview();
     fireEvent.click(screen.getByRole("button", { name: "Reject" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the identity/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the available application/ }));
     expect(screen.getByRole("button", { name: "Review decision" })).toBeDisabled();
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "document_unclear" } });
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Please submit a clearer image." } });
@@ -142,10 +144,60 @@ describe("Admin verification workspace", () => {
     vi.mocked(verificationApi.adminDecide).mockRejectedValue(new Error("offline"));
     render(<AdminPage />);
     await openReview();
-    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the identity/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the available application/ }));
     fireEvent.click(screen.getByRole("button", { name: "Review decision" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm decision" }));
     expect(await screen.findByRole("alert")).toBeVisible();
     expect(screen.queryByText("Decision saved: approved.")).not.toBeInTheDocument();
+  });
+  it("automatically rescans quarantined evidence before opening a selected application", async () => {
+    vi.mocked(verificationApi.adminDetail).mockResolvedValue({ ...detail, documents: [{ ...detail.documents[0], scanStatus: "quarantined", signedUrl: null }] });
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    await waitFor(() => expect(verificationApi.adminRescan).toHaveBeenCalledWith("application-one"));
+    expect(await screen.findByRole("heading", { name: "Sample Applicant" })).toBeVisible();
+  });
+  it("shows the scan error and a retry action if the automatic rescan does not complete", async () => {
+    vi.mocked(verificationApi.adminDetail).mockResolvedValue({ ...detail, documents: [{ ...detail.documents[0], scanStatus: "quarantined", signedUrl: null }] });
+    vi.mocked(verificationApi.adminRescan).mockRejectedValueOnce(
+      new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document scanning did not complete.", statusCode: 409 }),
+    );
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Document scanning did not complete.");
+    expect(screen.getByRole("heading", { name: "Sample Applicant" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /user government id/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run security scan" }));
+    expect(await screen.findByRole("link", { name: /user government id/i })).toBeVisible();
+    expect(verificationApi.adminRescan).toHaveBeenCalledTimes(2);
+  });
+  it("lets the reviewer request a replacement when scanning stays pending, but prevents approval", async () => {
+    const pending = { ...detail, documents: [{ ...detail.documents[0], scanStatus: "quarantined" as const, signedUrl: null }] };
+    vi.mocked(verificationApi.adminDetail).mockResolvedValue(pending);
+    vi.mocked(verificationApi.adminRescan).mockRejectedValue(new AppError({ code: "DOCUMENT_SCAN_PENDING", userMessage: "Document scanning did not complete.", statusCode: 409 }));
+    vi.mocked(verificationApi.adminClaim).mockResolvedValue({ ...pending, status: "under_review" });
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Start review/ }));
+    await screen.findByRole("button", { name: "Review decision" });
+    fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed the available application/ }));
+    expect(screen.getByRole("button", { name: "Review decision" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "document_scan_pending" } });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Please replace the document with a clear JPG or PNG." } });
+    fireEvent.click(screen.getByRole("button", { name: "Review decision" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm decision" }));
+    await waitFor(() => expect(verificationApi.adminDecide).toHaveBeenCalledWith("application-one", expect.objectContaining({ decision: "needs_changes", reasonCode: "document_scan_pending" })));
+  });
+  it("does not show scanned details after the reviewer changes filters", async () => {
+    let resolve!: (value: AdminVerificationDetail) => void;
+    vi.mocked(verificationApi.adminDetail).mockResolvedValue({ ...detail, documents: [{ ...detail.documents[0], scanStatus: "quarantined", signedUrl: null }] });
+    vi.mocked(verificationApi.adminRescan).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    render(<AdminPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Applicant applican/ }));
+    await waitFor(() => expect(verificationApi.adminRescan).toHaveBeenCalledWith("application-one"));
+    fireEvent.click(screen.getByRole("button", { name: "Approved" }));
+    await act(async () => { resolve(detail); });
+    expect(screen.queryByRole("heading", { name: "Sample Applicant" })).not.toBeInTheDocument();
   });
 });

@@ -22,6 +22,7 @@ export interface QuickAction {
 export interface DashboardData {
   userProfile: UserProfile;
   latestEntry: DashboardEntry | null;
+  totalReflections?: number;
   journalEntries: DashboardEntry[];
   moodTrend: TrendPoint[];
   riskTrend: TrendPoint[];

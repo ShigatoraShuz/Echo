@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Building2, History, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { ProfessionalCredentialReview } from "@/features/professionals/components/professional-credential-review";
-import { AppShell } from "@/shared/components/layout/echo-shells";
+import { AdminShell } from "@/shared/components/layout/admin-shell";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoSkeleton } from "@/shared/components/ui/echo-skeleton";
 import { normalizeError } from "@/shared/errors/normalize-error";
@@ -153,7 +153,7 @@ export default function AdminProfessionalsPage() {
   const selected = organizations?.find((item) => item.id === selectedId);
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-3xl border border-primary/15 bg-[linear-gradient(115deg,rgba(251,247,238,0.97),rgba(220,232,214,0.78))] p-6 shadow-subtle sm:p-8">
           <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-primary">ECHO · Admin workspace</p>
@@ -487,6 +487,6 @@ export default function AdminProfessionalsPage() {
           </div>
         ) : null}
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }
