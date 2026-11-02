@@ -108,3 +108,6 @@ frontend/assets/e2d821df-*.png
 
 # Local physical-camera verification captures and biometric mesh screenshots.
 /artifacts/model-integration/face-studio/
+
+# Private support-flow verification records and screenshots.
+/artifacts/model-integration/support-checkin-20261102/

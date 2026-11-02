@@ -12,24 +12,26 @@ const AnalysisStatusExperience = dynamic(
 
 export function AnalysisStatusGateway() {
   const pathname = usePathname();
-  const [active, setActive] = useState(false);
-  const [initialSubmission, setInitialSubmission] = useState<JournalSubmissionResponse | null>(null);
+  const [opened, setOpened] = useState<{ path: string; submission: JournalSubmissionResponse } | null>(null);
 
   useEffect(() => {
-    if (pathname === "/deletion") return;
-    try {
-      setActive(Boolean(localStorage.getItem("echo:active-analysis")));
-    } catch {
-      // A new submission event can still open the experience without storage.
-    }
-
+    setOpened(null);
+    const clear = () => setOpened(null);
     const onSubmitted = (event: Event) => {
-      setInitialSubmission((event as CustomEvent<JournalSubmissionResponse>).detail);
-      setActive(true);
+      // Saved progress belongs to its journal. Never replay it on startup/navigation,
+      // or open a global overlay for submissions already shown in the inline workspace.
+      if (pathname === "/dashboard" || pathname === "/deletion" || pathname.startsWith("/journal")) return;
+      setOpened({ path: pathname, submission: (event as CustomEvent<JournalSubmissionResponse>).detail });
     };
     window.addEventListener("echo:analysis-submitted", onSubmitted);
-    return () => window.removeEventListener("echo:analysis-submitted", onSubmitted);
+    window.addEventListener("echo:sensitive-state-cleared", clear);
+    return () => {
+      window.removeEventListener("echo:analysis-submitted", onSubmitted);
+      window.removeEventListener("echo:sensitive-state-cleared", clear);
+    };
   }, [pathname]);
 
-  return active && pathname !== "/deletion" && !pathname.startsWith("/journal") ? <AnalysisStatusExperience initialSubmission={initialSubmission} /> : null;
+  return opened?.path === pathname && pathname !== "/dashboard" && pathname !== "/deletion" && !pathname.startsWith("/journal")
+    ? <AnalysisStatusExperience initialSubmission={opened.submission} />
+    : null;
 }

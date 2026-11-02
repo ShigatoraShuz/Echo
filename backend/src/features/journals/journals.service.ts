@@ -1359,6 +1359,27 @@ export class JournalService {
     };
   }
 
+  async supportCheckIn(userId: string) {
+    // Presentation trigger only: these flags are not a prediction of current safety.
+    const journals = await this.reader.schema("journal_service").from("journals")
+      .select("id,analysis_consent").eq("user_id", userId).is("deleted_at", null)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(3);
+    if (journals.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Support check-in could not be checked.");
+    const recent = journals.data ?? [];
+    const ids = recent.map(row => row.id as string);
+    const base = { ownerId: userId, recentJournalIds: ids };
+    if (ids.length !== 3 || recent.some(row => !row.analysis_consent)) return { ...base, eligible: false };
+    if (this.localResults) return { ...base, eligible: ids.every(id => this.localResults!.journal(userId, id)?.status === "safety_action_required") };
+    // Private analysis tables stay behind the backend; both user and journal scope are explicit.
+    const jobs = await this.database.schema("ai_analysis").from("analysis_requests")
+      .select("journal_id,status").eq("user_id", userId).is("deleted_at", null)
+      .in("journal_id", ids).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(60);
+    if (jobs.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Support check-in could not be checked.");
+    const latest = new Map<string, string>();
+    for (const job of jobs.data ?? []) if (!latest.has(job.journal_id)) latest.set(job.journal_id, job.status);
+    return { ...base, eligible: ids.every(id => latest.get(id) === "safety_action_required") };
+  }
+
   async resolveSupportResources(countryCode: string, regionCode?: string) {
     let query = this.database
       .schema("grounding_service")

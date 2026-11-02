@@ -3,6 +3,9 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useGroundingViewModel } from "../view-model/use-grounding-view-model";
 import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 
+const support = vi.hoisted(() => ({ complete: vi.fn() }));
+vi.mock("@/features/journal/model/support-journey", () => ({ completeSupportVisit: support.complete, supportVisitToken: () => "grounding-visit" }));
+
 vi.mock("@/services/grounding/grounding-service.factory", () => ({
   getGroundingService: vi.fn(),
   resetGroundingService: vi.fn(),
@@ -105,6 +108,7 @@ describe("useGroundingViewModel", () => {
       expect(result.current.remainingSeconds).toBe(0);
       expect(result.current.isRunning).toBe(false);
       expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
       expect(mockService.saveSession).toHaveBeenCalledWith(expect.objectContaining({ type: "body-scan", duration: 120 }));
     } finally {
       vi.useRealTimers();
@@ -130,6 +134,7 @@ describe("useGroundingViewModel", () => {
       expect(result.current.remainingSeconds).toBe(0);
       expect(result.current.isRunning).toBe(false);
       expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
     } finally {
       vi.useRealTimers();
     }
@@ -161,6 +166,7 @@ describe("useGroundingViewModel", () => {
       expect(result.current.saveError).toBe(true);
       expect(result.current.status).toContain("retry safely");
       expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
     } finally {
       vi.useRealTimers();
     }

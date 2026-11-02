@@ -1,4 +1,5 @@
 "use client";
+import { markSupportVisitArrived } from "@/features/journal/model/support-journey";
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -28,6 +29,7 @@ const format = (value: string) =>
   new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export function ProfessionalSupportHubView() {
+  useEffect(() => { markSupportVisitArrived("professional"); }, []);
   const [hub, setHub] = useState<ProfessionalHub | null>(null);
   const [error, setError] = useState("");
   const load = useCallback(() => {

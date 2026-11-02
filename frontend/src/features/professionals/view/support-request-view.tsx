@@ -1,4 +1,5 @@
 "use client";
+import { completeSupportVisit, supportVisitToken } from "@/features/journal/model/support-journey";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -82,6 +83,7 @@ export function SupportRequestView() {
     if (!organizationId || !consent || summary.trim().length < 20) return;
     setBusy(true);
     setError("");
+    const visit = supportVisitToken("professional");
     try {
       const result = await professionalApi.createRequest({
         submissionId: submissionId.current ??= crypto.randomUUID(),
@@ -93,6 +95,7 @@ export function SupportRequestView() {
         phq8Ids,
         consent: true,
       });
+      completeSupportVisit("professional", visit);
       router.push(ROUTES.professionalSupport.request(result.request.id));
     } catch (reason) {
       setError(normalizeError(reason).userMessage);

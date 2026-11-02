@@ -42,3 +42,7 @@ node frontend/scripts/check-insights-premium.cjs
 ```
 
 For camera checks with a person in view use `check-face-studio-physical.cjs` followed by `check-face-studio-lifecycle.cjs`. The physical check can create an explicitly fictional journal when there is no existing draft; review its saved evidence locally. For loading measurements set `ECHO_TEST_JOURNAL_ID` to an existing analyzed test journal and run `node frontend/scripts/measure-polished-pages.cjs`. These scripts require the already configured local app; credentials and model bundles are supplied separately.
+
+## Local support-flow update
+
+See [JOURNAL_SUPPORT_FLOW.md](JOURNAL_SUPPORT_FLOW.md) for the new priority support card, optional three-submission check-in, return-to-journal flow, and exact verification limits. This follow-up is included on the current review branch.

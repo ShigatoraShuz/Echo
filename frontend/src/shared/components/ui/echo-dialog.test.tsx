@@ -57,3 +57,15 @@ describe("EchoDialog", () => {
     expect(trigger).toHaveFocus();
   });
 });
+
+it("supports a required choice without changing ordinary dialog dismissal", () => {
+  const onClose = vi.fn();
+  const { rerender } = render(<EchoDialog open dismissible={false} onClose={onClose} title="Required choice"><button>Choose support</button></EchoDialog>);
+  expect(screen.queryByRole("button", { name: "Close dialog" })).toBeNull();
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.click(screen.getByRole("dialog").parentElement!);
+  expect(onClose).not.toHaveBeenCalled();
+  rerender(<EchoDialog open onClose={onClose} title="Ordinary dialog">Content</EchoDialog>);
+  fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+  expect(onClose).toHaveBeenCalledOnce();
+});

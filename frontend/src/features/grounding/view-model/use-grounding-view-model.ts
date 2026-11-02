@@ -1,4 +1,5 @@
 "use client";
+import { completeSupportVisit, supportVisitToken } from "@/features/journal/model/support-journey";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 import type { ExerciseType, GroundingSession, PaceType } from "../model/grounding.model";
@@ -90,6 +91,7 @@ export function useGroundingViewModel() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const service = getGroundingService();
   const completedRef = useRef(false);
+  const supportVisit = useRef<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const completionRef = useRef<{ sessionId: string; type: ExerciseType; duration: number; pace: PaceType; completedAt: string } | null>(null);
   const saveInFlightRef = useRef(false);
@@ -147,6 +149,7 @@ export function useGroundingViewModel() {
   useEffect(() => {
     if (state.remainingSeconds !== 0 || completedRef.current) return;
     completedRef.current = true;
+    completeSupportVisit("grounding", supportVisit.current);
     const completion = {
       sessionId: sessionIdRef.current ??= crypto.randomUUID(),
       type: TECHNIQUE_TO_EXERCISE[state.technique],
@@ -169,6 +172,7 @@ export function useGroundingViewModel() {
       dispatch({ type: "TICK", remainingSeconds });
       if (remainingSeconds === 0) return;
     } else {
+      supportVisit.current ??= supportVisitToken("grounding");
       sessionIdRef.current ??= crypto.randomUUID();
       deadlineRef.current = Date.now() + state.remainingSeconds * 1_000;
     }
@@ -177,6 +181,7 @@ export function useGroundingViewModel() {
 
   const startPractice = useCallback((technique: GroundingTechnique, durationMinutes: number) => {
     completedRef.current = false;
+    supportVisit.current = supportVisitToken("grounding");
     sessionIdRef.current = crypto.randomUUID();
     completionRef.current = null;
     deadlineRef.current = Date.now() + durationMinutes * 60_000;
