@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSupabasePublicConfig } from "@/infrastructure/supabase/config";
 import { createServerSupabaseClient } from "@/infrastructure/supabase/server-client";
 import { AnalysisStatusGateway } from "@/features/journal/components/analysis-status-gateway";
+import { InterfaceSoundController } from "@/shared/components/navigation/interface-sound-controller";
 import { AnalysisCompletionToast } from "@/features/journal/components/analysis-completion-toast";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
 
   return (
     <PrivateSessionBoundary key={claims.sub} userId={claims.sub}>
+      <InterfaceSoundController />
       {children}
       <AnalysisStatusGateway />
       <AnalysisCompletionToast />

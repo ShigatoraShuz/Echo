@@ -1,6 +1,7 @@
 "use client";
 
 import { LocalDataControls } from "../components/local-data-controls";
+import { InterfaceSoundControls } from "@/shared/components/navigation/interface-sound-controls";
 import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -608,6 +609,7 @@ export function ProfileSettingsView() {
         )}
           <SettingsSection title="Appearance" description="Choose the look and motion of your space." className="self-start">
             <ThemeControls compact />
+            <InterfaceSoundControls />
           </SettingsSection>
         </div>
       </div>
