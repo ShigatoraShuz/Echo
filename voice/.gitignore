@@ -1,0 +1,22 @@
+# Local-only model, environment, voice and conversation assets
+models/
+upstream/
+voices/
+sessions/
+results/
+logs/
+cache/
+work/
+backups/
+.venv*/
+__pycache__/
+setup-manifest.json
+*-validation.json
+*.zip
+*.wav
+*.mp3
+*.bin
+*.safetensors
+*.onnx
+*.log
+.env*

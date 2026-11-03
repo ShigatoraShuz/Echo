@@ -1,0 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.11.0+cu130
+torchaudio==2.11.0+cu130
+transformers==4.57.1
+numpy==2.5.4
+soundfile==0.14.0
+sentencepiece==0.2.2
+safetensors==0.8.0
+scipy==1.18.1
+huggingface-hub==0.36.2
+# TorchCodec 0.17.0 was installed locally but is not needed by wav_io.py.

@@ -1,0 +1,9 @@
+# Buffered speech playback
+
+Restart the Nano server and refresh http://127.0.0.1:8766. Buffered playback is the default. Wait for full response retains complete-file playback as a fallback. During buffering the microphone remains suspended. Use Play / Resume and Pause for segment playback. Interrupt, Stop, End and changing conversations discard queued speech. Completed audio remains available for replay/download without being replayed automatically.
+
+The full CBT reply is approved before Nano receives it. The first sentence is capped at 140 characters with a word-boundary fallback; later segments retain the 220-character limit. Validated PCM16 segment WAVs are atomically published, sent through request-tagged events and served only for known published turn indices. The final full WAV is retained. Generation slower than playback can cause visible buffering; no claim of continuous real-time speech is made.
+
+Segments and readiness timings are stored in the final report; first readiness is also in turn timings. Browser playback/buffering timing and cancelled/partial playback are separate session events. A synthesis failure after partial playback retains the approved answer and offers Retry speech without another CBT call. Browser timing measures scheduling/activity, not physical speaker latency. Current model settings, voice conditioning, Whisper settings and CBT output policy are unchanged.
+
+Verified November 3, 2026: nine Python segmentation/protocol/residency checks passed; browser queue lifecycle checks passed in an in-memory Node test. Actual Nano CUDA synthesis emitted three validated segment events at 4.57, 18.77 and 32.02 seconds; total generation was 32.08 seconds for 25.12 seconds of audio. The first segment therefore became available well before final assembly. Physical playback, browser microphone behavior, and listening quality remain unverified. Slower-than-playback generation can produce buffering gaps.

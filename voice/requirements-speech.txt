@@ -1,0 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.11.0+cu130
+torchaudio==2.11.0+cu130
+transformers==4.57.6
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+av==19.0.2
+numpy==2.5.4
+soundfile==0.14.0
+accelerate==1.15.0
+safetensors==0.8.0
+huggingface-hub==0.36.2

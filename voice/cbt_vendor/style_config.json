@@ -1,0 +1,24 @@
+{
+  "version": "echo_cbt_mixed_standalone_complete_steps_v3_20261101",
+  "word_targets": {
+    "brief": 25,
+    "english": 75,
+    "filipino": 65,
+    "taglish": 65,
+    "professional": 155,
+    "steps": 105
+  },
+  "notes": "Soft sentence-aware stopping targets for experimental generation, not hard limits; never shorten important safety content. Format-only does not shorten.",
+  "chat_output_format": {
+    "enabled": true,
+    "max_paragraph_words": {
+      "brief": 40,
+      "ordinary": 56,
+      "professional": 95,
+      "steps": 75
+    },
+    "apply_at": "after_model_quality_approval_before_any_cli_output",
+    "preservation": "all_non_whitespace_characters",
+    "note": "Paragraph breaks and inline numbered-step layout, preserving all non-whitespace characters. Console wrapping is display-only."
+  }
+}

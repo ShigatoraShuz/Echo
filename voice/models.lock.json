@@ -1,0 +1,34 @@
+{
+  "tts": "OpenMOSS-Team/MOSS-TTS-Nano-100M",
+  "codec": "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano",
+  "revisions": {
+    "OpenMOSS-Team/MOSS-TTS-Nano-100M": "44502f80dbf9743528fa921cc544d662c685ebec",
+    "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano": "6aa02b01e445cc585582cf0ba480bc3ea6c8dd68"
+  },
+  "runtimeRepository": "https://github.com/OpenMOSS/MOSS-TTS-Nano",
+  "runtimeRevision": "8b7bcc9341b3b4ef3a3a58ba1338a7d85ff133eb",
+  "assetSHA256": {
+    "models/codec/config.json": "b38892f8ba00efc18af2ad9eca999c7603f871548c2e7f99258cb1cefc70ee06",
+    "models/codec/configuration_moss_audio_tokenizer.py": "b2d67dc4581e70f4b69b2d7eccefe32581d0c5192fe4d97fe1830e94a255b8aa",
+    "models/codec/model-00001-of-00001.safetensors": "34d9880d805eecb21bde975202b1c256dbd0eb98c8680b9d3aeffd2bc6ac2f67",
+    "models/codec/model.safetensors.index.json": "2bf639e2c37c8502b1d0d92bf616b8108cb9975d42f587487a103682575b1d6d",
+    "models/codec/modeling_moss_audio_tokenizer.py": "b14af7c188944da5101adbd4aaa9c3617d66b83507f0efbd6eb416381a105930",
+    "models/codec/README.md": "83cae343211c7c482433c9758f16fc9d17046a0cd450d185b473542e87e35ef8",
+    "models/codec/__init__.py": "ed0b4910a5e53b1dfc3234cfcf96e2c6890d339f9134a3dfed8481d01b3768fd",
+    "models/nano/config.json": "ba36b08c80d4ae0805a2bab32b6ac90ec0d1815d01d3854ba42811db1d5bde99",
+    "models/nano/configuration_moss_tts_nano.py": "6f77da729d829e57f08872fcee10e05bb4358305cb175747650d8d05f23c1020",
+    "models/nano/gpt2_decoder.py": "cee01966c5eeeb8f84b83c7a197615b2d7fa876118992dae8a8f851688d868d7",
+    "models/nano/modeling_moss_tts_nano.py": "b68ffef1173eb39625dc9321f4ca4bfb7644dff54463e08df348e045b8cb5e04",
+    "models/nano/prompting.py": "24c1675e08071fc4b70fbc8f531c5f073234b029c55f3f6a8590891c2cb5f583",
+    "models/nano/README.md": "f7e1f8ef414fabfc4079f59dd73ae5eaa7e128e897f3b190a848145d5e300306",
+    "models/nano/special_tokens_map.json": "358c249e2fb29060c6b73157d428853b0c48710deffc8ee670ab1013880946c9",
+    "models/nano/tokenization_moss_tts_nano.py": "22872a5cf91aaefcd93b2563a7c9f01996ec4c8da8f1efd670cbe4710474a6cd",
+    "models/nano/tokenizer.model": "c353ee1479b536bf414c1b247f5542b6607fb8ae91320e5af1781fee200fddff",
+    "models/nano/tokenizer_config.json": "2e00db82fd2ba8020e7263a25f31bb8ec6c5cefbfe0b5e0bbd4723ae874d1be1",
+    "models/nano/__init__.py": "1e297cb29e5780863a21415c8f5c61aad9aebaae807bae20a9a94492249495cb",
+    "models/nano/pytorch_model.bin": "24003f2f11ac8a2cbf70514db2d8f1c02fb451aa6b3c0bffc9da09f31cd7caa5"
+  },
+  "cbtAdapter": "mixed_epochs_2/final_adapter",
+  "cbtBase": "SeaLLMs-v3-7B-Chat",
+  "whisper": "existing local faster-whisper checkpoint; no replacement"
+}
