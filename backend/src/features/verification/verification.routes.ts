@@ -12,6 +12,7 @@ export function createVerificationRouter(service: VerificationService, verifier:
   const authenticate = createAuthMiddleware(verifier);
   router.use(["/verification", "/admin/verifications"], authenticate, endpointLimiter(30));
 
+  router.get("/verification/access", authenticate, controller.access);
   router.get("/verification", authenticate, controller.status);
   router.get("/verification/reviewer-access", authenticate, controller.reviewerAccess);
   router.put("/verification/application", authenticate, controller.saveApplication);

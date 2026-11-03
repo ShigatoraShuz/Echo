@@ -100,7 +100,7 @@ export const experienceApi = {
     if (filters?.type && filters.type !== "all") params.set("type", filters.type);
     const suffix = params.size > 0 ? `?${params.toString()}` : "";
     return (
-      await client.get<ApiEnvelope<SupportResource[]>>(`/support-resources${suffix}`)
+      await client.get<ApiEnvelope<SupportResource[]>>(`/support-resources${suffix}`, { navigationCache: true })
     ).data;
   },
 };

@@ -5,30 +5,41 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BadgeCheck, LockKeyhole } from "lucide-react";
 import { getVerificationService } from "@/services/verification/verification-service.factory";
 
-export function VerifiedFeatureGate({
-  children,
-  featureName,
-}: {
-  children: ReactNode;
-  featureName: string;
-}) {
+export function VerifiedFeatureGate({ children, featureName }: { children: ReactNode; featureName: string }) {
   const [access, setAccess] = useState<"loading" | "allowed" | "verification" | "trusted_contact" | "error">("loading");
   const [retry, setRetry] = useState(0);
 
-  const pending = useRef<ReturnType<ReturnType<typeof getVerificationService>["getStatus"]> | null>(null);
+  const pending = useRef<ReturnType<NonNullable<ReturnType<typeof getVerificationService>["getAccessStatus"]>> | null>(
+    null,
+  );
   useEffect(() => {
     let active = true;
     if (!pending.current) {
-      const read = getVerificationService().getStatus();
+      const service = getVerificationService();
+      const read = service.getAccessStatus ? service.getAccessStatus() : service.getStatus();
       pending.current = read;
-      void read.finally(() => { if (pending.current === read) pending.current = null; }).catch(() => {});
+      void read
+        .finally(() => {
+          if (pending.current === read) pending.current = null;
+        })
+        .catch(() => {});
     }
     void pending.current
       .then((result) => {
-        if (active) setAccess(result.success
-          ? result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification"
-          : "error");
-      }).catch(() => { if (active) setAccess("error"); });
+        if (active)
+          setAccess(
+            result.success
+              ? result.data.canAccessAi
+                ? "allowed"
+                : result.data.accessRequirement === "trusted_contact"
+                  ? "trusted_contact"
+                  : "verification"
+              : "error",
+          );
+      })
+      .catch(() => {
+        if (active) setAccess("error");
+      });
     return () => {
       active = false;
     };
@@ -46,13 +57,38 @@ export function VerifiedFeatureGate({
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground">
           <LockKeyhole className="h-6 w-6" aria-hidden="true" />
         </span>
-        <h1 className="mt-5 font-serif text-3xl">{failed ? `${featureName} is temporarily unavailable` : needsContact ? "Add a trusted support contact" : `${featureName} requires verification`}</h1>
+        <h1 className="mt-5 font-serif text-3xl">
+          {failed
+            ? `${featureName} is temporarily unavailable`
+            : needsContact
+              ? "Add a trusted support contact"
+              : `${featureName} requires verification`}
+        </h1>
         <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-          {failed ? "Your access status could not be checked. Please try again shortly." : needsContact ? "Your account is verified. Add a valid trusted support contact and confirm their permission before using AI-supported features." : "This feature uses AI-supported processing. It unlocks after an administrator approves your identity and age verification and you add a permitted trusted support contact."}
+          {failed
+            ? "Your access status could not be checked. Please try again shortly."
+            : needsContact
+              ? "Your account is verified. Add a valid trusted support contact and confirm their permission before using AI-supported features."
+              : "This feature uses AI-supported processing. It unlocks after an administrator approves your identity and age verification and you add a permitted trusted support contact."}
         </p>
-        {failed ? <button type="button" className="echo-button-secondary mt-4" onClick={() => { setAccess("loading"); setRetry(value => value + 1); }}>Retry access check</button> : null}
-        <Link href={needsContact ? "/settings/trusted-contacts" : failed ? "/settings" : "/settings/verification"} className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-transform active:scale-[0.97]">
-          <BadgeCheck className="h-4 w-4" aria-hidden="true" /> {needsContact ? "Manage trusted contacts" : failed ? "Open settings" : "Open verification"}
+        {failed ? (
+          <button
+            type="button"
+            className="echo-button-secondary mt-4"
+            onClick={() => {
+              setAccess("loading");
+              setRetry((value) => value + 1);
+            }}
+          >
+            Retry access check
+          </button>
+        ) : null}
+        <Link
+          href={needsContact ? "/settings/trusted-contacts" : failed ? "/settings" : "/settings/verification"}
+          className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground transition-transform active:scale-[0.97]"
+        >
+          <BadgeCheck className="h-4 w-4" aria-hidden="true" />{" "}
+          {needsContact ? "Manage trusted contacts" : failed ? "Open settings" : "Open verification"}
         </Link>
       </div>
     );

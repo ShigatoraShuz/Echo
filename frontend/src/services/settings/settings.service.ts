@@ -10,6 +10,7 @@ import type {
   TrustedContact,
   TrustedContactInput,
 } from "@/features/settings/model/settings.model";
+import { invalidateNavigationReads } from "@/infrastructure/api/navigation-read-cache";
 import { env } from "@/config/environment";
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
@@ -66,12 +67,13 @@ export const settingsService: SettingsService = {
     return unwrap(client.get<ApiEnvelope<SettingsSnapshot>>("/settings"));
   },
   getProfileSummary() {
-    return unwrap(client.get<ApiEnvelope<Pick<ProfileSettings, "displayName" | "avatarPath">>>("/settings/profile"));
+    return unwrap(client.get<ApiEnvelope<Pick<ProfileSettings, "displayName" | "avatarPath">>>("/settings/profile", { navigationCache: true }));
   },
   updateProfile(updates) {
     return unwrap(client.patch<ApiEnvelope<ProfileSettings>, Partial<ProfileSettings>>("/settings/profile", updates));
   },
   async uploadAvatar(file) {
+    invalidateNavigationReads();
     const token = await supabaseAuthTokenProvider.getAccessToken();
     const response = await fetch(endpoint("/settings/profile/avatar"), {
       method: "PUT",
@@ -89,6 +91,7 @@ export const settingsService: SettingsService = {
       );
     }
 
+    invalidateNavigationReads();
     return body.data;
   },
   async updatePrivacy(updates) {

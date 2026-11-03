@@ -11,6 +11,7 @@ function harness() {
     documents: [],
   };
   const service = {
+    getAiAccessStatus: vi.fn().mockResolvedValue({canAccessAi:false,accessRequirement:"verification"}),
     getStatus: vi.fn().mockResolvedValue(snapshot),
     saveApplication: vi.fn().mockResolvedValue(snapshot),
     uploadDocument: vi.fn().mockResolvedValue(snapshot),
@@ -39,6 +40,14 @@ function harness() {
 }
 
 describe("verification routes", () => {
+  it("protects the minimal access lookup and never returns identity documents", async () => {
+    const {app,service}=harness();
+    expect((await request(app).get("/api/v1/verification/access")).status).toBe(401);
+    const response=await request(app).get("/api/v1/verification/access").set("Authorization","Bearer valid-token");
+    expect(response.status).toBe(200);expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.body.data).toEqual({canAccessAi:false,accessRequirement:"verification"});
+    expect(service.getAiAccessStatus).toHaveBeenCalledWith("user-1");expect(service.getStatus).not.toHaveBeenCalled();
+  });
   it("requires authentication before returning verification state", async () => {
     const { app, service } = harness();
 

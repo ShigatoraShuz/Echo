@@ -1,11 +1,17 @@
-import type { VerificationApplication, VerificationDocumentKind, VerificationSnapshot } from "@/features/verification/model";
+import type {
+  VerificationApplication,
+  VerificationDocumentKind,
+  VerificationSnapshot,
+} from "@/features/verification/model";
 import { verificationApi } from "@/services/verification/verification-api";
 
 export type VerificationServiceResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: { code: string; message: string } };
+  { success: true; data: T } | { success: false; error: { code: string; message: string } };
 
 export interface VerificationService {
+  getAccessStatus?(): Promise<
+    VerificationServiceResult<Pick<VerificationSnapshot, "canAccessAi" | "accessRequirement">>
+  >;
   getStatus(): Promise<VerificationServiceResult<VerificationSnapshot>>;
   saveApplication(application: VerificationApplication): Promise<VerificationServiceResult<VerificationSnapshot>>;
   uploadDocument(kind: VerificationDocumentKind, file: File): Promise<VerificationServiceResult<VerificationSnapshot>>;
@@ -26,6 +32,7 @@ function toResult<T>(promise: Promise<T>): Promise<VerificationServiceResult<T>>
 }
 
 export const verificationService: VerificationService = {
+  getAccessStatus: () => toResult(verificationApi.getAccessStatus()),
   getStatus: () => toResult(verificationApi.getStatus()),
   saveApplication: (application) => toResult(verificationApi.saveApplication(application)),
   uploadDocument: (kind, file) => toResult(verificationApi.uploadDocument(kind, file)),

@@ -85,7 +85,7 @@ export function createInsightsHttpAdapter(): InsightsService {
           params.set("from", customRange.from);
           params.set("to", customRange.to);
         }
-        const response = await client.get<ApiEnvelope<unknown>>(`/dashboard/insights?${params.toString()}`, { signal });
+        const response = await client.get<ApiEnvelope<unknown>>(`/dashboard/insights?${params.toString()}`, { signal, navigationCache: true });
         return { success: true, data: dashboardInsightsSchema.parse(response.data) };
       } catch {
         return { success: false, error: { code: "UNKNOWN", message: "Failed to load AI insights." } };

@@ -90,7 +90,9 @@ export interface AdminVerificationDetail {
   isMinor: boolean;
   ageAtSubmission: number;
   application: VerificationApplication;
-  documents: Array<VerificationDocument & { scanStatus: "clean" | "quarantined" | "rejected"; signedUrl: string | null }>;
+  documents: Array<
+    VerificationDocument & { scanStatus: "clean" | "quarantined" | "rejected"; signedUrl: string | null }
+  >;
   submittedAt: string | null;
   reviewedAt: string | null;
   reasonCode: string | null;
@@ -107,6 +109,13 @@ function endpoint(path: string): string {
 }
 
 export const verificationApi = {
+  async getAccessStatus(): Promise<Pick<VerificationSnapshot, "canAccessAi" | "accessRequirement">> {
+    return (
+      await client.get<ApiEnvelope<Pick<VerificationSnapshot, "canAccessAi" | "accessRequirement">>>(
+        "/verification/access",
+      )
+    ).data;
+  },
   async reviewerAccess(): Promise<{ canReview: boolean }> {
     return (await client.get<ApiEnvelope<{ canReview: boolean }>>("/verification/reviewer-access")).data;
   },

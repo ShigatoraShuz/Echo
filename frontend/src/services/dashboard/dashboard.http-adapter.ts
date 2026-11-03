@@ -29,7 +29,7 @@ export function createDashboardHttpAdapter(): DashboardService {
         const response = await client.get<{
             success: true;
             data: DashboardResponse;
-          }>(`/dashboard${queryParam}`);
+          }>(`/dashboard${queryParam}`, { navigationCache: true });
         return successResult({
           ...response.data,
           latestEntry: response.data.latestEntry ? mapSummary(response.data.latestEntry) : null,

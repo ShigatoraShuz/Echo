@@ -50,6 +50,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  experimental: { staleTimes: { dynamic: 60, static: 60 } },
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Defense in depth: neither clinician demo nor the legacy fixture laboratory
   // can enter a production client/server graph, even if a route imports them.

@@ -37,6 +37,13 @@ export function createExperienceRouter(
   router.post("/wellness/support-prompt", authenticate, aiWriteLimiter, controller.claimSupportPrompt);
   router.get("/buddy/session", authenticate, requireVerifiedAi, controller.buddySession);
   router.get("/buddy/privacy", authenticate, requireVerifiedAi, controller.buddyPrivacy);
+  router.get("/buddy/access", authenticate, async (request, response) => {
+    response.setHeader("Cache-Control", "no-store");
+    const access = await verificationService.getAiAccessStatus(request.auth!.id);
+    const privacy = access.canAccessAi ? await service.buddyPrivacy(request.auth!.id) : null;
+    response.json({ success: true, data: { ...access, buddyHistoryEnabled: privacy?.buddyHistoryEnabled ?? true,
+      ...(privacy?.responderState ? { responderState: privacy.responderState } : {}) } });
+  });
   router.post("/buddy/messages", authenticate, requireVerifiedAi, aiWriteLimiter, controller.sendBuddyMessage);
   router.get("/buddy/history", authenticate, requireVerifiedAi, controller.buddyHistory);
   router.post("/buddy/conversations", authenticate, requireVerifiedAi, aiWriteLimiter, controller.createBuddyConversation);

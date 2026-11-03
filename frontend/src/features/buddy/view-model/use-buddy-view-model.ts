@@ -234,9 +234,16 @@ const retryMessage = useCallback(async (conversationId: string) => {
     await loadConversations(1);
   }, [loadConversations]);
 
+  const accessPending = useRef<ReturnType<typeof service.getAccessStatus> | null>(null);
   useEffect(() => {
     let active = true;
-    void service.getAccessStatus().then((result) => {
+    // Coalesce effect replay only; completed authorization is never cached.
+    if (!accessPending.current) {
+      const read = service.getAccessStatus();
+      accessPending.current = read;
+      void read.finally(() => { if (accessPending.current === read) accessPending.current = null; }).catch(() => {});
+    }
+    void accessPending.current.then((result) => {
       if (!active) return;
       dispatch(result.success
         ? { type: "SET_ACCESS_STATUS", status: result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification", historyEnabled: result.data.buddyHistoryEnabled ?? true, responderState: result.data.responderState }
