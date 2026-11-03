@@ -1,0 +1,105 @@
+{
+  "package_name": "ECHO_CBT_Mixed_Standalone_XLMR_Routing_V5",
+  "model": "mixed_lr_1e4",
+  "version": "v5_xlmr_integrated",
+  "original_weights_modified": false,
+  "original_checkpoint_included": false,
+  "xlmr_weights_included": false,
+  "cbt_adapter_sha256_required": "3c069f8e78bca097e56bede5e2dcdd2fd7bba8534543f511f8767a0090123df5",
+  "xlmr_threshold_source": "user-reported prior frozen V2 threshold 0.1698; local calibration artifact NOT provided",
+  "offline_unit_tests_passed": 93,
+  "cuda_inference_performed": false,
+  "xlmr_inference_performed": false,
+  "file_inventory": [
+    {
+      "path": "OFFLINE_TEST_RESULTS.txt",
+      "size": 7948,
+      "sha256": "29e74671f873786ba8b7c1c327a3792630b813e9fd77c8f576dd16e3be5221dd"
+    },
+    {
+      "path": "QUICK_START_V5.md",
+      "size": 347,
+      "sha256": "a6c13b8d94f5a3eb0866bb41ab832eb3f8a437c5054485116dcc492e94c5b451"
+    },
+    {
+      "path": "README_START_HERE.md",
+      "size": 5954,
+      "sha256": "667e3ac26b4571b001fca04664c74cded9b138dc6d4a1da3be4ab93f251ecab3"
+    },
+    {
+      "path": "echo_cbt_standalone.py",
+      "size": 41642,
+      "sha256": "c531aade1e7b1b20d37b5a387cd8713b355fc4fa8c6909eb9341957dc9a19874"
+    },
+    {
+      "path": "formatting.py",
+      "size": 5281,
+      "sha256": "926fd2a83bb3b986f4b4356fd835afbc64bf7b98cebfbe5a677d57f227a989a5"
+    },
+    {
+      "path": "gpu_smoke_v5.py",
+      "size": 3383,
+      "sha256": "4e4f4089e11179e83ae509e09d5b004d508c66c8aae921f817f1f0ba52a54201"
+    },
+    {
+      "path": "reference/CBT-MODEL-HANDOVER.md",
+      "size": 22323,
+      "sha256": "12cdcab0f1af91f9c974327a460f59608e35582317143f5698d6f4f18231c09b"
+    },
+    {
+      "path": "reference/cbt-settings.json",
+      "size": 18013,
+      "sha256": "57d30307e1b78e65fa8959848c52637467d2be296470a46f52d670d8803663f9"
+    },
+    {
+      "path": "requirements-inference.txt",
+      "size": 363,
+      "sha256": "03273b1055a1ff734c1b1d2a6c8816ff4004c2352cd516392bb8e6482f99293f"
+    },
+    {
+      "path": "run_echo_mixed_v5.cmd",
+      "size": 82,
+      "sha256": "5c654cac0dc9931150cf6883909b6a1a9f09f05cd34b630ed64c1de2884ee757"
+    },
+    {
+      "path": "run_echo_mixed_v5.ps1",
+      "size": 1452,
+      "sha256": "bccd0ccbb47a7786df26fa0d5bd75883e2710b7246e1c5260d42b53775547138"
+    },
+    {
+      "path": "run_echo_v5.py",
+      "size": 9598,
+      "sha256": "242ef5bc30d139c951b0e2d4265858e4316cb32a938434fcb1dbced0e5a5ae47"
+    },
+    {
+      "path": "style_config.json",
+      "size": 783,
+      "sha256": "78e2430fcaca1ec99534c594f98f42df93a0b6f4b6c04a13f42fc8418c421f29"
+    },
+    {
+      "path": "tests/test_legacy_v4.py",
+      "size": 15808,
+      "sha256": "4946b637ed7dea4e851ff716d92f8208a34c8a97be04a8fdfa69a3a01de97331"
+    },
+    {
+      "path": "tests/test_v5_xlmr.py",
+      "size": 4598,
+      "sha256": "67dca2689c7fecf955bbe6ee179599ccf9be7f23a77776b17741f803575cd102"
+    },
+    {
+      "path": "v4_controls.py",
+      "size": 17919,
+      "sha256": "c112dc1e156e12b50de1106d871dc21a24bad18a49c0b2e64eed2a0fc1e5926c"
+    },
+    {
+      "path": "xlmr_config.json",
+      "size": 460,
+      "sha256": "5d0ca2ffc6ff0125d9622bb94fa5b0b90d4b3567d1557efedcacedb570b82fcf"
+    },
+    {
+      "path": "xlmr_router.py",
+      "size": 8600,
+      "sha256": "8f102903f17b29570ed03da7d7628e77cbf9a32d6f8157b2a3e783e87a7c93f3"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "sourcePackage": "E:\\Python Project\\PROJECTS\\Thesis2\\CBT_RESPONSE\\TESTING\\FINAL_TEMP_FORMAT\\ECHO_CBT_Mixed_Standalone_XLMR_Routing_V5\\ECHO_CBT_Mixed_Standalone_XLMR_Routing_V5",
+  "adaptation": "Package-relative imports with direct-CLI fallback; runtime reuses loaded application model and frozen classifier. Original PROVENANCE_SHA256.json describes source files, not the adapted copies.",
+  "files": {
+    "echo_cbt_standalone.py": {
+      "sourceSha256": "c531aade1e7b1b20d37b5a387cd8713b355fc4fa8c6909eb9341957dc9a19874",
+      "integratedSha256": "01a8ca9548a5f19b3214d7005e43f75d79181f55a62fafdb12855d4bb6a89179"
+    },
+    "formatting.py": {
+      "sourceSha256": "926fd2a83bb3b986f4b4356fd835afbc64bf7b98cebfbe5a677d57f227a989a5",
+      "integratedSha256": "be07816849a943748ad2be6e7ec130dff99284e49dd7a36c1d83c56080fd8ccf"
+    },
+    "gpu_smoke_v5.py": {
+      "sourceSha256": "4e4f4089e11179e83ae509e09d5b004d508c66c8aae921f817f1f0ba52a54201",
+      "integratedSha256": "1b413d6b91ea950f65c58544cb9800e60d6d9e4d1e3a45a8eaa93786b9450c27"
+    },
+    "run_echo_v5.py": {
+      "sourceSha256": "242ef5bc30d139c951b0e2d4265858e4316cb32a938434fcb1dbced0e5a5ae47",
+      "integratedSha256": "8041365b60a14aa07f112ac54469ece6b5db33002ca3f2bb267e3f6771b88a5c"
+    },
+    "v4_controls.py": {
+      "sourceSha256": "c112dc1e156e12b50de1106d871dc21a24bad18a49c0b2e64eed2a0fc1e5926c",
+      "integratedSha256": "cc610640d812fafbd6c28e9b0167d13a250e0e1c197a6ca792f29f87362a9ffc"
+    },
+    "xlmr_router.py": {
+      "sourceSha256": "8f102903f17b29570ed03da7d7628e77cbf9a32d6f8157b2a3e783e87a7c93f3",
+      "integratedSha256": "ef590cfaeed84c5f0bfdfe8772a7bb08463a42cbf5e3dc8cde3987adc4b4e1d3"
+    }
+  }
+}

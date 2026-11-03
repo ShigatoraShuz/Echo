@@ -1,0 +1,15 @@
+{
+  "suicidal_screening_threshold": 0.16983573167936325,
+  "max_length": 384,
+  "window_stride": 64,
+  "temperature": 1.630744207618722,
+  "calibration_status": "COPIED_FROM_EXISTING_FROZEN_ECHO_V2_CALIBRATION",
+  "label_order": [
+    "Others",
+    "Anxious",
+    "Depressed",
+    "Frustrated",
+    "Suicidal"
+  ],
+  "notes": "Application uses its existing calibrated classifier through FrozenScreen. Original supplied config is xlmr_config.source.json; do not overwrite frozen settings with its unverified guesses."
+}

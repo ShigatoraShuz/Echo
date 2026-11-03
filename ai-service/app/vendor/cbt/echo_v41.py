@@ -26,7 +26,15 @@ import re
 
 from . import echo_inference as base
 
-VERSION = 'selected_mixed_lr_1e4_v49_isolated_cascade_20261025'
+VERSION = 'selected_mixed_lr_1e4_v49_v5_style_settings_20261101'
+
+# Soft targets from the supplied V5 style_config.json; routing/formatting stays separate.
+WORD_TARGETS = {'brief': 25, 'english': 75, 'filipino': 65, 'taglish': 65, 'professional': 155}
+
+def response_target(role, language):
+    if role == 'potential_safety':
+        return None
+    return WORD_TARGETS[role if role in ('brief', 'professional') else language]
 
 # Frozen generation controls: changing these changes fingerprint() and requires a NEW run-id.
 CREATIVE_TEMPERATURE = 0.75
@@ -910,8 +918,6 @@ def infer_v41(model, tokenizer, conversation, *, seq_length=4096,
     # the journal author's user turn. This is important for Qwen-based adapters.
     chat_template_status = _ensure_assistant_marker(tokenizer)
     role, _ = classify(conversation)
-    targets = {'brief': 35, 'ordinary': 110, 'professional': 210,
-               'potential_safety': None}
     original_context = [
         {'role': turn['role'], 'content': turn['content']}
         for turn in conversation
@@ -920,7 +926,7 @@ def infer_v41(model, tokenizer, conversation, *, seq_length=4096,
     language = detect_language(original_context)
     language_guide = (FILIPINO_STYLE_GUIDE if language == 'filipino' else
                       TAGLISH_STYLE_GUIDE if language == 'taglish' else '')
-    first_target = 95 if language != 'english' and role == 'ordinary' else targets[role]
+    first_target = response_target(role, language)
     # Optional two-adapter experiment: the short CogBeTh note is model-generated
     # and UNVERIFIED, not a fact about the student or an instruction to obey.
     # Keep the actual original conversation intact for both stages.
@@ -959,9 +965,7 @@ def infer_v41(model, tokenizer, conversation, *, seq_length=4096,
         + '\nRespond to the LAST actual user message in the provided conversation.'
         + grounding
     )
-    second_target = {'brief': 32, 'ordinary': 100, 'professional': 205}[role]
-    if role == 'ordinary' and language != 'english':
-        second_target = 90
+    second_target = response_target(role, language)
     rewrite, second_meta = _generate(
         model, tokenizer, original_context, rewrite_prompt + language_guide, role,
         second_target, min(max_new_tokens, 650), seq_length

@@ -1,0 +1,24 @@
+{
+  "version": "echo_cbt_mixed_standalone_safe_readable_v4_20261101",
+  "word_targets": {
+    "brief": 25,
+    "english": 75,
+    "filipino": 65,
+    "taglish": 65,
+    "professional": 155,
+    "steps": 105
+  },
+  "notes": "Soft word targets only; V4 safety/response guards and context-specific list formatting. Original adapter unchanged.",
+  "chat_output_format": {
+    "enabled": true,
+    "max_paragraph_words": {
+      "brief": 40,
+      "ordinary": 56,
+      "professional": 95,
+      "steps": 75
+    },
+    "apply_at": "after_model_quality_approval_before_any_cli_output",
+    "preservation": "exact_whitespace_delimited_tokens",
+    "note": "Paragraph breaks and inline numbered-step layout, preserving all non-whitespace characters. Console wrapping is display-only."
+  }
+}

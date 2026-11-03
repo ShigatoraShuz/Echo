@@ -62,16 +62,19 @@ def test_core_api_rejects_empty_input_without_loading_models():
     assert response.status_code == 422
 
 
-def test_chat_rejects_context_overflow_before_generation():
+def test_chat_rejects_context_overflow_before_generation(monkeypatch):
     import pytest
 
     from app.model.core import CoreRuntime
 
     runtime = CoreRuntime.__new__(CoreRuntime)
-    runtime.classify = lambda *args: {"suicidal_language_flag": False}
-    tokenizer = SimpleNamespace(apply_chat_template=lambda *args, **kwargs: [0] * 5000)
+    runtime.classify = lambda *args: {"suicidal_language_flag": False,"distress_category":"Others","max_window_suicidal_label_score":.01,"validation_selected_suicidal_flag_threshold":.16983573167936325,"all_category_scores_relative_not_diagnoses":{},"number_of_windows":1}
+    from app.vendor.cbt.v5 import echo_cbt_standalone as backend
+    monkeypatch.setattr(backend,'verify_template',lambda tokenizer:'valid')
+    monkeypatch.setattr(backend,'stop_ids',lambda tokenizer:[1])
+    tokenizer = SimpleNamespace(pad_token_id=1,apply_chat_template=lambda *args, **kwargs: {"input_ids":SimpleNamespace(shape=(1,5000))})
     runtime.call = lambda name, fn: fn((None, tokenizer))
-    with pytest.raises(ValueError, match="context budget"):
+    with pytest.raises(ValueError, match="token budget"):
         runtime.chat([{"role": "user", "content": "Synthetic long-input test"}])
 
 

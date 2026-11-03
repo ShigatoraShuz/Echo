@@ -1,0 +1,9 @@
+{
+  "suicidal_screening_threshold": 0.1698,
+  "max_length": 384,
+  "window_stride": 96,
+  "temperature": 1.0,
+  "calibration_status": "USER_REPORTED_16.98_PERCENT__VERIFY_AGAINST_FROZEN_V2_CALIBRATION",
+  "label_order": null,
+  "notes": "Threshold was reported from prior XLM-R V2 run. Verify it, label order, checkpoint and probability calibration against your saved artifacts before interpreting screening outcomes. This is NOT clinical risk probability."
+}

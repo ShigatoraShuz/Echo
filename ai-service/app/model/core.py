@@ -137,7 +137,9 @@ class CoreRuntime:
                 local_files_only=True,
                 trust_remote_code=False,
                 device_map={"": 0},
+                **({'dtype':torch.bfloat16} if name=='cbt' else {}),
                 quantization_config=BitsAndBytesConfig(
+                    bnb_4bit_use_double_quant=False,
                     load_in_4bit=True,
                     bnb_4bit_quant_type="nf4",
                     bnb_4bit_compute_dtype=torch.bfloat16,
@@ -266,45 +268,50 @@ class CoreRuntime:
         }
 
     def chat(self, messages):
-        text = messages[-1]["content"]
-        classification = self.classify(text)
-        if classification["suicidal_language_flag"]:
-            return {"reply": None, "supportRequired": True, "model": self.provenance("xlmr")}
-        from app.vendor.cbt.echo_v41 import (
-            FILIPINO_STYLE_GUIDE,
-            TAGLISH_STYLE_GUIDE,
-            V41_SYSTEM,
-            detect_language,
-            infer_v41,
-        )
+        from app.vendor.cbt.v5 import echo_cbt_standalone as backend
+        from app.vendor.cbt.v5 import run_echo_v5 as policy
+        from transformers import StoppingCriteria, StoppingCriteriaList
+        import torch
 
-        def generate(model):
-            language = detect_language(messages)
-            guide = (
-                FILIPINO_STYLE_GUIDE
-                if language == "filipino"
-                else TAGLISH_STYLE_GUIDE
-                if language == "taglish"
-                else ""
-            )
-            prompt = [{"role": "system", "content": V41_SYSTEM + guide}, messages[-1]]
-            tokens = model[1].apply_chat_template(prompt, tokenize=True, add_generation_prompt=True)
-            if len(tokens) > 4096 - 900:
-                raise ValueError("The latest message exceeds the generation context budget.")
-            return infer_v41(model[0], model[1], messages, seq_length=4096, max_new_tokens=900)
+        turns=backend.validate_history(messages)
+        core=self
+        class FrozenScreen:
+            def classify(self,text):
+                result=core.classify(text)
+                if result.get('distress_category') is None:
+                    raise ModelUnavailableError('Support screening is indeterminate.')
+                return {'screening_flag':result['suicidal_language_flag'],
+                        'highest_suicidal_window_score':result['max_window_suicidal_label_score'],
+                        'screening_threshold':result['validation_selected_suicidal_flag_threshold'],
+                        'relative_class_scores':result['all_category_scores_relative_not_diagnoses'],
+                        'windows':result['number_of_windows'],
+                        'calibration_status':'existing_frozen_xlmr_v2'}
+        decision=policy.safety_triage(turns,FrozenScreen())
+        if not decision['generation_allowed']:
+            return {'reply':None,'supportRequired':True,'model':self.provenance('xlmr'),
+                    'quality':{'inferenceVersion':policy.VERSION,'safetyRoute':decision['route']}}
 
-        reply, audit = self.call("cbt", generate)
-        if audit["needs_review"] or audit.get("fallback_used"):
-            raise ModelUnavailableError("The generated response requires review.")
-        return {
-            "reply": reply,
-            "supportRequired": False,
-            "model": self.provenance("cbt"),
-            "quality": {
-                "rewriteAttempted": audit["rewrite_attempted"],
-                "inferenceVersion": audit["version"],
-            },
-        }
+        def generate(loaded):
+            model,tokenizer=loaded
+            engine=backend.LocalCBT.__new__(backend.LocalCBT)
+            engine.model=model;engine.tokenizer=tokenizer;engine.torch=torch
+            engine.device=torch.device('cuda:0')
+            engine.template_state=backend.verify_template(tokenizer)
+            if tokenizer.pad_token_id is None:tokenizer.pad_token=tokenizer.eos_token
+            engine.eos=backend.stop_ids(tokenizer)
+            engine.StoppingCriteria=StoppingCriteria;engine.StoppingCriteriaList=StoppingCriteriaList
+            return policy.generate_approved(engine,turns,decision)
+        result=self.call('cbt',generate)
+        if result.get('needs_review') or not result.get('model_output') or not result.get('reply'):
+            raise ModelUnavailableError('The generated response requires review.')
+        return {'reply':result['reply'],'supportRequired':False,'model':self.provenance('cbt'),
+                'quality':{'inferenceVersion':policy.VERSION,
+                           'rewriteAttempted':result.get('rewrite_attempted',False),
+                           'safetyRoute':decision['route'],
+                           'autoFormatApplied':result.get('auto_format_applied',False),
+                           'contentPreserved':result.get('auto_format_preserved_content',False),
+                           'outputParagraphs':result.get('output_paragraphs'),
+                           'role':result.get('role'),'language':result.get('language_heuristic')}}
 
     def speech(self, payload, cancelled=None):
         import subprocess,tempfile
