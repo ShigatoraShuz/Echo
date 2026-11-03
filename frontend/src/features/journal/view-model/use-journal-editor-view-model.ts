@@ -496,7 +496,11 @@ export function useJournalEditorViewModel() {
   }, []);
 
   const reset = useCallback(() => {
+    if (submitting.current) return;
     idempotencyKeyRef.current = null;
+    accepted.current = null;
+    finalized.current = false;
+    edited.current = false;
     dispatch({ type: "RESET" });
   }, []);
 

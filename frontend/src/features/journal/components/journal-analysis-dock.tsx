@@ -39,6 +39,8 @@ export function JournalAnalysisDock({
   availability,
   onRetry,
   capture,
+  initialSubmission,
+  saving = false,
 }: {
   journalId?: string;
   enabled: boolean;
@@ -46,19 +48,21 @@ export function JournalAnalysisDock({
   availability?: JournalAnalysisAvailability | null;
   onRetry?: () => void;
   capture?: ReactNode;
+  initialSubmission?: JournalSubmissionResponse | null;
+  saving?: boolean;
 }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const submission = useMemo<JournalSubmissionResponse | null>(
     () =>
-      journalId && availability?.jobId
+      initialSubmission ?? (journalId && availability?.jobId
         ? {
             journalId,
             analysisJobId: availability.jobId,
             status: "queued",
             facialStatus: "not_requested",
           }
-        : null,
-    [journalId, availability?.jobId],
+        : null),
+    [initialSubmission, journalId, availability?.jobId],
   );
   const result = analysis?.result;
   const native =
@@ -96,7 +100,13 @@ export function JournalAnalysisDock({
         />
       </header>
       <div className="journal-report-body">
-        {capture ? (
+        {saving ? (
+          <div className="journal-report-idle" role="status" aria-live="polite">
+            <div className="journal-idle-orbit"><Leaf size={30} aria-hidden="true" /></div>
+            <h3 className="font-[family-name:var(--font-echo-display)] text-2xl">Saving your reflection</h3>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">Your live model progress will appear here as soon as your reflection is saved.</p>
+          </div>
+        ) : capture ? (
           capture
         ) : availability?.reason === "PROCESSOR_DISABLED" ||
           availability?.reason === "PROCESSING_FAILED" ? (

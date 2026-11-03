@@ -21,7 +21,7 @@ type DetailAction =
   | { type: "CLEAR" }
   | { type: "ANALYSIS_ERROR"; error: string }
   | { type: "ANALYSIS_AVAILABILITY"; value: JournalAnalysisAvailability | null }
-  | { type: "ENTRY_LOAD_START" }
+  | { type: "ENTRY_LOAD_START"; background: boolean }
   | { type: "ENTRY_LOAD_SUCCESS"; entry: JournalEntry }
   | { type: "ENTRY_LOAD_ERROR"; error: string; notFound: boolean }
   | { type: "ANALYSIS_LOAD_SUCCESS"; analysis: JournalAnalysis | null }
@@ -37,14 +37,16 @@ type DetailAction =
 function reducer(state: DetailState, action: DetailAction): DetailState {
   switch (action.type) {
     case "CLEAR": return { ...initialState, isLoading: false };
-    case "ANALYSIS_ERROR": return { ...state, error: action.error };
+    case "ANALYSIS_ERROR": return { ...state, error: action.error, analysis: null, analysisAvailability: null };
     case "ANALYSIS_AVAILABILITY": return { ...state, analysisAvailability: action.value };
     case "ENTRY_LOAD_START":
+      if (action.background) return { ...state, error: null };
       return { ...state, isLoading: true, error: null, notFound: false, analysis: null, analysisAvailability: null };
     case "ENTRY_LOAD_SUCCESS":
-      return { ...state, isLoading: false, entry: action.entry };
+      return { ...state, isLoading: false, entry: action.entry,
+        ...(!action.entry.analysisConsent ? { analysis: null, analysisAvailability: null } : {}) };
     case "ENTRY_LOAD_ERROR":
-      return { ...state, isLoading: false, error: action.error, notFound: action.notFound };
+      return { ...state, isLoading: false, entry: null, analysis: null, analysisAvailability: null, error: action.error, notFound: action.notFound };
     case "ANALYSIS_LOAD_SUCCESS":
       return { ...state, analysis: action.analysis };
     case "DELETE_START":
@@ -93,10 +95,10 @@ export function useJournalDetailViewModel(id: string) {
   const invalidateLoads = useCallback(() => { ++loadEpoch.current; }, []);
 
   const loadEntry = useCallback(
-    async (entryId: string) => {
+    async (entryId: string, background = false) => {
       if (!active.current) return;
       const epoch = ++loadEpoch.current;
-      dispatch({ type: "ENTRY_LOAD_START" });
+      dispatch({ type: "ENTRY_LOAD_START", background });
       if (entryReadService.current !== service) { entryReads.current.clear(); entryReadService.current = service; }
       let read = entryReads.current.get(entryId);
       if (!read) {
@@ -140,13 +142,15 @@ export function useJournalDetailViewModel(id: string) {
     const clear = () => { active.current = false; entryReads.current.clear(); invalidateLoads(); dispatch({ type: "CLEAR" }); };
     window.addEventListener("echo:sensitive-state-cleared", clear);
     if (id) loadEntry(id);
-    const refresh = () => {
-      if (id) void loadEntry(id);
+    else dispatch({ type: "CLEAR" });
+    const refresh = (event: Event) => {
+      const journalId = (event as CustomEvent<{ journalId?: string }>).detail?.journalId;
+      if (id && (!journalId || journalId === id)) void loadEntry(id, true);
     };
     window.addEventListener("echo:analysis-completed", refresh);
     const refreshPhotos = () => {
       if (id && document.visibilityState === "visible" && Date.now() - lastLoadedAt.current > 4 * 60_000)
-        void loadEntry(id);
+        void loadEntry(id, true);
     };
     document.addEventListener("visibilitychange", refreshPhotos);
     const interval = window.setInterval(refreshPhotos, 60_000);
@@ -194,8 +198,8 @@ export function useJournalDetailViewModel(id: string) {
   }, []);
 
   const retry = useCallback(() => {
-    loadEntry(id);
-  }, [id, loadEntry]);
+    loadEntry(id, Boolean(state.entry));
+  }, [id, loadEntry, state.entry]);
 
   const addPhotos = useCallback(async (files: File[]) => {
     if (!files.length) return;

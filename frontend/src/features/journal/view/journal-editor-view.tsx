@@ -15,6 +15,7 @@ import { JournalAutosaveStatus } from "../components/journal-autosave-status";
 import { JournalPolaroid } from "../components/journal-polaroid";
 import { JournalFaceCapture, type JournalFaceCaptureHandle } from "../components/journal-face-capture";
 import { useJournalEditorViewModel } from "../view-model/use-journal-editor-view-model";
+import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 
 interface JournalPhotoPreview {
   id: string;
@@ -47,10 +48,9 @@ export function JournalEditorView() {
     save,
     retryAutosave,
     saveDraftNow,
+    reset,
   } = useJournalEditorViewModel();
-  useEffect(() => {
-    if (analysisSubmission) router.replace(`/journal/${analysisSubmission.journalId}`);
-  }, [analysisSubmission, router]);
+  const report = useJournalDetailViewModel(analysisSubmission?.journalId ?? "");
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [photosLoaded, setPhotosLoaded] = useState(false);
@@ -64,7 +64,7 @@ export function JournalEditorView() {
   const [privacyReady, setPrivacyReady] = useState(false);
   const privacyRead = useRef<ReturnType<typeof settingsService.get> | null>(null);
   const facialEnabled = privacyReady && journalAiAllowed === true && facialAllowed && analysisConsent && env.enableFacialAnalysis;
-  const facialRunning = facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving;
+  const facialRunning = facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving && !analysisSubmission;
 
   useEffect(() => {
     if (!savedEntry) return;
@@ -324,7 +324,7 @@ export function JournalEditorView() {
     event.preventDefault();
     if (isSaving) return;
     if (pendingPhotos && !window.confirm("Some photos have not finished saving. Leave without them?")) return;
-    if (await saveDraftNow()) {
+    if (analysisSubmission || await saveDraftNow()) {
       if (photoBackGuardRef.current) router.replace("/journal");
       else router.push("/journal");
     }
@@ -352,14 +352,16 @@ export function JournalEditorView() {
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All reflections
         </Link>
-        <JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} />
+        {analysisSubmission ? (
+          <Link href={`/journal/${analysisSubmission.journalId}`} className="text-sm font-semibold text-primary underline underline-offset-4">Open saved reflection</Link>
+        ) : <JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} />}
       </div>
       <div className="journal-studio-grid">
         <div className="journal-studio-writing">
           <article className="journal-writing-page overflow-hidden rounded-[1.5rem] border border-border/70 bg-card shadow-[0_20px_70px_rgba(31,53,42,0.09)] sm:rounded-[2rem]">
             <div className="border-b border-border/60 bg-[linear-gradient(115deg,hsl(var(--secondary)/0.65),hsl(var(--card)))] px-5 py-5 sm:px-10 sm:py-7">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">New reflection</p>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{analysisSubmission ? "Saved reflection" : "New reflection"}</p>
                 <time className="text-xs text-muted-foreground" dateTime={new Date().toISOString()}>
                   {new Intl.DateTimeFormat("en-US", {
                     weekday: "long",
@@ -374,7 +376,7 @@ export function JournalEditorView() {
               </label>
               <input
                 id="journal-title"
-                readOnly={preparingFace || isSaving}
+                readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => void saveDraftNow()}
@@ -394,7 +396,7 @@ export function JournalEditorView() {
               </label>
               <textarea
                 id="journal-body"
-                readOnly={preparingFace || isSaving}
+                readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
                 onBlur={() => void saveDraftNow()}
@@ -410,7 +412,7 @@ export function JournalEditorView() {
                 {wordCount} words · {charCount} characters
               </p>
             </div>
-            <div className="border-t border-border/60 bg-secondary/20 px-5 py-6 sm:px-10">
+            {(!analysisSubmission || photos.length > 0) && <div className="border-t border-border/60 bg-secondary/20 px-5 py-6 sm:px-10">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="font-[family-name:var(--font-echo-display)] text-xl text-foreground">
@@ -427,7 +429,7 @@ export function JournalEditorView() {
                     accept="image/jpeg,image/png,image/webp"
                     multiple
                     onChange={addPhotos}
-                    disabled={photos.length >= 5 || !photosLoaded}
+                    disabled={photos.length >= 5 || !photosLoaded || isSaving || Boolean(analysisSubmission)}
                     className="sr-only"
                     aria-label="Upload journal photos"
                   />
@@ -462,7 +464,7 @@ export function JournalEditorView() {
                             : "Upload failed"
                       }
                       index={index}
-                      onRemove={() => void removePhoto(photo.id)}
+                      onRemove={isSaving || analysisSubmission ? undefined : () => void removePhoto(photo.id)}
                       removeLabel={`Remove ${photo.name}`}
                     />
                   ))
@@ -492,10 +494,10 @@ export function JournalEditorView() {
               )}
               {photos.length > 0 && (
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Saved photos stay with your private draft and attach when you finish this reflection.
+                  {analysisSubmission ? "Your photos are saved with this reflection." : "Saved photos stay with your private draft and attach when you finish this reflection."}
                 </p>
               )}
-            </div>
+            </div>}
             <div className="space-y-5 px-5 py-6 sm:px-10">
               <div className="space-y-3">
                 <label htmlFor="journal-tags" className="block text-xs font-semibold text-muted-foreground">
@@ -503,7 +505,7 @@ export function JournalEditorView() {
                 </label>
                 <input
                   id="journal-tags"
-                  readOnly={preparingFace || isSaving}
+                  readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
                   value={tags.join(", ")}
                   onChange={(event) =>
                     setTags(
@@ -560,17 +562,29 @@ export function JournalEditorView() {
                 size="medium"
                 isLoading={isSaving || preparingFace}
                 disabled={!photosLoaded || pendingPhotos || !privacyReady || preparingFace}
-                onClick={finish}
+                onClick={analysisSubmission ? () => {
+                  photosRef.current.forEach((photo) => { if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src); });
+                  setPhotos([]);
+                  setPhotoError("");
+                  reset();
+                  setAnalysisConsent(journalAiAllowed === true);
+                } : finish}
                 className="w-full sm:w-auto"
               >
-                <Save className="h-4 w-4" aria-hidden="true" /> Save reflection
+                <Save className="h-4 w-4" aria-hidden="true" /> {analysisSubmission ? "Write another reflection" : "Save reflection"}
               </EchoButton>
             </div>
           </div>
         </div>
         <JournalAnalysisDock
           enabled={analysisConsent}
-          capture={facialEnabled ? <JournalFaceCapture ref={faceCaptureRef} running={facialRunning} /> : undefined}
+          journalId={analysisSubmission?.journalId}
+          initialSubmission={analysisSubmission}
+          saving={isSaving}
+          analysis={analysisSubmission ? report.analysis : null}
+          availability={analysisSubmission ? report.analysisAvailability : null}
+          onRetry={report.retry}
+          capture={facialEnabled && !analysisSubmission && !isSaving ? <JournalFaceCapture ref={faceCaptureRef} running={facialRunning} /> : undefined}
         />
       </div>
     </main>

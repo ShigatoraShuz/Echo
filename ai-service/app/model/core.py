@@ -24,6 +24,7 @@ class CoreRuntime:
         self.resident = {} if text_only else None
         self.loaded = False
         self.load_milliseconds = {}
+        self.load_counts = {}
         self.model_name = "echo-core"
         self.model_version = "echo-core-v3"
         self.adapter_path = str(self.root / "cbt/adapter")
@@ -109,29 +110,87 @@ class CoreRuntime:
 
         torch.cuda.empty_cache()
 
+    def _activate(self, name, value):
+        if name in ("cbt", "phq8") and isinstance(value, tuple):
+            value[0].set_adapter(name, inference_mode=True)
+            value[0].eval()
+        self.instance, self.active = value, name
+        return value
+
+    def _record_load(self, name, started):
+        self.load_milliseconds[name] = (time.perf_counter() - started) * 1000
+        self.load_counts = getattr(self, "load_counts", {})
+        self.load_counts[name] = self.load_counts.get(name, 0) + 1
+
+    def _shared_adapter(self, name, resident):
+        if name not in ("cbt", "phq8"):
+            return None
+        peer = resident.get("phq8" if name == "cbt" else "cbt")
+        if not isinstance(peer, tuple):
+            return None
+        adapter = self.root / ("phq8-seallms/adapter" if name == "phq8" else "cbt/adapter")
+        config = json.loads((adapter / "adapter_config.json").read_text())
+        # Sharing is restricted to independent LoRA deltas on this exact base.
+        # Bias/merged/extra trainable modules keep the original isolated loader.
+        peer_adapter = self.root / ("cbt/adapter" if name == "phq8" else "phq8-seallms/adapter")
+        peer_config = json.loads((peer_adapter / "adapter_config.json").read_text())
+        for candidate in (config, peer_config):
+            if (candidate.get("peft_type") != "LORA" or candidate.get("bias") != "none"
+                    or candidate.get("modules_to_save") or candidate.get("layer_replication") or candidate.get("use_dora")):
+                return None
+        base_config = json.loads((self.root / "cbt/base/config.json").read_text())
+        if config.get("auto_mapping") and config["auto_mapping"]["base_model_class"] != base_config["architectures"][0]:
+            raise ModelUnavailableError("CBT base/adapter architecture mismatch.")
+        import torch
+        extra = (adapter / "adapter_model.safetensors").stat().st_size * 2 + 128 * 1024**2
+        if torch.cuda.mem_get_info()[0] < extra + 2 * 1024**3:
+            return None
+        from transformers import AutoTokenizer
+        started = time.perf_counter()
+        tokenizer = AutoTokenizer.from_pretrained(adapter, local_files_only=True)
+        if not tokenizer.chat_template:
+            raise ModelUnavailableError("CBT chat template is missing.")
+        model = peer[0]
+        model.load_adapter(adapter, adapter_name=name, is_trainable=False, local_files_only=True)
+        value = (model, tokenizer)
+        resident[name] = value
+        self._record_load(name, started)
+        return self._activate(name, value)
+
+    def _evict_resident(self, resident, name):
+        value = resident[name]
+        identity = id(value[0] if isinstance(value, tuple) else value)
+        for alias, candidate in list(resident.items()):
+            if id(candidate[0] if isinstance(candidate, tuple) else candidate) == identity:
+                del resident[alias]
+
     def _load(self, name):
         if self.active == name:
             return self.instance
         resident = getattr(self, "resident", None)
-        if isinstance(resident, dict) and name in ("xlmr", "e4", "cbt"):
+        if isinstance(resident, dict) and name in ("xlmr", "e4", "cbt", "phq8"):
             if name in resident:
-                self.instance, self.active = resident[name], name
-                return self.instance
+                return self._activate(name, resident[name])
+            shared = self._shared_adapter(name, resident)
+            if shared is not None:
+                return shared
             self.instance, self.active = None, None
-            # Retain the three fixed text models only while the memory budget fits.
+            # Retain fixed text models and the shared LLM only while the budget fits.
             # No inputs or predictions are cached. Generation settings stay unchanged.
             gc.collect()
             import torch
 
             torch.cuda.empty_cache()
             # Measured installed-model peaks rounded up, plus 2 GiB free headroom.
-            required = {"xlmr": 2, "e4": 2, "cbt": 7}[name] * 1024**3
+            required = {"xlmr": 2, "e4": 2, "cbt": 7, "phq8": 7}[name] * 1024**3
             for previous in list(resident):
+                if previous not in resident:
+                    continue
                 if torch.cuda.mem_get_info()[0] >= required + 2 * 1024**3:
                     break
                 # Evict only under pressure; prefer retaining the safety classifier.
                 if previous != "xlmr":
-                    del resident[previous]
+                    self._evict_resident(resident, previous)
                     gc.collect()
                     torch.cuda.empty_cache()
             if torch.cuda.mem_get_info()[0] < required + 2 * 1024**3:
@@ -172,7 +231,8 @@ class CoreRuntime:
                     bnb_4bit_compute_dtype=torch.bfloat16,
                 ),
             )
-            model = PeftModel.from_pretrained(model, adapter, local_files_only=True).eval()
+            model = PeftModel.from_pretrained(model, adapter, local_files_only=True,
+                **({"adapter_name": name} if isinstance(resident, dict) else {})).eval()
             obj = (model, tokenizer)
         elif name in ("speech", "face"):
             obj = None
@@ -182,7 +242,7 @@ class CoreRuntime:
         self.active = name
         if isinstance(resident, dict):
             resident[name] = obj
-        self.load_milliseconds[name] = (time.perf_counter() - started) * 1000
+        self._record_load(name, started)
         return obj
 
     def metrics(self):
@@ -193,13 +253,15 @@ class CoreRuntime:
             "talkActive": bool(getattr(self,"talk",None) and self.talk.owner),
             "screeningReady": getattr(self,"screening_unavailable",None) is None,
             "activeModel": self.active,
-            "residentModelCount": (len(self.resident) if isinstance(getattr(self, "resident", None), dict)
+            "residentModelCount": (len({id(v[0] if isinstance(v, tuple) else v) for v in self.resident.values()}) if isinstance(getattr(self, "resident", None), dict)
                                    else int(self.instance is not None or self.active == "speech"))
                                   + int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None)),
             "freeGpuBytes": torch.cuda.mem_get_info()[0],
             "speechPeakAllocatedBytes": getattr(self,"speech_peak_allocated",None),
             "peakAllocatedBytes": torch.cuda.max_memory_allocated(),
             "loadMilliseconds": self.load_milliseconds.copy(),
+            "modelLoadCounts": getattr(self, "load_counts", {}).copy(),
+            "residentModels": sorted(self.resident) if isinstance(getattr(self, "resident", None), dict) else [],
         }
 
     def call(self, name, fn):

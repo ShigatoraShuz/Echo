@@ -37,6 +37,24 @@ function editor() {
   return hook;
 }
 describe("journal submission retry contract", () => {
+  it("allows a fresh submission with a new identity after starting another reflection", async () => {
+    service.createEntry.mockResolvedValue({ success: true, data: { kind: "analysis", submission: { journalId: "first", analysisJobId: "job", status: "queued" } } });
+    const { result } = editor();
+    await act(async () => result.current.save());
+    const firstKey = service.createEntry.mock.calls[0][1].idempotencyKey;
+    act(() => result.current.reset());
+    expect(result.current.analysisSubmission).toBeNull();
+    act(() => {
+      result.current.setTitle("Another reflection");
+      result.current.setBody("A fresh private reflection.");
+      result.current.setAnalysisConsent(true);
+    });
+    service.createEntry.mockResolvedValue({ success: true, data: { kind: "analysis", submission: { journalId: "second", analysisJobId: "next-job", status: "queued" } } });
+    await act(async () => result.current.save());
+    expect(service.createEntry).toHaveBeenCalledTimes(2);
+    expect(service.createEntry.mock.calls[1][1].idempotencyKey).not.toBe(firstKey);
+    expect(result.current.analysisSubmission?.journalId).toBe("second");
+  });
   it("retries failed draft-photo attachment without submitting another journal", async () => {
     service.createEntry.mockResolvedValue({ success: true, data: { id: "saved-journal" } });
     service.attachDraftImages
