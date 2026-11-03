@@ -74,6 +74,8 @@ describe("JournalDetailView", () => {
     });
     const user = userEvent.setup();
     render(<JournalDetailView id="entry-1" />);
+    expect(screen.queryByLabelText("Reflection illustration")).not.toBeInTheDocument();
+    expect(screen.getByText("Add your photos")).toBeVisible();
     await user.upload(screen.getByLabelText("Add photos to reflection"), new File(["image"], "moment.png", { type: "image/png" }));
     await waitFor(() => expect(addPhotos).toHaveBeenCalledWith([expect.any(File)]));
   });
