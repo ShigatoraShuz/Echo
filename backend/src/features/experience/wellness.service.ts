@@ -41,6 +41,7 @@ export class WellnessService {
     private readonly database: SupabaseClient,
     private readonly schedule: WellnessSchedule = defaultWellnessSchedule,
     private readonly encryption?: EncryptionService,
+    private readonly currentCrisis?: (user:string)=>Promise<string|null>,
   ) {}
   private openAssessment(row: Record<string, unknown>, userId: string) {
     if (!this.encryption) throw unavailable();
@@ -115,7 +116,7 @@ export class WellnessService {
         count: Number(count.data),
         windowDays: this.schedule.supportWindowDays,
       },
-      urgentJournalId: urgent.data?.journal_id ?? null,
+      urgentJournalId: this.currentCrisis ? await this.currentCrisis(userId) : urgent.data?.journal_id ?? null,
     };
   }
   async save(userId: string, input: Phq8Submission): Promise<Phq8Assessment> {

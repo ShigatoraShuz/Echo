@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         and settings.app_env in ("development", "test")
         and settings.host == "127.0.0.1"
         and len(settings.ai_service_token) >= 32
-        and not settings.realtime_talk_enabled
+        and (not settings.realtime_talk_enabled or getattr(settings, "echo_buddy_enabled", False))
         and not settings.echo_active_models
     )
     if (

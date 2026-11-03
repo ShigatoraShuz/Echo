@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     ai_worker_token: str = ""
     ai_worker_id: str = "local-worker"
     worker_enabled: bool = False
+    echo_buddy_enabled: bool = False
     queue_limit: int = Field(default=4, ge=1, le=16)
 
     @model_validator(mode="after")

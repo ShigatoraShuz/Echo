@@ -25,6 +25,9 @@ export function createExperienceRouter(
   router.get("/support-resources", controller.supportResources);
   const authenticate = createAuthMiddleware(verifier);
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
+  router.post('/buddy/runtime/unload',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{res.json({success:true,data:await service.unloadBuddyRuntime(req.auth!.id)});});
+  router.get('/buddy/runtime',authenticate,requireVerifiedAi,(_req,res)=>{res.json({success:true,data:service.buddyRuntimeStatus()});});
+  router.post('/buddy/runtime/prepare',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{if(req.body&&Object.keys(req.body).length)throw Error('Preparation accepts no draft text');res.status(202).json({success:true,data:await service.requestBuddyPreparation(req.auth!.id)});});
   router.post('/buddy/voice/sessions',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{if(!service.realtime){res.status(503).json({error:{code:'TALK_DISABLED',message:'Experimental Talk is disabled.'}});return;}res.setHeader('Cache-Control','no-store');res.status(201).json({success:true,data:await service.realtime.create(req.auth!.id,req.auth!.accessToken!,req.body)});});
   router.post('/buddy/voice/sessions/:sessionId/refresh',authenticate,requireVerifiedAi,async(req,res)=>{if(!service.realtime){res.status(503).end();return;}res.setHeader('Cache-Control','no-store');res.json({success:true,data:await service.realtime.refresh(req.auth!.id,String(req.params.sessionId),req.auth!.accessToken!)});});
   router.delete('/buddy/voice/sessions/:sessionId',authenticate,async(req,res)=>{await service.realtime?.end(req.auth!.id,String(req.params.sessionId));res.json({success:true,data:{closed:true}});});

@@ -1,3 +1,4 @@
+import {z} from 'zod';
 import { Router, raw } from "express";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
@@ -42,6 +43,17 @@ export function createJournalsRouter(
   router.post("/support-contact-requests", authenticate, controller.supportContact);
   router.post("/buddy/handoffs", authenticate, controller.buddyHandoff);
   router.get("/buddy/handoffs/:handoffId", authenticate, controller.getBuddyHandoff);
+  router.post('/analysis-jobs/confirm-current-crisis',authenticate,requireVerifiedAi,endpointLimiter(10),async(req,res)=>{
+    const input=z.strictObject({key:z.string().uuid(),ids:z.array(z.string().uuid()).max(200),steps:z.tuple([z.literal(true),z.literal(true),z.literal(true),z.literal(true)])}).parse(req.body);
+    if(new Set(input.ids).size!==input.ids.length)throw Error('Duplicate pause identities');
+    res.json({success:true,data:await service.confirmCurrentCrisisPauses(req.auth!.id,input.ids,input.key)});
+  });
+  router.get('/analysis-jobs/blocked-local',authenticate,requireVerifiedAi,async(req,res)=>{res.json({success:true,data:await service.blockedLocalReflections(req.auth!.id)});});
+  router.post('/analysis-jobs/:jobId/confirm-continuation',authenticate,requireVerifiedAi,endpointLimiter(10),async(req,res)=>{
+    const id=z.string().uuid().parse(req.params.jobId);
+    const input=z.strictObject({key:z.string().uuid(),steps:z.tuple([z.literal(true),z.literal(true),z.literal(true),z.literal(true)])}).parse(req.body);
+    res.json({success:true,data:await service.confirmLocalContinuation(req.auth!.id,id,input.key)});
+  });
   router.post("/analysis-jobs/:jobId/safety-review", authenticate, controller.safetyReview);
   router.get("/journals/draft", authenticate, controller.getDraft);
   router.put("/journals/draft", authenticate, controller.saveDraft);

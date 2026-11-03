@@ -11,6 +11,8 @@ vi.mock("@/services/experience/experience-api", () => ({
   experienceApi: api,
 }));
 
+const continuation=vi.hoisted(()=>({blockedReflections:vi.fn(),confirmContinuation:vi.fn()}));
+vi.mock('@/services/journal/crisis-continuation',()=>continuation);
 const resource = {
   id: "ncmh",
   type: "crisis_hotline",
@@ -29,6 +31,7 @@ const resource = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  continuation.blockedReflections.mockResolvedValue([]);
   api.getSupportResources.mockResolvedValue([resource]);
 });
 
@@ -111,4 +114,20 @@ describe("CrisisSupportPlan", () => {
     expect(screen.queryByRole("link", { name: "Website" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Call NCMH Crisis Hotline 1553" })).toHaveAttribute("href", "tel:1553");
   });
+});
+
+it('enables return confirmation after all four steps when no analysis is paused',async()=>{
+ render(<CrisisSupportPlan/>);
+ const steps=screen.getAllByRole('button').filter(button=>button.textContent?.includes('Mark when complete'));
+ expect(steps).toHaveLength(4);for(const step of steps)fireEvent.click(step);
+ expect(await screen.findByRole('button',{name:'Confirm and return to journal'})).toBeEnabled();
+ expect(screen.queryByText('No saved local reflection is waiting for confirmation.')).not.toBeInTheDocument();
+ expect(continuation.confirmContinuation).not.toHaveBeenCalled();
+});
+it('does not treat failed job lookup as no paused analysis',async()=>{
+ continuation.blockedReflections.mockRejectedValue(new Error('Lookup unavailable'));
+ render(<CrisisSupportPlan/>);
+ for(const step of screen.getAllByRole('button').filter(button=>button.textContent?.includes('Mark when complete')))fireEvent.click(step);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Lookup unavailable');
+ expect(screen.getByRole('button',{name:'Confirm and continue analysis'})).toBeDisabled();
 });

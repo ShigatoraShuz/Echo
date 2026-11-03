@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import require_internal_token
-from app.core.exceptions import TalkBusyError
+from app.core.exceptions import TalkBusyError, ModelUnavailableError
 
 router = APIRouter(dependencies=[Depends(require_internal_token)])
 
@@ -40,6 +40,11 @@ def invoke(fn):
         raise HTTPException(503, {"code":"TALK_BUSY"}) from None
     except ValueError:
         raise HTTPException(422, "Invalid model input.") from None
+    except ModelUnavailableError as error:
+        code = str(error)
+        if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
+            raise HTTPException(503, {"code": code}) from None
+        raise HTTPException(503, "Local inference is unavailable.") from None
     except Exception:  # noqa: BLE001 -- internal boundary must not expose model inputs or loader paths
         raise HTTPException(503, "Local inference is unavailable.") from None
 
@@ -121,10 +126,13 @@ def face(payload: FaceInput, request: Request):
 class TalkInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     sessionId: str = Field(pattern=r'^[a-f0-9-]{36}$')
-    task: Literal['warm','close','pulse','transcribe','speak','chat','support_check']
+    task: Literal['warm','close','unload','pulse','transcribe','speak','chat','support_check','prepare']
     audio: str = Field(default='',max_length=2560000)
-    text: str = Field(default='',max_length=280)
-    language: Literal['eng','tgl'] = 'eng'
+    audioFormat: Literal['pcm16','encoded'] = 'pcm16'
+    text: str = Field(default='',max_length=12000)
+    texts: list[str] = Field(default_factory=list,max_length=3)
+    speechMode: Literal['sentences_2_then_3','buffered'] = 'sentences_2_then_3'
+    language: Literal['English','Filipino','Taglish','eng','tgl'] = 'English'
     messages: list[Turn] = Field(default_factory=list,max_length=20)
 
 
@@ -138,16 +146,19 @@ async def talk(payload: TalkInput, request: Request):
     engine=runtime(request).talk
     if payload.task=='chat' and (not payload.messages or payload.messages[-1].role!='user' or sum(len(x.content) for x in payload.messages)>20000):
         raise HTTPException(422,'Invalid conversation')
+    if payload.task == 'speak' and (not payload.texts or any(not t.strip() or len(t)>12000 for t in payload.texts) or sum(map(len,payload.texts))>12000):
+        raise HTTPException(422,'Invalid sentence batch')
     cancelled=threading.Event()
     def execute():
-        if payload.task=='warm':return engine.start(payload.sessionId)
+        if payload.task=='warm':return engine.start(payload.sessionId,cancelled) if hasattr(engine,'runtime') else engine.start(payload.sessionId)
         if payload.task=='close':engine.stop(payload.sessionId);return {'closed':True}
         if payload.task=='pulse':engine.require(payload.sessionId);return {'active':True}
+        if payload.task=='support_check' and hasattr(engine,'support_check'):return engine.support_check(payload.sessionId,payload.text,cancelled)
         if payload.task=='support_check':
             engine.require(payload.sessionId)
             with engine.core.lock:return engine.cpu_classifier.classify(payload.text)
         if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled)
-        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'text':payload.text,'language':payload.language},cancelled)
+        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode},cancelled)
     task=asyncio.create_task(asyncio.to_thread(execute))
     try:
         while not task.done():

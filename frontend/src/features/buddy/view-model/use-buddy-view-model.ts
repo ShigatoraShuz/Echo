@@ -73,7 +73,7 @@ function reducer(state: BuddyState, action: BuddyAction): BuddyState {
     case "LOAD_MESSAGES_SUCCESS": return { ...state, messages: action.messages, isLoadingMessages: false };
     case "LOAD_MESSAGES_ERROR": return { ...state, isLoadingMessages: false, error: action.error };
     case "SET_ACTIVE_CONVERSATION": return { ...state, activeConversationId: action.id };
-    case "NEW_TEMPORARY_CONVERSATION": return { ...state, activeConversationId: null, messages: [], error: null };
+    case "NEW_TEMPORARY_CONVERSATION": return { ...state, activeConversationId: null, messages: [], isLoadingMessages: false, error: null };
     case "SEND_START": return { ...state, isSending: true, error: null, messages: [...state.messages, action.optimistic] };
     case "SEND_SUCCESS": return { ...state, messages: [...state.messages.filter((message) => message.id !== action.optimisticId), ...action.messages], isSending: false };
     case "SEND_ERROR": return { ...state, isSending: false, error: action.error, messages: state.messages.filter((message) => message.id !== action.optimisticId) };
@@ -104,7 +104,14 @@ const selectConversation = useCallback(async (id: string) => {
     const result = await service.getConversation(id);
     if (activeConversationIdRef.current !== id) return;
     if (result.success) dispatch({ type: "LOAD_MESSAGES_SUCCESS", messages: result.data.messages });
-    else dispatch({ type: "LOAD_MESSAGES_ERROR", error: result.error.message });
+    else if (result.error.code === 'NOT_FOUND') {
+      activeConversationIdRef.current = null;
+      const url = new URL(window.location.href);
+      url.searchParams.delete('conversation');
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      dispatch({ type: 'NEW_TEMPORARY_CONVERSATION' });
+      dispatch({ type: 'SET_ERROR', error: 'This conversation is unavailable in the current history store. Start a new conversation or choose one from the list.' });
+    } else dispatch({ type: "LOAD_MESSAGES_ERROR", error: result.error.message });
   }, [service]);
 
   const loadConversations = useCallback(async (page = 1) => {

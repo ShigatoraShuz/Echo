@@ -10,7 +10,9 @@ import time
 import uuid
 from pathlib import Path
 
-from app.core.exceptions import ModelUnavailableError
+from app.core.exceptions import ModelUnavailableError, TalkCancelledError, TalkBusyError
+from app.buddy.config import BUDDY_ENV_KEYS
+from app.buddy.job import spawn_owned
 
 MAX_PACKET = 1024 * 1024
 
@@ -23,6 +25,12 @@ class TextRuntime:
 
     def __init__(self, settings):
         self.settings = settings
+        self.buddy_enabled = getattr(settings, "echo_buddy_enabled", False)
+        self.max_packet = 40 * 1024 * 1024 if self.buddy_enabled else MAX_PACKET
+        self.wire_lock = threading.Lock()
+        if self.buddy_enabled:
+            from app.buddy.transport import TalkProxy
+            self.talk = TalkProxy(self)
         self.adapter_path = str(Path(settings.models_root) / "cbt/adapter")
         self.loaded = False
         self.model_loaded = False
@@ -33,7 +41,7 @@ class TextRuntime:
         # Deliberately exclude tokens, proxy settings, DB URLs and user credentials.
         env = {
             key: os.environ[key]
-            for key in (
+            for key in (*BUDDY_ENV_KEYS,
                 "SYSTEMROOT",
                 "WINDIR",
                 "PATH",
@@ -55,7 +63,9 @@ class TextRuntime:
             TOKENIZERS_PARALLELISM="false",
             PYTHONIOENCODING="utf-8",
         )
-        self.process = subprocess.Popen(
+        if self.buddy_enabled:
+            env["ECHO_BUDDY_ENABLED"] = "true"
+        self.process = spawn_owned(
             [
                 sys.executable,
                 "-I",
@@ -90,8 +100,8 @@ class TextRuntime:
     def _read(self):
         try:
             while True:
-                line = self.process.stdout.readline(MAX_PACKET + 1)
-                if not line or len(line) > MAX_PACKET or not line.endswith(b"\n"):
+                line = self.process.stdout.readline(self.max_packet + 1)
+                if not line or len(line) > self.max_packet or not line.endswith(b"\n"):
                     break
                 self.responses.put_nowait(json.loads(line))
         except (OSError, ValueError, queue.Full):
@@ -116,9 +126,8 @@ class TextRuntime:
         self.model_loaded = False
         process = self.process
         if process is not None:
-            if process.poll() is None:
-                process.kill()
-            process.wait(timeout=10)
+            from app.buddy.process import terminate_tree
+            terminate_tree(process)
             for name in ("reader", "writer"):
                 thread = getattr(self, name, None)
                 if thread and thread is not threading.current_thread():
@@ -131,13 +140,13 @@ class TextRuntime:
         if not self.loaded or self.process.poll() is not None:
             raise ModelUnavailableError("Text worker unavailable.")
 
-    def _call(self, operation, *args):
+    def _call(self, operation, *args, cancelled=None):
         self.require_ready()
         # One GPU owner, bounded admission. Overlapping journal/Buddy requests wait
         # without changing generation parameters or caching user text/results.
         if not self.pending.acquire(blocking=False):
             raise ModelUnavailableError("Text worker queue is full.")
-        deadline = time.monotonic() + self.settings.core_request_timeout_seconds
+        deadline = time.monotonic() + (600 if operation == "buddy" else self.settings.core_request_timeout_seconds)
         acquired = False
         try:
             acquired = self.lock.acquire(timeout=max(0, deadline - time.monotonic()))
@@ -151,15 +160,16 @@ class TextRuntime:
                 )
                 + b"\n"
             )
-            if len(packet) > 64 * 1024:
+            if len(packet) > (3 * 1024 * 1024 if operation == "buddy" and self.buddy_enabled else 64 * 1024):
                 raise ValueError("Text payload too large.")
             try:
                 # Include a stalled pipe write in the same hard request deadline.
                 # Never let an unresponsive child block the HTTP thread before receive.
                 def send():
                     try:
-                        self.process.stdin.write(packet)
-                        self.process.stdin.flush()
+                        with self.wire_lock:
+                            self.process.stdin.write(packet)
+                            self.process.stdin.flush()
                     except (OSError, ValueError):
                         try:
                             self.responses.put_nowait(None)
@@ -168,7 +178,22 @@ class TextRuntime:
 
                 self.writer = threading.Thread(target=send, daemon=True)
                 self.writer.start()
-                reply = self._receive(max(0.001, deadline - time.monotonic()))
+                cancel_sent = False
+                while True:
+                    if time.monotonic() >= deadline:
+                        raise ModelUnavailableError("Text worker unavailable or timed out.")
+                    if cancelled and cancelled.is_set() and not cancel_sent and not self.writer.is_alive():
+                        with self.wire_lock:
+                            self.process.stdin.write(json.dumps({"op": "cancel", "id": identity}).encode() + b"\n")
+                            self.process.stdin.flush()
+                        cancel_sent = True
+                    try:
+                        reply = self.responses.get(timeout=.1)
+                        if not isinstance(reply, dict):
+                            raise ModelUnavailableError("Text worker unavailable.")
+                        break
+                    except queue.Empty:
+                        continue
                 if (
                     reply.get("id") != identity
                     or type(reply.get("ok")) is not bool
@@ -179,7 +204,14 @@ class TextRuntime:
                 self.release()
                 raise ModelUnavailableError("Text worker unavailable or timed out.") from None
             self.model_loaded = reply.get("modelLoaded") is True
+            if cancelled and cancelled.is_set():
+                raise TalkCancelledError("Cancelled")
             if not reply.get("ok"):
+                code = reply.get("code", "")
+                if code == "TALK_BUSY":
+                    raise TalkBusyError("Talk has priority")
+                if isinstance(code, str) and code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
+                    raise ModelUnavailableError(code)
                 raise ModelUnavailableError("Model operation unavailable.")
             return reply["result"]
         finally:

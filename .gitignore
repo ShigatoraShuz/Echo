@@ -111,3 +111,6 @@ frontend/assets/e2d821df-*.png
 
 # Private support-flow verification records and screenshots.
 /artifacts/model-integration/support-checkin-20261102/
+
+/models/
+/models.staging/

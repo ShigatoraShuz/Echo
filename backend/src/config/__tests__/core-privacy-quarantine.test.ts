@@ -41,3 +41,7 @@ it.each([
 ])("denies hosted or incomplete encrypted profiles: %j", settings => {
   expect(() => loadEnvironment({ ...base, ...approved, ...settings })).toThrow();
 });
+
+const jsonProfile={...base,NODE_ENV:'development',ECHO_HTTP_ONLY_MODE:'1',AI_CORE_PROFILE:'local_json',AI_ANALYSIS_MODE:'local_json',AI_SERVICE_URL:'http://127.0.0.1:8002',AI_SERVICE_TOKEN:'j'.repeat(48),WORKER_ENABLED:'false'};
+it('allows explicit local JSON AI with hosted authentication and no hosted worker',()=>{expect(loadEnvironment({...jsonProfile,SUPABASE_URL:'https://example.supabase.co'}).AI_ANALYSIS_MODE).toBe('local_json');});
+it.each([{WORKER_ENABLED:'true'},{NODE_ENV:'production'},{AI_SERVICE_URL:'https://example.com'},{AI_SERVICE_TOKEN:undefined},{AI_ANALYSIS_MODE:'local_worker'}])('rejects unsafe local JSON profile: %j',change=>{expect(()=>loadEnvironment({...jsonProfile,...change})).toThrow();});

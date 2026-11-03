@@ -55,7 +55,7 @@ const environmentSchema = z.object({
   AI_ANALYSIS_MODE: z.enum(["disabled", "development_stub", "local_worker", "local_json"]).default("disabled"),
   AI_DEVELOPMENT_USER_IDS: z.string().default(""),
   AI_WORKER_TOKEN: z.string().min(32).optional(),
-  AI_CORE_PROFILE: z.enum(["disabled", "local_encrypted_worker", "hosted_encrypted_worker"]).default("disabled"),
+  AI_CORE_PROFILE: z.enum(["disabled", "local_encrypted_worker", "hosted_encrypted_worker", "local_json"]).default("disabled"),
   AI_NATIVE_CREATED_AFTER: z.string().optional(),
   AI_HOSTED_PROJECT_REF: z.string().default(""),
   AI_SERVICE_URL: z.string().url().optional(),
@@ -114,7 +114,10 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Backen
     (!hostedCore && (!["127.0.0.1", "localhost"].includes(new URL(parsed.data.SUPABASE_URL).hostname) ||
     new URL(parsed.data.SUPABASE_URL).protocol !== "http:"))
   )) throw new Error("Encrypted model development requires an approved development database profile and dedicated worker credentials.");
-  if (parsed.data.AI_ANALYSIS_MODE === "local_json" || (parsed.data.AI_SERVICE_URL && !encryptedLocalCore) || source.ECHO_REALTIME_TALK === "true")
+  const localJsonCore = parsed.data.AI_CORE_PROFILE === 'local_json';
+  if (localJsonCore && (parsed.data.NODE_ENV !== 'development' || source.ECHO_HTTP_ONLY_MODE !== '1' || parsed.data.AI_ANALYSIS_MODE !== 'local_json' || !parsed.data.AI_SERVICE_URL || !parsed.data.AI_SERVICE_TOKEN || source.WORKER_ENABLED !== 'false'))
+    throw new Error('Local JSON inference requires development, loopback AI transport, and disabled hosted workers.');
+  if ((parsed.data.AI_ANALYSIS_MODE === "local_json" && !localJsonCore) || (parsed.data.AI_SERVICE_URL && !encryptedLocalCore && !localJsonCore) || source.ECHO_REALTIME_TALK === "true")
     throw new Error("Core-backed application storage is pending privacy approval; use the standard application profile.");
 
   if (parsed.data.NODE_ENV === "production" && parsed.data.AI_ANALYSIS_MODE === "development_stub")

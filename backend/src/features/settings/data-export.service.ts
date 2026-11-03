@@ -72,6 +72,7 @@ export class DataExportService {
   constructor(
     private readonly database: SupabaseClient,
     private readonly encryption: EncryptionService,
+    private readonly localData?: (userId:string)=>unknown,
   ) {}
 
   async prepare(userId: string): Promise<string> {
@@ -219,6 +220,7 @@ export class DataExportService {
       throw new ExternalServiceError("EXPORT_BUSY", "Export processing is busy. Please retry shortly.");
     this.active++;
     try {
+      const localSnapshot=this.localData?.(userId);
       const result = await this.database
         .schema("user_service")
         .rpc("consume_data_export", { p_user_id: userId, p_request_id: requestId });
@@ -230,7 +232,9 @@ export class DataExportService {
         const payload = JSON.parse(plaintext) as Row;
         if (payload.userId !== userId || payload.requestId !== requestId || payload.format !== "echo-account-export-v1")
           throw unavailable();
-        return plaintext;
+        const composed=JSON.stringify({...payload,dataSources:localSnapshot?['supabase','local_json']:['supabase'],...(localSnapshot?{localAI:localSnapshot}:{})});
+        if(Buffer.byteLength(composed)>MAX_EXPORT_BYTES)throw unavailable();
+        return composed;
       } catch {
         throw unavailable();
       }

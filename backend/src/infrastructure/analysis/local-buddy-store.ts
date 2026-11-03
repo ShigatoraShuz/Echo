@@ -1,3 +1,4 @@
+import {atomicJson} from './atomic-json.js';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -12,13 +13,7 @@ export class LocalBuddyStore {
         throw Error('Local ownership mismatch'); return c; }); }
     get(user: string, id: string) { const c = this.list(user).find(x => x.id === id); if (!c)
         throw new NotFoundError('Local conversation unavailable.'); return c; }
-    save(c: z.infer<typeof schema>) { schema.parse(c); const f = join(this.dir(c.user_id), c.id + '.json'), tmp = f + '.tmp'; const fd = openSync(tmp, 'wx'); try {
-        writeFileSync(fd, JSON.stringify({ schemaVersion: 1, ...c }, null, 2));
-        fsyncSync(fd);
-    }
-    finally {
-        closeSync(fd);
-    } renameSync(tmp, f); return c; }
+    save(c: z.infer<typeof schema>) { schema.parse(c);atomicJson(join(this.dir(c.user_id),c.id+'.json'),{schemaVersion:1,...c});return c; }
     create(user: string) { return this.save({ id: randomUUID(), user_id: user, title: 'Buddy conversation', preview: '', archived: false, pinned_at: null, last_message_at: null, created_at: new Date().toISOString(), supportRequired: false, messages: [], provenance: [] }); }
     remove(user: string, id: string) { this.get(user, id); unlinkSync(join(this.dir(user), id + '.json')); return { deleted: true }; }
 }

@@ -215,6 +215,6 @@ it("announces generation without malformed loading text", () => {
   mock.isSending=true;
   vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
   render(<BuddyView />);
-  expect(screen.getByRole("status")).toHaveTextContent("Buddy is reflecting");
+  expect(screen.getAllByRole("status").some(el=>el.textContent?.includes("Buddy is reflecting"))).toBe(true);
   expect(screen.queryByText(/â/)).not.toBeInTheDocument();
 });

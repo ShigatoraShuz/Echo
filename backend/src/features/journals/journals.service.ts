@@ -1544,6 +1544,48 @@ export class JournalService {
     return { id: data.id, expiresAt: data.expires_at, recommendation: selection.recommendation_rules };
   }
 
+  async blockedLocalReflections(user:string){
+    if(!this.localResults)return [];
+    const jobs=this.localResults.export(user).filter(j=>j.status==='safety_action_required').map(j=>({jobId:j.id,journalId:j.journal_id,createdAt:j.created_at,source:'local'}));
+    const remote=await this.database.schema('ai_analysis').from('analysis_requests').select('id,journal_id,created_at').eq('user_id',user).eq('status','safety_action_required').is('deleted_at',null).limit(200);
+    if(remote.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Current crisis pauses could not be checked.');
+    for(const row of remote.data??[])jobs.push({jobId:row.id,journalId:row.journal_id,createdAt:row.created_at,source:'hosted'});
+    const available=[];
+    for(const job of jobs){await this.get(user,job.journalId);available.push(job);}
+    return available;
+  }
+  async confirmCurrentCrisisPauses(user:string,ids:string[],key:string){
+    if(!this.localResults)throw new NotFoundError('Local AI storage is unavailable.');
+    const current=await this.blockedLocalReflections(user);
+    const selected=current.filter(job=>ids.includes(job.jobId));
+    if(ids.some(id=>!selected.some(job=>job.jobId===id)&&!this.localResults!.crisisAcknowledged(user,id)))throw new ConflictError('CRISIS_SNAPSHOT_CHANGED','The pause list changed. Reload it before confirming.');
+    // Validate every source and consent before mutating the captured batch.
+    await this.assertAnalysisGates(user);if(!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Journal-analysis consent is required.');
+    for(const job of selected){
+      if(job.source==='local')await this.confirmLocalContinuation(user,job.jobId,key);
+      else {
+        let local=this.localResults.replay(user,'crisis-continuation:'+job.jobId,job.jobId);
+        if(!local){local=this.localResults.create(user,job.journalId,'crisis-continuation:'+job.jobId,job.jobId);this.localResults.set(user,local.id,'safety_action_required',10);}
+        const continuationKey=(local as typeof local & {userContinuation?:{key:string}}).userContinuation?.key??key;
+        const persisted=await this.database.schema('ai_analysis').rpc('confirm_owner_local_continuation',{p_user_id:user,p_job_id:job.jobId,p_local_job_id:local.id,p_key:continuationKey});
+        if(persisted.error)throw new ExternalServiceError('SUPABASE_CONFIRMATION_UNAVAILABLE','Supabase could not record the continuation. Apply the owner-confirmation migration and retry.');
+        this.localResults.confirmContinuation(user,local.id,continuationKey);
+        const continued=this.localResults.get(user,local.id)!;
+        if(continued.status==='queued')this.enqueueLocal(continued);
+      }
+      this.localResults.acknowledgeCrisis(user,job.jobId,key);
+    }
+    return {confirmed:ids.length};
+  }
+  async confirmLocalContinuation(user:string,jobId:string,key:string){
+    if(!this.localResults)throw new NotFoundError('Local analysis is unavailable.');
+    const job=this.localResults.get(user,jobId);if(!job)throw new NotFoundError('Reflection analysis unavailable.');
+    await this.get(user,job.journal_id);await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Journal-analysis consent is required.');
+    const result=this.localResults.confirmContinuation(user,jobId,key);
+    this.enqueueLocal(this.localResults.get(user,jobId)!);
+    return {...result,journalId:job.journal_id};
+  }
   async resolveSafetyReview(
     reviewerId: string,
     jobId: string,

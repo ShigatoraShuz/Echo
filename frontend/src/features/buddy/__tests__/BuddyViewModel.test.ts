@@ -219,3 +219,18 @@ describe("useBuddyViewModel", () => {
     expect(fresh.result.current.messages).toEqual([]);
   });
 });
+
+it('clears a missing conversation from the previous history store without creating or deleting records',async()=>{
+  const service=createMockService();
+  service.getConversation.mockResolvedValue({success:false,error:{code:'NOT_FOUND',message:'Local conversation unavailable.'}} as any);
+  vi.mocked(getBuddyService).mockReturnValue(service);
+  window.history.replaceState(null,'','/buddy?conversation=old-hosted-id');
+  const {result}=renderHook(()=>useBuddyViewModel());
+  await waitFor(()=>expect(result.current.accessStatus).toBe('allowed'));
+  await act(async()=>{await result.current.selectConversation('old-hosted-id');});
+  expect(result.current.activeConversationId).toBeNull();
+  expect(result.current.isLoadingMessages).toBe(false);
+  expect(window.location.search).not.toContain('conversation=');
+  expect(service.createConversation).not.toHaveBeenCalled();
+  expect(service.deleteConversation).not.toHaveBeenCalled();
+});

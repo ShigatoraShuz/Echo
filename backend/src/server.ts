@@ -102,7 +102,7 @@ const localWorkerService = new LocalWorkerService(
     createdAfter: environment.AI_NATIVE_CREATED_AFTER!,
   } : undefined,
 );
-const dataExports = new DataExportService(supabaseAdmin, encryptionService);
+const dataExports = new DataExportService(supabaseAdmin, encryptionService, localResults ? user=>({analysis:localResults.export(user),buddy:localBuddy!.list(user)}) : undefined);
 const pushSubscriptions = environment.PUSH_VAPID_PUBLIC_KEY
   ? new PushSubscriptionsService(supabaseAdmin, encryptionService, true) : undefined;
 const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports, pushSubscriptions);
@@ -136,7 +136,9 @@ const accessService = new AccessService(supabaseAdmin, () => createRequestUserCl
 const verifier = createSupabaseAccessTokenVerifier(supabaseAdmin, environment.SUPABASE_URL);
 const professionalService = new ProfessionalService(supabaseAdmin, encryptionService, journalService, experienceService);
 const calendarService = new CalendarService(supabaseAdmin, encryptionService);
-if(process.env.ECHO_REALTIME_TALK==='true'&&localResults&&coreClient){
+const buddyTalkEnabled = process.env.ECHO_BUDDY_ENABLED === 'true' && process.env.REALTIME_TALK_ENABLED === 'true';
+const encryptedBuddyProfile = ['local_encrypted_worker', 'hosted_encrypted_worker', 'local_json'].includes(environment.AI_CORE_PROFILE);
+if (buddyTalkEnabled && encryptedBuddyProfile && coreClient) {
   const origins=new Set([new URL(environment.FRONTEND_URL).origin]);
   if(environment.NODE_ENV==='development')for(const origin of ['http://localhost:3000','http://127.0.0.1:3000'])origins.add(origin);
   experienceService.realtime=new RealtimeTalkHub(experienceService,coreClient,verifier,verificationService,origins,accessService);
@@ -226,7 +228,25 @@ if (environment.AI_ANALYSIS_MODE === "local_worker") void localWorkerService.rec
   console.info(JSON.stringify({ service: "backend", event: "development_http_only", backgroundMaintenance: false }));
 }
 
+let localRecoveryBusy=false;
+let localRecoveryStopped=false;
+async function recoverLocalAI(){
+  if(!localResults||localRecoveryBusy||localRecoveryStopped)return;
+  localRecoveryBusy=true;
+  try {
+    await journalService.recoverLocalJobs();
+    for(const user of localResults.users()){
+      const found=await supabaseAdmin.auth.admin.getUserById(user);
+      if(found.error?.status===404&&found.error.code==='user_not_found')experienceService.clearLocal(user);
+    }
+  } catch {reportMaintenanceFailure();} finally {localRecoveryBusy=false;}
+}
+const localRecoveryTimer=localResults?setInterval(()=>void recoverLocalAI(),5000):undefined;
+localRecoveryTimer?.unref();
+void recoverLocalAI();
 function shutdown(signal: string): void {
+  localRecoveryStopped=true;
+  if(localRecoveryTimer)clearInterval(localRecoveryTimer);
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
   void experienceService.realtime?.shutdown();
   journalService.stopLocalFaceProcessing();

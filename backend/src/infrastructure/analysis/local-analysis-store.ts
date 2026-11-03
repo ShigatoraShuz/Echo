@@ -1,3 +1,4 @@
+import {atomicJson} from './atomic-json.js';
 import { openSync, closeSync, fsyncSync, readFileSync, writeFileSync, renameSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -62,13 +63,7 @@ export class LocalAnalysisStore {
         throw Error('Local ownership mismatch'); analysisStatusSchema.parse(x.status); if (typeof x.request_key !== 'string' || typeof x.request_hash !== 'string' || !Number.isFinite(x.progress))
         throw Error('Invalid local job'); if(x.face_result)facialExpressionResultSchema.parse(x.face_result); if (x.result)
         journalAnalysisResultSchema.parse(x.result); return { ...x, result_ciphertext: x.result ? JSON.stringify(x.result) : null } as LocalAnalysisJob; }); }
-    private save(x: LocalAnalysisJob) { const f = this.file(x.user_id, x.id), tmp = f + '.' + randomUUID() + '.tmp'; const { result_ciphertext, ...rest } = x; const fd = openSync(tmp, 'wx'); try {
-        writeFileSync(fd, JSON.stringify({ schemaVersion: 1, ...rest, result: result_ciphertext ? journalAnalysisResultSchema.parse(JSON.parse(result_ciphertext)) : null }, null, 2));
-        fsyncSync(fd);
-    }
-    finally {
-        closeSync(fd);
-    } renameSync(tmp, f); }
+    private save(x:LocalAnalysisJob){const {result_ciphertext,...rest}=x;atomicJson(this.file(x.user_id,x.id),{schemaVersion:1,...rest,result:result_ciphertext?journalAnalysisResultSchema.parse(JSON.parse(result_ciphertext)):null});}
     get(user: string, id: string) { return this.rows().find(x => x.user_id === user && x.id === id); }
     find(id: string) { return this.rows().find(x => x.id === id); }
     journal(user: string, id: string) { return this.rows().find(x => x.user_id === user && x.journal_id === id); }
@@ -83,6 +78,25 @@ export class LocalAnalysisStore {
     completed(user: string) { return this.rows().filter(x => x.user_id === user && x.status === 'completed').sort((a, b) => a.created_at.localeCompare(b.created_at)); }
     remove(user: string, journal: string) { const j = this.journal(user, journal); if (j)
         unlinkSync(this.file(user, j.id)); }
+    crisisAcknowledged(user:string,id:string){
+      z.string().uuid().parse(user);z.string().uuid().parse(id);
+      try{return JSON.parse(readFileSync(join(this.path,user,'crisis-acknowledgements.json'),'utf8')).some((x:{id:string})=>x.id===id);}
+      catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return false;throw error;}
+    }
+    acknowledgeCrisis(user:string,id:string,key:string){
+      z.string().uuid().parse(user);z.string().uuid().parse(id);
+      const file=join(this.path,user,'crisis-acknowledgements.json');let rows=[];
+      try{rows=JSON.parse(readFileSync(file,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+      if(!rows.some((x:{id:string})=>x.id===id)){rows.push({id,key,confirmedAt:new Date().toISOString(),kind:'user_requested_continuation'});mkdirSync(join(this.path,user),{recursive:true});atomicJson(file,rows);}
+    }
+    confirmContinuation(user:string,id:string,key:string){
+      const job=this.get(user,id);if(!job)throw new NotFoundError('Reflection analysis unavailable.');
+      const prior=(job as LocalAnalysisJob & {userContinuation?:{key:string}}).userContinuation;
+      if(prior?.key===key)return {status:job.status};
+      if(job.status!=='safety_action_required')throw new ConflictError('SAFETY_CONFIRMATION_UNAVAILABLE','This reflection is not waiting for confirmation.');
+      this.save({...job,status:'queued',approved:1,updated_at:new Date().toISOString(),userContinuation:{key,confirmedBy:user,confirmedAt:new Date().toISOString(),originalStatus:'safety_action_required',kind:'user_requested_continuation',checklistCompleted:true}} as LocalAnalysisJob);
+      return {status:'queued'};
+    }
     review(reviewer: string, user: string, id: string, decision: 'approved_continue' | 'end_analysis', decisionKey?: string) { const j = this.get(user, id); if (j && j.decisionKey === decisionKey && decisionKey && j.reviewer === reviewer && j.decision === decision)
         return { status: j.status, reviewer }; if (!j || j.status !== 'safety_action_required')
         throw new ConflictError('SAFETY_REVIEW_REJECTED', 'Not waiting for review.'); const status = decision === 'approved_continue' ? 'queued' : 'failed'; this.save({ ...j, approved: 1, status, updated_at: new Date().toISOString(), reviewer, decision, decisionKey } as LocalAnalysisJob); return { status, reviewer }; }

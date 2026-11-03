@@ -26,8 +26,16 @@ export class CoreClient {
     private readonly token: string,
   ) {
     const endpoint = new URL(url);
-    if (endpoint.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(endpoint.hostname) ||
-        endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== "/" || token.length < 32)
+    if (
+      endpoint.protocol !== "http:" ||
+      !["127.0.0.1", "localhost"].includes(endpoint.hostname) ||
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash ||
+      endpoint.pathname !== "/" ||
+      token.length < 32
+    )
       throw new Error("Core inference requires a loopback origin and dedicated credential.");
   }
   private async readResponse(response: Response, limit = 1024 * 1024): Promise<unknown> {
@@ -52,24 +60,45 @@ export class CoreClient {
   private async request(path: string, body: unknown, signal?: AbortSignal) {
     try {
       const encoded = JSON.stringify(body);
-      const limit = path === "/v2/speech" ? 14 * 1024 * 1024 : path === "/v1/face" || path === "/v1/talk" ? 3 * 1024 * 1024 : 64 * 1024;
+      const limit =
+        path === "/v2/speech"
+          ? 14 * 1024 * 1024
+          : path === "/v1/face" || path === "/v1/talk"
+            ? 3 * 1024 * 1024
+            : 64 * 1024;
       if (Buffer.byteLength(encoded, "utf8") > limit) throw new Error();
       const response = await fetch(`${this.url.replace(/\/$/, "")}${path}`, {
         method: "POST",
-        redirect: "error", cache: "no-store",
+        redirect: "error",
+        cache: "no-store",
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
         body: encoded,
-        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(300_000)]) : AbortSignal.timeout(300_000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(path === "/v1/talk" ? 600_000 : 300_000)])
+          : AbortSignal.timeout(path === "/v1/talk" ? 600_000 : 300_000),
       });
       if (!response.ok) {
         if (response.status === 503) {
-          const value = await this.readResponse(response).catch(() => null) as { detail?: { code?: string } } | null;
+          const value = (await this.readResponse(response).catch(() => null)) as { detail?: { code?: string } } | null;
+          const code = value?.detail?.code;
+          if (typeof code === "string" && /^BUDDY_[A-Z_]{1,70}$/.test(code))
+            throw new ExternalServiceError(
+              code,
+              code === "BUDDY_CBT_ENV_ACCESS_DENIED"
+                ? "Windows denied access to Thesis2_VENV. Restore access before starting Buddy."
+                : code === "BUDDY_RESPONSE_WITHHELD"
+                  ? "Buddy could not approve a complete reply. Please try again."
+                  : "Buddy model readiness or inference failed: " + code,
+            );
           if (value?.detail?.code === "TALK_BUSY")
             throw new ExternalServiceError("TALK_BUSY", "Journal inference is waiting while Talk is active.");
         }
         throw new Error();
       }
-      return await this.readResponse(response, path === "/v2/speech" ? 32 * 1024 * 1024 : 1024 * 1024);
+      return await this.readResponse(
+        response,
+        path === "/v1/talk" ? 40 * 1024 * 1024 : path === "/v2/speech" ? 32 * 1024 * 1024 : 1024 * 1024,
+      );
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
@@ -115,7 +144,8 @@ export class CoreClient {
     this.busyPending = (async () => {
       try {
         const r = await fetch(this.url.replace(/\/$/, "") + "/v2/runtime", {
-          redirect: "error", cache: "no-store",
+          redirect: "error",
+          cache: "no-store",
           headers: { Authorization: "Bearer " + this.token },
           signal: AbortSignal.timeout(3000),
         });
@@ -144,9 +174,9 @@ export class CoreClient {
   }
   async analyze(text: string) {
     try {
-      return z.union([journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema]).parse(
-        await this.request("/v2/analyze", { text, language: "unknown" }),
-      );
+      return z
+        .union([journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema])
+        .parse(await this.request("/v2/analyze", { text, language: "unknown" }));
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
@@ -157,13 +187,20 @@ export class CoreClient {
       const value = responseSchema.parse(await this.request("/v2/chat", { messages }));
       if (!value.supportRequired && !value.reply) throw new Error();
       return value;
-    } catch {
+    } catch (error) {
+      if (error instanceof ExternalServiceError && error.code.startsWith("BUDDY_")) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Buddy is temporarily unavailable. Please try again later.");
     }
   }
   async ready(): Promise<boolean> {
     try {
-      return (await fetch(`${this.url.replace(/\/$/, "")}/ready`, { redirect: "error", cache: "no-store", signal: AbortSignal.timeout(5000) })).ok;
+      return (
+        await fetch(`${this.url.replace(/\/$/, "")}/ready`, {
+          redirect: "error",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        })
+      ).ok;
     } catch {
       return false;
     }

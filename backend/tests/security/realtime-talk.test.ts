@@ -26,8 +26,17 @@ async function fixture(saving = false) {
       if (p.task === "transcribe") return { text: "Synthetic input", model: { version: "test" } };
       if (p.task === "chat")
         return { reply: "Take one small step.", supportRequired: false, model: { version: "test" } };
+      if (p.task === "prepare") return { preparedText: p.text, groups: [[p.text]] };
       if (p.task === "speak")
-        return { audio: Buffer.alloc(16000, 8).toString("base64"), sampleRate: 16000, model: { version: "test" } };
+        return {
+          segments: p.texts.map((text: string) => ({
+            text,
+            audio: Buffer.alloc(16000, 8).toString("base64"),
+            sampleRate: 48000,
+            channels: 2,
+          })),
+          model: { version: "test" },
+        };
       return {};
     }),
   };
@@ -104,7 +113,7 @@ it("streams only approved speech, persists text locally and marks interruption",
     expect(raw).not.toContain(f.session.ticket);
     const synthesis = f.core.talk.mock.calls
       .filter(([p]) => p.task === "speak")
-      .map(([p]) => p.text)
+      .map(([p]) => p.texts.join(""))
       .join("");
     expect(synthesis).toBe("Take one small step.");
   } finally {
@@ -337,6 +346,7 @@ it("serializes an interrupted approval save before accepting the next turn", asy
     f.send({ type: "finish", generation: 1, turnId: one });
     await entering;
     f.send({ type: "cancel", generation: 1 });
+    await f.wait("recovered");
     const two = randomUUID();
     f.send({ type: "begin", generation: 2, turnId: two });
     frame = Buffer.alloc(1032);
@@ -390,9 +400,10 @@ it("rejects a replayed WebSocket ticket", async () => {
     second.on("error", () => {});
     await once(second, "open");
     const closed = once(second, "close");
+    const warmCount=f.core.talk.mock.calls.filter(([p])=>p.task==='warm').length;
     second.send(JSON.stringify({ type: "authenticate", ticket: f.session.ticket }));
     expect((await closed)[0]).toBe(1008);
-    expect(f.core.talk.mock.calls.filter(([p]) => p.task === "warm")).toHaveLength(1);
+    expect(f.core.talk.mock.calls.filter(([p]) => p.task === "warm")).toHaveLength(warmCount);
   } finally {
     second?.close();
     await f.close();

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {blockedReflections,confirmCurrentPauses,type BlockedReflection} from '@/services/journal/crisis-continuation';
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, ExternalLink, Info, MapPin, Phone, RotateCcw, ShieldCheck, Wind, X } from "lucide-react";
 import { experienceApi, type SupportResource } from "@/services/experience/experience-api";
@@ -33,6 +34,28 @@ function verifiedSource(resource: SupportResource): { url: string; date: string 
 
 export function CrisisSupportPlan() {
   const [completed, setCompleted] = useState<Set<number>>(() => new Set());
+  const [blocked,setBlocked]=useState<BlockedReflection[]>([]);
+  const [selected,setSelected]=useState('');
+  const [lookupComplete,setLookupComplete]=useState(false);
+  const [confirmationError,setConfirmationError]=useState('');
+  const [confirming,setConfirming]=useState(false);
+  const [confirmed,setConfirmed]=useState(false);
+  const [decisionKey]=useState(()=>globalThis.crypto.randomUUID());
+  const allMarked=completed.size===immediateSteps.length;
+  useEffect(()=>{
+    if(!allMarked){setLookupComplete(false);return;}let active=true;setLookupComplete(false);setConfirmationError('');
+    void blockedReflections().then(jobs=>{if(!active)return;setBlocked(jobs);setLookupComplete(true);if(jobs.length===1)setSelected(jobs[0].jobId);}).catch(error=>{if(active)setConfirmationError(error.message);});
+    return ()=>{active=false;};
+  },[allMarked]);
+  async function confirm(){
+    if(!allMarked||!lookupComplete||confirming||confirmed)return;
+    if(blocked.length===0){setConfirmed(true);window.location.assign('/journal');return;}
+    setConfirming(true);setConfirmationError('');
+    try{await confirmCurrentPauses(blocked.map(job=>job.jobId),decisionKey);setConfirmed(true);window.location.assign('/journal');}
+    catch(error){setConfirmationError(error instanceof Error?error.message:'Confirmation failed.');}
+    finally{setConfirming(false);}
+  }
+
   const [resources, setResources] = useState<SupportResource[]>([]);
   const [resourcesLoading, setResourcesLoading] = useState(true);
   const [resourceError, setResourceError] = useState(false);
@@ -132,6 +155,14 @@ export function CrisisSupportPlan() {
               );
             })}
           </ol>
+          <div className="mt-5 rounded-xl border border-primary/20 bg-white p-5">
+            <p className="text-sm">Confirming records your request to continue analysis. The original detection remains recorded; this does not establish that risk has resolved.</p>
+            {allMarked&&blocked.length>0&&<p>{blocked.length} current pause(s) will be acknowledged for your account. New detections remain enabled.</p>}
+            {!confirmed && <button type="button" disabled={!allMarked||!lookupComplete||confirming} onClick={()=>void confirm()} className="mt-4 rounded-xl bg-primary px-5 py-3 text-primary-foreground disabled:opacity-50">{confirming?'Confirming…':lookupComplete&&blocked.length===0?'Confirm and return to journal':'Confirm and continue analysis'}</button>}
+            {allMarked&&lookupComplete&&blocked.length===0&&<p className="mt-2 text-sm">There is no paused local analysis to resume. Confirm to return to your journal.</p>}
+            {confirmationError && <p role="alert">{confirmationError}</p>}
+            {confirmed && <p role="status">Your confirmation is recorded and analysis is queued. <Link href="/journal" className="underline">Return to your reflections</Link></p>}
+          </div>
           <aside aria-labelledby="breathing-heading" className="mt-5 grid gap-5 rounded-xl bg-[#dce8df] p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.6fr)] lg:items-center">
             <div>
               <h2 id="breathing-heading" className="font-serif text-3xl font-semibold leading-tight tracking-[-0.025em] text-foreground sm:text-4xl">Slow the next minute down.</h2>

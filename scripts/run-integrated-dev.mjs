@@ -1,3 +1,4 @@
+import { loadNativeSettings } from './native-runtime-settings.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { randomBytes } from 'node:crypto';
@@ -36,42 +37,43 @@ try {
     await Promise.all([3000, 4200, 8002].map(port => checkPort(port)));
     const configured = { ...parseEnv(readFileSync(path.join(root, 'backend/.env'), 'utf8')), ...process.env };
     const python = configured.ECHO_MODEL_PYTHON || path.join(root, 'ai-service/.venv-core/Scripts/python.exe');
-    const models = path.resolve(root, configured.MODELS_ROOT || '../models');
+    const models = path.resolve(root, configured.MODELS_ROOT || 'models');
     if (!existsSync(python) || !existsSync(path.join(models, 'manifest.json'))) throw Error('Install the model bundle and ai-service/.venv-core before starting models.');
     const settingsPath = path.join(root, 'backend/.local-development/native-runtime.json');
-    if (!existsSync(settingsPath)) throw Error('Configure backend/.local-development/native-runtime.json with the intended Supabase project and development account IDs first. See docs/setup/INTEGRATED_MODELS.md.');
-    const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    const localJson = process.env.ECHO_AI_LOCAL_JSON !== 'false';
+    const settings = localJson ? {projectRef:'',userIds:[],createdAfter:undefined} : loadNativeSettings(settingsPath, configured.SUPABASE_URL);
     const database = new URL(configured.SUPABASE_URL);
-    if (database.origin !== `https://${settings.projectRef}.supabase.co` || database.username || database.password ||
-        !Array.isArray(settings.userIds) || settings.userIds.length < 1 || settings.userIds.length > 20 ||
-        settings.userIds.some(id => !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(id)) ||
-        !settings.createdAfter || Number.isNaN(Date.parse(settings.createdAfter))) throw Error('Invalid native development project/account scope.');
     for (const name of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_PUBLISHABLE_KEY', 'JOURNAL_ENCRYPTION_KEY_BASE64', 'IDEMPOTENCY_HMAC_KEYS_JSON'])
       if (!configured[name]) throw Error(`Missing existing backend configuration: ${name}`);
     // These authenticate loopback services only; existing encryption keys are preserved.
     for (const name of ['serviceToken', 'workerToken']) if (!settings[name]) settings[name] = randomBytes(48).toString('base64url');
+    if (!localJson) {
     mkdirSync(path.dirname(settingsPath), { recursive: true });
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', { mode: 0o600 });
+    }
     const env = localEnvironment({ ...configured,
       NODE_ENV: 'development', APP_ENV: 'development', HOST: '127.0.0.1', PORT: '4200',
-      CORE_MODELS_ENABLED: 'true', CORE_TRANSPORT: 'text_memory', MODELS_ROOT: models, WORKER_ENABLED: 'true',
+      CORE_MODELS_ENABLED: 'true', CORE_TRANSPORT: 'text_memory', MODELS_ROOT: models, WORKER_ENABLED: localJson ? 'false' : 'true',
       AI_SERVICE_TOKEN: settings.serviceToken, AI_WORKER_TOKEN: settings.workerToken,
       AI_WORKER_ID: 'echo-native-development-v1', BACKEND_URL: 'http://127.0.0.1:4200/api/v1/internal/ai',
-      AI_SERVICE_URL: 'http://127.0.0.1:8002', AI_CORE_PROFILE: 'hosted_encrypted_worker',
+      AI_SERVICE_URL: 'http://127.0.0.1:8002', AI_CORE_PROFILE: localJson ? 'local_json' : 'hosted_encrypted_worker',
       AI_HOSTED_PROJECT_REF: settings.projectRef, AI_DEVELOPMENT_USER_IDS: settings.userIds.join(','), AI_NATIVE_CREATED_AFTER: settings.createdAfter,
-      AI_ANALYSIS_MODE: 'local_worker', AI_JOB_TIMEOUT_MS: '300000', ECHO_HTTP_ONLY_MODE: '1', PROFESSIONAL_EVENTS_ENABLED: 'false',
-      REALTIME_TALK_ENABLED: 'false', ECHO_REALTIME_TALK: 'false', NEXT_PUBLIC_REALTIME_TALK: 'false',
+      AI_ANALYSIS_MODE: localJson ? 'local_json' : 'local_worker', LOCAL_DATA_DIR: path.join(root, 'local-data'), AI_JOB_TIMEOUT_MS: '300000', ECHO_HTTP_ONLY_MODE: '1', PROFESSIONAL_EVENTS_ENABLED: 'false',
+      ECHO_BUDDY_ENABLED: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
+      REALTIME_TALK_ENABLED: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false', ECHO_REALTIME_TALK: 'false', NEXT_PUBLIC_REALTIME_TALK: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
       ECHO_ACTIVE_MODELS: '{}', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_DATASETS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1',
       FRONTEND_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_SUPABASE_URL: configured.SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configured.SUPABASE_PUBLISHABLE_KEY,
       NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4200/api/v1', GATEWAY_API_BASE_URL: 'http://127.0.0.1:4200/api/v1',
     });
     // Fail before launching if the additive, service-role-only scoped RPC is absent.
+    if (!localJson) {
     const probe = await fetch(`${database.origin}/rest/v1/rpc/claim_native_job`, { method: 'POST',
       headers: { apikey: configured.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${configured.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', 'Content-Profile': 'ai_analysis' },
       body: JSON.stringify({ p_worker_id: '', p_lease_hash: '', p_user_ids: [], p_started_after: settings.createdAfter }), signal: AbortSignal.timeout(15000) });
     const result = await probe.json();
     if (result.message !== 'NATIVE_SCOPE_REQUIRED') throw Error('Scoped native worker RPC is unavailable. Apply 20261101070000_scoped_native_model_worker.sql to the configured project.');
+    }
     const require = createRequire(import.meta.url);
     const build = spawnSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', path.join(root, 'packages/contracts/tsconfig.build.json')], { cwd: root, stdio: 'inherit', windowsHide: true });
     if (build.status !== 0) throw Error('Shared contracts build failed.');
@@ -84,7 +86,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     if (!ready) throw Error('Model service did not initialize.');
-    console.log('Models ready. Starting Echo with your configured Supabase account. Text models load on first use.');
+    console.log('Private AI transport ready. Models load on demand; Start Talk prepares CBT, Nano/codec/reference and Whisper. Profile: '+env.AI_CORE_PROFILE+'. Storage: '+env.LOCAL_DATA_DIR);
     launch(process.execPath, [path.join(root, 'scripts/run-local-dev.mjs'), 'all'], root, env);
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; stop(); }

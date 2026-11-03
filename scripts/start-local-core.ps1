@@ -1,11 +1,29 @@
-param([string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
+param([switch]$LocalJson, [switch]$AllowHostedSupabase, [switch]$EnableBuddy, [string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
     [string]$LocalDatabaseWorkspace, [ValidateRange(1024,65535)][int]$AIPort = 8000)
 $ErrorActionPreference = 'Stop'
+if ($LocalJson -and $AllowHostedSupabase) { throw 'Choose LocalJson or AllowHostedSupabase, not both.' }
 $echoRoot = Split-Path $PSScriptRoot -Parent
 if (!$Python) { $Python = Join-Path $echoRoot 'ai-service/.venv-core/Scripts/python.exe' }
-if (!$ModelsRoot) { $ModelsRoot = Join-Path (Split-Path $echoRoot -Parent) 'models' }
+if (!$ModelsRoot) { $ModelsRoot = Join-Path $echoRoot 'models' }
 if (!(Test-Path -LiteralPath $Python) -or !(Test-Path -LiteralPath (Join-Path $ModelsRoot 'manifest.json'))) {
     throw 'Prepare the isolated core environment and verified installed manifest first.'
+}
+# Hosted development must use Echo's existing scoped project/account launcher.
+if (($AllowHostedSupabase -or $LocalJson) -and !$AIOnly) {
+    $savedModels = $env:MODELS_ROOT
+    $savedJson = $env:ECHO_AI_LOCAL_JSON
+    $savedBuddy = $env:ECHO_BUDDY_ENABLED
+    $savedPython = $env:ECHO_MODEL_PYTHON
+    try {
+        $env:MODELS_ROOT = [IO.Path]::GetFullPath($ModelsRoot)
+        $env:ECHO_AI_LOCAL_JSON = $(if ($LocalJson) { 'true' } else { 'false' })
+        $env:ECHO_BUDDY_ENABLED = $(if ($EnableBuddy) { 'true' } else { 'false' })
+        $env:ECHO_MODEL_PYTHON = $Python
+        Push-Location $echoRoot
+        try { node scripts/run-integrated-dev.mjs; if ($LASTEXITCODE) { throw 'Hosted development startup failed; see the preceding diagnostic.' } }
+        finally { Pop-Location }
+    } finally { $env:MODELS_ROOT = $savedModels; $env:ECHO_AI_LOCAL_JSON = $savedJson; $env:ECHO_BUDDY_ENABLED = $savedBuddy; $env:ECHO_MODEL_PYTHON = $savedPython }
+    return
 }
 # Read only the required configuration values. Never print credentials or copy files.
 function Read-ConfigValue([string]$File, [string]$Name) {
@@ -39,8 +57,8 @@ if (!$AIOnly -and !$LocalDatabaseWorkspace) {
     if ($env:NEXT_PUBLIC_SUPABASE_URL) { $browserDatabase = $env:NEXT_PUBLIC_SUPABASE_URL }
     foreach ($value in @($database, $browserDatabase)) {
         $uri = [Uri]$value
-        if ($uri.Scheme -ne 'http' -or $uri.Host -notin @('localhost', '127.0.0.1') -or $uri.UserInfo) {
-            throw 'Full model startup requires a confirmed loopback local Supabase target. Hosted projects are refused.'
+        if (!$uri.IsAbsoluteUri -or $uri.Scheme -ne 'http' -or $uri.Host -notin @('localhost','127.0.0.1') -or $uri.UserInfo) {
+            throw 'Use local Supabase, or explicitly pass -AllowHostedSupabase for your configured HTTPS Supabase project. Conversation data will use that project.'
         }
     }
     if ($database.TrimEnd('/') -ne $browserDatabase.TrimEnd('/')) { throw 'Frontend and backend must use the SAME local Supabase URL.' }
@@ -97,6 +115,13 @@ $values = @{
     HF_HUB_DISABLE_TELEMETRY='1'; ECHO_HTTP_ONLY_MODE='1'; PROFESSIONAL_EVENTS_ENABLED='false';
     NO_PROXY='localhost,127.0.0.1,::1'
 }
+if ($EnableBuddy) {
+    $values['ECHO_BUDDY_ENABLED'] = 'true'
+    $values['REALTIME_TALK_ENABLED'] = 'true'
+    $values['ECHO_REALTIME_TALK'] = 'false'
+    $values['NEXT_PUBLIC_REALTIME_TALK'] = 'true'
+    # Paths remain operator-configurable and are inherited only by model workers.
+}
 # PowerShell has case-insensitive hashtables; NO_PROXY also covers no_proxy on Windows.
 foreach ($name in $localValues.Keys) { $values[$name] = $localValues[$name] }
 $previous = @{}
@@ -117,7 +142,11 @@ try {
             Start-Sleep -Milliseconds 500
         }
         if (!$ready) { throw 'The bounded text worker did not initialize. No application was started.' }
-        Write-Host "AI ready at http://127.0.0.1:$AIPort. Text models load lazily. PHQ-8/speech/Talk/face remain unavailable in this profile."
+        if ($EnableBuddy) {
+            Write-Host "AI transport ready at http://127.0.0.1:$AIPort. Start Talk preflights CBT, Nano and CPU Whisper; failures disable Talk."
+        } else {
+            Write-Host "AI ready at http://127.0.0.1:$AIPort. Text models load lazily. PHQ-8/speech/Talk/face remain unavailable in this profile."
+        }
         if ($AIOnly) {
             Write-Host 'Stateless AI-only mode. No database worker or browser account flow. Ctrl+C stops the owned model process tree.'
             while (!$process.HasExited) { Start-Sleep -Milliseconds 500 }

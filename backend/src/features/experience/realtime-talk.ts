@@ -12,8 +12,13 @@ import { runWithRequestContext } from "../../shared/request-context.js";
 import { ConflictError, NotFoundError, AuthenticationError } from "../../shared/errors/app-error.js";
 
 type Session = {
+  speechMode: "sentences_2_then_3" | "buffered";
+  language: "English" | "Filipino" | "Taglish";
+  speechReply?: { text: string; id: string };
+  speechFailed: boolean;
   finishTail: Promise<void>;
   pendingTurns: number;
+  pulseBusy: boolean;
   historyEnabled: boolean;
   id: string;
   user: string;
@@ -49,9 +54,19 @@ type Session = {
   closed: boolean;
 };
 const speechSchema = z.object({
-  audio: z.string().max(4_000_000),
-  sampleRate: z.number().int().min(8000).max(48000),
+  segments: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(20000),
+        audio: z.string().max(12_000_000),
+        sampleRate: z.literal(48000),
+        channels: z.literal(2),
+      }),
+    )
+    .min(1)
+    .max(3),
   model: z.record(z.string(), z.unknown()),
+  seconds: z.number().nonnegative().optional(),
 });
 const transcriptSchema = z.object({
   text: z.string().max(4000),
@@ -108,7 +123,7 @@ export class RealtimeTalkHub {
         !s.closed &&
         (Date.now() > s.expires ||
           (!s.ws && Date.now() > s.ticketUntil) ||
-          (s.ready && Date.now() - s.lastActivity > 60000))
+          (s.ready && !s.finalizing && Date.now() - s.lastActivity > 60000))
       )
         void this.close(s, "paused");
     }, 1000);
@@ -134,8 +149,12 @@ export class RealtimeTalkHub {
     // Reserve synchronously after the asynchronous ownership/consent check.
     if (this.active && !this.active.closed) throw new ConflictError("TALK_BUSY", "Another Talk session is active.");
     const s: Session = {
+      speechMode: args.speechMode,
+      language: args.language,
+      speechFailed: false,
       finishTail: Promise.resolve(),
       pendingTurns: 0,
+      pulseBusy: false,
       historyEnabled: context.historyEnabled,
       id: randomUUID(),
       user,
@@ -173,7 +192,7 @@ export class RealtimeTalkHub {
       ticket,
       expiresAt: new Date(expires).toISOString(),
       webSocketPath: "/api/v1/buddy/voice/stream",
-      experimental: true,
+      experimental: args.language !== "English",
     };
   }
   private owned(user: string, id: string) {
@@ -212,7 +231,7 @@ export class RealtimeTalkHub {
           if (!authenticated) this.anonymous--;
           if (session) void this.close(session, "paused");
         });
-        ws.on("message", (data, isBinary) => {
+        ws.on("message", async (data, isBinary) => {
           if (!authenticated) {
             try {
               if (isBinary) throw Error();
@@ -266,8 +285,25 @@ export class RealtimeTalkHub {
                 return;
               }
               this.send(s, { type: "pong" });
-              if (s.ready)
-                void this.core.talk({ task: "pulse", sessionId: s.id }).catch(() => this.close(s, "unavailable"));
+              if (s.ready && !s.pulseBusy) {
+                s.pulseBusy = true;
+                const controller = s.abort;
+                void this.core
+                  .talk({ task: "pulse", sessionId: s.id }, controller.signal)
+                  .catch(() => {
+                    if (s.abort === controller && !controller.signal.aborted) return this.close(s, "unavailable");
+                  })
+                  .finally(() => {
+                    s.pulseBusy = false;
+                  });
+              }
+              return;
+            }
+            if (event.type === "playback_started") {
+              if (event.generation === s.generation && event.turnId === s.turnId && s.replyId)
+                await this.service.talkProvenance(s.user, s.conversationId, s.turnId, "playback", {
+                  browserScheduledPlaybackStartMs: event.elapsedMs,
+                });
               return;
             }
             if (event.type === "played") {
@@ -283,20 +319,42 @@ export class RealtimeTalkHub {
               s.inflight.delete(event.sequence);
               s.acked++;
               s.playedSamples += samples;
-              if (s.finalSequence !== undefined && s.acked === s.finalSequence) this.markDelivery(s, "played");
+              if (s.finalSequence !== undefined && s.acked === s.finalSequence) await this.markDelivery(s, "played");
               return;
             }
             if (!s.ready) throw Error();
+            if (event.type === "retry_speech") {
+              if (event.generation === s.generation && event.turnId === s.turnId)
+                void this.retrySpeech(s).catch(() => this.close(s, "unavailable"));
+              return;
+            }
             if (event.type === "cancel") {
-              if (event.generation === s.generation) this.cancel(s);
+              if (event.generation === s.generation) {
+                this.cancel(s);
+                s.ready = false;
+                s.abort = new AbortController();
+                const controller = s.abort;
+                this.send(s, { type: "state", state: "recovering" });
+                void this.context(s, async () => {
+                  await this.authorize(s);
+                  await this.core.talk({ task: "warm", sessionId: s.id }, controller.signal);
+                  if (!s.closed && s.abort === controller && !controller.signal.aborted) {
+                    s.ready = true;
+                    this.send(s, { type: "recovered" });
+                  }
+                }).catch(() => this.close(s, "unavailable"));
+              }
               return;
             }
             if (event.type === "begin") {
               if (event.generation !== s.generation + 1 || s.seen.has(event.turnId) || s.seen.size >= 120)
                 throw Error();
               this.cancel(s);
+              s.replyId=undefined;
               s.generation = event.generation;
               s.turnId = event.turnId;
+              s.speechReply = undefined;
+              s.speechFailed = false;
               s.seen.add(event.turnId);
               s.abort = new AbortController();
               s.partialAbort = new AbortController();
@@ -371,6 +429,7 @@ export class RealtimeTalkHub {
     try {
       await this.context(s, async () => {
         await this.authorize(s);
+        await this.service.ensureBuddyPrepared();
         const warm = await this.core.talk({ task: "warm", sessionId: s.id }, s.abort.signal);
         if (s.closed) return;
         s.ready = true;
@@ -378,10 +437,20 @@ export class RealtimeTalkHub {
         this.send(s, {
           type: "ready",
           experimental: true,
-          runtime: { whisperDevice: warm.speech?.model?.whisperDevice, freeGpuBytes: warm.freeGpuBytes },
+          runtime: {
+            whisperDevice: warm.speech?.model?.whisperDevice,
+            freeGpuBytes: warm.freeGpuBytes,
+            loadAndWarmSeconds: warm.loadAndWarmSeconds,
+            workers: warm.workers,
+          },
         });
       });
-    } catch {
+    } catch (error) {
+      this.send(s, {
+        type: "error",
+        code: (error as { code?: string }).code ?? "BUDDY_PREFLIGHT_FAILED",
+        message: error instanceof Error ? error.message : "Buddy readiness failed.",
+      });
       await this.close(s, "unavailable");
     }
   }
@@ -405,7 +474,7 @@ export class RealtimeTalkHub {
       void this.context(s, async () => {
         await this.authorize(s);
         return this.core.talk(
-          { task: "transcribe", sessionId: s.id, audio: snapshot.toString("base64") },
+          { task: "transcribe", sessionId: s.id, language: s.language, audio: snapshot.toString("base64") },
           s.partialAbort.signal,
         );
       })
@@ -432,13 +501,15 @@ export class RealtimeTalkHub {
         await this.authorize(s);
         if (!current()) return;
         this.send(s, { type: "state", state: "transcribing" });
+        const transcriptionStarted = performance.now();
         const transcription = transcriptSchema.parse(
           await this.core.talk(
-            { task: "transcribe", sessionId: s.id, audio: audio.toString("base64") },
+            { task: "transcribe", sessionId: s.id, language: s.language, audio: audio.toString("base64") },
             controller.signal,
           ),
         );
         if (!current()) return;
+        const transcriptionMs = performance.now() - transcriptionStarted;
         if (!transcription.text.trim()) {
           this.send(s, { type: "turn_end", empty: true });
           return;
@@ -454,7 +525,7 @@ export class RealtimeTalkHub {
         );
         s.conversationId = accepted.conversationId;
         if (transcription.model)
-          this.service.talkProvenance(s.user, s.conversationId, turnId, "stt", transcription.model);
+          await this.service.talkProvenance(s.user, s.conversationId, turnId, "stt", transcription.model);
         if (!current()) return;
         this.send(s, {
           type: "final_transcript",
@@ -473,11 +544,16 @@ export class RealtimeTalkHub {
           s.temporarySessionId,
           approved.reply,
           turnId,
-          { model: approved.model, quality: approved.quality, supportRequired: approved.supportRequired },
+          {
+            model: approved.model,
+            quality: approved.quality,
+            supportRequired: approved.supportRequired,
+            timings: { transcriptionMs },
+          },
         );
         s.conversationId = completion.conversationId;
         if (!current()) {
-          this.service.talkDelivery(s.user, s.conversationId, completion.message.id, {
+          await this.service.talkDelivery(s.user, s.conversationId, completion.message.id, {
             state: "interrupted",
             playedMs: 0,
           });
@@ -490,101 +566,213 @@ export class RealtimeTalkHub {
           message: completion.message,
           supportRequired: approved.supportRequired,
         });
-        s.sent = 0;
-        s.acked = 0;
-        s.inflight.clear();
-        s.playedSamples = 0;
-        s.finalSequence = undefined;
-        for (const phrase of speechPhrases(approved.reply)) {
-          if (!current()) return;
-          await this.authorize(s);
-          if (!current()) return;
-          const spoken = speechSchema.parse(
-            await this.core.talk({ task: "speak", sessionId: s.id, ...phrase }, controller.signal),
-          );
-          if (spoken.sampleRate !== 16000) throw Error("Unsupported sample rate");
-          if (!current()) return;
-          await this.authorize(s);
-          if (!current()) return;
-          const pcm = Buffer.from(spoken.audio, "base64");
-          if (!pcm.length || pcm.length % 2 || pcm.length > 45 * 16000 * 2 || pcm.toString("base64") !== spoken.audio)
-            throw Error("Invalid speech payload");
-          let audible = false;
-          for (let offset = 0; offset < pcm.length; offset += 2)
-            if (Math.abs(pcm.readInt16LE(offset)) > 1) {
-              audible = true;
-              break;
-            }
-          if (!audible) throw Error("Silent speech payload");
-          this.service.talkProvenance(s.user, s.conversationId, turnId, "tts", spoken.model);
-          this.send(s, { type: "voice", language: phrase.language, model: spoken.model });
-          for (let offset = 0; offset < pcm.length; offset += 8000) {
-            const deadline = Date.now() + 15000;
-            while (current() && (s.inflight.size >= 8 || s.ws!.bufferedAmount > 128 * 1024)) {
-              if (Date.now() > deadline) throw Error("Playback stalled");
-              await delay(25);
-            }
-            if (!current()) return;
-            const frame = pcm.subarray(offset, offset + 8000);
-            const sequence = s.sent++;
-            s.inflight.set(sequence, frame.length / 2);
-            s.lastActivity = Date.now();
-            this.send(s, { type: "audio", sequence, sampleRate: 16000, audio: frame.toString("base64") });
-          }
-          pcm.fill(0);
-        }
-        if (current()) {
-          s.finalSequence = s.sent;
-          this.send(s, { type: "audio_end", sequence: s.sent });
-          if (s.acked === s.sent) this.markDelivery(s, "played");
-        }
+        s.speechReply = { text: approved.reply, id: completion.message.id };
+        s.speechFailed = false;
+        await this.deliverSpeech(s, approved.reply, controller);
       });
-    } catch {
+    } catch (error) {
       if (current()) {
+        const cause=(error as {code?:string}).code;
         this.send(s, {
           type: "error",
+          causeCode:typeof cause==='string'&&/^[A-Z_]{1,80}$/.test(cause)?cause:undefined,
+          stage:s.replyId?'speech':'turn',retryable:true,correlationId:randomUUID(),
           code: s.replyId ? "SPEECH_UNAVAILABLE" : "TURN_UNAVAILABLE",
           message: s.replyId
             ? "The approved text reply is available, but speech could not finish."
             : "This turn could not finish. Text already accepted remains saved; restart Talk to retry.",
         });
-        this.send(s, { type: "state", state: "unavailable" });
+        if (s.replyId) {
+          s.speechFailed = true;
+          controller.abort();
+          this.send(s, { type: "state", state: "speech_failed" });
+        } else this.send(s, { type: "state", state: "unavailable" });
       }
     } finally {
       audio.fill(0);
-      if (current()) s.finalizing = false;
+      if (s.abort === controller) s.finalizing = false;
     }
   }
+  private async deliverSpeech(s: Session, reply: string, controller: AbortController) {
+    const generation = s.generation,
+      turnId = s.turnId!;
+    const current = () => !s.closed && !controller.signal.aborted && s.generation === generation;
+    const started = performance.now();
+    const prepared = z
+      .object({
+        preparedText: z.string().min(1).max(20000),
+        groups: z
+          .array(z.array(z.string().min(1).max(20000)).min(1).max(3))
+          .min(1)
+          .max(500),
+      })
+      .parse(
+        await this.core.talk(
+          {
+            task: "prepare",
+            sessionId: s.id,
+            text: reply,
+            language: s.language,
+            speechMode: s.speechMode,
+          },
+          controller.signal,
+        ),
+      );
+    if (prepared.groups.flat().join("") !== prepared.preparedText) throw Error("Speech coverage failed");
+    s.sent = 0;
+    s.acked = 0;
+    s.inflight.clear();
+    s.playedSamples = 0;
+    s.finalSequence = undefined;
+    let segmentIndex = 0,
+      valuesSent = 0,
+      totalSynthesisMs = 0,
+      firstSegmentReadyMs = 0;
+    const generate = async (texts: string[]) => {
+      await this.authorize(s);
+      if (!current()) throw Error("Cancelled");
+      return speechSchema.parse(
+        await this.core.talk(
+          {
+            task: "speak",
+            sessionId: s.id,
+            texts,
+            language: s.language,
+          },
+          controller.signal,
+        ),
+      );
+    };
+    let pending = generate(prepared.groups[0]);
+    // Attach immediately: cancellation must not create an unhandled rejection.
+    void pending.catch(() => undefined);
+    this.send(s, { type: "state", state: "preparing_speech" });
+    for (let groupIndex = 0; groupIndex < prepared.groups.length; groupIndex++) {
+      const spoken = await pending;
+      totalSynthesisMs += (spoken.seconds ?? 0) * 1000;
+      if (!firstSegmentReadyMs) firstSegmentReadyMs = performance.now() - started;
+      if (!current()) return;
+      const group = prepared.groups[groupIndex];
+      if (spoken.segments.length !== group.length || spoken.segments.some((x, i) => x.text !== group[i]))
+        throw Error("Speech batch mismatch");
+      // GPU produces at most one following batch while the current batch is delivered.
+      if (groupIndex + 1 < prepared.groups.length) {
+        pending = generate(prepared.groups[groupIndex + 1]);
+        void pending.catch(() => undefined);
+      }
+      await this.authorize(s);
+      if (!current()) return;
+      await this.service.talkProvenance(s.user, s.conversationId, turnId, "tts", spoken.model);
+      for (const segment of spoken.segments) {
+        const pcm = Buffer.from(segment.audio, "base64");
+        if (!pcm.length || pcm.length % 4 || pcm.length > 45 * 48000 * 4 || pcm.toString("base64") !== segment.audio)
+          throw Error("Invalid stereo speech payload");
+        let audible = false;
+        for (let i = 0; i < pcm.length; i += 2)
+          if (Math.abs(pcm.readInt16LE(i)) > 1) {
+            audible = true;
+            break;
+          }
+        if (!audible) throw Error("Silent speech payload");
+        valuesSent += pcm.length / 2;
+        if (valuesSent > 300 * 48000 * 2) throw Error("Reply audio exceeds duration limit");
+        this.send(s, {
+          type: "segment_ready",
+          index: segmentIndex++,
+          sampleRate: 48000,
+          channels: 2,
+          readyMs: performance.now() - started,
+          model: spoken.model,
+        });
+        try {
+          for (let offset = 0; offset < pcm.length; offset += 8000) {
+            const deadline = Date.now() + 60000;
+            while (current() && (s.inflight.size >= 8 || s.ws!.bufferedAmount > 128 * 1024)) {
+              if (Date.now() > deadline) throw Error("Playback stalled");
+              await delay(25);
+            }
+            if (!current()) return;
+            const frame = pcm.subarray(offset, offset + 8000),
+              sequence = s.sent++;
+            s.inflight.set(sequence, frame.length / 2);
+            s.lastActivity = Date.now();
+            this.send(s, { type: "audio", sequence, sampleRate: 48000, channels: 2, audio: frame.toString("base64") });
+          }
+        } finally {
+          pcm.fill(0);
+        }
+      }
+    }
+    if (current()) {
+      s.speechFailed = false;
+      await this.service.talkProvenance(s.user, s.conversationId, turnId, "speechTiming", {
+        firstSegmentReadyMs,
+        totalSynthesisMs,
+        synthesisAndDeliveryMs: performance.now() - started,
+      });
+      s.finalSequence = s.sent;
+      this.send(s, { type: "audio_end", sequence: s.sent, synthesisAndDeliveryMs: performance.now() - started });
+      if (s.acked === s.sent) await this.markDelivery(s, "played");
+    }
+  }
+  private async retrySpeech(s: Session) {
+    if (!s.speechReply || !s.speechFailed || s.finalizing) return;
+    await this.authorize(s);
+    const reply = s.speechReply,
+      previousGeneration = s.generation;
+    s.generation++;
+    s.turnId = randomUUID();
+    s.finalizing = true;
+    s.abort = new AbortController();
+    const controller = s.abort;
+    await this.markDelivery(s, "interrupted");
+    s.replyId = reply.id;
+    this.send(s, { type: "speech_restart", previousGeneration });
+    try {
+      await this.context(s, () => this.deliverSpeech(s, reply.text, controller));
+    } catch {
+      if (!s.closed && !controller.signal.aborted) {
+        s.speechFailed = true;
+        controller.abort();
+        this.send(s, {
+          type: "error",
+          code: "SPEECH_UNAVAILABLE",
+          message: "The approved answer is retained. Retry speech or stop Talk.",
+        });
+      }
+    } finally {
+      if (s.abort === controller) s.finalizing = false;
+    }
+  }
+
   private clearFrames(s: Session) {
     for (const frame of s.frames) frame.fill(0);
     s.frames = [];
     s.bytes = 0;
   }
-  private markDelivery(s: Session, state: TalkDelivery["state"]) {
-    if (!s.replyId) return;
+  private async markDelivery(s: Session, state: TalkDelivery["state"]) {
+    const identity={id:s.id,generation:s.generation,turnId:s.turnId,replyId:s.replyId};
+    if(!identity.replyId)return;
+    const playedMs=s.playedSamples/96;
+    const current=()=>!s.closed&&s.id===identity.id&&s.generation===identity.generation&&s.turnId===identity.turnId&&s.replyId===identity.replyId;
     try {
-      this.service.talkDelivery(s.user, s.conversationId, s.replyId, { state, playedMs: s.playedSamples / 16 });
-      this.send(s, { type: "delivery", messageId: s.replyId, state, playedMs: s.playedSamples / 16 });
+      await this.service.talkDelivery(s.user,s.conversationId,identity.replyId,{state,playedMs});
+      if(!current())return;
+      this.send(s,{type:'delivery',messageId:identity.replyId,state,playedMs});
     } catch {
-      s.replyId = undefined;
-      this.send(s, {
-        type: "error",
-        code: "DELIVERY_UNAVAILABLE",
-        message: "The reply is available, but local playback metadata could not be saved.",
-      });
+      if(current())this.send(s,{type:'error',code:'DELIVERY_UNAVAILABLE',stage:'storage',retryable:true,correlationId:randomUUID(),message:'Playback metadata could not be saved. The approved reply is retained.'});
       return;
     }
-    if (state === "played") {
-      this.send(s, { type: "turn_end" });
-      s.replyId = undefined;
-    }
+    if(state==='played'&&current()){s.replyId=undefined;this.send(s,{type:'turn_end'});}
   }
   private cancel(s: Session) {
     s.abort.abort();
     s.partialAbort.abort();
     this.clearFrames(s);
-    if (s.replyId) this.markDelivery(s, "interrupted");
-    s.replyId = undefined;
+    const replyId=s.replyId,generation=s.generation;
+    if(replyId)void this.markDelivery(s,'interrupted').finally(()=>{
+      if(s.generation===generation&&s.replyId===replyId)s.replyId=undefined;
+    });
     s.inflight.clear();
     s.finalSequence = undefined;
     this.send(s, { type: "cancelled" });

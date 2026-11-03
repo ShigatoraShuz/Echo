@@ -1,3 +1,5 @@
+> Current Nano/V3 Buddy integration: see [Buddy Nano setup](buddy-nano-integration.md) and [validation status](buddy-nano-validation.md). The older v1/MMS/Silero description below documents main's previous experimental path, not the new active Buddy transport.
+
 # Real-time local Buddy Talk
 
 Implementation and validation: 2026-10-31. Hands-free Talk is **experimental and disabled by default**. Its measured first-audio latency has not passed the 10-second release gate. Chat and the existing record/stop Talk flow remain available.

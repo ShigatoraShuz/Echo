@@ -2,6 +2,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
+  Circle,
+  CheckCircle2,
+  LoaderCircle,
+  AlertCircle,
   BadgeCheck,
   BookOpen,
   HeartHandshake,
@@ -21,7 +25,8 @@ import {
   Wind,
 } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
-import { useRealtimeTalk } from "../view-model/use-realtime-talk";
+import { BuddyTalkAvatar } from "../components/buddy-talk-avatar";
+import { useRealtimeTalk, prepareBuddyRuntime, getBuddyRuntimeStatus, unloadBuddyRuntime } from "../view-model/use-realtime-talk";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyTypingIndicator } from "../components/buddy-typing-indicator";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
@@ -50,6 +55,28 @@ export function BuddyView() {
   const [mode, setMode] = useState<"chat" | "talk">("chat");
   const speakNext = useRef(false);
   const [draft, setDraft] = useState("");
+  useEffect(()=>{
+    let leaving=false;
+    const leave=()=>{if(leaving)return;leaving=true;stopRealtime();cancelVoice();void unloadBuddyRuntime().catch(()=>{});};
+    window.addEventListener('pagehide',leave);
+    return ()=>{window.removeEventListener('pagehide',leave);leave();};
+  },[stopRealtime,cancelVoice]);
+  const [runtimeStatus,setRuntimeStatus]=useState('unloaded');
+  useEffect(()=>{
+    if(vm.accessStatus!=='allowed'||(!draft.trim()&&mode!=='talk'))return;
+    let cancelled=false;let poll:ReturnType<typeof setInterval>|undefined;
+    const timer=setTimeout(()=>{
+      void prepareBuddyRuntime().then(result=>{
+        if(cancelled)return;setRuntimeStatus(result.state);
+        poll=setInterval(()=>{void getBuddyRuntimeStatus().then(status=>{
+          if(cancelled)return;setRuntimeStatus(status.state);
+          if(status.state==='ready'||status.state==='failed')clearInterval(poll);
+        }).catch(()=>{if(!cancelled)setRuntimeStatus('failed');});},1000);
+      }).catch(()=>{if(!cancelled)setRuntimeStatus('failed');});
+    },mode==='talk'?0:750);
+    return ()=>{cancelled=true;clearTimeout(timer);if(poll)clearInterval(poll);};
+  },[draft,mode,vm.accessStatus]);
+
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
@@ -188,8 +215,11 @@ export function BuddyView() {
     const content = draft.trim();
     if (!content || vm.isSending || savedChatReadOnly || realtime.active) return;
     speakNext.current = mode === "talk";
-    if (await vm.sendMessage(vm.activeConversationId, content)) setDraft("");
-    else speakNext.current = false;
+    setDraft("");
+    if (!await vm.sendMessage(vm.activeConversationId, content)) {
+      setDraft(current=>current || content);
+      speakNext.current = false;
+    }
   }
 
   function openConversation(id: string) {
@@ -426,8 +456,14 @@ export function BuddyView() {
             <History className="h-5 w-5" aria-hidden="true" />
           </button>
           <div className="min-w-0 flex-1 px-1 sm:px-2">
-            <h1 className="truncate text-sm font-semibold text-[var(--landing-ink)] sm:text-base">{activeConversation?.title ?? (vm.activeConversationId ? "Conversation" : "New conversation")}</h1>
-            <p className="text-[11px] text-[var(--landing-muted)]">{vm.responderState === "DEMO_FALLBACK" ? "DEMO_FALLBACK · prewritten guided support; no LLM or therapy" : "Buddy · reflective support"}</p>
+            <h1 className="truncate text-sm font-semibold text-[var(--landing-ink)] sm:text-base">
+              {activeConversation?.title ?? (vm.activeConversationId ? "Conversation" : "New conversation")}
+            </h1>
+            <p className="text-[11px] text-[var(--landing-muted)]">
+              {vm.responderState === "DEMO_FALLBACK"
+                ? "DEMO_FALLBACK Â· prewritten guided support; no LLM or therapy"
+                : "Buddy Â· reflective support"}
+            </p>
           </div>
           <button
             type="button"
@@ -477,9 +513,7 @@ export function BuddyView() {
                 <BuddyChatBubble message={message} />
               </div>
             ))}
-            {vm.isSending && (
-              <BuddyTypingIndicator />
-            )}
+            {vm.isSending && <BuddyTypingIndicator />}
           </div>
         </div>
 
@@ -510,7 +544,7 @@ export function BuddyView() {
             <p className="mb-2 text-xs text-[var(--landing-muted)]">
               {mode === "talk"
                 ? realtime.enabled
-                  ? "Start Talk once. Silence sends your turn; you can speak or press Interrupt to stop Buddy. Experimental local mode."
+                  ? "Start Talk once. Silence sends your turn. Buddy pauses the microphone while preparing or speaking. Press Stop Talk to finish."
                   : "Record a message, then stop to send. Buddy will read the reply aloud."
                 : "Type a message. Your conversation continues when you switch modes."}
             </p>
@@ -531,9 +565,40 @@ export function BuddyView() {
                     </button>
                   )}
                 </div>
-                <p role="status" className="text-xs capitalize">
-                  {realtime.state}
-                </p>
+                <div className="flex items-center gap-2">
+                  <BuddyTalkAvatar state={realtime.state} analyser={realtime.analyser} />
+                  <p role="status" className="text-xs capitalize">
+                    {realtime.state.replaceAll("_", " ")}
+                  </p>
+                </div>
+                {realtime.state === "playback_blocked" && (
+                  <button type="button" onClick={() => void realtime.resumePlayback()}>
+                    Play Buddy reply
+                  </button>
+                )}
+                {realtime.state === "speech_failed" && (
+                  <button type="button" onClick={realtime.retrySpeech}>
+                    Retry approved speech
+                  </button>
+                )}
+                <label className="block text-xs">
+                  Speech delivery
+                  <select
+                    value={realtime.speechMode}
+                    disabled={realtime.active}
+                    onChange={(e) => realtime.setSpeechMode(e.target.value as "sentences_2_then_3" | "buffered")}
+                  >
+                    <option value="sentences_2_then_3">First two sentences, then batches of three</option>
+                    <option value="buffered">Buffered short segments</option>
+                  </select>
+                </label>
+                {realtime.readiness?.freeGpuBytes !== undefined && (
+                  <p className="text-xs">
+                    GPU free after warm-up: {(realtime.readiness.freeGpuBytes / 1024 ** 3).toFixed(1)} GiB.
+                    {realtime.readiness.loadAndWarmSeconds !== undefined &&
+                      ` Model loading and warm-up: ${realtime.readiness.loadAndWarmSeconds.toFixed(1)} s.`}
+                  </p>
+                )}
                 {realtime.transcript && <p className="text-sm">Transcript: {realtime.transcript}</p>}
                 {realtime.error && (
                   <p role="alert" className="text-sm">
@@ -543,14 +608,30 @@ export function BuddyView() {
                 <label className="flex gap-2 text-xs">
                   <input
                     type="checkbox"
-                    checked={realtime.voiceInterruption}
-                    onChange={(e) => realtime.setVoiceInterruption(e.target.checked)}
+                    checked={realtime.experimentalLanguages}
+                    disabled={realtime.active}
+                    onChange={(e) => {
+                      realtime.setExperimentalLanguages(e.target.checked);
+                      if (!e.target.checked) realtime.setLanguage("English");
+                    }}
                   />
-                  Interrupt with my voice
+                  Experimental languages (Filipino and Taglish are unsupported/unverified)
+                </label>
+                <label className="block text-xs">
+                  Language
+                  <select
+                    value={realtime.language}
+                    disabled={realtime.active}
+                    onChange={(e) => realtime.setLanguage(e.target.value as "English" | "Filipino" | "Taglish")}
+                  >
+                    <option value="English">English</option>
+                    {realtime.experimentalLanguages && <option value="Filipino">Filipino (experimental)</option>}
+                    {realtime.experimentalLanguages && <option value="Taglish">Taglish (experimental)</option>}
+                  </select>
                 </label>
                 <p className="text-xs">
-                  Audio is temporary. Base voices may change between English and Filipino. If speaker echo interrupts
-                  Buddy, use headphones or turn off voice interruption.
+                  Audio stays temporary. Buddy reuses its saved generated voice reference. Animation shows speech
+                  activity. It is not phoneme-accurate lip synchronization.
                 </p>
               </div>
             )}
@@ -670,12 +751,15 @@ export function BuddyView() {
                 <span className="ml-1 hidden text-[11px] text-[var(--landing-muted)] sm:inline">
                   Reflective support, not emergency care
                 </span>
+                <span role="status" aria-label={`Buddy models: ${runtimeStatus}`} title={`Buddy models: ${runtimeStatus}`} className="ml-auto grid h-8 w-8 place-items-center text-[var(--landing-primary)]">
+                  {runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:runtimeStatus==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
+                </span>
                 <button
                   type="button"
                   onClick={() => void handleSend()}
                   disabled={!draft.trim() || vm.isSending || savedChatReadOnly || realtime.active}
                   aria-label="Send message"
-                  className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--landing-primary)] text-white outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--landing-primary)] text-white outline-none transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" aria-hidden="true" />
                 </button>

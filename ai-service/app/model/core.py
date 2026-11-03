@@ -39,10 +39,17 @@ class CoreRuntime:
         )
         self.manifest = json.loads((self.root / "manifest.json").read_text(encoding="utf-8"))
         code_root = Path(__file__).resolve().parents[3]
+        from app.buddy.config import verify_policy
+        verify_policy()
         for item in self.manifest["inferenceCode"]:
             source = (code_root / item["path"].replace("\\", "/")).resolve()
             if not source.is_relative_to(code_root / "ai-service/app/vendor"):
                 raise ModelUnavailableError("Invalid inference-code manifest path.")
+            if source.is_relative_to(code_root / "ai-service/app/vendor/cbt"):
+                # Buddy now runs the hash-verified V3 policy above in its exact
+                # two-epoch worker. The installed legacy/v5 code is never run.
+                # Shared base/adapter artifact checks below remain unchanged.
+                continue
             if hashlib.sha256(source.read_bytes()).hexdigest() != item["sha256"]:
                 raise ModelUnavailableError("Inference code differs from its manifest.")
         self.screening_unavailable=None
@@ -92,7 +99,12 @@ class CoreRuntime:
             self.release()
         self.loaded = True
         self._talk_context=threading.local()
-        if not text_only:
+        from app.buddy.config import enabled
+        from app.buddy.runtime import BuddyRuntime
+        self.buddy = BuddyRuntime(self)
+        if enabled():
+            self.talk = self.buddy
+        elif not text_only:
             from app.model.talk import TalkRuntime
             self.talk=TalkRuntime(self)
 
@@ -101,6 +113,8 @@ class CoreRuntime:
             raise ModelUnavailableError("Core model runtime unavailable.")
 
     def release(self):
+        if getattr(self, "buddy", None):
+            self.buddy.evict()
         if isinstance(getattr(self, "resident", None), dict):
             self.resident.clear()
         self.instance = None
@@ -165,6 +179,8 @@ class CoreRuntime:
                 del resident[alias]
 
     def _load(self, name):
+        if getattr(self, "buddy", None):
+            self.buddy.evict()
         if self.active == name:
             return self.instance
         resident = getattr(self, "resident", None)
@@ -249,13 +265,15 @@ class CoreRuntime:
         import torch
 
         return {
+            "buddy": self.buddy.status if getattr(self, "buddy", None) else None,
             "ready": self.loaded,
             "talkActive": bool(getattr(self,"talk",None) and self.talk.owner),
             "screeningReady": getattr(self,"screening_unavailable",None) is None,
             "activeModel": self.active,
             "residentModelCount": (len({id(v[0] if isinstance(v, tuple) else v) for v in self.resident.values()}) if isinstance(getattr(self, "resident", None), dict)
                                    else int(self.instance is not None or self.active == "speech"))
-                                  + int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None)),
+                                  + (sum(kind in self.buddy.workers and self.buddy.workers[kind].process.poll() is None for kind in ("cbt", "nano"))
+                                     if getattr(self, "buddy", None) else int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None))),
             "freeGpuBytes": torch.cuda.mem_get_info()[0],
             "speechPeakAllocatedBytes": getattr(self,"speech_peak_allocated",None),
             "peakAllocatedBytes": torch.cuda.max_memory_allocated(),
@@ -361,6 +379,8 @@ class CoreRuntime:
         }
 
     def chat(self, messages):
+        if getattr(self, "buddy", None):
+            return self.buddy.generate(messages)
         text = messages[-1]["content"]
         classification = self.classify(text)
         if classification["suicidal_language_flag"]:
