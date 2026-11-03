@@ -11,6 +11,37 @@ const pending = { journalId: "one", jobId: "job", status: "waiting_for_provider"
 describe("Journal analysis availability and request isolation", () => {
   beforeEach(() => { vi.resetAllMocks(); });
 
+  it("removes a previously displayed result if a background read reports consent revoked", async () => {
+    service.getEntry.mockResolvedValue(entry("one"));
+    service.getAnalysis.mockResolvedValue({ success: true, data: { entryId: "one", summary: "Saved result" } });
+    const { result } = renderHook(() => useJournalDetailViewModel("one"));
+    await waitFor(() => expect(result.current.analysis?.summary).toBe("Saved result"));
+    service.getEntry.mockResolvedValue(entry("one", false));
+    act(() => window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId: "one" } })));
+    await waitFor(() => expect(result.current.entry?.analysisConsent).toBe(false));
+    expect(result.current.analysis).toBeNull();
+  });
+
+  it("keeps the journal and progress mounted while completion refreshes in the background", async () => {
+    service.getEntry.mockResolvedValue(entry("one"));
+    service.getAnalysis.mockResolvedValue({ success: true, data: null });
+    service.getAnalysisAvailability.mockResolvedValue({ success: true, data: pending });
+    const { result } = renderHook(() => useJournalDetailViewModel("one"));
+    await waitFor(() => expect(result.current.analysisAvailability).toEqual(pending));
+    let resolveEntry!: (value: unknown) => void;
+    service.getEntry.mockReturnValueOnce(new Promise(resolve => { resolveEntry = resolve; }));
+    act(() => window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId: "one" } })));
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.entry?.id).toBe("one");
+    expect(result.current.analysisAvailability).toEqual(pending);
+    service.getAnalysis.mockResolvedValue({ success: true, data: { entryId: "one", summary: "Saved result" } });
+    await act(async () => resolveEntry(entry("one")));
+    await waitFor(() => expect(result.current.analysis?.summary).toBe("Saved result"));
+    expect(service.getEntry).toHaveBeenCalledTimes(2);
+    act(() => window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId: "another" } })));
+    expect(service.getEntry).toHaveBeenCalledTimes(2);
+  });
+
   it("loads a truthful pending reason only when consent exists and no result is saved", async () => {
     service.getEntry.mockResolvedValue(entry("one"));
     service.getAnalysis.mockResolvedValue({ success: true, data: null });

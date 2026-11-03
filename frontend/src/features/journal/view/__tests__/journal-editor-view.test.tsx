@@ -30,6 +30,12 @@ vi.mock("@/services/journal/journal-service.factory", () => ({
 vi.mock("@/features/journal/view-model/use-journal-editor-view-model", () => ({
   useJournalEditorViewModel: vi.fn(),
 }));
+vi.mock("@/features/journal/view-model/use-journal-detail-view-model", () => ({
+  useJournalDetailViewModel: () => ({ analysis: null, analysisAvailability: null, retry: vi.fn() }),
+}));
+vi.mock("@/features/journal/components/analysis-status-experience", () => ({
+  AnalysisStatusExperience: () => <div>Live model progress</div>,
+}));
 
 vi.mock("@/shared/components/feedback/echo-inline-message", () => ({
   EchoInlineMessage: ({ message }: { message: string }) => <div>{message}</div>,
@@ -69,6 +75,21 @@ function setupMock() {
 }
 
 describe("JournalEditorView", () => {
+  it("shows saved analysis inline without navigating or replacing the workspace", async () => {
+    const mock = { ...setupMock(), analysisConsent: true, title: "Saved writing", body: "Saved body", analysisSubmission: null as unknown };
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    const view = render(<JournalEditorView />);
+    const workspace = screen.getByRole("complementary", { name: "Journal analysis workspace" });
+    mock.analysisSubmission = { journalId: "saved-id", analysisJobId: "job-id", status: "queued", facialStatus: "not_requested" };
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    view.rerender(<JournalEditorView />);
+    expect(screen.getByText("Live model progress")).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Journal analysis workspace" })).toBe(workspace);
+    expect(screen.getByLabelText("Start writing", { exact: true })).toHaveAttribute("readonly");
+    expect(screen.getByRole("link", { name: "Open saved reflection" })).toHaveAttribute("href", "/journal/saved-id");
+    expect(replace).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
   const originalCreateObjectURL = URL.createObjectURL;
   const originalRevokeObjectURL = URL.revokeObjectURL;
 
