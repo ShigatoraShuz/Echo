@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { JournalEntry, JournalAnalysis } from "../model/journal.model";
 import type { JournalAnalysisAvailability } from "@echo/contracts";
 import { getJournalService } from "@/services/journal/journal-service.factory";
@@ -82,6 +82,8 @@ const initialState: DetailState = {
 
 export function useJournalDetailViewModel(id: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [photoUploadError, setPhotoUploadError] = useState("");
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const service = getJournalService();
   const lastLoadedAt = useRef(0);
   const active = useRef(true);
@@ -195,6 +197,33 @@ export function useJournalDetailViewModel(id: string) {
     loadEntry(id);
   }, [id, loadEntry]);
 
+  const addPhotos = useCallback(async (files: File[]) => {
+    if (!files.length) return;
+    if (
+      files.length > 5 - (state.entry?.images?.length ?? 0) ||
+      files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)
+    ) {
+      setPhotoUploadError("Choose up to five total JPEG, PNG, or WebP photos, at most 5 MB each.");
+      return;
+    }
+    setPhotoUploadError("");
+    setUploadingPhotos(true);
+    try {
+      for (const file of files) {
+        const result = await service.uploadImage?.(id, crypto.randomUUID(), file);
+        if (!result?.success) {
+          setPhotoUploadError(result && !result.success ? result.error.message : "Photo upload is unavailable. Please retry.");
+          break;
+        }
+      }
+      retry();
+    } catch {
+      setPhotoUploadError("The photo could not be uploaded. Please retry.");
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }, [id, retry, service, state.entry?.images?.length]);
+
   return {
     entry: state.entry,
     analysis: state.analysis,
@@ -209,5 +238,8 @@ export function useJournalDetailViewModel(id: string) {
     exportEntry,
     openDeleteDialog: showDeleteDialog,
     retry,
+    addPhotos,
+    photoUploadError,
+    uploadingPhotos,
   };
 }

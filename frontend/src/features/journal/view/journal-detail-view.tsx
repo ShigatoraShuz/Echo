@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Trash2, Tag, Info, ImagePlus } from "lucide-react";
-import { getJournalService } from "@/services/journal/journal-service.factory";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 import { JournalAnalysisDock } from "../components/journal-analysis-dock";
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
@@ -19,8 +18,6 @@ interface JournalDetailViewProps {
 
 export function JournalDetailView({ id }: JournalDetailViewProps) {
   const router = useRouter();
-  const [photoUploadError, setPhotoUploadError] = useState("");
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const {
     entry,
     analysis,
@@ -35,39 +32,15 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
     exportEntry,
     openDeleteDialog: setShowDeleteDialog,
     retry,
+    addPhotos,
+    photoUploadError,
+    uploadingPhotos,
   } = useJournalDetailViewModel(id);
 
-  const addPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAddPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!files.length) return;
-    if (
-      files.length > 5 - (entry?.images?.length ?? 0) ||
-      files.some(
-        (file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024,
-      )
-    ) {
-      setPhotoUploadError("Choose up to five total JPEG, PNG, or WebP photos, at most 5 MB each.");
-      return;
-    }
-    setPhotoUploadError("");
-    setUploadingPhotos(true);
-    try {
-      for (const file of files) {
-        const result = await getJournalService().uploadImage?.(id, crypto.randomUUID(), file);
-        if (!result?.success) {
-          setPhotoUploadError(
-            result && !result.success ? result.error.message : "Photo upload is unavailable. Please retry.",
-          );
-          break;
-        }
-      }
-      retry();
-    } catch {
-      setPhotoUploadError("The photo could not be uploaded. Please retry.");
-    } finally {
-      setUploadingPhotos(false);
-    }
+    void addPhotos(files);
   };
 
   if (isLoading) return <EchoLoadingState variant="skeleton" count={6} />;
@@ -169,7 +142,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       multiple
-                      onChange={(event) => void addPhotos(event)}
+                      onChange={handleAddPhotos}
                       disabled={uploadingPhotos}
                       aria-label="Add photos to reflection"
                       className="sr-only"

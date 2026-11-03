@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalDetailViewModel } from "./use-journal-detail-view-model";
 
-const service = vi.hoisted(() => ({ getEntry: vi.fn(), getAnalysis: vi.fn(), getAnalysisAvailability: vi.fn() }));
+const service = vi.hoisted(() => ({ getEntry: vi.fn(), getAnalysis: vi.fn(), getAnalysisAvailability: vi.fn(), uploadImage: vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 
 const entry = (id: string, consent = true) => ({ success: true, data: { id, analysisConsent: consent } });
@@ -76,6 +76,23 @@ describe("Journal analysis availability and request isolation", () => {
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.analysis?.summary).toBe("Fictional saved analysis"));
     expect(result.current.error).toBeNull();
+  });
+
+  it("validates photos before upload and reloads the saved entry after success", async () => {
+    service.getEntry.mockResolvedValue(entry("one", false));
+    service.uploadImage.mockResolvedValue({ success: true, data: { id: "photo-1" } });
+    const { result } = renderHook(() => useJournalDetailViewModel("one"));
+    await waitFor(() => expect(result.current.entry?.id).toBe("one"));
+
+    await act(async () => result.current.addPhotos([new File(["not a photo"], "note.txt", { type: "text/plain" })]));
+    expect(service.uploadImage).not.toHaveBeenCalled();
+    expect(result.current.photoUploadError).toMatch(/JPEG, PNG, or WebP/);
+
+    const photo = new File(["image"], "moment.png", { type: "image/png" });
+    await act(async () => result.current.addPhotos([photo]));
+    expect(service.uploadImage).toHaveBeenCalledWith("one", expect.any(String), photo);
+    expect(service.getEntry).toHaveBeenCalledTimes(2);
+    expect(result.current.photoUploadError).toBe("");
   });
 
 });

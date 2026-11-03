@@ -5,11 +5,11 @@ import { JournalDetailView } from "./journal-detail-view";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 
 const push = vi.fn();
-const uploadImage = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("../view-model/use-journal-detail-view-model", () => ({ useJournalDetailViewModel: vi.fn() }));
 vi.mock("../components/journal-analysis-panel", () => ({ JournalAnalysisPanel: () => null }));
-vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => ({ uploadImage }) }));
+
+const photoState = { addPhotos: vi.fn(), photoUploadError: "", uploadingPhotos: false };
 
 describe("JournalDetailView", () => {
   it.each([
@@ -25,6 +25,7 @@ describe("JournalDetailView", () => {
       analysis: null, analysisAvailability: { journalId: "entry-1", jobId: "job", status, reason },
       isLoading: false, isDeleting: false, isExporting: false, showDeleteDialog: false, error: null, notFound: false,
       deleteEntry: vi.fn(), exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry,
+      ...photoState,
     });
     render(<JournalDetailView id="entry-1" />);
     expect(screen.getByText(text)).toBeVisible();
@@ -44,6 +45,7 @@ describe("JournalDetailView", () => {
       analysis: null, analysisAvailability: null, isLoading: false, isDeleting: false, isExporting: false,
       showDeleteDialog: true, error: null, notFound: false,
       deleteEntry, exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry: vi.fn(),
+      ...photoState,
     });
     const user = userEvent.setup();
     render(<JournalDetailView id="entry-1" />);
@@ -56,7 +58,7 @@ describe("JournalDetailView", () => {
   });
 
   it("uploads an added photo to the saved reflection and refreshes it", async () => {
-    uploadImage.mockResolvedValue({ success: true, data: { id: "photo-1" } });
+    const addPhotos = vi.fn();
     const retry = vi.fn();
     vi.mocked(useJournalDetailViewModel).mockReturnValue({
       entry: {
@@ -68,11 +70,11 @@ describe("JournalDetailView", () => {
       analysis: null, analysisAvailability: null, isLoading: false, isDeleting: false, isExporting: false,
       showDeleteDialog: false, error: null, notFound: false,
       deleteEntry: vi.fn(), exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry,
+      ...photoState, addPhotos,
     });
     const user = userEvent.setup();
     render(<JournalDetailView id="entry-1" />);
     await user.upload(screen.getByLabelText("Add photos to reflection"), new File(["image"], "moment.png", { type: "image/png" }));
-    await waitFor(() => expect(uploadImage).toHaveBeenCalledWith("entry-1", expect.any(String), expect.any(File)));
-    expect(retry).toHaveBeenCalled();
+    await waitFor(() => expect(addPhotos).toHaveBeenCalledWith([expect.any(File)]));
   });
 });

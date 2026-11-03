@@ -1,44 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { facialExpressionResultSchema, type FacialExpressionResult } from "@echo/contracts";
-import { env } from "@/config/environment";
-import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import { Shield } from "lucide-react";
 import { PrivacyNotice } from "@/shared/components/echo";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { VerifiedFeatureGate } from "@/features/verification";
+import { useFacialInsightsViewModel } from "../view-model/use-facial-insights-view-model";
 
 export function FacialInsightsView() {
-  const [history, setHistory] = useState<Array<{ journalId: string; result: FacialExpressionResult }>>([]),
-    [state, setState] = useState("loading");
-  useEffect(() => {
-    const abort = new AbortController();
-    void (async () => {
-      try {
-        const token = await supabaseAuthTokenProvider.getAccessToken();
-        const response = await fetch(env.apiBaseUrl + "/journals/facial-history", {
-          headers: { Authorization: "Bearer " + token },
-          signal: abort.signal,
-          cache: "no-store",
-        });
-        if (!response.ok) throw Error();
-        const body = await response.json();
-        const rows = body.data.map((x: { journalId: string; result: unknown }) => ({
-          journalId: x.journalId,
-          result: facialExpressionResultSchema.parse(x.result),
-        }));
-        if (!abort.signal.aborted) {
-          setHistory(rows);
-          setState("ready");
-        }
-      } catch {
-        if (!abort.signal.aborted) setState("unavailable");
-      }
-    })();
-    return () => abort.abort();
-  }, []);
+  const { history, state } = useFacialInsightsViewModel();
   return (
     <VerifiedFeatureGate featureName="Facial trend analysis">
       <div className="space-y-6">

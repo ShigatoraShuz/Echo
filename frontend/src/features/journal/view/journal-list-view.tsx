@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,9 +10,8 @@ import {
   ListTree,
   PenLine,
 } from "lucide-react";
-import type { JournalDraft } from "../model/journal.model";
-import { getJournalService } from "@/services/journal/journal-service.factory";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
+import { useJournalDraftViewModel } from "../view-model/use-journal-draft-view-model";
 import { JournalFilters } from "../components/journal-filters";
 import { JournalCard } from "../components/journal-card";
 import { JournalTimelineEntry } from "../components/journal-timeline-entry";
@@ -44,26 +43,7 @@ export function JournalListView() {
   } = useJournalListViewModel();
 
   const [viewMode, setViewMode] = useState<JournalViewMode>("grid");
-  const [draft, setDraft] = useState<JournalDraft | null>(null);
-  const [draftError, setDraftError] = useState("");
-  const [draftLoading, setDraftLoading] = useState(true);
-  const draftRequest = useRef(0);
-  const loadDraft = useCallback(async () => {
-    const request = ++draftRequest.current;
-    setDraftLoading(true);
-    setDraftError("");
-    try {
-      const result = await getJournalService().getDraft("current");
-      if (request !== draftRequest.current) return;
-      if (result.success) setDraft(result.data);
-      else setDraftError(result.error.message);
-    } catch {
-      if (request === draftRequest.current) setDraftError("Your draft could not be loaded.");
-    } finally {
-      if (request === draftRequest.current) setDraftLoading(false);
-    }
-  }, []);
-  useEffect(() => { void loadDraft(); return () => { draftRequest.current++; }; }, [loadDraft]);
+  const { draft, loading: draftLoading, error: draftError, retry: loadDraft } = useJournalDraftViewModel();
 
   // Group entries by Month Year (e.g. "August 2026") for the timeline view
   const groupedTimelineEntries = useMemo(() => {

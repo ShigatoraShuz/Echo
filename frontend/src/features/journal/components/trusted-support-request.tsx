@@ -1,42 +1,8 @@
 "use client";
-import { useState } from "react";
-import { createApiClient } from "@/infrastructure/api/api-client";
-import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
-import { env } from "@/config/environment";
-import type { TrustedContact } from "@/features/settings/model/settings.model";
+import { useTrustedSupportRequestViewModel } from "../view-model/use-trusted-support-request-view-model";
 
 export function TrustedSupportRequest({ jobId }: { jobId: string }) {
-  const [contacts, setContacts] = useState<TrustedContact[] | null>(null);
-  const [contactId, setContactId] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const client = () => createApiClient({ baseUrl: env.apiBaseUrl, tokenProvider: supabaseAuthTokenProvider });
-  async function choose() {
-    setBusy(true);
-    try {
-      const result = await client().get<{ data: { trustedContacts: TrustedContact[] } }>("/settings");
-      setContacts(result.data.trustedContacts);
-    } catch {
-      setNotice("Your trusted contacts could not be loaded. You can still contact someone you trust directly.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function request() {
-    if (!consent || !contactId) return;
-    setBusy(true);
-    try {
-      await client().post("/support-contact-requests", { trustedContactId: contactId, jobId });
-      setNotice(
-        "Your request is awaiting review. No one has been contacted. For urgent help, use the support numbers above.",
-      );
-    } catch {
-      setNotice("This request could not be approved. Check your contact permissions and account eligibility.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { contacts, contactId, setContactId, consent, setConsent, notice, busy, choose, request } = useTrustedSupportRequestViewModel(jobId);
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <p className="font-semibold">Someone you trust</p>
