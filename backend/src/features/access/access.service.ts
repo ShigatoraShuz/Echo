@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuthenticatedUser } from "../../shared/types/authenticated-user.js";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
 import { ValidationError } from "../../shared/errors/app-error.js";
-import { ELIGIBILITY_RULE_VERSION } from "../registration/registration.service.js";
+import { ELIGIBILITY_RULE_VERSION } from "../../shared/policies/eligibility.js";
 
 export type AccessDecision =
   | "ACCOUNT_UNAVAILABLE"

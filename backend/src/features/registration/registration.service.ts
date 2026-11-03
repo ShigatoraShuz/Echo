@@ -2,8 +2,8 @@ import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, ConflictError, ExternalServiceError, ValidationError } from "../../shared/errors/app-error.js";
 import { currentRequestId } from "../../shared/request-context.js";
+import { ELIGIBILITY_RULE_VERSION } from "../../shared/policies/eligibility.js";
 
-export const ELIGIBILITY_RULE_VERSION = "echo-adult-18-v1";
 export const PASSWORD_POLICY_VERSION = "supabase-echo-v1";
 export const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 const DRAFT_TTL_MS = 30 * 60_000;

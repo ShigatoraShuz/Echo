@@ -19,6 +19,7 @@
     "check:contracts": "npm run build -w @echo/contracts",
     "types:server:local": "node scripts/generate-server-types.mjs",
     "test:sql:isolated": "node backend/scripts/validate-analysis-sql.mjs",
+    "audit:architecture": "node scripts/audit-architecture.mjs",
     "test": "npm run build -w @echo/contracts && npm run test -w frontend && npm run test -w backend",
     "clean": "npm run clean -w frontend && npm run clean -w backend",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,md}\"",

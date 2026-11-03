@@ -1,5 +1,7 @@
 # ECHO Frontend Architecture
 
+> **Current implementation status (2026-11-03):** This document defines the target dependency rules. The whole frontend does not yet satisfy them. Run `npm run audit:architecture` for the current import inventory and `node scripts/audit-architecture.mjs --strict` to check the full target. See [the current boundary audit](MVVM_MODULAR_MONOLITH_AUDIT_2026-11-03.md) before describing the implementation as strict MVVM.
+
 > **Version**: Consolidated Monorepo (MVVM with CRUD Bypass)  
 > **Last Updated**: 2026-08-23
 
