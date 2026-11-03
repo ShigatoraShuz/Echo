@@ -11,8 +11,8 @@ Run `npm run audit:architecture` to refresh the static import/schema inventory. 
 | Boundary | Remaining edges after this slice | Meaning |
 | --- | ---: | --- |
 | Frontend feature Views/components → services or infrastructure | 69 | Presentation code still owns or imports data access in several features. |
-| Frontend route/layout → services or infrastructure | 23 | Some are framework/auth composition points; others contain application workflows and need extraction. |
-| Frontend shared → feature or service | 13 | Shared code still knows domain-specific behavior. |
+| Frontend route/layout → services or infrastructure | 24 | Some are framework/auth composition points; others contain application workflows and need extraction. Includes the later Find Help review merge. |
+| Frontend shared → feature or service | 15 | Shared code still knows domain-specific behavior. Includes the later navigation review merge. |
 | Frontend infrastructure → feature or service | 0 | No static reverse imports detected. |
 | Backend feature → another feature implementation | 14 | Several modules depend on concrete sibling files rather than a published contract or injected interface. |
 | Required domain schemas absent from migration declarations | 0 | All nine target schema names are declared locally. |
@@ -45,7 +45,7 @@ The acceptance condition for claiming strict architecture is a passing strict im
 
 ## Verification of this slice
 
-- `npm test`: 1,238 frontend tests and 1,074 backend tests passed; four backend tests were skipped by the suite.
+- `npm test`: 1,262 frontend tests and 1,078 backend tests passed after merging the latest review branch; four backend tests were skipped by the suite.
 - `npm run typecheck -w frontend` and `npm run typecheck -w backend`: passed.
 - `npm run lint`: no errors; existing warnings remain. Targeted lint on newly added frontend modules passed without warnings.
 - `npm run build`: passed with temporary placeholder public Supabase/API URLs for compilation only. This is not a live integration or deployment test.
