@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import httpx
 
@@ -48,7 +49,7 @@ def test_worker_pauses_flagged_jobs_before_emotion_inference():
     asyncio.run(run())
 
 
-def test_core_api_rejects_empty_input_without_loading_models(monkeypatch):
+def test_core_api_rejects_empty_input_before_inference(monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.core.config import get_settings
@@ -60,6 +61,8 @@ def test_core_api_rejects_empty_input_without_loading_models(monkeypatch):
     monkeypatch.setenv("WORKER_ENABLED", "false")
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("AI_SERVICE_TOKEN", "test-internal-token-with-32-characters")
+    runtime = SimpleNamespace(analyze=Mock(), release=lambda: None)
+    monkeypatch.setattr("app.model.text_transport.TextRuntime", lambda _settings: runtime)
     get_settings.cache_clear()
     with TestClient(app, client=("core-validation-test", 50001)) as client:
         response = client.post(
@@ -69,6 +72,7 @@ def test_core_api_rejects_empty_input_without_loading_models(monkeypatch):
         )
     get_settings.cache_clear()
     assert response.status_code == 422
+    runtime.analyze.assert_not_called()
 
 
 def test_chat_rejects_context_overflow_before_generation():

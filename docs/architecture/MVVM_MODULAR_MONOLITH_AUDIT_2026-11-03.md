@@ -23,6 +23,14 @@ The static audit now excludes type-only imports, which do not create runtime dep
 
 The merged journal detail ViewModel now clears stale failure availability when a saved analysis arrives. Its regression test passes. The full frontend suite passed 1,266 tests, and the full backend suite passed 1,078 tests (four skipped), including a rerun after the backend import relocation. Frontend and backend typechecks and the compile-only production build passed. The broader local AI test subset passed 28 of 33 tests; five need PyTorch, which is absent from this checkout's `ai-service/.venv`. Live GPU and database behavior were not reverified here.
 
+### Browser and AI test follow-up
+
+The Playwright suite passed 229 checks and exposed four identical `/dashboard-preview` failures across mobile and tablet projects. The route intentionally requires `NEXT_PUBLIC_ENABLE_ANALYSIS_PREVIEW=true` in development; the mobile test server did not set it. The test server now sets that flag, and all four failed cases pass on rerun. The route remains unavailable in production.
+
+An isolated Python 3.12 QA environment with Transformers 4.57.6 and safetensors 0.8.0 passed the complete AI suite: **223 passed, 6 skipped**. Two test harness corrections were needed: cloning tensors before rewriting a memory-mapped safetensors fixture on Windows, and stubbing the model runtime for an HTTP input-validation test so it asserts no inference without launching a real worker. This QA environment uses inherited Torch 2.10 and PEFT 0.19 rather than the declared `core` stack. It does not prove live model loading or predictions on the installed 8 GB RTX 3050; Wine's optimization benchmark used a 16 GB RTX 5060 Ti.
+
+The linked Supabase migration list still has seven local-only and three remote-only IDs described below. No migration was applied. The strict architecture audit still fails on the frontend dependencies in the table above. These remain release checks before pushing this work as complete.
+
 Backend services still access multiple schema owners directly. The largest current examples are journals (`journal_service`, `ai_analysis`, and seven other schemas) and experience (`buddy_service`, `grounding_service`, `insights_service`, `user_service`, `ai_analysis`). The schema inventory alone cannot distinguish authorized read contracts from unauthorized reach-through; each call must be classified before moving it.
 
 ## Changes completed in this slice

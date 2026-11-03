@@ -372,7 +372,8 @@ def test_missing_or_mismatched_calibration_rejected(bundle, fault):
 def test_tensor_coverage_never_random_initializes_missing_weights(bundle, kind, fault):
     root, m = bundle(kind)
     path = root / ("heads.safetensors" if kind == "e4" else "model.safetensors")
-    state = load_file(path)
+    # Detach from safetensors' memory-mapped file before rewriting it on Windows.
+    state = {name: tensor.clone() for name, tensor in load_file(path).items()}
     key = next(iter(state))
     if fault == "missing":
         del state[key]
