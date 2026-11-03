@@ -4,7 +4,7 @@ import { analysisTrends } from "./analysis-insights.js";
 import { sealAnalysisResult, openAnalysisResult } from "../../infrastructure/encryption/analysis-result-encryption.js";
 import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertTrustedContact } from "../settings/trusted-contact-access.js";
+import { assertTrustedContact } from "../../infrastructure/supabase/trusted-contact-access.js";
 import { JournalImagesService } from "./journal-images.service.js";
 import {
   analysisChecksFor,

@@ -24,6 +24,12 @@ function imports(file) {
   return source.statements.flatMap((statement) => {
     if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) return [];
     if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) return [];
+    if (ts.isImportDeclaration(statement)) {
+      const clause = statement.importClause;
+      if (clause?.isTypeOnly || (clause?.namedBindings && ts.isNamedImports(clause.namedBindings) &&
+        !clause.name && clause.namedBindings.elements.every((element) => element.isTypeOnly))) return [];
+    } else if (statement.isTypeOnly || (statement.exportClause && ts.isNamedExports(statement.exportClause) &&
+      statement.exportClause.elements.every((element) => element.isTypeOnly))) return [];
     return [{ specifier: statement.moduleSpecifier.text, line: source.getLineAndCharacterOfPosition(statement.getStart()).line + 1 }];
   });
 }

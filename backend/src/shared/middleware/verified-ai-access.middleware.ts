@@ -1,8 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import { AuthenticationError } from "../../shared/errors/app-error.js";
-import type { VerificationService } from "./verification.service.js";
+import { AuthenticationError } from "../errors/app-error.js";
 
-export function createVerifiedAiAccessMiddleware(service: VerificationService) {
+interface AiAccessPolicy {
+  assertAiAccess(userId: string): Promise<void>;
+}
+
+export function createVerifiedAiAccessMiddleware(service: AiAccessPolicy) {
   return async (request: Request, _response: Response, next: NextFunction): Promise<void> => {
     try {
       if (!request.auth) throw new AuthenticationError();

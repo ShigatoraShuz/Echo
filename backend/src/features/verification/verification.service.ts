@@ -1,7 +1,7 @@
 import { assertDocumentsClean, hasApprovedScan, inspectDocument, quarantineScanner, validateDocument, type DocumentScanner } from "../../infrastructure/security/document-scanner.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertTrustedContact, hasValidTrustedContact } from "../settings/trusted-contact-access.js";
+import { assertTrustedContact, hasValidTrustedContact } from "../../infrastructure/supabase/trusted-contact-access.js";
 import type { EncryptionService, EncryptedPayload } from "../../infrastructure/encryption/encryption.service.js";
 import {
   AuthorizationError,

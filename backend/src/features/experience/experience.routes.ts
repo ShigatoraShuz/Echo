@@ -3,7 +3,7 @@ import { Router, raw } from "express";
 import { endpointLimiter } from "../../shared/middleware/security-policy.js";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
-import { createVerifiedAiAccessMiddleware } from "../verification/verification.middleware.js";
+import { createVerifiedAiAccessMiddleware } from "../../shared/middleware/verified-ai-access.middleware.js";
 import type { VerificationService } from "../verification/verification.service.js";
 import { createExperienceController } from "./experience.controller.js";
 import type { ExperienceService } from "./experience.service.js";

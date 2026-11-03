@@ -10,12 +10,18 @@ Run `npm run audit:architecture` to refresh the static import/schema inventory. 
 
 | Boundary | Remaining edges after this slice | Meaning |
 | --- | ---: | --- |
-| Frontend feature Views/components → services or infrastructure | 69 | Presentation code still owns or imports data access in several features. |
+| Frontend feature Views/components → services or infrastructure | 54 | Runtime presentation dependencies remain in several features; type-only imports are excluded. |
 | Frontend route/layout → services or infrastructure | 24 | Some are framework/auth composition points; others contain application workflows and need extraction. Includes the later Find Help review merge. |
-| Frontend shared → feature or service | 15 | Shared code still knows domain-specific behavior. Includes the later navigation review merge. |
+| Frontend shared → feature or service | 14 | Shared code still knows domain-specific behavior. Includes the later navigation review merge. |
 | Frontend infrastructure → feature or service | 0 | No static reverse imports detected. |
-| Backend feature → another feature implementation | 14 | Several modules depend on concrete sibling files rather than a published contract or injected interface. |
+| Backend feature → another feature implementation | 0 | No runtime cross-feature imports remain; type-only dependencies and cross-schema reads still need review. |
 | Required domain schemas absent from migration declarations | 0 | All nine target schema names are declared locally. |
+
+### Follow-up after Wine's resident-model and journal merge
+
+The static audit now excludes type-only imports, which do not create runtime dependencies. On the merged source it reports **54 frontend View/component runtime edges**, **24 route/layout edges**, **14 shared edges**, **0 infrastructure reverse edges**, and **0 backend runtime cross-feature imports**. The backend count fell after moving the reusable AI access middleware to `shared/middleware` and the trusted-contact database access to `infrastructure/supabase`. Type-only cross-module references and direct cross-schema queries still need contract and ownership review. The strict audit still fails because frontend data access remains in presentation code; no end-to-end MVVM or modular-monolith compliance is claimed.
+
+The merged journal detail ViewModel now clears stale failure availability when a saved analysis arrives. Its regression test passes. The full frontend suite passed 1,266 tests, and the full backend suite passed 1,078 tests (four skipped), including a rerun after the backend import relocation. Frontend and backend typechecks and the compile-only production build passed. The broader local AI test subset passed 28 of 33 tests; five need PyTorch, which is absent from this checkout's `ai-service/.venv`. Live GPU and database behavior were not reverified here.
 
 Backend services still access multiple schema owners directly. The largest current examples are journals (`journal_service`, `ai_analysis`, and seven other schemas) and experience (`buddy_service`, `grounding_service`, `insights_service`, `user_service`, `ai_analysis`). The schema inventory alone cannot distinguish authorized read contracts from unauthorized reach-through; each call must be classified before moving it.
 

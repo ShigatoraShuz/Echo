@@ -37,6 +37,7 @@ describe("Journal analysis availability and request isolation", () => {
     service.getAnalysis.mockResolvedValue({ success: true, data: { entryId: "one", summary: "Saved result" } });
     await act(async () => resolveEntry(entry("one")));
     await waitFor(() => expect(result.current.analysis?.summary).toBe("Saved result"));
+    expect(result.current.analysisAvailability).toBeNull();
     expect(service.getEntry).toHaveBeenCalledTimes(2);
     act(() => window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId: "another" } })));
     expect(service.getEntry).toHaveBeenCalledTimes(2);

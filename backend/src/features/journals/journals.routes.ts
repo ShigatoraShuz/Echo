@@ -1,7 +1,7 @@
 import { Router, raw } from "express";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
-import { createVerifiedAiAccessMiddleware } from "../verification/verification.middleware.js";
+import { createVerifiedAiAccessMiddleware } from "../../shared/middleware/verified-ai-access.middleware.js";
 import type { VerificationService } from "../verification/verification.service.js";
 import type { JournalService } from "./journals.service.js";
 import { createJournalsController } from "./journals.controller.js";

@@ -48,7 +48,8 @@ function reducer(state: DetailState, action: DetailAction): DetailState {
     case "ENTRY_LOAD_ERROR":
       return { ...state, isLoading: false, entry: null, analysis: null, analysisAvailability: null, error: action.error, notFound: action.notFound };
     case "ANALYSIS_LOAD_SUCCESS":
-      return { ...state, analysis: action.analysis };
+      return { ...state, analysis: action.analysis,
+        analysisAvailability: action.analysis ? null : state.analysisAvailability };
     case "DELETE_START":
       return { ...state, isDeleting: true };
     case "DELETE_SUCCESS":
