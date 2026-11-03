@@ -227,9 +227,18 @@ export class VerificationService {
     };
   }
 
-  async getStatus(userId: string) {
-    const admin = await this.isAdmin(userId);
+  async getAiAccessStatus(userId: string) {
     const existing = await this.applicationRowForUser(userId);
+    const row = existing ? await this.normalizeExpired(existing) : null;
+    if (row?.verification_status !== "approved") {
+      return { canAccessAi: false, accessRequirement: "verification" as const };
+    }
+    const hasContact = await hasValidTrustedContact(this.database, userId);
+    return { canAccessAi: hasContact, accessRequirement: hasContact ? null : "trusted_contact" as const };
+  }
+
+  async getStatus(userId: string) {
+    const [admin, existing] = await Promise.all([this.isAdmin(userId), this.applicationRowForUser(userId)]);
 
     if (!existing) {
       return {
@@ -253,10 +262,12 @@ export class VerificationService {
     }
 
     const row = await this.normalizeExpired(existing);
-    const documents = await this.documentsForVerification(stringValue(row.id));
+    const [documents, hasContact] = await Promise.all([
+      this.documentsForVerification(stringValue(row.id)),
+      row.verification_status === "approved" ? hasValidTrustedContact(this.database, userId) : Promise.resolve(false),
+    ]);
     const isMinor = typeof row.is_minor === "boolean" ? row.is_minor : null;
     const status = stringValue(row.verification_status) as Exclude<VerificationStatus, "not_started">;
-    const hasContact = status === "approved" ? await hasValidTrustedContact(this.database, userId) : false;
     return {
       status,
       canAccessAi: status === "approved" && hasContact,

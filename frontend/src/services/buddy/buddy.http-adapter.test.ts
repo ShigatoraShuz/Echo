@@ -43,9 +43,9 @@ describe("buddy HTTP adapter", () => {
     if (!result.success) expect(result.error.code).toBe("VERIFICATION_REQUIRED");
   });
 
-  it("reads the Buddy history preference after access is approved", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (input: string) => input.endsWith("/verification")
-      ? jsonResponse({ success: true, data: { canAccessAi: true, accessRequirement: null } })
+  it("reads fresh Buddy access and history preference in one request", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => input.endsWith("/buddy/access")
+      ? jsonResponse({ success: true, data: { canAccessAi: true, accessRequirement: null, buddyHistoryEnabled: false } })
       : jsonResponse({ success: true, data: { buddyHistoryEnabled: false } })));
     const { createBuddyHttpAdapter } = await import("@/services/buddy/buddy.http-adapter");
     const result = await createBuddyHttpAdapter().getAccessStatus();

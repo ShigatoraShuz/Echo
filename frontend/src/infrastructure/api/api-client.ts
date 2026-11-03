@@ -3,6 +3,7 @@ import type { AuthTokenProvider } from "@/infrastructure/api/auth-token-provider
 import { nullTokenProvider } from "@/infrastructure/api/auth-token-provider";
 import { normalizeError } from "@/shared/errors/normalize-error";
 import { createRequestSignal } from "@/shared/utils/abort-signal";
+import { invalidateNavigationReads, navigationReadGeneration, readNavigationData } from "./navigation-read-cache";
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -11,6 +12,8 @@ export interface ApiClientOptions {
 }
 
 export interface RequestOptions {
+  /** Opt-in for display data; authorization, consent, and safety checks stay live. */
+  navigationCache?: boolean;
   signal?: AbortSignal;
   timeout?: number;
   headers?: Record<string, string>;
@@ -61,19 +64,13 @@ function joinUrl(base: string, path: string): string {
   return `${baseClean}/${pathClean}`;
 }
 
-function parseAppErrorResponse(
-  body: unknown,
-  statusCode: number
-): AppError | null {
+function parseAppErrorResponse(body: unknown, statusCode: number): AppError | null {
   if (!body || typeof body !== "object") return null;
   const errBody = body as ApiErrorResponse;
   if (!errBody.error) return null;
 
   const code = errBody.error.code ?? "UNKNOWN_ERROR";
-  const normalizedCode =
-    statusCode === 401 && code === "UNKNOWN_ERROR"
-      ? "AUTHENTICATION_ERROR"
-      : code;
+  const normalizedCode = statusCode === 401 && code === "UNKNOWN_ERROR" ? "AUTHENTICATION_ERROR" : code;
   const userMessage = errBody.error.message ?? "Something went wrong.";
   const field = errBody.error.field;
 
@@ -152,20 +149,33 @@ function classifyHttpError(statusCode: number): AppError {
 }
 
 export function createApiClient(options: ApiClientOptions) {
-  const {
-    baseUrl,
-    tokenProvider = nullTokenProvider,
-    defaultTimeout = 30_000,
-  } = options;
+  const { baseUrl, tokenProvider = nullTokenProvider, defaultTimeout = 30_000 } = options;
   let refreshInFlight: Promise<string | null> | null = null;
 
   async function request<TResponse>(
     method: string,
     path: string,
     body?: unknown,
-    opts?: RequestOptions
+    opts?: RequestOptions,
   ): Promise<TResponse> {
     const requestId = generateRequestId();
+    if (method !== "GET") {
+      invalidateNavigationReads();
+      return requestWithRetry<TResponse>(requestId, method, path, body, opts, false).finally(invalidateNavigationReads);
+    }
+    if (
+      opts?.navigationCache &&
+      !opts.signal &&
+      !opts.headers &&
+      /^\/(?:dashboard(?:\/insights)?|settings\/profile|support-resources)(?:\?|$)/.test(path)
+    ) {
+      const generation = navigationReadGeneration();
+      const token = await tokenProvider.getAccessToken();
+      if (generation !== navigationReadGeneration()) throw new DOMException("Session or data changed", "AbortError");
+      return readNavigationData(`${joinUrl(baseUrl, path)}:${token ?? "guest"}`, () =>
+        requestWithRetry<TResponse>(requestId, method, path, body, opts, false, token),
+      );
+    }
     return requestWithRetry<TResponse>(requestId, method, path, body, opts, false);
   }
 
@@ -182,7 +192,8 @@ export function createApiClient(options: ApiClientOptions) {
     const timeoutMs = opts?.timeout ?? defaultTimeout;
     const { signal: combinedSignal, dispose, abort } = createRequestSignal(opts?.signal, timeoutMs, true);
     const invalidate = () => abort(new DOMException("Session changed", "AbortError"));
-    if (typeof window !== "undefined") window.addEventListener("echo:sensitive-state-cleared", invalidate, { once: true });
+    if (typeof window !== "undefined")
+      window.addEventListener("echo:sensitive-state-cleared", invalidate, { once: true });
 
     const headers: Record<string, string> = {
       "X-Request-Id": requestId,
@@ -195,19 +206,21 @@ export function createApiClient(options: ApiClientOptions) {
 
     try {
       combinedSignal?.throwIfAborted();
-      const token = accessToken ?? await tokenProvider.getAccessToken();
+      const token = accessToken === undefined ? await tokenProvider.getAccessToken() : accessToken;
       combinedSignal?.throwIfAborted();
       if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch(url, {
         method,
         headers,
-        body: body !== undefined
-          ? body instanceof FormData || body instanceof Blob
-            ? body
-            : JSON.stringify(body)
-          : undefined,
+        body:
+          body !== undefined
+            ? body instanceof FormData || body instanceof Blob
+              ? body
+              : JSON.stringify(body)
+            : undefined,
         signal: combinedSignal,
       });
+      if (response.status === 401 || response.status === 403) invalidateNavigationReads();
       combinedSignal?.throwIfAborted();
 
       if (response.status === 204) {
@@ -233,11 +246,9 @@ export function createApiClient(options: ApiClientOptions) {
       if (!response.ok) {
         if (response.status === 401 && !retried) {
           combinedSignal?.throwIfAborted();
-          const refreshedToken = await (refreshInFlight ??= tokenProvider
-            .refreshAccessToken()
-            .finally(() => {
-              refreshInFlight = null;
-            }));
+          const refreshedToken = await (refreshInFlight ??= tokenProvider.refreshAccessToken().finally(() => {
+            refreshInFlight = null;
+          }));
           combinedSignal?.throwIfAborted();
           if (refreshedToken) {
             return requestWithRetry<TResponse>(requestId, method, path, body, opts, true, refreshedToken);
@@ -249,9 +260,7 @@ export function createApiClient(options: ApiClientOptions) {
           await tokenProvider.clearSession();
         }
 
-        const parsedError =
-          parseAppErrorResponse(responseBody, response.status) ??
-          classifyHttpError(response.status);
+        const parsedError = parseAppErrorResponse(responseBody, response.status) ?? classifyHttpError(response.status);
 
         if (!parsedError.requestId) {
           (parsedError as { requestId?: string }).requestId = requestId;
@@ -308,27 +317,15 @@ export function createApiClient(options: ApiClientOptions) {
       return request<TResponse>("GET", path, undefined, opts);
     },
 
-    post<TResponse, TBody = unknown>(
-      path: string,
-      body?: TBody,
-      opts?: RequestOptions
-    ): Promise<TResponse> {
+    post<TResponse, TBody = unknown>(path: string, body?: TBody, opts?: RequestOptions): Promise<TResponse> {
       return request<TResponse>("POST", path, body, opts);
     },
 
-    patch<TResponse, TBody = unknown>(
-      path: string,
-      body?: TBody,
-      opts?: RequestOptions
-    ): Promise<TResponse> {
+    patch<TResponse, TBody = unknown>(path: string, body?: TBody, opts?: RequestOptions): Promise<TResponse> {
       return request<TResponse>("PATCH", path, body, opts);
     },
 
-    put<TResponse, TBody = unknown>(
-      path: string,
-      body?: TBody,
-      opts?: RequestOptions
-    ): Promise<TResponse> {
+    put<TResponse, TBody = unknown>(path: string, body?: TBody, opts?: RequestOptions): Promise<TResponse> {
       return request<TResponse>("PUT", path, body, opts);
     },
 

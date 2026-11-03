@@ -31,6 +31,7 @@ function createHarness(verified = true) {
     ),
   };
   const verificationService = {
+    getAiAccessStatus: vi.fn().mockResolvedValue({canAccessAi: verified, accessRequirement: verified ? null : "verification"}),
     assertAiAccess: vi.fn().mockImplementation(async () => {
       if (!verified) throw new VerificationRequiredError("submitted");
     }),
@@ -48,6 +49,16 @@ function createHarness(verified = true) {
 }
 
 describe("experience routes", () => {
+  it("checks Buddy eligibility live and returns privacy only for an approved owner", async () => {
+    const allowed=createHarness();
+    expect((await request(allowed.app).get("/api/v1/buddy/access")).status).toBe(401);
+    const response=await request(allowed.app).get("/api/v1/buddy/access").set("Authorization","Bearer valid-token");
+    expect(response.status).toBe(200);expect(response.headers["cache-control"]).toContain("no-store");
+    expect(response.body.data).toEqual({canAccessAi:true,accessRequirement:null,buddyHistoryEnabled:true});
+    expect(allowed.verificationService.getAiAccessStatus).toHaveBeenCalledWith("user-1");
+    const denied=createHarness(false);const deniedResponse=await request(denied.app).get("/api/v1/buddy/access").set("Authorization","Bearer valid-token");
+    expect(deniedResponse.body.data.canAccessAi).toBe(false);expect(denied.service.buddyPrivacy).not.toHaveBeenCalled();
+  });
   it("keeps personal dashboard data behind Supabase authentication", async () => {
     const { app, service } = createHarness();
 

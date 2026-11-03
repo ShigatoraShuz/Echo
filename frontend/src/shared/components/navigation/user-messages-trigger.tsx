@@ -1,11 +1,11 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
-import dynamic from "next/dynamic";
+import { UserMessageDrawer } from "./user-message-drawer";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const UserMessageDrawer = dynamic(() => import("./user-message-drawer").then((module) => module.UserMessageDrawer));
+
 
 export function UserMessagesTrigger() {
   const pathname = usePathname();

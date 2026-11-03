@@ -162,6 +162,7 @@ export function AppSidebar({
             const isActive = (preview && item.href === "/dashboard") || activeId === item.id;
             return (
               <Link
+                prefetch={true}
                 key={item.href}
                 href={
                   preview && item.href === "/dashboard"

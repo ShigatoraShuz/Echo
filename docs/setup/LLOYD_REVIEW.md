@@ -2,6 +2,14 @@
 
 This branch connects native text inference and final v4 face evaluation to Echo, adds encrypted journal-linked facial results and displays saved model outputs in dashboard/insights. Buddy inference queues overlapping requests; memory-budgeted model reuse avoids reloading the writer between journal and Buddy calls. The camera UI shows the landmark mesh and status indicators; the raw video remains hidden.
 
+## Latest review update (2026-11-03)
+
+- Includes Lloyd's main changes through `25fde34`, with the journal/dashboard/insights and model integration work preserved. The message drawer opens reliably on its first click.
+- Custom tab-change WAVs rotate without consecutive repeats; dialogs use the dedicated popup clip. Enable Interface sounds in Settings > Profile > Appearance. The app fetches one versioned JSON bundle instead of media download links, avoiding the direct WAV requests intercepted by IDM. To replace clips, update `frontend/assets/interface-sounds/` and run `node scripts/build-interface-sounds.mjs`.
+- Find help uses verified session-aware navigation: signed-in users retain the app menu, and visitors retain public directory access. Search, filters, narrow layouts and both directory/guidance scrolling were browser-checked.
+- See [TAB_NAVIGATION_PERFORMANCE.md](TAB_NAVIGATION_PERFORMANCE.md) for all nine before/after navigation timings, cache scope/invalidation, live eligibility checks and validation limits. Most repeat screen transitions measured 44–91 ms locally; Buddy and Insights retain fresh backend checks and measured about 1.3 s.
+- Latest validation: 1,255 frontend tests, 61 affected backend checks, focused follow-up tests, type checks, lint and production build passed. Browser regressions covered custom audio without WAV download events, Find help, data refresh after AI completion, and denied-access protection for cached views. No models or inference settings were changed by this performance update.
+
 ## Setup
 
 1. Install Node 24+ and run `npm ci`.

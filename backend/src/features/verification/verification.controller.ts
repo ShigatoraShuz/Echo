@@ -84,6 +84,10 @@ function parameter(request: Request, name: string): string {
 
 export function createVerificationController(service: VerificationService) {
   return {
+    async access(request: Request, response: Response) {
+      response.setHeader("Cache-Control", "no-store");
+      sendSuccess(response, await service.getAiAccessStatus(authenticatedUserId(request)));
+    },
     async reviewerAccess(request: Request, response: Response) {
       response.setHeader("Cache-Control", "no-store");
       sendSuccess(response, { canReview: await service.isAdmin(authenticatedUserId(request)) });

@@ -66,7 +66,7 @@ describe("settingsService", () => {
   it("loads the small authenticated profile summary for navigation", async () => {
     api.get.mockResolvedValueOnce({ success: true, data: { displayName: "Mira", avatarPath: null } });
     await expect(settingsService.getProfileSummary()).resolves.toEqual({ displayName: "Mira", avatarPath: null });
-    expect(api.get).toHaveBeenCalledWith("/settings/profile");
+    expect(api.get).toHaveBeenCalledWith("/settings/profile", { navigationCache: true });
   });
 
   it("encodes trusted-contact identifiers before updating", async () => {
