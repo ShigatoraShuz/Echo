@@ -114,3 +114,8 @@ frontend/assets/e2d821df-*.png
 
 /models/
 /models.staging/
+
+# Local model bundle archives must never be published.
+/models.zip
+/models*.7z
+/models*.tar*

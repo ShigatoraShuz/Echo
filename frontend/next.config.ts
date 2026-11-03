@@ -50,6 +50,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: process.env.ECHO_REMOTE_API_BASE_URL
+    ? [new URL(process.env.ECHO_REMOTE_API_BASE_URL).hostname]
+    : [],
   experimental: { staleTimes: { dynamic: 60, static: 60 } },
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Defense in depth: neither clinician demo nor the legacy fixture laboratory
@@ -91,6 +94,12 @@ const nextConfig: NextConfig = {
         hostname: "plus.unsplash.com",
       },
     ],
+  },
+  async rewrites() {
+    return [{
+      source: "/api/v1/:path*",
+      destination: "http://127.0.0.1:4200/api/v1/:path*",
+    }];
   },
   async headers() {
     return [

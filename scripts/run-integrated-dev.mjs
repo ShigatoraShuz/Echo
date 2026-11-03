@@ -64,7 +64,7 @@ try {
       ECHO_ACTIVE_MODELS: '{}', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_DATASETS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1',
       FRONTEND_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_SUPABASE_URL: configured.SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configured.SUPABASE_PUBLISHABLE_KEY,
-      NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4200/api/v1', GATEWAY_API_BASE_URL: 'http://127.0.0.1:4200/api/v1',
+      NEXT_PUBLIC_API_BASE_URL: process.env.ECHO_REMOTE_API_BASE_URL ?? 'http://127.0.0.1:4200/api/v1', GATEWAY_API_BASE_URL: 'http://127.0.0.1:4200/api/v1',
     });
     // Fail before launching if the additive, service-role-only scoped RPC is absent.
     if (!localJson) {

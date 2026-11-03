@@ -4,3 +4,7 @@ supabase/migrations/*.sql -text
 # Exact vendor bytes are covered by Leo's installed manifest.
 ai-service/app/vendor/xlmr/core.py text eol=lf
 ai-service/app/vendor/xlmr/inference.py text eol=lf
+
+# Pinned Buddy source checksums cover original bytes, including line endings.
+ai-service/app/buddy/v3/** -text
+ai-service/app/buddy/nano_vendor/** -text
