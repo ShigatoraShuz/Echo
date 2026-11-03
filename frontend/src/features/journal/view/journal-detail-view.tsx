@@ -95,6 +95,30 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   );
   const hasPhotos = (entry.images?.length ?? 0) > 0;
   const hasLabels = entry.emotions.length > 0 || entry.tags.length > 0;
+  const photoControls = (
+    <>
+      {(entry.images?.length ?? 0) < 5 && (
+        <label className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-primary/15 bg-white/75 px-4 text-sm font-semibold text-primary transition-colors hover:bg-[#edf3ea] focus-within:ring-4 focus-within:ring-primary/20">
+          <ImagePlus className="h-4 w-4" aria-hidden="true" />{" "}
+          {uploadingPhotos ? "Uploading…" : hasPhotos ? "Add more photos" : "Add your photos"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            onChange={(event) => void addPhotos(event)}
+            disabled={uploadingPhotos}
+            aria-label="Add photos to reflection"
+            className="sr-only"
+          />
+        </label>
+      )}
+      {photoUploadError && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {photoUploadError}
+        </p>
+      )}
+    </>
+  );
 
   return (
     <div className="echo-workspace-enter mx-auto min-w-0 journal-studio max-w-[1480px] pb-8 lg:pb-0 [font-family:var(--font-echo-sans)]">
@@ -148,6 +172,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
                 <time dateTime={entry.createdAt} className="font-medium tracking-[.08em]">
                   {createdAt}
                 </time>
+                {!hasPhotos && photoControls}
               </div>
 
               <header className="max-w-[44rem] pb-2 pt-9 sm:pt-12">
@@ -159,29 +184,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
                 </h1>
               </header>
 
-              <div className="mt-8 max-w-[42rem] sm:mt-10">
-                <JournalPhotoStack images={entry.images ?? []} />
-                {(entry.images?.length ?? 0) < 5 && (
-                  <label className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-primary/15 bg-white/75 px-4 text-sm font-semibold text-primary transition-colors hover:bg-[#edf3ea] focus-within:ring-4 focus-within:ring-primary/20">
-                    <ImagePlus className="h-4 w-4" aria-hidden="true" />{" "}
-                    {uploadingPhotos ? "Uploading…" : hasPhotos ? "Add more photos" : "Add your photos"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      multiple
-                      onChange={(event) => void addPhotos(event)}
-                      disabled={uploadingPhotos}
-                      aria-label="Add photos to reflection"
-                      className="sr-only"
-                    />
-                  </label>
-                )}
-                {photoUploadError && (
-                  <p role="alert" className="mt-2 text-sm text-danger">
-                    {photoUploadError}
-                  </p>
-                )}
-              </div>
+              {hasPhotos && (
+                <div className="mt-8 max-w-[42rem] sm:mt-10">
+                  <JournalPhotoStack images={entry.images ?? []} />
+                  {photoControls}
+                </div>
+              )}
 
               <div className="mt-9 max-w-[68ch] border-t border-[#e6e0d3] pt-8 sm:mt-12 sm:pt-10">
                 <p className="journal-ink-arrive whitespace-pre-wrap break-words text-[1.08rem] leading-[1.9] text-foreground/90 sm:text-[1.2rem] [font-family:var(--font-echo-display)]">
