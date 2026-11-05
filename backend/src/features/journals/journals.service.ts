@@ -529,7 +529,7 @@ export class JournalService {
       body: journal.body,
       excerpt: journal.body.slice(0, 180),
 
-      emotions: asStringArray(row.emotions),
+      emotions: this.detectedEmotions(analysis),
       tags: asStringArray(row.tags),
       privacy_status: asString(row.privacy_status, "private"),
       analysis_consent: this.localResults ? Boolean(this.localResults.journal(asString(row.user_id),asString(row.id))) : row.analysis_consent === true,
@@ -546,15 +546,37 @@ export class JournalService {
     };
   }
 
-  private detectedEmotion(analysis:AnalysisRow|null):string|null{
-    if(!analysis?.result_payload)return null;
-    const result=this.readAnalysisResult(analysis.result_payload);
-    if(!result||result.isSimulated||!['echo-journal-analysis-v2','echo-journal-analysis-v3'].includes(result.schemaVersion))return null;
-    const label=(result as {dominantEmotion?:string}).dominantEmotion;
-    return label&&['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'].includes(label)?label:null;
+  private detectedEmotion(analysis: AnalysisRow | null): string | null {
+    return this.detectedEmotions(analysis).find(label => ['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'].includes(label)) ?? null;
   }
+
+  private async listAnalyses(userId: string, ids: string[]): Promise<Map<string, AnalysisRow>> {
+    if (!ids.length) return new Map();
+    const analysisResult = await (this.localResults ? Promise.resolve({data:ids.flatMap(id=>{const job=this.localResults!.journal(userId,id);return job?.result_ciphertext?[{...this.localRow(job),analysis_requests:{journal_id:id}}]:[];}),error:null}) : this.database.schema("ai_analysis").from("analysis_results")
+        .select("*,analysis_requests!inner(journal_id,deleted_at)")
+        .eq("user_id", userId).is("analysis_requests.deleted_at", null)
+        .in("analysis_requests.journal_id", ids).order("created_at", { ascending: false }));
+    if (analysisResult.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal analysis could not be loaded.");
+    const analyses = new Map<string, AnalysisRow>();
+    for (const analysis of (analysisResult.data ?? []) as AnalysisRow[]) {
+      const request = analysis.analysis_requests as Record<string, unknown> | undefined;
+      const id = asString(request?.journal_id);
+      if (id && !analyses.has(id)) analyses.set(id, analysis);
+    }
+    return analyses;
+  }
+
+  private detectedEmotions(analysis: AnalysisRow | null): string[] {
+    if (!analysis?.result_payload) return [];
+    const result = this.readAnalysisResult(analysis.result_payload);
+    if (result.isSimulated) return [];
+    return result.schemaVersion === "echo-model-pipeline-v2"
+      ? result.stages.peak.result?.topFive.map(item => item.label) ?? []
+      : [result.dominantEmotion];
+  }
+
   async listPage(userId: string, options: {
-    page: number; pageSize: number; query: string; emotion?:string; mood?: JournalInput["mood"];
+    page: number; pageSize: number; query: string; emotion?: string; mood?: JournalInput["mood"];
     dateFrom?: string; dateTo?: string; sort: "newest" | "oldest";
   }): Promise<{ entries: JournalResponse[]; total: number; page: number; page_size: number }> {
     const start = (options.page - 1) * options.pageSize;
@@ -576,15 +598,9 @@ export class JournalService {
         const { data, error } = await base().range(offset, offset + 499);
         if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "search journals" }, "The journal service is temporarily unavailable.");
         const batch = (data ?? []) as JournalRow[];
-        let emotionResults=new Map<string,AnalysisRow>();
-        if(options.emotion&&batch.length){
-          const ids=batch.map(row=>asString(row.id));
-          const result=this.localResults?{data:ids.flatMap(id=>{const job=this.localResults!.journal(userId,id);return job?.result_ciphertext?[{...this.localRow(job),analysis_requests:{journal_id:id}}]:[];}),error:null}:await this.database.schema('ai_analysis').from('analysis_results').select('*,analysis_requests!inner(journal_id,deleted_at)').eq('user_id',userId).is('analysis_requests.deleted_at',null).in('analysis_requests.journal_id',ids).order('created_at',{ascending:false});
-          if(result.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Detected emotions could not be loaded.');
-          for(const item of result.data??[]){const id=asString((item.analysis_requests as Record<string,unknown>)?.journal_id);if(id&&!emotionResults.has(id))emotionResults.set(id,item as AnalysisRow);}
-        }
+        const batchAnalyses = options.emotion ? await this.listAnalyses(userId, batch.map(row => asString(row.id))) : null;
         for (const row of batch) {
-          if(options.emotion&&this.detectedEmotion(emotionResults.get(asString(row.id))??null)!==options.emotion)continue;
+          if (options.emotion && !this.detectedEmotions(batchAnalyses?.get(asString(row.id)) ?? null).includes(options.emotion)) continue;
           const { title, body } = this.decryptJournal(row);
           if (`${title}\n${body}\n${asStringArray(row.tags).join("\n")}`.toLocaleLowerCase().includes(needle)) matches.push(row);
         }
@@ -600,20 +616,10 @@ export class JournalService {
     }
     const ids = rows.map((row) => asString(row.id));
     if (ids.length === 0) return { entries: [], total, page: options.page, page_size: options.pageSize };
-    const [analysisResult, images] = await Promise.all([
-      this.localResults ? Promise.resolve({data:ids.flatMap(id=>{const job=this.localResults!.journal(userId,id);return job?.result_ciphertext?[{...this.localRow(job),analysis_requests:{journal_id:id}}]:[];}),error:null}) : this.database.schema("ai_analysis").from("analysis_results")
-        .select("*,analysis_requests!inner(journal_id,deleted_at)")
-        .eq("user_id", userId).is("analysis_requests.deleted_at", null)
-        .in("analysis_requests.journal_id", ids).order("created_at", { ascending: false }),
+    const [analyses, images] = await Promise.all([
+      this.listAnalyses(userId, ids),
       new JournalImagesService(this.database).listForJournals(userId, ids),
     ]);
-    if (analysisResult.error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Journal analysis could not be loaded.");
-    const analyses = new Map<string, AnalysisRow>();
-    for (const analysis of (analysisResult.data ?? []) as AnalysisRow[]) {
-      const request = analysis.analysis_requests as Record<string, unknown> | undefined;
-      const id = asString(request?.journal_id);
-      if (id && !analyses.has(id)) analyses.set(id, analysis);
-    }
     return {
       entries: rows.map((row) => {
         const id = asString(row.id);

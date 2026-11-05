@@ -268,3 +268,28 @@ def test_unload_does_not_disrupt_active_owner():
     runtime.evict = lambda: pytest.fail("Active owner must be preserved")
     with pytest.raises(TalkBusyError):
         runtime.dispatch("page", {"task": "unload"})
+
+
+def test_buddy_environment_defaults_are_local_to_the_checkout(monkeypatch):
+    from app.buddy import config
+    for name in config.BUDDY_ENV_KEYS:
+        monkeypatch.delenv(name, raising=False)
+    paths = config.paths()
+    service = config.HERE.parents[1]
+    assert paths["cbt"] == service / ".venv-core/Scripts/python.exe"
+    assert paths["nano"] == service / ".venv-nano/Scripts/python.exe"
+    assert paths["whisper"] == service / ".venv-speech/Scripts/python.exe"
+    monkeypatch.setenv("BUDDY_CBT_PYTHON", "D:/custom/python.exe")
+    assert config.paths()["cbt"] == Path("D:/custom/python.exe")
+
+
+def test_cbt_backend_is_explicit_and_rejects_invalid_selection(monkeypatch):
+    from app.buddy.config import cbt_backend, BUDDY_ENV_KEYS
+    monkeypatch.delenv("BUDDY_CBT_BACKEND", raising=False)
+    assert cbt_backend() == "llama_cpp"
+    monkeypatch.setenv("BUDDY_CBT_BACKEND", "native")
+    assert cbt_backend() == "native"
+    assert "BUDDY_CBT_BACKEND" in BUDDY_ENV_KEYS
+    monkeypatch.setenv("BUDDY_CBT_BACKEND", "fallback")
+    with pytest.raises(ValueError, match="BUDDY_CBT_BACKEND_INVALID"):
+        cbt_backend()

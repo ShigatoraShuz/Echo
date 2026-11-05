@@ -125,7 +125,10 @@ export function useJournalListViewModel() {
     dispatch({ type: "SET_PAGE", page });
   }, []);
 
-  const setEmotionFilter=useCallback((emotion:JournalEmotion|null)=>dispatch({type:"SET_FILTERS",filters:{emotion,mood:null}}),[]);
+  const setEmotionFilter = useCallback((emotion: string | null) => {
+    dispatch({ type: "SET_FILTERS", filters: { emotion, mood: null } });
+  }, []);
+
   const setMoodFilter = useCallback((mood: JournalMood | null) => {
     dispatch({ type: "SET_FILTERS", filters: { mood } });
   }, []);
@@ -166,7 +169,8 @@ export function useJournalListViewModel() {
     setSearch,
     applySearch,
     setFilters,
-    setMoodFilter,setEmotionFilter,
+    setMoodFilter,
+    setEmotionFilter,
     setSort,
     setPage,
     deleteEntry,

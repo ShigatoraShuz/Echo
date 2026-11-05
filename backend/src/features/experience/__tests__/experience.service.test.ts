@@ -129,7 +129,10 @@ describe("ExperienceService.Buddy privacy", () => {
     conversation.select.mockReturnValue(conversation); conversation.eq.mockReturnValue(conversation);
     const database = { schema: vi.fn(() => ({ from: vi.fn((table: string) => table === "buddy_messages" ? messages : conversation) })) };
     const service = new ExperienceService(database as never, {} as JournalService, encryption);
+    const replay = vi.spyOn(service as unknown as { rememberReply: (user: string, text: string) => void }, "rememberReply");
     const session = await service.buddySession("owner", "owned");
+    expect(replay).toHaveBeenCalledWith("owner", "Fictional original reply");
+    expect(replay).toHaveBeenCalledWith("owner", "Fictional historical reply");
     expect(session.messages.map(message => message.content)).toEqual(["Fictional original reply", "Fictional historical reply"]);
     expect(session.messages[1].generation).toEqual(generation);
     expect(conversation.eq).toHaveBeenCalledWith("user_id", "owner");
@@ -292,4 +295,19 @@ describe("ExperienceService.supportResources", () => {
     expect(chain.eq).toHaveBeenCalledWith("is_verified", true);
     expect(chain.eq).toHaveBeenCalledWith("country_code", "PH");
   });
+});
+
+
+it("uses real CBT text inference without loading speech workers for a text-only message", async () => {
+  const privacy = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn(async () => ({ data: { buddy_history_enabled: false }, error: null })) };
+  privacy.select.mockReturnValue(privacy); privacy.eq.mockReturnValue(privacy);
+  const database = { schema: vi.fn(() => ({ from: vi.fn(() => privacy) })) };
+  const core = { chat: vi.fn(async () => ({ reply: "Try one small step.", supportRequired: false, model: { providerName: "real-cbt" }, quality: {} })), talk: vi.fn() };
+  const service = new ExperienceService(database as never, {} as JournalService, {} as EncryptionService, undefined, undefined, core as never);
+  const warm = vi.spyOn(service, "ensureBuddyPrepared");
+  const result = await service.sendBuddyMessage("owner", "I feel overwhelmed by schoolwork.");
+  expect(core.chat).toHaveBeenCalledWith([{ role: "user", content: "I feel overwhelmed by schoolwork." }]);
+  expect(warm).not.toHaveBeenCalled();
+  expect(core.talk).not.toHaveBeenCalled();
+  expect(result.messages.at(-1)?.content).toBe("Try one small step.");
 });

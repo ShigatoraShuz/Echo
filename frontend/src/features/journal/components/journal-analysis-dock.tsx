@@ -41,6 +41,7 @@ export function JournalAnalysisDock({
   capture,
   initialSubmission,
   saving = false,
+  finalizing = false,
 }: {
   journalId?: string;
   enabled: boolean;
@@ -50,6 +51,7 @@ export function JournalAnalysisDock({
   capture?: ReactNode;
   initialSubmission?: JournalSubmissionResponse | null;
   saving?: boolean;
+  finalizing?: boolean;
 }) {
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const submission = useMemo<JournalSubmissionResponse | null>(
@@ -100,6 +102,7 @@ export function JournalAnalysisDock({
         />
       </header>
       <div className="journal-report-body">
+        {finalizing && <p role="status" className="mb-4 text-sm text-muted-foreground">Reflection saved. Finishing its optional attachments…</p>}
         {saving ? (
           <div className="journal-report-idle" role="status" aria-live="polite">
             <div className="journal-idle-orbit"><Leaf size={30} aria-hidden="true" /></div>

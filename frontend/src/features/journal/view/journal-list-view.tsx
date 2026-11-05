@@ -20,7 +20,7 @@ import { EchoLoadingState } from "@/shared/components/feedback/echo-loading-stat
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { formatJournalDate } from "../utils/journal-formatters";
-import journalLandscape from "../../../../assets/growth-doorway-hill.png";
+import journalWriting from "../../../../assets/journal-writing.webp";
 
 type JournalViewMode = "timeline" | "grid";
 
@@ -114,8 +114,8 @@ export function JournalListView() {
 
         {/* Hero Illustration */}
         <Image
-          src={journalLandscape}
-          alt="A doorway on a quiet hillside"
+          src={journalWriting}
+          alt="An open journal and green fountain pen in warm sunlight"
           priority
           className="absolute inset-y-0 right-0 hidden h-full w-[42%] object-cover object-center opacity-85 [mask-image:linear-gradient(to_left,black_65%,transparent)] md:block"
         />

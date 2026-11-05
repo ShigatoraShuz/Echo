@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BadgeCheck, LockKeyhole } from "lucide-react";
 import { getVerificationService } from "@/services/verification/verification-service.factory";
 
-export function VerifiedFeatureGate({ children, featureName }: { children: ReactNode; featureName: string }) {
+export function VerifiedFeatureGate({ children, featureName, loadingFallback }: { children: ReactNode; featureName: string; loadingFallback?: ReactNode }) {
   const [access, setAccess] = useState<"loading" | "allowed" | "verification" | "trusted_contact" | "error">("loading");
   const [retry, setRetry] = useState(0);
 
@@ -46,7 +46,7 @@ export function VerifiedFeatureGate({ children, featureName }: { children: React
   }, [retry]);
 
   if (access === "loading") {
-    return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70 motion-reduce:animate-none" />;
+    return loadingFallback ?? <div className="h-72 animate-pulse rounded-[2rem] bg-card/70 motion-reduce:animate-none" />;
   }
 
   if (access !== "allowed") {

@@ -14,6 +14,17 @@ describe("health endpoints", () => {
     expect(response.body.meta.requestId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
+  it.each([true, false, "throws"])("reports dependency readiness accurately: %s", async (state) => {
+    const app = createApp();
+    app.locals.checkReadiness = async () => {
+      if (state === "throws") throw new Error("private dependency detail");
+      return state === true;
+    };
+    const response = await request(app).get("/api/v1/health/ready");
+    expect(response.status).toBe(state === true ? 200 : 503);
+    expect(response.body.data.status).toBe(state === true ? "ready" : "not_ready");
+    expect(JSON.stringify(response.body)).not.toContain("private dependency detail");
+  });
   it("returns a safe standardized 404 response", async () => {
     const response = await request(createApp()).get("/api/v1/missing");
 

@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BookOpen, ChevronLeft, ChevronRight, ImagePlus, PenLine, Search } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, PenLine, Search } from "lucide-react";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
-import { JOURNAL_EMOTIONS } from "../model/journal.model";
-import type { JournalEntry, JournalMood } from "../model/journal.model";
+import { goEmotionNameSchema, plutchikEmotionSchema, emotionNameSchema } from "@echo/contracts";
+import type { JournalEntry } from "../model/journal.model";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
 import { JournalPolaroid } from "../components/journal-polaroid";
 
-const moods = JOURNAL_EMOTIONS;
+const mainEmotions: readonly string[] = plutchikEmotionSchema.options;
+const moreEmotions: string[] = [...new Set([...goEmotionNameSchema.options, ...emotionNameSchema.options])]
+  .filter(emotion => !mainEmotions.includes(emotion)).sort();
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
   month: "short",
@@ -75,7 +77,8 @@ export function JournalNotebookView() {
             Search
           </button>
         </form>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2" aria-label="Filter by detected emotion">
+        <p className="mt-3 text-xs text-[var(--landing-muted)]">Filter by saved AI emotion signals</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2 pb-2" aria-label="Filter by detected emotion">
           <button
             type="button"
             onClick={() => vm.setEmotionFilter(null)}
@@ -84,17 +87,31 @@ export function JournalNotebookView() {
           >
             All entries
           </button>
-          {moods.map((mood) => (
+          {mainEmotions.map((emotion) => (
             <button
-              key={mood}
+              key={emotion}
               type="button"
-              onClick={() => vm.setEmotionFilter(mood)}
-              aria-pressed={vm.filters.emotion === mood}
-              className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold capitalize ${vm.filters.emotion === mood ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
+              onClick={() => vm.setEmotionFilter(emotion)}
+              aria-pressed={vm.filters.emotion === emotion}
+              className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold capitalize ${vm.filters.emotion === emotion ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
             >
-              {mood}
+              {emotion}
             </button>
           ))}
+          <div className="relative">
+            <select
+              aria-label="More emotions"
+              value={moreEmotions.includes(vm.filters.emotion ?? "") ? vm.filters.emotion! : ""}
+              onChange={event => vm.setEmotionFilter(event.target.value)}
+              className={`min-h-9 max-w-full appearance-none rounded-full border py-2 pl-3 pr-8 text-xs font-semibold capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] focus-visible:ring-offset-2 ${moreEmotions.includes(vm.filters.emotion ?? "") ? "border-transparent bg-[var(--landing-primary)] text-white" : "border-[var(--landing-primary-15)] bg-card text-[var(--landing-muted)]"}`}
+            >
+              <option value="" disabled>More emotions</option>
+              {moreEmotions.map(emotion => (
+                <option key={emotion} value={emotion}>{emotion.charAt(0).toUpperCase() + emotion.slice(1)}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" />
+          </div>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2">
           <Link
@@ -153,9 +170,11 @@ export function JournalNotebookView() {
                 <>
                   <div className="flex items-start justify-between gap-2">
                     <span className="line-clamp-1 font-semibold text-[var(--landing-ink)]">{entry.title}</span>
-                    <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[10px] capitalize text-[var(--landing-primary)]">
-                      {entry.mood}
-                    </span>
+                    {entry.emotions.length > 0 && (
+                      <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[10px] capitalize text-[var(--landing-primary)]">
+                        {entry.emotions[0]}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--landing-muted)]">
                     {entry.excerpt || entry.body}

@@ -21,7 +21,7 @@ describe("journal content transition", () => {
       error: null,
       searchInput: "",
       isFiltered: false,
-      setSearch: vi.fn(), applySearch: vi.fn(), setMoodFilter: vi.fn(), setSort: vi.fn(), setPage: vi.fn(), resetFilters: vi.fn(), retry: vi.fn(),
+      setSearch: vi.fn(), applySearch: vi.fn(), setMoodFilter: vi.fn(), setEmotionFilter: vi.fn(), setSort: vi.fn(), setPage: vi.fn(), resetFilters: vi.fn(), retry: vi.fn(),
     };
     const { container, rerender } = render(<JournalListView />);
     const loadingContent = container.querySelector(".echo-member-content-swap");

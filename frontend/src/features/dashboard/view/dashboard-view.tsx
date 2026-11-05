@@ -80,8 +80,16 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
   const [activityWeeks, setActivityWeeks] = useState(26);
 
-  if (isLoading) {
-    return <LoadingState label="Loading your ECHO space..." />;
+  if (isLoading && !data) {
+    return (
+      <div aria-busy="true" className="echo-dashboard-welcome dashboard-premium space-y-4">
+        <header className="echo-dashboard-hero rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6">
+          <p className="dashboard-eyebrow mb-3">YOUR QUIET CORNER</p>
+          <h1 className="font-serif text-3xl text-foreground">Dashboard</h1>
+        </header>
+        <LoadingState label="Loading your ECHO space..." />
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -133,7 +141,8 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   const wellbeingActivity = buildWellbeingActivity(journalEntries);
 
   return (
-    <div className="echo-dashboard-welcome dashboard-premium space-y-4">
+    <div aria-busy={isLoading} className="echo-dashboard-welcome dashboard-premium space-y-4">
+      {isLoading && <p role="status" className="sr-only">Updating your dashboard…</p>}
       <WellnessCheckin preview={preview} />
 
       <div className="dashboard-top-grid grid gap-4 lg:grid-cols-2 xl:grid-cols-12">

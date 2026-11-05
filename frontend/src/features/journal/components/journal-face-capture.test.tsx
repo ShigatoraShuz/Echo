@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-this-alias -- Worker test doubles expose their instance for lifecycle assertions. */
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { JournalFaceCapture } from "./journal-face-capture";
+import { createRef } from "react";
+import { JournalFaceCapture, type JournalFaceCaptureHandle } from "./journal-face-capture";
+vi.mock("@/infrastructure/api/supabase-auth-token-provider", () => ({supabaseAuthTokenProvider:{getAccessToken:async()=>"synthetic-token"}}));
 const original = Object.getOwnPropertyDescriptor(navigator, "mediaDevices");
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
@@ -106,4 +108,37 @@ it("shows a recoverable camera denial without starting a worker", async () => {
   expect(await screen.findByText("Camera access is blocked")).toBeVisible();
   expect(screen.getByRole("button", { name: "Retry camera" })).toBeEnabled();
   expect(WorkerMock).not.toHaveBeenCalled();
+});
+
+it("captures immediately at Save even when the live preview request never completes", async () => {
+  const image = new Blob(["synthetic frame"], {type:"image/jpeg"});
+  vi.spyOn(HTMLVideoElement.prototype,"videoWidth","get").mockReturnValue(640);
+  vi.spyOn(HTMLMediaElement.prototype,"readyState","get").mockReturnValue(4);
+  vi.spyOn(HTMLCanvasElement.prototype,"toBlob").mockImplementation(callback=>callback(image));
+  const clock=vi.spyOn(Date,"now").mockReturnValue(20000);
+  let worker!: FakeWorker;
+  class FakeWorker {
+    onmessage: ((event: MessageEvent)=>void)|null=null;
+    postMessage=vi.fn(); terminate=vi.fn();
+    constructor(){worker=this;}
+  }
+  vi.stubGlobal("Worker",FakeWorker);
+  Object.defineProperty(navigator,"mediaDevices",{configurable:true,value:{getUserMedia:async()=>({getTracks:()=>[{stop:vi.fn()}]})}});
+  const pending=vi.fn(()=>new Promise(()=>{}));vi.stubGlobal("fetch",pending);
+  const ref=createRef<JournalFaceCaptureHandle>();
+  const view=render(<JournalFaceCapture ref={ref} running />);
+  await waitFor(()=>expect(worker).toBeDefined());
+  const timers=new Map<number,()=>void>();
+  vi.spyOn(globalThis,"setInterval").mockImplementation(((callback:()=>void,delay:number)=>{timers.set(delay,callback);return 12345;}) as typeof setInterval);
+  await act(async()=>{
+    worker.onmessage?.({data:{type:"ready",connections:[]}} as MessageEvent);
+    worker.onmessage?.({data:{type:"result",landmarks:Array.from({length:478},()=>[0.5,0.5,0]),blendshapes:Array.from({length:52},()=>({name:"test",score:0}))}} as MessageEvent);
+  });
+  clock.mockReturnValue(21000);
+  await act(async()=>timers.get(1000)?.());
+  expect(pending).toHaveBeenCalledOnce();
+  await act(async()=>expect(await ref.current!.getStill()).toBe(image));
+  expect((pending.mock.calls[0] as unknown as [string,RequestInit])[1].signal?.aborted).toBe(true);
+  expect(ref.current!.getCapture()?.landmarks).toHaveLength(478);
+  view.unmount();
 });

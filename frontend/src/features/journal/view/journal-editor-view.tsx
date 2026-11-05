@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { type ChangeEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ImagePlus, LockKeyhole, Save } from "lucide-react";
-import journalLandscape from "../../../../assets/growth-doorway-hill.png";
+import { ArrowLeft, ImagePlus, LockKeyhole, Save, Music2, Pause, Play } from "lucide-react";
+import { useJournalMusic } from "../view-model/use-journal-music";
+import journalWriting from "../../../../assets/journal-writing.webp";
 import { env } from "@/config/environment";
 import { settingsService } from "@/services/settings";
 import { getJournalService } from "@/services/journal/journal-service.factory";
@@ -42,6 +43,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     previousDraft,discardPreviousDraft,shouldRestorePhotos,editorGeneration,
     savedEntry,
     analysisSubmission,
+    pendingSubmission,
     setTitle,
     setBody,
     setTags,
@@ -51,7 +53,9 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     saveDraftNow,
     reset,
   } = useJournalEditorViewModel({resumeDraft});
-  const report = useJournalDetailViewModel(analysisSubmission?.journalId ?? "");
+  const music = useJournalMusic(Boolean(analysisSubmission || savedEntry));
+  const activeSubmission = analysisSubmission ?? pendingSubmission;
+  const report = useJournalDetailViewModel(activeSubmission?.journalId ?? "");
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
   const [photoError, setPhotoError] = useState("");
   const [photosLoaded, setPhotosLoaded] = useState(false);
@@ -395,7 +399,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               </label>
               <input
                 id="journal-title"
-                readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
+                readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => void saveDraftNow()}
@@ -415,9 +419,12 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               </label>
               <textarea
                 id="journal-body"
-                readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
+                readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
                 value={body}
-                onChange={(event) => setBody(event.target.value)}
+                onChange={(event) => {
+                  setBody(event.target.value);
+                  if (event.target.value.trim()) void music.start();
+                }}
                 onBlur={() => void saveDraftNow()}
                 placeholder="Start writing…"
                 className="min-h-[18rem] w-full resize-y bg-transparent text-base leading-8 text-foreground outline-none placeholder:text-muted-foreground/50 sm:min-h-[23rem]"
@@ -427,9 +434,21 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                   {fieldErrors.body[0]}
                 </p>
               )}
-              <p className="border-t border-border/50 py-3 text-right text-xs text-muted-foreground">
-                {wordCount} words · {charCount} characters
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Music2 size={14} aria-hidden="true" className="text-primary" />
+                  {music.playback === "idle" ? <span>Music begins as you write</span> : music.playback === "unavailable" ? <span>Journal music unavailable</span> : (
+                    <>
+                      <button type="button" onClick={music.toggle} disabled={music.playback === "loading"} aria-label={music.playback === "playing" ? "Pause journal music" : "Resume journal music"} className="inline-flex min-h-9 items-center gap-2 rounded-full px-2 text-primary outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-primary">
+                        {music.playback === "playing" ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
+                        {music.playback === "loading" ? "Preparing music…" : music.playback === "playing" ? "Journal music" : "Music paused"}
+                      </button>
+                      <input type="range" aria-label="Journal music volume" min="0" max="100" value={Math.round(music.volume * 100)} onChange={event => music.changeVolume(Number(event.target.value) / 100)} className="w-20 accent-[var(--landing-primary)]" />
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{wordCount} words · {charCount} characters</p>
+              </div>
             </div>
             {(!analysisSubmission || photos.length > 0) && <div className="border-t border-border/60 bg-secondary/20 px-5 py-6 sm:px-10">
               <div className="flex items-center justify-between gap-3">
@@ -448,7 +467,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                     accept="image/jpeg,image/png,image/webp"
                     multiple
                     onChange={addPhotos}
-                    disabled={photos.length >= 5 || !photosLoaded || isSaving || Boolean(analysisSubmission)}
+                    disabled={photos.length >= 5 || !photosLoaded || isSaving || Boolean(activeSubmission)}
                     className="sr-only"
                     aria-label="Upload journal photos"
                   />
@@ -489,8 +508,8 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                   ))
                 ) : (
                   <JournalPolaroid
-                    src={journalLandscape}
-                    alt="Illustration of a doorway on a hillside"
+                    src={journalWriting}
+                    alt="An open journal and green fountain pen in warm sunlight"
                     caption="Illustration · add your own photo"
                   />
                 )}
@@ -524,7 +543,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 </label>
                 <input
                   id="journal-tags"
-                  readOnly={preparingFace || isSaving || Boolean(analysisSubmission)}
+                  readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
                   value={tags.join(", ")}
                   onChange={(event) =>
                     setTags(
@@ -597,11 +616,12 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
         </div>
         <JournalAnalysisDock
           enabled={analysisConsent}
-          journalId={analysisSubmission?.journalId}
-          initialSubmission={analysisSubmission}
-          saving={isSaving}
-          analysis={analysisSubmission ? report.analysis : null}
-          availability={analysisSubmission ? report.analysisAvailability : null}
+          journalId={activeSubmission?.journalId}
+          initialSubmission={activeSubmission}
+          saving={isSaving && !pendingSubmission}
+          finalizing={isSaving && Boolean(pendingSubmission)}
+          analysis={activeSubmission ? report.analysis : null}
+          availability={activeSubmission ? report.analysisAvailability : null}
           onRetry={report.retry}
           capture={facialEnabled && !analysisSubmission && !isSaving ? <JournalFaceCapture ref={faceCaptureRef} running={facialRunning} /> : undefined}
         />

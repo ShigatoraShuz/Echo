@@ -106,7 +106,8 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
         latest.current && Date.now() - Date.parse(latest.current.capturedAt) < 2000 ? latest.current : undefined,
       getStill: async () => {
         saving.current = true;
-        await inFlight.current;
+        // Saving needs a fresh frame, not the result of a previous live preview.
+        evaluationAbort.current?.abort();
         return snapshot();
       },
       stop,

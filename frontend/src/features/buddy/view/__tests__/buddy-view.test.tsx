@@ -281,3 +281,10 @@ it('keeps typed text and shows loading status when Send is waiting for local mod
   expect(screen.getByText(mock.loadingNotice)).toHaveAttribute('role','status');expect(screen.queryByText('Something went wrong on our end. Please try again later.')).not.toBeInTheDocument();
  }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
 });
+it("opens the public Buddy shell without exposing messages or the composer during access checks", () => {
+  vi.mocked(useBuddyViewModel).mockReturnValue({ ...setupMock(), accessStatus: "loading" } as unknown as ReturnType<typeof useBuddyViewModel>);
+  render(<BuddyView />);
+  expect(screen.getByRole("heading", { name: /^Buddy$/ })).toBeInTheDocument();
+  expect(screen.queryByText("Hello")).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: "Message Buddy" })).not.toBeInTheDocument();
+});

@@ -119,3 +119,7 @@ frontend/assets/e2d821df-*.png
 /models.zip
 /models*.7z
 /models*.tar*
+
+# Local llama.cpp binaries, converted checkpoints and evaluation credentials.
+runtime-cache/llama-cpp/
+/frontend/.next-private/

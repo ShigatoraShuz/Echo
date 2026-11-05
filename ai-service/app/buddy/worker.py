@@ -41,11 +41,13 @@ def cbt(request):
         from app.buddy.config import verify_policy
         from app.buddy.llama_backend import make_engine
         verify_policy()
-        ENGINE = make_engine(v3, base, adapter)
+        from app.buddy.config import cbt_backend
+        # Explicit operator selection; a failed GGUF load never falls back silently.
+        ENGINE = v3.LocalCBT(base, adapter) if cbt_backend() == "native" else make_engine(v3, base, adapter)
         MODEL_IDENTITY = {"providerName": "buddy-mixed-epochs-2", "modelVersion": ADAPTER_SHA,
                           "inferenceVersion": v3.VERSION, "base": "SeaLLMs-v3-7B-Chat",
                           "template": ENGINE.template_state, "formatterVersion": digest(HERE / "formatter-source.lock.json"),
-                          **ENGINE.gguf_identity}
+                          **getattr(ENGINE, "gguf_identity", {"engine": "hf-peft-native-v1"})}
     if request.get("check"):
         return MODEL_IDENTITY
     from app.buddy.gpu_memory import require_headroom

@@ -13,7 +13,7 @@ const entry = (id: string, title: string): JournalEntry => ({
   body: `Words from ${title}`,
   excerpt: `Words from ${title}`,
   mood: "calm",
-  emotions: [],
+  emotions: ["surprise"],
   tags: [],
   privacyStatus: "private",
   analysisConsent: false,
@@ -47,8 +47,8 @@ describe("JournalNotebookView", () => {
       setSearch: vi.fn(),
       applySearch: vi.fn(),
       setFilters: vi.fn(),
-      setEmotionFilter:vi.fn(),
       setMoodFilter: vi.fn(),
+      setEmotionFilter: vi.fn(),
       setSort: vi.fn(),
       setPage: vi.fn(),
       deleteEntry: vi.fn(),
@@ -61,6 +61,17 @@ describe("JournalNotebookView", () => {
     expect(screen.queryByRole('button',{name:'calm'})).not.toBeInTheDocument();
     expect(screen.queryByRole('button',{name:'neutral'})).not.toBeInTheDocument();
 
+
+    await user.click(screen.getByRole("button", { name: "surprise" }));
+    expect(vi.mocked(useJournalListViewModel).mock.results[0].value.setEmotionFilter).toHaveBeenCalledWith("surprise");
+    expect(screen.getAllByText("surprise").length).toBeGreaterThan(1);
+    expect(screen.queryByRole("button", { name: "Happy" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "joy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "excitement" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "More emotions" }), "excitement");
+    expect(vi.mocked(useJournalListViewModel).mock.results[0].value.setEmotionFilter).toHaveBeenCalledWith("excitement");
+    await user.click(screen.getByRole("button", { name: "All entries" }));
+    expect(vi.mocked(useJournalListViewModel).mock.results[0].value.setEmotionFilter).toHaveBeenCalledWith(null);
 
     expect(screen.getByRole("link", { name: /write reflection/i })).toHaveAttribute("href", "/journal/new");
     expect(screen.getByRole("link", { name: /resume a draft/i })).toHaveAttribute("href", "/journal/drafts");

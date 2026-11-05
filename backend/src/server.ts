@@ -91,11 +91,12 @@ const journalService = new JournalService(
   () => createRequestUserClient(environment),
   localResults,coreClient,
 );
+const authorizedWorkerId = environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? "echo-native-development-v1" : "local-worker";
 const localWorkerService = new LocalWorkerService(
   supabaseAdmin,
   backgroundJournalService,
   environment.AI_WORKER_TOKEN ?? environment.IDEMPOTENCY_HMAC_KEYS_JSON[environment.IDEMPOTENCY_HMAC_ACTIVE_VERSION],
-  environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? "echo-native-development-v1" : "local-worker",
+  authorizedWorkerId,
   environment.AI_CORE_PROFILE !== "disabled",
   environment.AI_CORE_PROFILE === "hosted_encrypted_worker" ? {
     userIds: environment.AI_DEVELOPMENT_USER_IDS.split(",").filter(Boolean),
@@ -192,7 +193,7 @@ const app = createApp({
 
 app.locals.checkReadiness = async () => {
   if(localResults){const storage=localResults.healthy();for(const user of localResults.users())localBuddy?.list(user);const db=await supabaseAdmin.schema("user_service").from("privacy_preferences").select("user_id").limit(1);const models=Boolean(await coreClient?.ready());app.locals.readinessComponents={database:!db.error,localStorage:storage,models};return !db.error && models;}
-  const { data, error } = await supabaseAdmin.schema("ai_analysis").from("worker_health").select("accepting_jobs,last_heartbeat_at").eq("worker_id", "local-worker").maybeSingle();
+  const { data, error } = await supabaseAdmin.schema("ai_analysis").from("worker_health").select("accepting_jobs,last_heartbeat_at").eq("worker_id", authorizedWorkerId).maybeSingle();
   const workerReady = environment.AI_ANALYSIS_MODE !== "local_worker" || (data?.accepting_jobs === true && Date.now() - Date.parse(data.last_heartbeat_at) < 60_000);
   return !error && workerReady && (!coreClient || await coreClient.ready());
 };

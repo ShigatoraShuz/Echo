@@ -81,6 +81,9 @@ def test_shared_adapter_loading_does_not_bypass_architecture_validation(runtime)
     (obj.root / "cbt/adapter/adapter_config.json").write_text(json.dumps({
         "peft_type":"LORA","bias":"none","auto_mapping":{"base_model_class":"WrongArchitecture"}}))
     with pytest.raises(Exception, match="architecture mismatch"):
+        obj._load_once("cbt")
+    from app.model.loading_policy import NativeLoadError
+    with pytest.raises(NativeLoadError, match="NATIVE_CBT_LOAD_FAILED"):
         obj._load("cbt")
 
 

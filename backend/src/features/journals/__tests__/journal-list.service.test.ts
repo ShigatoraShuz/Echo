@@ -116,6 +116,43 @@ describe("journal list", () => {
     expect(calls.filter((call) => call.table === "journal_images")).toHaveLength(1);
   });
 
+  it("filters saved model signals before search, counting and pagination, excluding missing and simulated results", async () => {
+    const { service } = harness([...Array.from({ length: 55 }, (_, index) => row(index + 1)), row(999, "other")]);
+    const internal = service as unknown as {
+      listAnalyses: (owner: string, ids: string[]) => Promise<Map<string, unknown>>;
+      readAnalysisResult: (value: unknown) => unknown;
+    };
+    vi.spyOn(internal, "listAnalyses").mockImplementation(async (owner, ids) => {
+      expect(owner).toBe("owner");
+      expect(ids).not.toContain("journal-999");
+      return new Map(ids.filter(id => id !== "journal-1").map(id => [id, { result_payload: {
+        schemaVersion: "echo-journal-analysis-v3", isSimulated: id === "journal-2", dominantEmotion: "surprise",
+      } }]));
+    });
+    vi.spyOn(internal, "readAnalysisResult").mockImplementation(value => value);
+    const result = await service.listPage("owner", { page: 2, pageSize: 10, query: "body", emotion: "surprise", sort: "oldest" });
+    expect(result.total).toBe(53);
+    expect(result.entries).toHaveLength(10);
+    expect(result.entries[0].id).toBe("journal-13");
+    expect(result.entries.every(entry => entry.emotions.includes("surprise"))).toBe(true);
+    expect((await service.listPage("owner", { page: 1, pageSize: 10, query: "", emotion: "joy", sort: "newest" })).total).toBe(0);
+  });
+
+  it("uses pipeline top labels instead of retired user moods or manually entered emotions", async () => {
+    const { service } = harness([{ ...row(1), emotions: ["joy"] }]);
+    const internal = service as unknown as {
+      listAnalyses: () => Promise<Map<string, unknown>>;
+      readAnalysisResult: (value: unknown) => unknown;
+    };
+    vi.spyOn(internal, "listAnalyses").mockResolvedValue(new Map([["journal-1", { result_payload: {
+      schemaVersion: "echo-model-pipeline-v2", isSimulated: false,
+      stages: { peak: { result: { topFive: [{ label: "surprise" }, { label: "curiosity" }] } } },
+    } }]]));
+    vi.spyOn(internal, "readAnalysisResult").mockImplementation(value => value);
+    expect((await service.listPage("owner", { page: 1, pageSize: 10, query: "", emotion: "curiosity", sort: "newest" })).total).toBe(1);
+    expect((await service.listPage("owner", { page: 1, pageSize: 10, query: "", emotion: "joy", sort: "newest" })).total).toBe(0);
+  });
+
   it("searches encrypted title, body, and tags without returning other owners' records", async () => {
     const { service } = harness([row(1), row(2), row(3, "other")]);
     const options = { page: 1, pageSize: 10, sort: "newest" as const };

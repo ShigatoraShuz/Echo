@@ -207,6 +207,24 @@ describe("useJournalListViewModel", () => {
     expect(result.current.filters.sort).toBe("oldest");
   });
 
+  it("applies an emotion with search and sort, resetting the page and clearing filters", async () => {
+    const service = createMockService();
+    vi.mocked(getJournalService).mockReturnValue(service);
+    const { result } = renderHook(() => useJournalListViewModel());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => { result.current.setSearch("focus"); });
+    act(() => { result.current.applySearch(); result.current.setSort("oldest"); result.current.setPage(2); });
+    await waitFor(() => expect(result.current.pagination.page).toBe(2));
+    act(() => { result.current.setEmotionFilter("surprise"); });
+    await waitFor(() => expect(service.listEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ emotion: "surprise", query: "focus", sort: "oldest" }), 1, expect.any(Number), expect.any(AbortSignal),
+    ));
+    expect(result.current.isFiltered).toBe(true);
+    act(() => { result.current.resetFilters(); });
+    expect(result.current.filters.emotion).toBeNull();
+    expect(result.current.isFiltered).toBe(false);
+  });
+
   it("updates page", async () => {
     const mockService = createMockService();
     vi.mocked(getJournalService).mockReturnValue(mockService);

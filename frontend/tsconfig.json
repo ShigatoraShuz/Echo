@@ -35,7 +35,15 @@
     ".next/types/**/*.ts",
     "next-env.d.ts",
     ".next-qa/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-native-local/types/**/*.ts",
+    ".next-native-local/dev/types/**/*.ts",
+    ".next-native-build/types/**/*.ts",
+    ".next-native-build/dev/types/**/*.ts",
+    ".next-ui-polish-build/types/**/*.ts",
+    ".next-ui-polish-build/dev/types/**/*.ts",
+    ".next-private/types/**/*.ts",
+    ".next-private/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

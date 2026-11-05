@@ -40,15 +40,15 @@ it('a stale save acknowledgement after unmount cannot populate a fresh New edito
  await act(async()=>{finish({success:true,data:{...old,body:'Old pending text'}});await saving;});expect(next.result.current.body).toBe('');expect(next.result.current.autosaveStatus).toBe('idle');
 });
 
-it('successful publication clears editor content and New keeps consent without reusing draft identity',async()=>{
+it('successful publication preserves the saved view and New clears content without reusing draft identity',async()=>{
  service.getDraft.mockResolvedValue({success:true,data:null});service.attachDraftImages.mockResolvedValue({success:true,data:{attached:0}});
  service.createEntry.mockResolvedValue({success:true,data:{kind:'analysis',submission:{journalId:'saved-journal',analysisJobId:'job',status:'queued'}}});
  const {result}=renderHook(()=>useJournalEditorViewModel());await waitFor(()=>expect(result.current.draftReady).toBe(true));
  act(()=>{result.current.setTitle('Private reflection');result.current.setBody('This is a completely new private reflection.');result.current.setAnalysisConsent(true);});
  await act(async()=>{await result.current.save();});
- expect(result.current.title).toBe('');expect(result.current.body).toBe('');expect(result.current.tags).toEqual([]);expect(result.current.wordCount).toBe(0);
+ expect(result.current.title).toBe('Private reflection');expect(result.current.body).toBe('This is a completely new private reflection.');expect(result.current.analysisSubmission?.journalId).toBe('saved-journal');
  const firstKey=service.createEntry.mock.calls[0][1].idempotencyKey;
- act(()=>result.current.reset());expect(result.current.analysisSubmission).toBeNull();expect(result.current.previousDraft).toBeNull();expect(result.current.analysisConsent).toBe(true);expect(result.current.shouldRestorePhotos).toBe(false);
+ act(()=>result.current.reset());expect(result.current.title).toBe('');expect(result.current.body).toBe('');expect(result.current.wordCount).toBe(0);expect(result.current.analysisSubmission).toBeNull();expect(result.current.previousDraft).toBeNull();expect(result.current.analysisConsent).toBe(true);expect(result.current.shouldRestorePhotos).toBe(false);
  act(()=>{result.current.setTitle('Next reflection');result.current.setBody('Another completely new private reflection.');});
  await act(async()=>{await result.current.save();});
  expect(service.createEntry.mock.calls[1][1].idempotencyKey).not.toBe(firstKey);

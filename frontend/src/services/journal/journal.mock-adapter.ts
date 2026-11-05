@@ -173,7 +173,7 @@ export function createJournalMockAdapter(): JournalService {
         );
       }
 
-      if(filters.emotion)filtered=filtered.filter(entry=>entry.dominantEmotion===filters.emotion);
+      if (filters.emotion) filtered = filtered.filter((entry) => entry.emotions.includes(filters.emotion!));
       if (filters.mood) {
         filtered = filtered.filter((e) => e.mood === filters.mood);
       }

@@ -53,7 +53,12 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.ECHO_REMOTE_API_BASE_URL
     ? [new URL(process.env.ECHO_REMOTE_API_BASE_URL).hostname]
     : [],
-  experimental: { staleTimes: { dynamic: 60, static: 60 } },
+  experimental: {
+    // Fully prefetched page code/layouts use Next.js's five-minute default; data and access checks stay live.
+    staleTimes: { dynamic: 60, static: 300 },
+    // Model cold starts/Talk can take up to 600s; keep the HTTPS rewrite alive.
+    proxyTimeout: 660_000,
+  },
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // Defense in depth: neither clinician demo nor the legacy fixture laboratory
   // can enter a production client/server graph, even if a route imports them.

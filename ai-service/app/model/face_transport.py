@@ -14,9 +14,9 @@ LIMIT = 2 * 1024 * 1024
 
 class FaceRuntime:
     def __init__(self, models_root):
-        self.root = Path(models_root).resolve() / "face_model"
+        self.root = Path(os.environ.get("FACE_MODEL_DIR", str(Path(models_root).resolve() / "face_model"))).resolve()
         repo = Path(__file__).resolve().parents[3]
-        self.python = Path(os.environ.get("FACE_PYTHON", str(repo.parent / "face-venv/Scripts/python.exe")))
+        self.python = Path(os.environ.get("FACE_PYTHON", str(repo / "ai-service/.venv-face/Scripts/python.exe")))
         self.lock = threading.Lock()
         self.state_lock = threading.Lock()
         self.process = None

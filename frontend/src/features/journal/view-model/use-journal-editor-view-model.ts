@@ -9,6 +9,10 @@ import { getJournalService } from "@/services/journal/journal-service.factory";
 import type { AnalysisFixture, FaceMeshCapture, JournalSubmissionResponse } from "@echo/contracts";
 import { env } from "@/config/environment";
 
+function draftIdentityContent(draft: Pick<JournalDraft, "title" | "body" | "emotions" | "tags" | "privacyStatus" | "analysisConsent">) {
+  return JSON.stringify([draft.title.trim(), draft.body.trim(), draft.emotions, draft.tags, draft.privacyStatus, draft.analysisConsent]);
+}
+
 export type AutosaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
 
 interface EditorState {
@@ -25,6 +29,7 @@ interface EditorState {
   error: string | null;
   savedEntry: JournalEntry | null;
   analysisSubmission: JournalSubmissionResponse | null;
+  pendingSubmission: JournalSubmissionResponse | null;
   fixture: AnalysisFixture;
   fieldErrors: Record<string, string[]>;
 }
@@ -38,6 +43,7 @@ type EditorAction =
   | { type: "UPDATE_COUNTS" }
   | { type: "SAVE_START" }
   | { type: "SAVE_SUCCESS"; entry: JournalEntry }
+  | { type: "SAVE_ACCEPTED"; submission: JournalSubmissionResponse }
   | { type: "ANALYSIS_SUBMITTED"; submission: JournalSubmissionResponse }
   | { type: "SET_FIXTURE"; fixture: AnalysisFixture }
   | { type: "SAVE_ERROR"; error: string }
@@ -85,9 +91,11 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
     case "SAVE_START":
       return { ...state, isSaving: true, error: null, fieldErrors: {} };
     case "SAVE_SUCCESS":
-      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
+      return { ...state, isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
+    case "SAVE_ACCEPTED":
+      return { ...state, pendingSubmission: action.submission };
     case "ANALYSIS_SUBMITTED":
-      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
+      return { ...state, isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission, pendingSubmission: null };
     case "SET_FIXTURE":
       return { ...state, fixture: action.fixture, autosaveStatus: "unsaved" };
     case "SAVE_ERROR":
@@ -122,6 +130,7 @@ const initialEditorState: EditorState = {
   error: null,
   savedEntry: null,
   analysisSubmission: null,
+  pendingSubmission: null,
   fixture: "standard_low_distress",
   fieldErrors: {},
 };
@@ -138,7 +147,11 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
   const submitting = useRef(false);
   const finalized = useRef(false);
   const accepted = useRef<Awaited<ReturnType<typeof service.createEntry>> | null>(null);
+  const faceFinalization = useRef<{ requested: boolean; image?: Blob; saved: boolean } | null>(null);
   const draftExists = useRef(false);
+  const persistedSubmissionKey = useRef<string | null>(null);
+  const submissionContent = draftIdentityContent(state);
+  const identityContent = useRef<string | null>(null);
   const autosaveInFlight = useRef<Promise<boolean> | null>(null);
   const revision = useRef(0);
   const savedRevision = useRef(0);
@@ -166,13 +179,17 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
         if (result.success && result.data && !edited.current) {
           if(resumeDraft){
             idempotencyKeyRef.current=result.data.submissionKey??crypto.randomUUID();
+            identityContent.current = draftIdentityContent(result.data);
             expectedDraftKey.current=result.data.submissionKey??null;
             lastSavedDraft.current=result.data;draftExists.current=true;
             setShouldRestorePhotos(true);
             dispatch({type:'RESTORE_DRAFT',draft:result.data});
           }else{previousDraftRef.current=result.data;setPreviousDraft(result.data);}
         } else if (!result.success) dispatch({ type: "SAVE_ERROR", error: result.error.message });
-        if (result.success && !result.data) draftExists.current=false;
+        if (result.success && (!result.data || resumeDraft)) {
+          draftExists.current = Boolean(result.data);
+          persistedSubmissionKey.current = result.data?.submissionKey ?? null;
+        }
         restored.current = result.success;
         setDraftReady(result.success);
       })
@@ -250,13 +267,20 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
     if(previousDraftRef.current){dispatch({type:'SAVE_ERROR',error:'Your earlier draft is preserved. Resume or explicitly discard it before saving a new reflection.'});return Promise.resolve(false);}
     const epoch=generation.current;
     const savingRevision = revision.current;
+    // A blur may use an earlier render while a newer body edit is already queued.
+    // Bind the retry key to this exact snapshot before deferring any work.
+    if (!idempotencyKeyRef.current || identityContent.current !== submissionContent) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+      identityContent.current = submissionContent;
+    }
+    const submissionKey = idempotencyKeyRef.current;
     dispatch({ type: "SET_AUTOSAVE_STATUS", status: "saving" });
 
     const operation = Promise.resolve().then(async () => {
       try {
         const draft: JournalDraft = {
           draftIntent:draftExists.current?"update":"create",expectedSubmissionKey:expectedDraftKey.current,
-          submissionKey: (idempotencyKeyRef.current ??= crypto.randomUUID()),
+          submissionKey,
           id: "current",
           title: state.title.trim(),
           body: state.body.trim(),
@@ -274,6 +298,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
           draftExists.current = true;
           expectedDraftKey.current=result.data?.submissionKey??draft.submissionKey??null;
           lastSavedDraft.current=result.data??draft;
+          persistedSubmissionKey.current = draft.submissionKey ?? null;
           savedRevision.current = savingRevision;
           dispatch({ type: "CLEAR_SAVE_ERROR" });
           dispatch({ type: "SET_AUTOSAVE_STATUS", status: savingRevision === revision.current ? "saved" : "unsaved" });
@@ -302,6 +327,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
     state.analysisConsent,
     state.savedEntry?.id,
     previousDraft,
+    submissionContent,
     service,
   ]);
 
@@ -310,10 +336,10 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
       if (!force && !hasContent(state) && !draftExists.current) return true;
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (autosaveInFlight.current) await autosaveInFlight.current;
-      if (draftExists.current && savedRevision.current === revision.current) return true;
+      if (draftExists.current && savedRevision.current === revision.current && lastSavedDraft.current && draftIdentityContent(lastSavedDraft.current) === submissionContent) return true;
       return performAutosave();
     },
-    [state, performAutosave],
+    [state, performAutosave, submissionContent],
   );
 
   // Debounced autosave
@@ -408,24 +434,28 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
           facialAnalysisRequested: state.analysisConsent && facial?.requested === true,
           ...(state.analysisConsent && facial?.capture ? { facialCapture: facial.capture } : {}),
         };
-        idempotencyKeyRef.current ??= crypto.randomUUID();
-        // Save the retry identity before submission so reopening a failed draft replays safely.
-        const draftResult = await service.saveDraft({
-          id: "current",
-          ...createInput,
-          draftIntent:draftExists.current?'update':'create',expectedSubmissionKey:expectedDraftKey.current,
-          submissionKey: idempotencyKeyRef.current,
-          updatedAt: new Date().toISOString(),
-        });
-        if(epoch!==generation.current)return;
-        if (!draftResult.success) {
-          submitting.current = false;
-          dispatch({ type: "SAVE_ERROR", error: draftResult.error.message });
-          return;
+        if (!idempotencyKeyRef.current || identityContent.current !== submissionContent) {
+          idempotencyKeyRef.current = crypto.randomUUID();
+          identityContent.current = submissionContent;
         }
-        draftExists.current=true;
-        expectedDraftKey.current=draftResult.data?.submissionKey??idempotencyKeyRef.current;
-        lastSavedDraft.current=draftResult.data;
+        // Save the retry identity before submission so reopening a failed draft replays safely.
+        if (!draftExists.current || savedRevision.current !== revision.current || persistedSubmissionKey.current !== idempotencyKeyRef.current) {
+          const draftResult = await service.saveDraft({
+            id: "current", ...createInput, submissionKey: idempotencyKeyRef.current,
+            draftIntent: draftExists.current ? 'update' : 'create', expectedSubmissionKey: expectedDraftKey.current,
+            updatedAt: new Date().toISOString(),
+          });
+          if (epoch !== generation.current) return;
+          if (!draftResult.success) {
+            dispatch({ type: "SAVE_ERROR", error: draftResult.error.message });
+            return;
+          }
+          draftExists.current = true;
+          savedRevision.current = revision.current;
+          persistedSubmissionKey.current = idempotencyKeyRef.current;
+          expectedDraftKey.current = draftResult.data?.submissionKey ?? idempotencyKeyRef.current;
+          lastSavedDraft.current = draftResult.data;
+        }
         const result =
           accepted.current ??
           (await service.createEntry(createInput, {
@@ -436,47 +466,57 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
         if (result.success) {
           accepted.current = result;
           const data = result.data;
+          if ("kind" in data && data.kind === "analysis") dispatch({ type: "SAVE_ACCEPTED", submission: data.submission });
+          if (!faceFinalization.current) faceFinalization.current = { requested: facial?.requested ?? false, image: facial?.image, saved: false };
+          else if (!faceFinalization.current.saved && facial?.image) faceFinalization.current.image = facial.image;
+          const face = faceFinalization.current;
           const journalId =
             "kind" in data && data.kind === "analysis" ? data.submission.journalId : (data as JournalEntry).id;
-          if (
-            facial?.image &&
-            state.analysisConsent &&
-            facial.requested &&
-            "kind" in data &&
-            data.kind === "analysis"
-          ) {
-            const token = await supabaseAuthTokenProvider.getAccessToken();
-            if(epoch!==generation.current)return;
-            try {
-              const deadline = Date.now() + 65000;
-              while (true) {
-                const faceResponse = await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
-                  method: "POST",
-                  headers: { Authorization: "Bearer " + token, "Content-Type": "image/jpeg" },
-                  body: facial.image,
-                  signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
-                });
-                if(epoch!==generation.current)return;
-                if (faceResponse.ok) break;
-                const failure = await faceResponse.json().catch(() => null);
-                if(epoch!==generation.current)return;
-                if (failure?.error?.code !== "FACE_BUSY" || Date.now() + 1000 >= deadline)
-                  throw new Error("Face result was not saved.");
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                if(epoch!==generation.current)return;
+          const saveFace = async () => {
+            if (
+              !face.saved && face.image &&
+              state.analysisConsent &&
+              face.requested &&
+              "kind" in data &&
+              data.kind === "analysis"
+            ) {
+              const token = await supabaseAuthTokenProvider.getAccessToken();
+              if (epoch !== generation.current) return false;
+              try {
+                const deadline = Date.now() + 65000;
+                while (true) {
+                  const faceResponse = await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
+                    method: "POST",
+                    headers: { Authorization: "Bearer " + token, "Content-Type": "image/jpeg" },
+                    body: face.image,
+                    signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+                  });
+                  if (epoch !== generation.current) return false;
+                  if (faceResponse.ok) break;
+                  const failure = await faceResponse.json().catch(() => null);
+                  if (epoch !== generation.current) return false;
+                  if (failure?.error?.code !== "FACE_BUSY" || Date.now() + 1000 >= deadline)
+                    throw new Error("Face result was not saved.");
+                  await new Promise((resolve) => setTimeout(resolve, 1000));
+                  if (epoch !== generation.current) return false;
+                }
+                face.saved = true;
+                window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId } }));
+              } catch {
+                return false;
               }
-              window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId } }));
-            } catch {
-              if(epoch!==generation.current)return;
-              dispatch({
-                type: "SAVE_ERROR",
-                error: "Your reflection is saved, but face analysis was not saved. Check your camera and retry saving.",
-              });
-              return;
             }
+            return true;
+          };
+          // Both are independent once the journal exists. Keep the draft until both finish.
+          const [faceResult, photoResult] = await Promise.allSettled([saveFace(), service.attachDraftImages(journalId)]);
+          if (epoch !== generation.current) return;
+          if (faceResult.status === "rejected" || !faceResult.value) {
+            dispatch({ type: "SAVE_ERROR", error: "Your reflection is saved, but face analysis was not saved. Check your camera and retry saving." });
+            return;
           }
-          const attached = await service.attachDraftImages(journalId);
-          if(epoch!==generation.current)return;
+          if (photoResult.status === "rejected") throw photoResult.reason;
+          const attached = photoResult.value;
           if (!attached.success) {
             dispatch({
               type: "SAVE_ERROR",
@@ -497,6 +537,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
           if(epoch!==generation.current)return;
           draftExists.current=false;expectedDraftKey.current=null;lastSavedDraft.current=null;
           finalized.current = true;
+          faceFinalization.current = null;
           if ("kind" in data && data.kind === "analysis") {
             dispatch({ type: "ANALYSIS_SUBMITTED", submission: data.submission });
             try {
@@ -529,6 +570,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
       state.privacyStatus,
       state.analysisConsent,
       state.fixture,
+      submissionContent,
       service,
     ],
   );
@@ -548,6 +590,9 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
     revision.current=0;savedRevision.current=0;
     idempotencyKeyRef.current = null;
     accepted.current = null;
+    faceFinalization.current = null;
+    persistedSubmissionKey.current = null;
+    identityContent.current = null;
     finalized.current = false;
     edited.current = false;
     dispatch({ type: "RESET" });
@@ -589,6 +634,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
     fieldErrors: state.fieldErrors,
     savedEntry: state.savedEntry,
     analysisSubmission: state.analysisSubmission,
+    pendingSubmission: state.pendingSubmission,
     fixture: state.fixture,
     setTitle,
     setBody,

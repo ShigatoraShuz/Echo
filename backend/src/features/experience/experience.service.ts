@@ -347,6 +347,8 @@ export class ExperienceService {
         minute: "2-digit",
       }),
     }));
+    // The owned conversation read also authorizes replay after a restart or reload.
+    for (const message of messages) if (message.role === "buddy") this.rememberReply(userId, message.content);
     if (messages.length === 0) {
       messages.push({
         generation:undefined,
@@ -519,6 +521,7 @@ export class ExperienceService {
       if(!saving){const prior=this.temporary.get(temporaryKey);if(prior&&prior.expires>Date.now())turns.push(...prior.turns);}
       turns.push({ role: "user", content });
       const context=prepareBuddyContext(turns);
+      // Text chat loads the CBT worker on demand; voice warm-up belongs to Talk/speech.
       const generated = await this.coreClient.chat(context.messages);
       provenance={model:generated.model,quality:{...generated.quality,backendContextReduction:context.reduction}};
       urgent = generated.supportRequired;

@@ -98,7 +98,7 @@ export function createJournalHttpAdapter(): JournalService {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
         if (filters.query) params.set("query", filters.query);
-        if (filters.emotion) params.set("emotion",filters.emotion);
+        if (filters.emotion) params.set("emotion", filters.emotion);
 
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);

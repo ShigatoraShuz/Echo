@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { journalSubmissionInputSchema, journalSubmissionObjectSchema } from "@echo/contracts";
+import { journalSubmissionInputSchema, journalSubmissionObjectSchema, goEmotionNameSchema, plutchikEmotionSchema, emotionNameSchema } from "@echo/contracts";
 import { ValidationError } from "../../shared/errors/app-error.js";
 import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
@@ -8,10 +8,10 @@ import type { JournalService } from "./journals.service.js";
 
 const journalInputSchema = journalSubmissionInputSchema;
 const journalListSchema = z.object({
-  emotion:z.enum(["joy","trust","fear","surprise","sadness","disgust","anger","anticipation"]).optional(),
   page: z.coerce.number().int().min(1).max(100_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
   query: z.string().trim().max(200).default(""),
+  emotion: z.union([goEmotionNameSchema, plutchikEmotionSchema, emotionNameSchema]).optional(),
   mood: z.enum(["calm", "happy", "neutral", "sad", "anxious", "angry"]).optional(),
   dateFrom: z.iso.date().optional(),
   dateTo: z.iso.date().optional(),

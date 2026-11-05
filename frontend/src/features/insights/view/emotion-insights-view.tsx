@@ -382,11 +382,8 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
     if (customMenu.current) customMenu.current.open = false;
   }
 
-  const dashboard = (
-    <div
-      aria-busy={vm.isLoading}
-      className="echo-insights-dashboard insights-premium mx-auto max-w-[1600px] space-y-4 pb-5"
-    >
+  // The public page header renders immediately; saved results stay behind the live access gate.
+  const hero = (
       <header className="insights-hero relative overflow-visible rounded-[1.35rem] border border-primary/10 bg-card/90 px-4 py-4 shadow-[0_14px_34px_rgba(24,48,37,0.06)] sm:rounded-[1.5rem] sm:px-5">
         <div
           className="pointer-events-none absolute inset-y-0 right-0 w-[38%] overflow-hidden lg:w-[44%]"
@@ -504,6 +501,13 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
           </div>
         </div>
       </header>
+  );
+  const dashboard = (
+    <div
+      aria-busy={vm.isLoading}
+      className="echo-insights-dashboard insights-premium mx-auto max-w-[1600px] space-y-4 pb-5"
+    >
+      {hero}
 
       <AnalysisRequestStatus insights={insights} />
       {native?.supportReviewRequired && (
@@ -766,7 +770,7 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
       </p>
     </div>
   );
-  return preview ? dashboard : <VerifiedFeatureGate featureName="AI insights">{dashboard}</VerifiedFeatureGate>;
+  return preview ? dashboard : <VerifiedFeatureGate featureName="AI insights" loadingFallback={<div aria-busy="true" className="echo-insights-dashboard insights-premium mx-auto max-w-[1600px] space-y-4 pb-5">{hero}<LoadingState /></div>}>{dashboard}</VerifiedFeatureGate>;
 }
 
 function ScreeningSummary({ result }: { result: JournalAnalysisResult }) {

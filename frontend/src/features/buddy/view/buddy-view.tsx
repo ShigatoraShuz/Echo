@@ -168,7 +168,15 @@ export function BuddyView() {
   }, [draft]);
 
   if (vm.accessStatus === "loading") {
-    return <div className="h-72 animate-pulse rounded-[2rem] bg-card/70" />;
+    return (
+      <section aria-busy="true" aria-label="Opening Buddy" className="space-y-4">
+        <header className="rounded-[2rem] border border-border bg-card/70 p-6">
+          <h1 className="font-serif text-3xl text-foreground">Buddy</h1>
+          <p role="status" className="mt-2 text-sm text-muted-foreground">Opening your private conversation…</p>
+        </header>
+        <div aria-hidden="true" className="h-72 animate-pulse rounded-[2rem] bg-card/70 motion-reduce:animate-none" />
+      </section>
+    );
   }
 
   if (vm.accessStatus !== "allowed") {

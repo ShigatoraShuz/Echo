@@ -19,13 +19,13 @@ describe("journal HTTP pagination", () => {
     }), { status: 200, headers: { "content-type": "application/json" } })));
     const { createJournalHttpAdapter } = await import("./journal.http-adapter");
     const result = await createJournalHttpAdapter().listEntries({
-      query: "focus", mood: "calm", dateFrom: null, dateTo: null, sort: "oldest",
+      query: "focus", emotion: "surprise", mood: "calm", dateFrom: null, dateTo: null, sort: "oldest",
     }, 2, 10);
     expect(result).toMatchObject({ success: true, data: { pagination: {
       page: 2, pageSize: 10, totalItems: 110, totalPages: 11,
     } } });
     expect(fetch).toHaveBeenCalledWith(
-      "http://api.example.test/api/v1/journals?page=2&pageSize=10&query=focus&sort=oldest",
+      "http://api.example.test/api/v1/journals?page=2&pageSize=10&query=focus&emotion=surprise&sort=oldest",
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer access-token" }) }),
     );
   });

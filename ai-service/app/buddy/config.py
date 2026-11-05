@@ -10,21 +10,28 @@ ADAPTER_CONFIG_SHA = "69ecc08861220cf86bc11d770c2914d3a350c12b9037097900b1fe0787
 VOICE_SHA = "3842d142fe4570197a059261467b806ccc36d2d35d4044255dc0d224be03a08f"
 BUDDY_ENV_KEYS = ("ECHO_BUDDY_ENABLED", "BUDDY_NANO_ROOT", "BUDDY_CBT_PYTHON",
                   "BUDDY_NANO_PYTHON", "BUDDY_WHISPER_PYTHON", "BUDDY_WHISPER_DIR",
-                  "BUDDY_CBT_ADAPTER")
+                  "BUDDY_CBT_ADAPTER", "BUDDY_CBT_BACKEND")
 DEFAULT_ADAPTER = str(HERE.parents[2] / "models/buddy/adapter")
 
 def enabled():
     return os.environ.get("ECHO_BUDDY_ENABLED") == "true"
 
+def cbt_backend():
+    value = os.environ.get("BUDDY_CBT_BACKEND", "llama_cpp")
+    if value not in ("native", "llama_cpp"):
+        raise ValueError("BUDDY_CBT_BACKEND_INVALID")
+    return value
+
+
 def paths():
-    parent = HERE.parents[2].parent
+    service = HERE.parents[1]
     root = Path(os.environ.get("BUDDY_NANO_ROOT", str(HERE.parents[2] / "models/buddy"))).resolve()
     return {
         "root": root,
         "adapter": Path(os.environ.get("BUDDY_CBT_ADAPTER", DEFAULT_ADAPTER)).resolve(),
-        "cbt": Path(os.environ.get("BUDDY_CBT_PYTHON", "C:/Users/tolen/miniconda3/envs/Thesis2_VENV/python.exe")),
-        "nano": Path(os.environ.get("BUDDY_NANO_PYTHON", str(parent / "TTS_INFERENCE_NANO_PRELOAD/.venv-nano/Scripts/python.exe"))),
-        "whisper": Path(os.environ.get("BUDDY_WHISPER_PYTHON", str(parent / "speech-venv/Scripts/python.exe"))),
+        "cbt": Path(os.environ.get("BUDDY_CBT_PYTHON", str(service / ".venv-core/Scripts/python.exe"))),
+        "nano": Path(os.environ.get("BUDDY_NANO_PYTHON", str(service / ".venv-nano/Scripts/python.exe"))),
+        "whisper": Path(os.environ.get("BUDDY_WHISPER_PYTHON", str(service / ".venv-speech/Scripts/python.exe"))),
         "whisper_model": Path(os.environ.get("BUDDY_WHISPER_DIR", str(HERE.parents[2] / "models/voice/whisper"))),
     }
 

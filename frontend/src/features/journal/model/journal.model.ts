@@ -88,8 +88,8 @@ export interface UpdateJournalInput {
 // ─── Filter / Sort / Pagination ──────────────────────
 
 export interface JournalSearchFilters {
-  emotion?: JournalEmotion | null;
   query: string;
+  emotion?: string | null;
   mood: JournalMood | null;
   dateFrom: string | null;
   dateTo: string | null;
@@ -97,8 +97,8 @@ export interface JournalSearchFilters {
 }
 
 export const DefaultJournalFilters: JournalSearchFilters = {
-  emotion:null,
   query: "",
+  emotion: null,
   mood: null,
   dateFrom: null,
   dateTo: null,

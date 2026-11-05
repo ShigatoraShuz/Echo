@@ -14,6 +14,11 @@ vi.mock("next/image", () => ({
   default: (props: { alt: string }) => <img alt={props.alt} />,
 }));
 
+const startMusic = vi.hoisted(() => vi.fn());
+vi.mock("@/features/journal/view-model/use-journal-music", () => ({
+  useJournalMusic: () => ({ playback: "idle", volume: 1, start: startMusic, toggle: vi.fn(), changeVolume: vi.fn() }),
+}));
+
 const push = vi.hoisted(() => vi.fn());
 const replace = vi.hoisted(() => vi.fn());
 const uploadDraftImage = vi.hoisted(() => vi.fn());
@@ -51,6 +56,7 @@ function setupMock() {
     mood: "calm" as const,
     emotions: [],
     tags: [],
+    pendingSubmission: null as ReturnType<typeof useJournalEditorViewModel>["pendingSubmission"],
     analysisConsent: false,
     privacyStatus: "private" as const,
     wordCount: 0,
@@ -77,6 +83,18 @@ function setupMock() {
 }
 
 describe("JournalEditorView", () => {
+  it("starts music only from body input, never from a restored draft or title", async () => {
+    const mock = { ...setupMock(), body: "Restored writing" };
+    vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+    render(<JournalEditorView />);
+    const user = userEvent.setup();
+    expect(startMusic).not.toHaveBeenCalled();
+    await user.type(screen.getByPlaceholderText("Title your reflection"), "A title");
+    expect(startMusic).not.toHaveBeenCalled();
+    await user.type(screen.getByLabelText("Start writing", { exact: true }), "Hello");
+    expect(startMusic).toHaveBeenCalled();
+  });
+
   it("shows saved analysis inline without navigating or replacing the workspace", async () => {
     const mock = { ...setupMock(), analysisConsent: true, title: "Saved writing", body: "Saved body", analysisSubmission: null as unknown };
     vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
@@ -317,4 +335,17 @@ it('late restored photos cannot refill a freshly reset editor',async()=>{
  await act(async()=>{finish({success:true,data:[{id:'late',url:'https://storage.example.test/old-photo'}]});await Promise.resolve();});
  expect(screen.queryByRole('img',{name:'Draft photo 1'})).not.toBeInTheDocument();
 });
+});
+
+it("shows confirmed model progress while attachments finalize without enabling another reflection", async () => {
+  const mock=setupMock();
+  mock.title="Synthetic test";mock.body="A fictional testing reflection";mock.isSaving=true;
+  mock.pendingSubmission={journalId:"saved-id",analysisJobId:"job-id",status:"queued",facialStatus:"queued"};
+  vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+  render(<JournalEditorView />);
+  expect(screen.getByText("Live model progress")).toBeVisible();
+  expect(screen.getByText(/Reflection saved. Finishing its optional attachments/)).toBeVisible();
+  expect(screen.queryByText("Saving your reflection")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button",{name:/Write another reflection/})).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Start writing",{exact:true})).toHaveAttribute("readonly");
 });

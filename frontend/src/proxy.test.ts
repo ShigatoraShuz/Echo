@@ -229,6 +229,20 @@ describe("account access decisions and diagnostics", () => {
       },
     });
   }
+  it("uses the internal gateway for every live access check while retaining the bearer and denial", async () => {
+    setup();
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://echo.example.ts.net/api/v1");
+    vi.stubEnv("GATEWAY_API_BASE_URL", "http://127.0.0.1:4200/api/v1");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { decision: "ACCOUNT_UNAVAILABLE" } })));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const response = await proxy(request("/dashboard"));
+      expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:4200/api/v1/access/status", expect.objectContaining({
+        headers: expect.objectContaining({ authorization: "Bearer private-token" }), cache: "no-store",
+      }));
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe("account_unavailable");
+    } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
   it.each([
     [401, "login_required"],
     [403, "access_service_unavailable"],

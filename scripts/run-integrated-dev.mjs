@@ -1,6 +1,8 @@
 import { checkCoreTransport } from './check-core-transport.mjs';
 import { remoteDevelopmentEnvironment } from './remote-development.mjs';
+import { preparePrivateFrontend } from './prepare-private-frontend.mjs';
 import { loadNativeSettings } from './native-runtime-settings.mjs';
+import { privateGatewayEnvironment } from './private-server-config.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { randomBytes } from 'node:crypto';
@@ -38,6 +40,7 @@ try {
     if (process.env.NODE_ENV === 'production') throw Error('The integrated model launcher is for local development.');
     await Promise.all([3000, 4200, 8002].map(port => checkPort(port)));
     const configured = { ...parseEnv(readFileSync(path.join(root, 'backend/.env'), 'utf8')), ...process.env };
+    const privateGateway = privateGatewayEnvironment(process.env.ECHO_REMOTE_API_BASE_URL);
     const python = configured.ECHO_MODEL_PYTHON || path.join(root, 'ai-service/.venv-core/Scripts/python.exe');
     const models = path.resolve(root, configured.MODELS_ROOT || 'models');
     if (!existsSync(python) || !existsSync(path.join(models, 'manifest.json'))) throw Error('Install the model bundle and ai-service/.venv-core before starting models.');
@@ -69,6 +72,7 @@ try {
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configured.SUPABASE_PUBLISHABLE_KEY,
       NEXT_PUBLIC_API_BASE_URL: process.env.ECHO_REMOTE_API_BASE_URL ?? 'http://127.0.0.1:4200/api/v1', GATEWAY_API_BASE_URL: 'http://127.0.0.1:4200/api/v1',
       ...remoteDevelopmentEnvironment(process.env.ECHO_REMOTE_API_BASE_URL),
+      ...privateGateway,
     });
     // Fail before launching if the additive, service-role-only scoped RPC is absent.
     if (!localJson) {
@@ -81,6 +85,7 @@ try {
     const require = createRequire(import.meta.url);
     const build = spawnSync(process.execPath, [require.resolve('typescript/bin/tsc'), '-p', path.join(root, 'packages/contracts/tsconfig.build.json')], { cwd: root, stdio: 'inherit', windowsHide: true });
     if (build.status !== 0) throw Error('Shared contracts build failed.');
+    if (env.ECHO_FRONTEND_MODE === 'production') preparePrivateFrontend(root, env);
     const ai = launch(python, ['-B', '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8002', '--workers', '1', '--no-access-log'], path.join(root, 'ai-service'), env);
     let ready = false;
     const deadline = Date.now() + 100000;

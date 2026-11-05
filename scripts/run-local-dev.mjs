@@ -58,7 +58,7 @@ export async function run(target) {
     frontend: {
       port: 3000,
       bin: require.resolve("next/dist/bin/next"),
-      args: ["dev", "--hostname", "127.0.0.1", "--port", "3000"],
+      args: [process.env.ECHO_FRONTEND_MODE === "production" ? "start" : "dev", "--hostname", "127.0.0.1", "--port", "3000"],
     },
     backend: { port: 4200, bin: require.resolve("tsx/cli"), args: ["watch", "--env-file=.env", "src/server.ts"] },
   };
@@ -78,7 +78,7 @@ export async function run(target) {
     const service = services[name];
     const child = spawn(process.execPath, [service.bin, ...service.args], {
       cwd: path.join(root, name),
-      env: localEnvironment(process.env),
+      env: localEnvironment({ ...process.env, ...(name === "frontend" && process.env.ECHO_FRONTEND_MODE === "production" ? { NODE_ENV: "production", NEXT_DIST_DIR: ".next-private", NEXT_PUBLIC_ENABLE_FACIAL_ANALYSIS: "true" } : {}) }),
       stdio: "inherit",
       windowsHide: true,
     });
