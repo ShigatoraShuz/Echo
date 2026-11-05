@@ -1,4 +1,5 @@
 "use client";
+import {PhilippineMobileInput} from "@/shared/components/ui/philippine-mobile-input";
 import { useState } from "react";
 
 interface AddContactFormProps {
@@ -26,7 +27,7 @@ export function AddContactForm({ onAdd, isAdding }: AddContactFormProps) {
     <form onSubmit={handleSubmit} className="space-y-3">
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" type="email" className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" type="tel" className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+      <PhilippineMobileInput aria-label="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" type="tel" className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
       <input value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="Relationship (e.g., Partner, Friend)" className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
       {error && <p className="text-sm text-danger">{error}</p>}
       <button type="submit" disabled={isAdding} className="rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">{isAdding ? "Adding..." : "Add contact"}</button>

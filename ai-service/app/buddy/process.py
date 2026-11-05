@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from app.core.exceptions import ModelUnavailableError, TalkCancelledError
 from app.buddy.config import BUDDY_ENV_KEYS, paths
+from app.buddy.loading import COMPONENT_SECONDS
 from app.buddy.job import spawn_owned, terminate_owned
 
 MAX_RESPONSE = 40 * 1024 * 1024
@@ -18,16 +19,16 @@ SAFE_ENV = ("SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP", "COMSPEC", "USERPROFI
 def terminate_tree(process):
     terminate_owned(process)
 
-def check_environment(python, kind, env, cancelled=None):
+def check_environment(python, kind, env, cancelled=None, deadline=None):
     imports = {
-        "cbt": "import ctypes,torch,transformers,peft,bitsandbytes",
+        "cbt": "import ctypes,torch,transformers",
         "nano": "import ctypes,torch,torchaudio,transformers,soundfile",
         "whisper": "import ctypes,faster_whisper,numpy",
     }[kind]
     check = spawn_owned([str(python), "-I", "-B", "-c", imports],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    deadline = time.monotonic() + 90
+    deadline = min(deadline or float("inf"), time.monotonic() + 180)
     try:
         while True:
             if cancelled and cancelled.is_set():
@@ -53,7 +54,7 @@ def check_environment(python, kind, env, cancelled=None):
             check.stderr.close()
 
 class Process:
-    def __init__(self, python, kind, cancelled=None):
+    def __init__(self, python, kind, cancelled=None, deadline=None):
         self.kind = kind
         self.responses = queue.Queue(maxsize=2)
         env = {key: os.environ[key] for key in (*SAFE_ENV, *BUDDY_ENV_KEYS) if key in os.environ}
@@ -63,7 +64,7 @@ class Process:
         env.update(HF_HOME=str(cache / "hf"), HF_MODULES_CACHE=str(cache / "modules"),
                    TORCHINDUCTOR_CACHE_DIR=str(cache / "torch"), CUDA_CACHE_PATH=str(cache / "cuda"))
         try:
-            check_environment(python, kind, env, cancelled)
+            check_environment(python, kind, env, cancelled, deadline)
             self.process = spawn_owned(
                 [str(python), "-I", "-B", "-u", str(Path(__file__).with_name("worker.py")), kind],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
@@ -87,12 +88,16 @@ class Process:
             except queue.Full:
                 pass
 
-    def call(self, request, cancelled=None):
+    def call(self, request, cancelled=None, deadline=None):
         identity = uuid.uuid4().hex
         packet = json.dumps({"id": identity, "request": request}, allow_nan=False).encode() + b"\n"
         if len(packet) > 3 * 1024 * 1024:
             raise ValueError("Buddy packet too large")
-        deadline = time.monotonic() + 600
+        preparation = deadline is not None or request.get("check") is True
+        deadline = min(deadline or float("inf"), time.monotonic() + (COMPONENT_SECONDS[self.kind] if request.get("check") else 600))
+        if time.monotonic() >= deadline:
+            self.close()
+            raise ModelUnavailableError("BUDDY_" + self.kind.upper() + "_LOAD_TIMEOUT")
         try:
             def send():
                 try:
@@ -120,7 +125,8 @@ class Process:
         except (OSError, ValueError):
             pass
         self.close()
-        raise ModelUnavailableError("BUDDY_" + self.kind.upper() + "_WORKER_UNAVAILABLE")
+        suffix = "LOAD_TIMEOUT" if time.monotonic() >= deadline and preparation else "WORKER_UNAVAILABLE"
+        raise ModelUnavailableError("BUDDY_" + self.kind.upper() + "_" + suffix)
 
     def close(self):
         terminate_tree(self.process)

@@ -1,3 +1,4 @@
+import {appPresence} from '../../infrastructure/security/app-presence.js';
 import { Router, type NextFunction, type Request, type Response } from "express";
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
@@ -10,6 +11,14 @@ import { ValidationError } from "../../shared/errors/app-error.js";
 export function createAccessRouter(service: AccessService, verifier: AccessTokenVerifier): Router {
   const router = Router();
   const authenticate = createAuthMiddleware(verifier);
+  router.post('/session/presence',authenticate,async(request,response)=>{
+    const input=z.object({tabId:z.string().uuid(),action:z.enum(['register','heartbeat','release','logout'])}).strict().safeParse(request.body);
+    if(!input.success)throw new ValidationError();
+    const user=request.auth!;if(!user.sessionId)throw new AuthorizationError('A verified session is required.');
+    const state=appPresence()?.update(user.id,user.sessionId,input.data.tabId,input.data.action)??{closed:false};
+    response.setHeader('Cache-Control','no-store');sendSuccess(response,state);
+  });
+
   router.get("/access/status", authenticate, async (request, response, next) => {
     const startedAt = performance.now();
     try {

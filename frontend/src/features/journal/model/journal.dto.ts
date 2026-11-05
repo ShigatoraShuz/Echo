@@ -1,6 +1,7 @@
 // ─── API Response DTOs ────────────────────────────────
 
 export interface JournalEntryResponseDTO {
+  dominant_emotion?:import("./journal.model").JournalEmotion|null;
   images?: Array<{id:string;url:string}>;
   id: string;
   title: string;

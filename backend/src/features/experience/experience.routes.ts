@@ -1,3 +1,5 @@
+import type {JournalService} from '../journals/journals.service.js';
+import {NotFoundError,ValidationError} from '../../shared/errors/app-error.js';
 import { z } from "zod";
 import { Router, raw } from "express";
 import { endpointLimiter } from "../../shared/middleware/security-policy.js";
@@ -12,6 +14,7 @@ export function createExperienceRouter(
   service: ExperienceService,
   verifier: AccessTokenVerifier,
   verificationService: VerificationService,
+  journalService?:JournalService,
 ): Router {
   const controller = createExperienceController(service);
   const router = Router();
@@ -25,6 +28,16 @@ export function createExperienceRouter(
   router.get("/support-resources", controller.supportResources);
   const authenticate = createAuthMiddleware(verifier);
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
+  const leaseActor=(profile:unknown)=>{if(profile==='journal'){if(!journalService)throw new NotFoundError('Journal runtime unavailable.');return journalService;}if(profile&&profile!=='buddy_chat')throw new ValidationError();return service;};
+  const leaseSession=(req:import('express').Request)=>{if(!req.auth?.sessionId)throw new ValidationError({session:['A verified session is required.']});return req.auth.sessionId;};
+  const leaseAction=async<T>(fn:()=>T):Promise<Awaited<T>>=>{try{return await fn();}catch(error){if((error as Error).message==='RUNTIME_LEASE_NOT_FOUND')throw new NotFoundError('Runtime lease unavailable.');throw error;}};
+  router.post('/ai/runtime/leases',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{
+    const input=z.object({profile:z.enum(['buddy_chat','journal']),clientInstanceId:z.string().uuid()}).strict().parse(req.body);
+    const lease=await leaseActor(input.profile).acquireModelLease(req.auth!.id,leaseSession(req),input.clientInstanceId);res.status(202).json({success:true,data:lease});
+  });
+  router.get('/ai/runtime/leases/:leaseId',authenticate,requireVerifiedAi,async(req,res)=>{res.json({success:true,data:await leaseAction(()=>leaseActor(req.query.profile).modelLeaseStatus(req.auth!.id,leaseSession(req),String(req.params.leaseId)))});});
+  router.put('/ai/runtime/leases/:leaseId',authenticate,requireVerifiedAi,async(req,res)=>{res.json({success:true,data:await leaseAction(()=>leaseActor(req.query.profile).heartbeatModelLease(req.auth!.id,leaseSession(req),String(req.params.leaseId)))});});
+  router.delete('/ai/runtime/leases/:leaseId',authenticate,async(req,res)=>{res.json({success:true,data:await leaseAction(()=>leaseActor(req.query.profile).releaseModelLease(req.auth!.id,leaseSession(req),String(req.params.leaseId)))});});
   router.post('/buddy/runtime/unload',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{res.json({success:true,data:await service.unloadBuddyRuntime(req.auth!.id)});});
   router.get('/buddy/runtime',authenticate,requireVerifiedAi,(_req,res)=>{res.json({success:true,data:service.buddyRuntimeStatus()});});
   router.post('/buddy/runtime/prepare',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{if(req.body&&Object.keys(req.body).length)throw Error('Preparation accepts no draft text');res.status(202).json({success:true,data:await service.requestBuddyPreparation(req.auth!.id)});});

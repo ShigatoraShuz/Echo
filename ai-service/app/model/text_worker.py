@@ -12,12 +12,16 @@ from app.buddy.config import enabled
 
 MAX_PACKET = 40 * 1024 * 1024 if enabled() else 1024 * 1024
 
+EMIT_LOCK = threading.Lock()
+
+
 def emit(value):
     data = json.dumps(value, allow_nan=False).encode("utf-8") + b"\n"
     if len(data) > MAX_PACKET:
         raise ValueError("Output too large")
-    sys.__stdout__.buffer.write(data)
-    sys.__stdout__.buffer.flush()
+    with EMIT_LOCK:
+        sys.__stdout__.buffer.write(data)
+        sys.__stdout__.buffer.flush()
 
 def main():
     with contextlib.redirect_stdout(sys.stderr):
@@ -84,13 +88,18 @@ def main():
             packet, cancelled = packets.get()
             identity = packet["id"]
             try:
-                if packet["op"] not in ("classify", "analyze", "chat", "screening", "metrics", "buddy"):
+                if packet["op"] not in ("journal_runtime", "classify", "emotions", "analyze", "chat", "screening", "metrics", "buddy"):
                     raise ValueError("Unsupported operation")
+                runtime.require_journal_owner(packet.get("journalOwner"))
                 with contextlib.redirect_stdout(sys.stderr):
                     if packet["op"] == "buddy":
                         if not enabled():
                             raise ValueError("Buddy is disabled")
-                        result = runtime.buddy.dispatch(*packet["args"], cancelled=cancelled)
+                        runtime.buddy.progress = lambda value: emit({"id": identity, "event": "preparation", "progress": value})
+                        try:
+                            result = runtime.buddy.dispatch(*packet["args"], cancelled=cancelled)
+                        finally:
+                            runtime.buddy.progress = None
                     else:
                         result = getattr(runtime, packet["op"])(*packet["args"])
                 emit({"id": identity, "ok": True, "result": result,
@@ -98,7 +107,7 @@ def main():
             except Exception as error:
                 code = str(error)
                 from app.core.exceptions import TalkBusyError
-                safe = "TALK_BUSY" if isinstance(error, TalkBusyError) else code if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80 else "MODEL_UNAVAILABLE"
+                safe = "TALK_BUSY" if isinstance(error, TalkBusyError) else code if code.startswith(("BUDDY_","NATIVE_")) and code.replace("_", "").isalnum() and len(code) < 80 else "MODEL_UNAVAILABLE"
                 emit({"id": identity, "ok": False, "code": safe, "modelLoaded": runtime.instance is not None or bool(getattr(runtime, "buddy", None) and runtime.buddy.workers.get("cbt"))})
             finally:
                 active.pop(identity, None)

@@ -178,21 +178,22 @@ export function useJournalDetailViewModel(id: string) {
   }, [id, service]);
 
   const exportEntry = useCallback(async () => {
+    if(state.isExporting)return;
     dispatch({ type: "EXPORT_START" });
     const result = await service.exportEntry(id);
     if (result.success) {
-      const blob = new Blob([result.data.markdown], { type: "text/markdown" });
+      const blob = result.data.pdf;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `journal-${id}.md`;
+      a.download = result.data.filename;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
       dispatch({ type: "EXPORT_SUCCESS" });
     } else {
       dispatch({ type: "EXPORT_ERROR", error: result.error.message });
     }
-  }, [id, service]);
+  }, [id, service, state.isExporting]);
 
   const showDeleteDialog = useCallback((show: boolean) => {
     dispatch({ type: "SHOW_DELETE_DIALOG", show });

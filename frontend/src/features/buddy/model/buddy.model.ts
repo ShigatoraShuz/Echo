@@ -49,6 +49,7 @@ export interface BuddySendResult {
 }
 
 export type BuddyServiceErrorCode =
+  | "LOADING"
   | "NOT_FOUND"
   | "VALIDATION"
   | "UNAUTHORIZED"

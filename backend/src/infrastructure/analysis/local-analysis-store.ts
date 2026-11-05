@@ -15,6 +15,7 @@ export interface LocalAnalysisJob {
     request_hash: string;
     status: AnalysisStatus;
     progress: number;
+    waitReason?: "page_inactive"|"buddy_priority"|"gpu_capacity";
     facial_status: FacialAnalysisStatus;
     face_result?: import("@echo/contracts").FacialExpressionResult;
     result_ciphertext: string | null;
@@ -73,7 +74,7 @@ export class LocalAnalysisStore {
         return old; if (this.pending().length >= 64)
         throw new AppError({ statusCode: 429, code: 'AI_QUOTA_EXCEEDED', message: 'Local queue is full. The reflection is saved; retry analysis later.' }); const now = new Date().toISOString(), id = randomUUID(); this.save({ id, user_id: user, journal_id: journal, request_key: key, request_hash: hash, status: 'queued', progress: 0, facial_status: facial, result_ciphertext: null, created_at: now, updated_at: now, approved: 0 }); return this.get(user, id)!; }
     set(user: string, id: string, status: AnalysisStatus, progress: number, result?: string) { const j = this.get(user, id); if (!j || j.status === 'completed')
-        return false; this.save({ ...j, status, progress: Math.max(j.progress, progress), updated_at: new Date().toISOString(), result_ciphertext: result ?? j.result_ciphertext }); return true; }
+        return false; this.save({ ...j, status, waitReason:status==='waiting_for_provider'?j.waitReason:undefined, progress: Math.max(j.progress, progress), updated_at: new Date().toISOString(), result_ciphertext: result ?? j.result_ciphertext }); return true; }
     pending() { return this.rows().filter(x => !['completed', 'failed', 'safety_action_required'].includes(x.status)); }
     completed(user: string) { return this.rows().filter(x => x.user_id === user && x.status === 'completed').sort((a, b) => a.created_at.localeCompare(b.created_at)); }
     remove(user: string, journal: string) { const j = this.journal(user, journal); if (j)
@@ -108,6 +109,7 @@ export class LocalAnalysisStore {
     export(user: string) { z.string().uuid().parse(user); return this.rows().filter(x => x.user_id === user).map(({ result_ciphertext, ...x }) => ({ ...x, result: result_ciphertext ? JSON.parse(result_ciphertext) : null })); }
     reserveScreening(user:string,id:string){const j=this.get(user,id);if(!j||j.status!=='completed'||(j.screeningAttempts??0)>=3)throw new ConflictError('RETRY_LIMIT','Screening retry unavailable.');this.save({...j,screeningAttempts:(j.screeningAttempts??0)+1});}
     replaceScreening(user:string,id:string,result:unknown){const j=this.get(user,id);if(j)this.save({...j,result_ciphertext:JSON.stringify(journalAnalysisResultSchema.parse(result)),updated_at:new Date().toISOString()});}
+    wait(user:string,id:string,reason:'page_inactive'|'buddy_priority'|'gpu_capacity'){const job=this.get(user,id);if(job&&!(job.status==='waiting_for_provider'&&job.waitReason===reason)&&!['completed','failed','cancelled','safety_action_required'].includes(job.status))this.save({...job,status:'waiting_for_provider',waitReason:reason,updated_at:new Date().toISOString()});}
     setFace(user:string,id:string,status:FacialAnalysisStatus,result?:unknown){const j=this.get(user,id);if(j)this.save({...j,facial_status:status,...(result?{face_result:facialExpressionResultSchema.parse(result)}:{}),updated_at:new Date().toISOString()});}
     clear(user: string) { for (const j of this.rows().filter(x => x.user_id === user))
         this.remove(user, j.journal_id); }

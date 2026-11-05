@@ -85,6 +85,7 @@ export function createV1Router(options: V1RouterOptions = {}): Router {
         options.experience.service,
         options.experience.verifier,
         options.experience.verificationService,
+        options.journals?.service,
       ),
     );
   if (options.verification)

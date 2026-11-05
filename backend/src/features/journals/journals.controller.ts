@@ -8,6 +8,7 @@ import type { JournalService } from "./journals.service.js";
 
 const journalInputSchema = journalSubmissionInputSchema;
 const journalListSchema = z.object({
+  emotion:z.enum(["joy","trust","fear","surprise","sadness","disgust","anger","anticipation"]).optional(),
   page: z.coerce.number().int().min(1).max(100_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
   query: z.string().trim().max(200).default(""),
@@ -35,6 +36,8 @@ const analysisInsightsQuerySchema = z
 const journalUpdateSchema = journalSubmissionObjectSchema.partial();
 
 const journalDraftSchema = z.strictObject({
+  draftIntent:z.enum(['create','update']).default('create'),
+  expectedSubmissionKey:z.string().uuid().nullable().optional(),
   submissionKey: z.string().uuid().optional(),
   title: z.string().trim().max(200).default(""),
   body: z.string().trim().max(20_000).default(""),
@@ -146,7 +149,11 @@ export function createJournalsController(service: JournalService) {
     },
     async deleteDraft(request: Request, response: Response) {
       const submissionKey = request.query.submissionKey === undefined ? undefined : parse(z.string().uuid(),request.query.submissionKey);
-      await service.deleteDraft(userId(request),submissionKey);
+      const guard=request.query.draftId===undefined?undefined:{
+        id:parse(z.string().uuid(),request.query.draftId),
+        key:request.query.expectedSubmissionKey==='none'?null:parse(z.string().uuid(),request.query.expectedSubmissionKey),
+      };
+      await service.deleteDraft(userId(request),submissionKey,guard);
       response.status(204).end();
     },
     async analyze(request: Request, response: Response) {

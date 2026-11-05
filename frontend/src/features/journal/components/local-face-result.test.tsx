@@ -14,3 +14,9 @@ it('shows no-face explicitly instead of an invented emotion',async()=>{
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({data:{status:'unavailable',result:{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:'no_usable_face'}}})}));
  render(<LocalFaceResult entryId="synthetic-id"/>);await waitFor(()=>expect(screen.getByRole('status')).toHaveTextContent(/No usable single face/));expect(screen.queryByText('joy')).not.toBeInTheDocument();
 });
+
+it('shows a neutral label discrepancy without a diagnosis or fused score',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({data:{status:'completed',comparison:{status:'different',textEmotion:'sadness',faceEmotion:'joy'},result:{schemaVersion:'echo-face-expression-v1',status:'available',experimental:true,prediction:'joy',scoreType:'uncalibrated_class_probability',classProbabilities:{joy:.125,trust:.125,fear:.125,surprise:.125,sadness:.125,disgust:.125,anger:.125,anticipation:.125},quality:{},modelFingerprint:'a'.repeat(64),inferenceVersion:'test',generatedAt:'2026-11-05T01:00:00Z'}}})}));
+ render(<LocalFaceResult entryId="synthetic-id"/>);
+ expect(await screen.findByText('Different leading labels')).toBeInTheDocument();expect(screen.getByText(/Written text: sadness/)).toBeInTheDocument();expect(screen.getByText(/comparison does not establish how you feel/)).toBeInTheDocument();
+});

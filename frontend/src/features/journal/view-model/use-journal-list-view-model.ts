@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { JournalEntry, JournalSearchFilters, JournalPagination, JournalMood, JournalSortOption } from "../model/journal.model";
+import type { JournalEntry, JournalSearchFilters, JournalPagination, JournalEmotion, JournalMood, JournalSortOption } from "../model/journal.model";
 import { DefaultJournalFilters } from "../model/journal.model";
 import { JOURNAL_PAGE_SIZE } from "../model/journal.constants";
 import { getJournalService } from "@/services/journal/journal-service.factory";
@@ -125,6 +125,7 @@ export function useJournalListViewModel() {
     dispatch({ type: "SET_PAGE", page });
   }, []);
 
+  const setEmotionFilter=useCallback((emotion:JournalEmotion|null)=>dispatch({type:"SET_FILTERS",filters:{emotion,mood:null}}),[]);
   const setMoodFilter = useCallback((mood: JournalMood | null) => {
     dispatch({ type: "SET_FILTERS", filters: { mood } });
   }, []);
@@ -161,11 +162,11 @@ export function useJournalListViewModel() {
     isLoading: state.isLoading,
     error: state.error,
     searchInput: state.searchInput,
-    isFiltered: state.filters.query !== "" || state.filters.mood !== null || state.filters.dateFrom !== null || state.filters.dateTo !== null,
+    isFiltered: Boolean(state.filters.emotion) || state.filters.query !== "" || state.filters.mood !== null || state.filters.dateFrom !== null || state.filters.dateTo !== null,
     setSearch,
     applySearch,
     setFilters,
-    setMoodFilter,
+    setMoodFilter,setEmotionFilter,
     setSort,
     setPage,
     deleteEntry,

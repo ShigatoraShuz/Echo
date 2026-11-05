@@ -43,7 +43,7 @@ describe("journal HTTP pagination", () => {
     const request = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(request.body))).toEqual({
       title: "Note", body: "A thought", emotions: [], tags: [],
-      privacyStatus: "private", analysisConsent: false,
+      privacyStatus: "private", analysisConsent: false, draftIntent:"create", expectedSubmissionKey:null,
     });
   });
 

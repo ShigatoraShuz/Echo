@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BookOpen, ChevronLeft, ChevronRight, ImagePlus, PenLine, Search } from "lucide-react";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
+import { JOURNAL_EMOTIONS } from "../model/journal.model";
 import type { JournalEntry, JournalMood } from "../model/journal.model";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
 import { JournalPolaroid } from "../components/journal-polaroid";
 
-const moods: JournalMood[] = ["calm", "happy", "neutral", "sad", "anxious", "angry"];
+const moods = JOURNAL_EMOTIONS;
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
   month: "short",
@@ -74,12 +75,12 @@ export function JournalNotebookView() {
             Search
           </button>
         </form>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2" aria-label="Filter by mood">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2" aria-label="Filter by detected emotion">
           <button
             type="button"
-            onClick={() => vm.setMoodFilter(null)}
-            aria-pressed={vm.filters.mood === null}
-            className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${vm.filters.mood === null ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
+            onClick={() => vm.setEmotionFilter(null)}
+            aria-pressed={!vm.filters.emotion}
+            className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold ${!vm.filters.emotion ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
           >
             All entries
           </button>
@@ -87,9 +88,9 @@ export function JournalNotebookView() {
             <button
               key={mood}
               type="button"
-              onClick={() => vm.setMoodFilter(mood)}
-              aria-pressed={vm.filters.mood === mood}
-              className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold capitalize ${vm.filters.mood === mood ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
+              onClick={() => vm.setEmotionFilter(mood)}
+              aria-pressed={vm.filters.emotion === mood}
+              className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold capitalize ${vm.filters.emotion === mood ? "bg-[var(--landing-primary)] text-white" : "border border-[var(--landing-primary-15)] text-[var(--landing-muted)]"}`}
             >
               {mood}
             </button>

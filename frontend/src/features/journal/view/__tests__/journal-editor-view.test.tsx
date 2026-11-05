@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterAll } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JournalEditorView } from "../journal-editor-view";
 import { useJournalEditorViewModel } from "@/features/journal/view-model/use-journal-editor-view-model";
@@ -44,6 +44,8 @@ vi.mock("@/shared/components/feedback/echo-inline-message", () => ({
 function setupMock() {
   return {
     draftReady: true,
+    previousDraft:null,discardPreviousDraft:vi.fn().mockResolvedValue(true),shouldRestorePhotos:false,editorGeneration:0,
+    analysisSubmission:null,fixture:'standard_low_distress' as const,setFixture:vi.fn(),
     title: "",
     body: "",
     mood: "calm" as const,
@@ -276,8 +278,43 @@ describe("JournalEditorView", () => {
       success: true,
       data: [{ id: savedId, url: "https://storage.example.test/signed-photo" }],
     });
-    render(<JournalEditorView />);
+    vi.mocked(useJournalEditorViewModel).mockReturnValue({...setupMock(),shouldRestorePhotos:true} as ReturnType<typeof useJournalEditorViewModel>);
+    render(<JournalEditorView resumeDraft/>);
     expect(await screen.findByRole("img", { name: "Draft photo 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save reflection/i })).toBeEnabled();
   });
+
+it('same-route New action saves current writing and requests a fresh editor key',async()=>{
+ const user=userEvent.setup();const mock=setupMock();vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as ReturnType<typeof useJournalEditorViewModel>);
+ const oldUrl=window.location.href;window.history.replaceState({},'', '/journal/new');
+ const link=document.createElement('a');link.href='/journal/new';link.textContent='New reflection action';document.body.appendChild(link);
+ try{render(<JournalEditorView/>);await user.click(link);await waitFor(()=>expect(mock.saveDraftNow).toHaveBeenCalled());expect(replace).toHaveBeenCalledWith(expect.stringMatching(/^\/journal\/new\?fresh=/));}
+ finally{link.remove();window.history.replaceState({},'',oldUrl);}
+});
+
+it('New does not load prior saved draft photos',async()=>{
+ const mock=setupMock();vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as ReturnType<typeof useJournalEditorViewModel>);
+ listDraftImages.mockClear();render(<JournalEditorView/>);await waitFor(()=>expect(screen.getByRole('button',{name:/save reflection/i})).toBeInTheDocument());expect(listDraftImages).not.toHaveBeenCalled();
+});
+
+it('leaving during draft reservation prevents a late photo upload',async()=>{
+ const user=userEvent.setup();const mock=setupMock();let finish!:(v:boolean)=>void;
+ mock.saveDraftNow.mockImplementation(()=>new Promise(r=>finish=r));
+ vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as ReturnType<typeof useJournalEditorViewModel>);
+ const page=render(<JournalEditorView/>);await waitFor(()=>expect(screen.getByLabelText('Upload journal photos')).toBeEnabled());
+ await user.upload(screen.getByLabelText('Upload journal photos'),new File(['photo'],'late.png',{type:'image/png'}));
+ expect(mock.saveDraftNow).toHaveBeenCalled();page.unmount();
+ await act(async()=>{finish(true);await Promise.resolve();});
+ expect(uploadDraftImage).not.toHaveBeenCalled();expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:journal-photo');
+});
+it('late restored photos cannot refill a freshly reset editor',async()=>{
+ const mock={...setupMock(),shouldRestorePhotos:true};let finish!:(v:unknown)=>void;
+ listDraftImages.mockImplementationOnce(()=>new Promise(r=>finish=r));
+ vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as ReturnType<typeof useJournalEditorViewModel>);
+ const page=render(<JournalEditorView resumeDraft/>);await waitFor(()=>expect(listDraftImages).toHaveBeenCalledTimes(1));
+ mock.shouldRestorePhotos=false;mock.editorGeneration=1;
+ vi.mocked(useJournalEditorViewModel).mockReturnValue({...mock} as ReturnType<typeof useJournalEditorViewModel>);page.rerender(<JournalEditorView/>);
+ await act(async()=>{finish({success:true,data:[{id:'late',url:'https://storage.example.test/old-photo'}]});await Promise.resolve();});
+ expect(screen.queryByRole('img',{name:'Draft photo 1'})).not.toBeInTheDocument();
+});
 });

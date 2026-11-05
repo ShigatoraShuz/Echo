@@ -1,3 +1,4 @@
+import * as runtimeApi from "../../view-model/use-realtime-talk";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -217,4 +218,66 @@ it("announces generation without malformed loading text", () => {
   render(<BuddyView />);
   expect(screen.getAllByRole("status").some(el=>el.textContent?.includes("Buddy is reflecting"))).toBe(true);
   expect(screen.queryByText(/â/)).not.toBeInTheDocument();
+});
+
+it('releases only the page lease belonging to the unmounted Buddy tab',async()=>{
+ const a={id:'40000000-0000-4000-8000-000000000001',profile:'buddy_chat' as const,expiresAt:'2026-11-04T12:00:00.000Z',state:'ready' as const};
+ const b={...a,id:'40000000-0000-4000-8000-000000000002'};
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValueOnce(a).mockResolvedValueOnce(b);
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ const mock=setupMock();vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+ const first=render(<BuddyView/>),second=render(<BuddyView/>);
+ try{
+  await waitFor(()=>expect(acquire).toHaveBeenCalledTimes(2));await act(async()=>{});
+  first.unmount();await waitFor(()=>expect(release).toHaveBeenCalledWith(a.id));
+  expect(release).not.toHaveBeenCalledWith(b.id);
+  second.unmount();await waitFor(()=>expect(release).toHaveBeenCalledWith(b.id));
+ }finally{first.unmount();second.unmount();acquire.mockRestore();release.mockRestore();}
+});
+
+it('releases a lease that finishes acquiring after its page has exited',async()=>{
+ const lease={id:'40000000-0000-4000-8000-000000000003',profile:'buddy_chat' as const,expiresAt:'2026-11-04T12:00:00.000Z',state:'preparing' as const};
+ let resolve!:(value:typeof lease)=>void;
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockImplementation(()=>new Promise(r=>{resolve=r;}));
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ const mock=setupMock();vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+ const view=render(<BuddyView/>);
+ try{await waitFor(()=>expect(acquire).toHaveBeenCalled());view.unmount();await act(async()=>{resolve(lease);});expect(release).toHaveBeenCalledWith(lease.id);}
+ finally{view.unmount();acquire.mockRestore();release.mockRestore();}
+});
+
+it('shows safe component progress only when opening the Send-adjacent icon',async()=>{
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValue({id:'lease',profile:'buddy_chat',expiresAt:new Date().toISOString(),state:'preparing',preparation:{component:'cbt',state:'retrying',attempt:2,maxAttempts:5,elapsedSeconds:18,retryInSeconds:5,correlationId:'a'.repeat(32)}});
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+ const page=render(<BuddyView/>);
+ try{
+  await waitFor(()=>expect(acquire).toHaveBeenCalled());
+  expect(screen.queryByText(/Attempt 2 of 5/)).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole('button',{name:'Model loading details'}));
+  expect(screen.getByText(/Buddy response model: retrying. Attempt 2 of 5/)).toBeVisible();
+  expect(screen.getByText('Retrying in 5 seconds.')).toBeVisible();
+ }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
+});
+
+it('keeps the loading icon active when Whisper is ready but Nano is still preparing',async()=>{
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValue({id:'lease',profile:'buddy_chat',expiresAt:new Date().toISOString(),state:'ready',preparation:{component:'whisper',state:'ready',attempt:1,maxAttempts:5,loadingComponents:['nano']}});
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);const page=render(<BuddyView/>);
+ try{
+  await waitFor(()=>expect(acquire).toHaveBeenCalled());expect(screen.getByRole('status',{name:'Buddy models: preparing'})).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole('button',{name:'Model loading details'}));expect(screen.getByText('Preparing: Speech model and voice.')).toBeVisible();
+ }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
+});
+
+it('keeps typed text and shows loading status when Send is waiting for local models',async()=>{
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValue({id:'lease',profile:'buddy_chat',expiresAt:new Date().toISOString(),state:'preparing'});
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ const mock={...setupMock(),loadingNotice:'Buddy is still loading its local models. Your message has not been sent.'};mock.sendMessage.mockResolvedValue(false);
+ vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);const page=render(<BuddyView/>);
+ try{
+  await userEvent.setup().type(screen.getByLabelText(/message buddy/i),'Keep this text');await userEvent.setup().click(screen.getByRole('button',{name:'Send message'}));
+  await waitFor(()=>expect(screen.getByLabelText(/message buddy/i)).toHaveValue('Keep this text'));
+  expect(screen.getByText(mock.loadingNotice)).toHaveAttribute('role','status');expect(screen.queryByText('Something went wrong on our end. Please try again later.')).not.toBeInTheDocument();
+ }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
 });

@@ -25,7 +25,7 @@ interface JournalPhotoPreview {
   status: "uploading" | "saved" | "error";
 }
 
-export function JournalEditorView() {
+export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={}) {
   const router = useRouter();
   const {
     title,
@@ -39,6 +39,7 @@ export function JournalEditorView() {
     error,
     fieldErrors,
     draftReady,
+    previousDraft,discardPreviousDraft,shouldRestorePhotos,editorGeneration,
     savedEntry,
     analysisSubmission,
     setTitle,
@@ -49,7 +50,7 @@ export function JournalEditorView() {
     retryAutosave,
     saveDraftNow,
     reset,
-  } = useJournalEditorViewModel();
+  } = useJournalEditorViewModel({resumeDraft});
   const report = useJournalDetailViewModel(analysisSubmission?.journalId ?? "");
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
   const [photoError, setPhotoError] = useState("");
@@ -64,7 +65,7 @@ export function JournalEditorView() {
   const [privacyReady, setPrivacyReady] = useState(false);
   const privacyRead = useRef<ReturnType<typeof settingsService.get> | null>(null);
   const facialEnabled = privacyReady && journalAiAllowed === true && facialAllowed && analysisConsent && env.enableFacialAnalysis;
-  const facialRunning = facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving && !analysisSubmission;
+  const facialRunning = !previousDraft && facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving && !analysisSubmission;
 
   useEffect(() => {
     if (!savedEntry) return;
@@ -129,10 +130,18 @@ export function JournalEditorView() {
   useEffect(() => {
     photosRef.current = photos;
   }, [photos]);
+  const photoReadSequence=useRef(0);
+  const photoLifecycle=useRef(0);
+  useEffect(()=>()=>{photoLifecycle.current++;},[]);
+  const photoEditorEpoch=useRef(editorGeneration);photoEditorEpoch.current=editorGeneration;
+  useEffect(()=>()=>{photoReadSequence.current++;},[]);
   const loadDraftPhotos = useCallback(async () => {
+    const request=++photoReadSequence.current,epoch=editorGeneration;
+    if(!shouldRestorePhotos){setPhotosLoaded(true);return;}
     setPhotosLoaded(false);
     try {
       const result = await journalService.listDraftImages();
+      if(request!==photoReadSequence.current||epoch!==photoEditorEpoch.current)return;
       if (!result.success) throw new Error(result.error.message);
       setPhotos((current) => [
         ...current,
@@ -148,14 +157,21 @@ export function JournalEditorView() {
       setPhotoError("");
       setPhotosLoaded(true);
     } catch (failure) {
+      if(request!==photoReadSequence.current||epoch!==photoEditorEpoch.current)return;
       setPhotoError(
         `${failure instanceof Error ? failure.message : "Draft photos could not be loaded."} Retry loading your draft photos before publishing.`,
       );
     }
-  }, [journalService]);
+  }, [journalService,shouldRestorePhotos,editorGeneration]);
   useEffect(() => {
     if (draftReady) void loadDraftPhotos();
   }, [draftReady, loadDraftPhotos]);
+  useEffect(()=>{
+    if(!savedEntry&&!analysisSubmission)return;
+    photoReadSequence.current++;
+    for(const photo of photosRef.current)if(photo.src.startsWith('blob:'))URL.revokeObjectURL(photo.src);
+    setPhotos([]);setPhotoError('');setPhotosLoaded(true);
+  },[savedEntry?.id,analysisSubmission?.journalId]);
   const pendingPhotos = photos.some((photo) => photo.status !== "saved");
   useEffect(() => {
     if (!pendingPhotos || savedEntry || analysisSubmission || photoBackGuardRef.current) return;
@@ -193,43 +209,28 @@ export function JournalEditorView() {
   }, [analysisSubmission, isSaving, saveDraftNow, savedEntry]);
   useEffect(() => {
     const leaveWithPhotos = (event: globalThis.MouseEvent) => {
-      if (
-        !photosRef.current.length ||
-        savedEntry ||
-        analysisSubmission ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      )
-        return;
-      const target = event.target;
-      const link = target instanceof Element ? target.closest("a[href]") : null;
-      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank" || link.hasAttribute("download")) return;
-      const destination = new URL(link.href, window.location.href);
-      if (
-        destination.origin !== window.location.origin ||
-        destination.pathname === window.location.pathname ||
-        destination.pathname === "/crisis" ||
-        destination.pathname === "/crisis-help"
-      )
-        return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (
-        isSaving ||
-        (photosRef.current.some((photo) => photo.status !== "saved") &&
-          !window.confirm("Some photos have not finished saving. Leave without them?"))
-      )
-        return;
-      void saveDraftNow().then((saved) => {
-        if (saved) router.replace(`${destination.pathname}${destination.search}${destination.hash}`);
-      });
+      if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      const target=event.target;const link=target instanceof Element?target.closest('a[href]'):null;
+      if(!(link instanceof HTMLAnchorElement)||link.target==='_blank'||link.hasAttribute('download'))return;
+      const destination=new URL(link.href,window.location.href);
+      if(destination.origin!==window.location.origin||['/crisis','/crisis-help'].includes(destination.pathname))return;
+      const fresh=destination.pathname==='/journal/new';
+      if(!fresh&&(!photosRef.current.length||savedEntry||analysisSubmission||destination.pathname===window.location.pathname))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      if(isSaving)return;
+      if(photosRef.current.some(p=>p.status!=='saved')&&!window.confirm('Some photos have not finished saving. Leave without them?'))return;
+      const navigate=()=>router.replace(fresh?'/journal/new?fresh='+crypto.randomUUID():`${destination.pathname}${destination.search}${destination.hash}`);
+      if(savedEntry||analysisSubmission){navigate();return;}
+      if(fresh&&previousDraft){
+        if((title.trim()||body.trim()||tags.length||photosRef.current.length)&&!window.confirm('Start another empty reflection? This new unsaved writing will be discarded; your earlier saved draft will remain.'))return;
+        navigate();return;
+      }
+      const lifecycle=photoLifecycle.current;
+      void saveDraftNow().then(saved=>{if(saved&&lifecycle===photoLifecycle.current)navigate();});
     };
     document.addEventListener("click", leaveWithPhotos, true);
     return () => document.removeEventListener("click", leaveWithPhotos, true);
-  }, [analysisSubmission, isSaving, router, saveDraftNow, savedEntry]);
+  }, [analysisSubmission, isSaving, router, saveDraftNow, savedEntry,previousDraft,title,body,tags.length]);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (photosRef.current.some((photo) => photo.status !== "saved") && !savedEntry && !analysisSubmission) {
@@ -250,14 +251,20 @@ export function JournalEditorView() {
 
   const persistPhoto = async (photo: JournalPhotoPreview) => {
     if (!photo.file) return;
+    const lifecycle=photoLifecycle.current,epoch=photoEditorEpoch.current;
+    const current=()=>lifecycle===photoLifecycle.current&&epoch===photoEditorEpoch.current;
     setPhotos((current) => current.map((item) => (item.id === photo.id ? { ...item, status: "uploading" } : item)));
     try {
-      if (!(await saveDraftNow(true))) throw new Error("Your draft could not be saved.");
+      const saved=await saveDraftNow(true);
+      if(!current())return;
+      if(!saved)throw new Error("Your draft could not be saved.");
       const result = await journalService.uploadDraftImage(photo.id, photo.file);
+      if(!current())return;
       if (!result.success) throw new Error(result.error.message);
       setPhotos((current) => current.map((item) => (item.id === photo.id ? { ...item, status: "saved" } : item)));
       setPhotoError("");
     } catch (failure) {
+      if(!current())return;
       setPhotos((current) => current.map((item) => (item.id === photo.id ? { ...item, status: "error" } : item)));
       setPhotoError(
         `${failure instanceof Error ? failure.message : "The photo could not be uploaded."} Retry the photo; your writing remains in the draft.`,
@@ -291,7 +298,9 @@ export function JournalEditorView() {
       setPhotoError("Wait for this photo to finish uploading before removing it.");
       return;
     }
+    const lifecycle=photoLifecycle.current,epoch=photoEditorEpoch.current;
     const result = await journalService.removeDraftImage(id);
+    if(lifecycle!==photoLifecycle.current||epoch!==photoEditorEpoch.current)return;
     if (!result.success) {
       setPhotoError(`${result.error.message} Retry removing the photo.`);
       return;
@@ -333,7 +342,7 @@ export function JournalEditorView() {
   if (!draftReady)
     return (
       <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-6" role="status">
-        <p>{error || "Opening your saved draft…"}</p>
+        <p>{error || (resumeDraft?"Opening your saved draft…":"Preparing a new reflection…")}</p>
         {error && (
           <button type="button" onClick={() => window.location.reload()} className="echo-button-secondary mt-4">
             Retry opening draft
@@ -356,6 +365,16 @@ export function JournalEditorView() {
           <Link href={`/journal/${analysisSubmission.journalId}`} className="text-sm font-semibold text-primary underline underline-offset-4">Open saved reflection</Link>
         ) : <JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} />}
       </div>
+      {previousDraft ? <section role="status" className="mb-5 rounded-2xl border border-border bg-card p-4">
+        <p>Your earlier saved draft is preserved. This is a separate new reflection; resume or explicitly discard the earlier draft before saving a replacement.</p>
+        <div className="mt-3 flex gap-3">
+          <button type="button" className="echo-button-secondary" onClick={()=>{
+            if((title.trim()||body.trim()||tags.length||photos.length)&&!window.confirm('Leave this new unsaved reflection and resume the saved draft?'))return;
+            router.push('/journal/resume');
+          }}>Resume saved draft</button>
+          <button type="button" className="echo-button-secondary" onClick={()=>{if(window.confirm('Discard the earlier saved draft and its attached photos? Your new writing will remain.'))void discardPreviousDraft();}}>Discard earlier draft</button>
+        </div>
+      </section> : null}
       <div className="journal-studio-grid">
         <div className="journal-studio-writing">
           <article className="journal-writing-page overflow-hidden rounded-[1.5rem] border border-border/70 bg-card shadow-[0_20px_70px_rgba(31,53,42,0.09)] sm:rounded-[2rem]">

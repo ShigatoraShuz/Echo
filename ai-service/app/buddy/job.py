@@ -4,7 +4,7 @@ import subprocess
 import threading
 
 class WindowsJob:
-    def __init__(self):
+    def __init__(self, *, memory_bytes=None, cpu_percent=None):
         import ctypes as c
         from ctypes import wintypes as w
         self.lock = threading.Lock()
@@ -34,8 +34,22 @@ class WindowsJob:
             raise c.WinError(c.get_last_error())
         info = Extended()
         info.basic.flags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if memory_bytes is not None:
+            if not 0 < memory_bytes <= 28_000_000_000:
+                self.close(); raise ValueError("Invalid worker memory limit")
+            info.basic.flags |= 0x200
+            info.job_memory = memory_bytes
         if not self.api.SetInformationJobObject(self.handle, 9, c.byref(info), c.sizeof(info)):
             error = c.WinError(c.get_last_error()); self.close(); raise error
+
+        if cpu_percent is not None:
+            if not 0 < cpu_percent <= 60:
+                self.close(); raise ValueError("Invalid worker CPU limit")
+            class CPU(c.Structure):
+                _fields_ = [("flags", w.DWORD), ("rate", w.DWORD)]
+            cpu = CPU(5, cpu_percent * 100)
+            if not self.api.SetInformationJobObject(self.handle, 15, c.byref(cpu), c.sizeof(cpu)):
+                error = c.WinError(c.get_last_error()); self.close(); raise error
 
     def attach_and_resume(self, process):
         if not self.api.AssignProcessToJobObject(self.handle, int(process._handle)):
@@ -53,9 +67,12 @@ class WindowsJob:
                 self.api.CloseHandle(handle)
 
 def spawn_owned(args, **kwargs):
+    limits = kwargs.pop("resource_limits", None)
     if os.name != "nt":
+        if limits:
+            raise RuntimeError("BUDDY_CBT_RESOURCE_LIMIT_UNAVAILABLE")
         return subprocess.Popen(args, **kwargs)
-    job = WindowsJob()
+    job = WindowsJob(**(limits or {}))
     process = None
     try:
         # Attach before the venv launcher can create its Python child.

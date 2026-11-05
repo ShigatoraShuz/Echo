@@ -1,3 +1,4 @@
+import {philippineMobileSchema} from "@echo/contracts";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
@@ -82,7 +83,7 @@ const contactSchema = z
   .strictObject({
     contactName: z.string().trim().min(1).max(200),
     contactEmail: z.string().trim().email().max(320).nullable(),
-    contactPhone: z.string().trim().min(5).max(40).nullable(),
+    contactPhone: philippineMobileSchema.nullable(),
     relationship: z.string().trim().min(1).max(100),
     isPrimary: z.boolean(),
     permissionAcknowledged: z.literal(true, {

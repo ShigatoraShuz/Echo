@@ -2,6 +2,7 @@
 
 import { Search, ArrowUpDown, X } from "lucide-react";
 import type { JournalMood, JournalSortOption, JournalSearchFilters } from "../model/journal.model";
+import { JOURNAL_EMOTIONS, type JournalEmotion } from "../model/journal.model";
 import { SORT_LABELS } from "../model/journal.schema";
 
 interface JournalFiltersProps {
@@ -9,6 +10,7 @@ interface JournalFiltersProps {
   searchInput: string;
   onSearchChange: (value: string) => void;
   onSearchApply: () => void;
+  onEmotionChange?: (emotion:JournalEmotion|null)=>void;
   onMoodChange: (mood: JournalMood | null) => void;
   onSortChange: (sort: JournalSortOption) => void;
   onReset: () => void;
@@ -20,7 +22,7 @@ export function JournalFilters({
   searchInput,
   onSearchChange,
   onSearchApply,
-  onSortChange,
+  onSortChange,onEmotionChange,
   onReset,
   isFiltered,
 }: JournalFiltersProps) {
@@ -76,6 +78,11 @@ export function JournalFilters({
         </div>
       </div>
 
+      <label className="flex items-center gap-2 text-sm">Detected emotion
+        <select aria-label="Filter by detected emotion" value={filters.emotion??''} onChange={event=>onEmotionChange?.(event.target.value?event.target.value as JournalEmotion:null)} className="rounded-xl border border-border bg-card p-2">
+          <option value="">All entries</option>{JOURNAL_EMOTIONS.map(emotion=><option key={emotion} value={emotion}>{emotion[0].toUpperCase()+emotion.slice(1)}</option>)}
+        </select>
+      </label>
       <div className="flex justify-end">
         {isFiltered && (
           <button

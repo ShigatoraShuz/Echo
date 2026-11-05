@@ -35,7 +35,7 @@ export function JournalListView() {
     isFiltered,
     setSearch,
     applySearch,
-    setMoodFilter,
+    setMoodFilter,setEmotionFilter,
     setSort,
     setPage,
     resetFilters,
@@ -61,7 +61,7 @@ export function JournalListView() {
 
     return groups;
   }, [entries]);
-  const contentKey = `${viewMode}:${pagination.page}:${filters.query}:${filters.mood}:${filters.sort}:${filters.dateFrom}:${filters.dateTo}:${isLoading}`;
+  const contentKey = `${viewMode}:${pagination.page}:${filters.query}:${filters.mood}:${filters.emotion}:${filters.sort}:${filters.dateFrom}:${filters.dateTo}:${isLoading}`;
 
   if (error && entries.length === 0) {
     return (
@@ -174,6 +174,7 @@ export function JournalListView() {
           onSearchChange={setSearch}
           onSearchApply={applySearch}
           onMoodChange={setMoodFilter}
+          onEmotionChange={setEmotionFilter}
           onSortChange={setSort}
           onReset={resetFilters}
           isFiltered={isFiltered}

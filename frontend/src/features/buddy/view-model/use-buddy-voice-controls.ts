@@ -1,4 +1,5 @@
 "use client";
+import { speechErrorMessage } from "./speech-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import { env } from "@/config/environment";
@@ -12,6 +13,7 @@ export function useBuddyVoiceControls() {
     timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isListening, setListening] = useState(false),
     [isSpeaking, setSpeaking] = useState(false),
+    [isPreparingSpeech, setPreparingSpeech] = useState(false),
     [isTranscribing, setTranscribing] = useState(false),
     [voiceError, setError] = useState<string | null>(null),
     [interimTranscript, setTranscript] = useState("");
@@ -33,6 +35,7 @@ export function useBuddyVoiceControls() {
     if (url.current) URL.revokeObjectURL(url.current);
     url.current = null;
     setSpeaking(false);
+    setPreparingSpeech(false);
   }, []);
   const cancel = useCallback(() => {
     setError(null);
@@ -60,9 +63,12 @@ export function useBuddyVoiceControls() {
       method: "POST",
       headers: { Authorization: "Bearer " + token, "Content-Type": type },
       body,
-      signal: AbortSignal.any([abort.current.signal, AbortSignal.timeout(315000)]),
+      signal: AbortSignal.any([abort.current.signal, AbortSignal.timeout(6600000)]),
     });
-    if (!response.ok) throw Error("Local speech unavailable. Please retry.");
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null);
+      throw Error(speechErrorMessage(failure?.error?.code));
+    }
     return response;
   }
   const startListening = useCallback(
@@ -142,7 +148,7 @@ export function useBuddyVoiceControls() {
       cancel();
       const id = generation.current;
       setError(null);
-      setSpeaking(true);
+      setPreparingSpeech(true);
       try {
         const response = await request("speak", JSON.stringify({ text }), "application/json");
         const blob = await response.blob();
@@ -157,11 +163,18 @@ export function useBuddyVoiceControls() {
         };
         await player.play();
         if (id !== generation.current) return;
+        setPreparingSpeech(false);
         setSpeaking(true);
-      } catch {
+      } catch (error) {
         if (id === generation.current) {
           stopSpeaking();
-          setError("Speech unavailable or playback blocked. Use Play to retry.");
+          setError(error instanceof Error && error.name === 'NotAllowedError'
+            ? 'Playback was blocked. Use Speak to retry; your approved answer is retained.'
+            : error instanceof Error && error.name === 'TimeoutError'
+              ? speechErrorMessage('AI_TRANSPORT_TIMEOUT')
+              : error instanceof Error && error.name === 'TypeError'
+                ? speechErrorMessage('AI_TRANSPORT_CONNECTION_FAILED')
+                : error instanceof Error ? error.message : speechErrorMessage(undefined));
         }
       }
     },
@@ -184,6 +197,7 @@ export function useBuddyVoiceControls() {
     speechSupported: true,
     isListening,
     isSpeaking,
+    isPreparingSpeech,
     isTranscribing,
     interimTranscript,
     voiceError,

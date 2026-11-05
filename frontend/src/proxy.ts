@@ -223,7 +223,7 @@ export async function proxy(request: NextRequest) {
     const token = sessionData.session?.access_token;
     if (!token) return redirectToLogin(request, response, nonce, "login_required");
     category = "configuration";
-    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const apiUrl = process.env.GATEWAY_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
     if (!apiUrl) throw new Error();
     category = "transport";
     const accessResponse = await fetch(`${apiUrl.replace(/\/$/, "")}/access/status`, {

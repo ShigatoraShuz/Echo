@@ -1,3 +1,4 @@
+import {philippineMobileSchema} from "@echo/contracts";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ValidationError } from "../../shared/errors/app-error.js";
@@ -21,7 +22,7 @@ const addressSchema = z.strictObject({
 const guardianSchema = z.strictObject({
   legalName: z.string().trim().min(2).max(200),
   relationship: z.string().trim().min(2).max(80),
-  phoneNumber: z.string().trim().min(7).max(40),
+  phoneNumber: philippineMobileSchema,
   email: z.string().trim().email().max(320).nullable().default(null),
   address: addressSchema,
   governmentIdType: z.string().trim().min(2).max(80),
@@ -34,7 +35,7 @@ const applicationSchema = z.strictObject({
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/),
-  phoneNumber: z.string().trim().min(7).max(40),
+  phoneNumber: philippineMobileSchema,
   address: addressSchema,
   governmentIdType: z.string().trim().min(2).max(80),
   governmentIdNumber: z.string().trim().min(3).max(120),

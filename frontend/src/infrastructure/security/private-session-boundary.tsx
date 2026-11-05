@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
+import {appPresenceEnabled,updateAppPresence} from "./app-presence";
 import { clearSensitiveBrowserState } from "./clear-sensitive-state";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -60,7 +61,7 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
       });
     };
     const checkIdle = () => {
-      if (!activityKey || invalidated) return;
+      if (appPresenceEnabled || !activityKey || invalidated) return;
       try {
         const stored = window.localStorage.getItem(activityKey);
         if (stored === "0") { expireIdle(); return; }
@@ -75,7 +76,7 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
       idleTimer = window.setTimeout(checkIdle, remaining);
     };
     const onActivity = () => {
-      if (!activityKey || invalidated) return;
+      if (appPresenceEnabled || !activityKey || invalidated) return;
       checkIdle();
       if (invalidated) return;
       lastActivity = Date.now();
@@ -92,6 +93,7 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
     const onVisibility = () => { if (!document.hidden) checkIdle(); };
     const cleared = () => invalidate("/login?error=session_changed");
     const pageHide = () => {
+      if(appPresenceEnabled)void updateAppPresence("release").catch(()=>{});
       if (container.current) container.current.hidden = true;
     };
     const pageShow = (event: PageTransitionEvent) => {
@@ -107,6 +109,19 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
     for (const event of ["pointerdown", "keydown", "touchstart", "wheel"] as const) {
       window.addEventListener(event, onActivity, { passive: true });
     }
+    let presenceTimer:ReturnType<typeof setInterval>|undefined;
+    let presencePending=false;
+    const checkPresence=async()=>{
+      if(presencePending||!mounted||invalidated)return;
+      presencePending=true;
+      try{const state=await updateAppPresence('heartbeat');if(!mounted||invalidated)return;if(state.closed){await auth?.signOut({scope:'local'});if(mounted)invalidate('/login?error=session_ended');}else setSessionTimedOut(false);}
+      catch{if(mounted&&!invalidated)setSessionTimedOut(true);}
+      finally{presencePending=false;}
+    };
+    const logoutEvent=(event:StorageEvent)=>{if(event.key==='echo:logout-event')invalidate('/login?error=signed_out');};
+    window.addEventListener('storage',logoutEvent);
+    const sessionChannel=typeof BroadcastChannel!=='undefined'?new BroadcastChannel('echo:session'):null;
+    if(sessionChannel)sessionChannel.onmessage=e=>{if(e.data?.type==='logout')invalidate('/login?error=signed_out');};
     let unsubscribe: (() => void) | undefined;
     try {
       auth = createBrowserSupabaseClient().auth;
@@ -121,13 +136,18 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
         sessionPending = false;
         setSessionTimedOut(true);
       }, SESSION_CHECK_TIMEOUT_MS);
-      void auth.getSession().then(({ data: sessionData, error }) => {
+      void auth.getSession().then(async ({ data: sessionData, error }) => {
         if (!mounted || invalidated || !sessionPending) return;
         sessionPending = false;
         window.clearTimeout(sessionTimer);
         const session = sessionData.session;
         const sessionId = session?.user.id === userId ? sessionIdFromToken(session.access_token) : null;
         if (error || !sessionId) { invalidate("/login?error=auth_unavailable"); return; }
+        if(appPresenceEnabled){
+          try{const state=await updateAppPresence('register');if(!mounted)return;if(state.closed){await auth?.signOut({scope:'local'});invalidate('/login?error=session_ended');return;}
+          presenceTimer=setInterval(()=>void checkPresence(),15000);setReady(true);return;
+          }catch{if(mounted)setSessionTimedOut(true);return;}
+        }
         activityKey = `echo:auth:last-activity:${sessionId}`;
         try {
           const stored = window.localStorage.getItem(activityKey);
@@ -146,6 +166,10 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
     }
     return () => {
       mounted = false;
+      if(presenceTimer)clearInterval(presenceTimer);
+      window.removeEventListener("storage",logoutEvent);
+      sessionChannel?.close();
+      if(appPresenceEnabled)void updateAppPresence("release").catch(()=>{});
       window.clearTimeout(sessionTimer);
       window.clearTimeout(idleTimer);
       unsubscribe?.();
@@ -162,7 +186,12 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
   }, [userId, sessionAttempt]);
   return (
     <div ref={container}>
-      {blocked ? null : ready ? children : sessionTimedOut ? (
+      {blocked ? null : ready ? <>
+        {sessionTimedOut&&<div role="alert" className="px-6 py-3 text-sm text-muted-foreground">Session service is temporarily unavailable. Please retry the session check.
+          <button type="button" className="ml-2 font-semibold underline" onClick={()=>{setSessionTimedOut(false);setSessionAttempt(value=>value+1);}}>Retry session check</button>
+        </div>}
+        {children}
+      </> : sessionTimedOut ? (
         <div role="alert" className="px-6 py-8 text-sm text-muted-foreground">
           <p>We could not confirm your private session yet.</p>
           <button type="button" className="mt-3 font-semibold text-primary underline" onClick={() => { setSessionTimedOut(false); setSessionAttempt((attempt) => attempt + 1); }}>
@@ -170,7 +199,7 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
           </button>
         </div>
       ) : (
-        <p role="status" className="px-6 py-8 text-sm text-muted-foreground">Checking your private session…</p>
+        <p role="status" className="px-6 py-8 text-sm text-muted-foreground">Checking your private sessionÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import {appPresenceEnabled,updateAppPresence,broadcastLogout} from "@/infrastructure/security/app-presence";
 import { clearSensitiveBrowserState } from "@/infrastructure/security/clear-sensitive-state";
 import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabaseClient } from "@/infrastructure/supabase/browser-client";
@@ -91,7 +92,7 @@ function shouldExpireVolatileSession(): boolean {
       return false;
     }
 
-    return window.sessionStorage.getItem(VOLATILE_SESSION_MARKER_KEY) !== "active";
+    return !appPresenceEnabled && window.sessionStorage.getItem(VOLATILE_SESSION_MARKER_KEY) !== "active";
   } catch {
     return false;
   }
@@ -252,6 +253,11 @@ export function createAuthSupabaseAdapter(): AuthService {
         };
       }
 
+      if(appPresenceEnabled){
+        try{const presence=await updateAppPresence('heartbeat');
+          if(presence.closed){await client.auth.signOut({scope:'local'});clearSessionPersistenceState();return {success:true,data:null};}
+        }catch{return {success:false,error:{code:'UNKNOWN',message:'Session service unavailable. Please retry.'}};}
+      }
       if (shouldExpireVolatileSession()) {
         const { error: signOutError } = await client.auth.signOut({
           scope: "local",
@@ -276,6 +282,7 @@ export function createAuthSupabaseAdapter(): AuthService {
     },
 
     async logout() {
+      if(appPresenceEnabled){await updateAppPresence("logout").catch(()=>{});broadcastLogout();}
       const { error } = await client.auth.signOut({
         scope: "local",
       });

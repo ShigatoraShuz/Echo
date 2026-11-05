@@ -124,3 +124,23 @@ describe("journal list", () => {
     expect((await service.listPage("owner", { ...options, query: "focus" })).entries.map((entry) => entry.id)).toEqual(["journal-2"]);
   });
 });
+
+it('filters real saved dominant emotions before counts and pagination, retaining date order and ownership',async()=>{
+ const {service}=harness([row(1),row(2),row(3),row(4),row(5),row(6),row(7,'other')]);const runtime=service as any;
+ const results:Record<string,unknown>={
+  'journal-1':{schemaVersion:'echo-journal-analysis-v3',isSimulated:false,dominantEmotion:'joy'},
+  'journal-2':{schemaVersion:'echo-journal-analysis-v3',isSimulated:true,dominantEmotion:'joy'},
+  'journal-3':{schemaVersion:'echo-journal-analysis-v1',isSimulated:false,dominantEmotion:'calm',depressiveSymptomRange:{lower:0,upper:0}},
+  'journal-4':{schemaVersion:'echo-journal-analysis-v2',isSimulated:false,dominantEmotion:'anger'},
+  'journal-6':{schemaVersion:'echo-journal-analysis-v2',isSimulated:false,dominantEmotion:'joy'},
+  'journal-7':{schemaVersion:'echo-journal-analysis-v2',isSimulated:false,dominantEmotion:'joy'},
+ };
+ runtime.localResults={journal:(_user:string,id:string)=>results[id]?{result_ciphertext:'local',payload:results[id]}:null};
+ runtime.localRow=(job:any)=>({result_payload:job.payload});runtime.readAnalysisResult=(value:unknown)=>value;
+ const first=await service.listPage('owner',{page:1,pageSize:1,query:'',emotion:'joy',sort:'newest'});
+ expect(first.total).toBe(2);expect(first.entries.map(e=>e.id)).toEqual(['journal-6']);expect(first.entries[0].dominant_emotion).toBe('joy');
+ const next=await service.listPage('owner',{page:2,pageSize:1,query:'',emotion:'joy',sort:'newest'});expect(next.entries.map(e=>e.id)).toEqual(['journal-1']);
+ const oldest=await service.listPage('owner',{page:1,pageSize:10,query:'',emotion:'joy',sort:'oldest'});expect(oldest.entries.map(e=>e.id)).toEqual(['journal-1','journal-6']);
+ const missing=await service.listPage('owner',{page:1,pageSize:10,query:'',emotion:'fear',sort:'oldest'});expect(missing.total).toBe(0);
+ const all=await service.listPage('owner',{page:1,pageSize:10,query:'',sort:'oldest'});expect(all.total).toBe(6);
+});

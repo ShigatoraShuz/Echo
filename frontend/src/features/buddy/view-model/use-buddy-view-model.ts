@@ -17,6 +17,7 @@ interface BuddyState {
   isStreaming: boolean;
   streamingContent: string;
   error: string | null;
+  loadingNotice?: string | null;
   searchQuery: string;
 }
 
@@ -34,6 +35,7 @@ type BuddyAction =
   | { type: "NEW_TEMPORARY_CONVERSATION" }
   | { type: "SEND_START"; optimistic: BuddyMessage }
   | { type: "SEND_SUCCESS"; optimisticId: string; messages: BuddyMessage[] }
+  | { type: "SEND_LOADING"; optimisticId:string; message:string }
   | { type: "SEND_ERROR"; optimisticId: string; error: string }
   | { type: "SET_STREAMING"; content: string }
   | { type: "STOP_STREAMING" }
@@ -69,13 +71,14 @@ function reducer(state: BuddyState, action: BuddyAction): BuddyState {
     case "LOAD_CONVERSATIONS_START": return { ...state, isLoadingList: true, error: null };
     case "LOAD_CONVERSATIONS_SUCCESS": return { ...state, conversations: action.conversations, pagination: action.pagination, isLoadingList: false };
     case "LOAD_CONVERSATIONS_ERROR": return { ...state, isLoadingList: false, error: action.error };
-    case "LOAD_MESSAGES_START": return { ...state, isLoadingMessages: true, messages: [], error: null };
+    case "LOAD_MESSAGES_START": return { ...state, loadingNotice:null, isLoadingMessages: true, messages: [], error: null };
     case "LOAD_MESSAGES_SUCCESS": return { ...state, messages: action.messages, isLoadingMessages: false };
     case "LOAD_MESSAGES_ERROR": return { ...state, isLoadingMessages: false, error: action.error };
     case "SET_ACTIVE_CONVERSATION": return { ...state, activeConversationId: action.id };
-    case "NEW_TEMPORARY_CONVERSATION": return { ...state, activeConversationId: null, messages: [], isLoadingMessages: false, error: null };
-    case "SEND_START": return { ...state, isSending: true, error: null, messages: [...state.messages, action.optimistic] };
+    case "NEW_TEMPORARY_CONVERSATION": return { ...state, loadingNotice:null, activeConversationId: null, messages: [], isLoadingMessages: false, error: null };
+    case "SEND_START": return { ...state, isSending: true, error: null, loadingNotice:null, messages: [...state.messages, action.optimistic] };
     case "SEND_SUCCESS": return { ...state, messages: [...state.messages.filter((message) => message.id !== action.optimisticId), ...action.messages], isSending: false };
+    case "SEND_LOADING":return {...state,isSending:false,error:null,loadingNotice:action.message,messages:state.messages.filter(message=>message.id!==action.optimisticId)};
     case "SEND_ERROR": return { ...state, isSending: false, error: action.error, messages: state.messages.filter((message) => message.id !== action.optimisticId) };
     case "SET_STREAMING": return { ...state, streamingContent: action.content, isStreaming: true };
     case "STOP_STREAMING": return { ...state, isStreaming: false, streamingContent: "" };
@@ -183,7 +186,9 @@ const selectConversation = useCallback(async (id: string) => {
       void loadConversations();
       return true;
     } else {
-      dispatch({ type: "SEND_ERROR", optimisticId: optimistic.id, error: result.error.message });
+      dispatch(result.error.code==='LOADING'
+        ?{type:'SEND_LOADING',optimisticId:optimistic.id,message:result.error.message}
+        :{ type: "SEND_ERROR", optimisticId: optimistic.id, error: result.error.message });
       dispatch({ type: "STOP_STREAMING" });
       return false;
     }

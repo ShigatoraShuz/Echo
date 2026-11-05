@@ -22,7 +22,7 @@ export function JournalDraftsView() {
           <p className="text-xs text-muted-foreground">Saved {new Date(draft.updatedAt).toLocaleString()}</p>
           <h2 className="mt-3 text-2xl [font-family:var(--font-echo-display)]">{draft.title || "Untitled reflection"}</h2>
           <p className="mt-3 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{draft.body}</p>
-          <Link className="echo-button-primary mt-5 rounded-full" href="/journal/new">
+          <Link className="echo-button-primary mt-5 rounded-full" href="/journal/resume">
             Resume draft
           </Link>
         </article>

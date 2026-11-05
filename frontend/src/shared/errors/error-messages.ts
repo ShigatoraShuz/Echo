@@ -6,6 +6,7 @@ export const DEFAULT_ERROR_MESSAGES: Record<ErrorCode, string> = {
   AUTHORIZATION_ERROR: "You do not have permission to perform this action.",
   VERIFICATION_REQUIRED: "Complete account verification to use Buddy and AI-supported features.",
   NOT_FOUND: "The requested resource was not found.",
+  BUDDY_LOADING: "Buddy is still loading its local models. Your message has not been sent. Wait for loading to finish, then press Send.",
   CONFLICT: "This item was updated by another session. Please refresh.",
   DOCUMENT_SCAN_PENDING: "Documents have not passed security scanning. Try again when the scanner is available.",
   RATE_LIMITED: "Too many requests. Please wait a moment and try again.",

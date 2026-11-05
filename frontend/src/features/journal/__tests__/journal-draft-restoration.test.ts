@@ -18,7 +18,7 @@ beforeEach(() => {
 describe("draft restoration", () => {
   it("keeps editing and submission blocked if the saved draft cannot be loaded", async () => {
     service.getDraft.mockResolvedValue({ success: false, error: { message: "Draft unavailable" } });
-    const { result } = renderHook(() => useJournalEditorViewModel());
+    const { result } = renderHook(() => useJournalEditorViewModel({resumeDraft:true}));
     await waitFor(() => expect(result.current.error).toBe("Draft unavailable"));
     act(() => result.current.setBody("Do not overwrite the remote draft"));
     await act(async () => result.current.save());
@@ -44,7 +44,7 @@ describe("draft restoration", () => {
     service.saveDraft.mockResolvedValue({ success: true, data: draft });
     service.createEntry.mockResolvedValue({ success: true, data: { id: "saved-journal" } });
     service.deleteDraft.mockResolvedValue({ success: true });
-    const { result } = renderHook(() => useJournalEditorViewModel());
+    const { result } = renderHook(() => useJournalEditorViewModel({resumeDraft:true}));
     await waitFor(() => expect(result.current.draftReady).toBe(true));
     expect(result.current.body).toBe(draft.body);
     await act(async () => result.current.save());
@@ -60,7 +60,7 @@ describe("draft restoration", () => {
       privacyStatus: "private", analysisConsent: false, updatedAt: "2026-10-13T00:00:00Z",
     } });
     service.saveDraft.mockImplementation(async (draft: JournalDraft) => ({ success: true, data: draft }));
-    const { result } = renderHook(() => useJournalEditorViewModel());
+    const { result } = renderHook(() => useJournalEditorViewModel({resumeDraft:true}));
     await waitFor(() => expect(result.current.draftReady).toBe(true));
     act(() => { result.current.setTitle(""); result.current.setBody(""); });
     await act(async () => expect(await result.current.saveDraftNow()).toBe(true));
@@ -71,7 +71,7 @@ describe("draft restoration", () => {
     service.getDraft.mockResolvedValue({ success: true, data: null });
     let finishSave!: (result: { success: true }) => void;
     service.saveDraft.mockReturnValue(new Promise((resolve) => { finishSave = resolve; }));
-    const { result } = renderHook(() => useJournalEditorViewModel());
+    const { result } = renderHook(() => useJournalEditorViewModel({resumeDraft:true}));
     await waitFor(() => expect(result.current.draftReady).toBe(true));
     act(() => result.current.setBody("A draft in progress"));
 
@@ -96,7 +96,7 @@ describe("draft restoration", () => {
       .mockResolvedValueOnce({ success: false, error: { message: "Attachment failed" } })
       .mockResolvedValueOnce({ success: true, data: { attached: 2 } });
     service.deleteDraft.mockResolvedValue({ success: true });
-    const { result } = renderHook(() => useJournalEditorViewModel());
+    const { result } = renderHook(() => useJournalEditorViewModel({resumeDraft:true}));
     await waitFor(() => expect(result.current.draftReady).toBe(true));
 
     await act(async () => result.current.save());

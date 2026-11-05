@@ -132,6 +132,7 @@ export const analysisProgressSchema = z.object({
   jobId: z.string().uuid(),
   journalId: z.string().uuid(),
   status: analysisStatusSchema,
+  waitReason:z.enum(['page_inactive','buddy_priority','gpu_capacity']).optional(),
   progress: z.number().int().min(0).max(100),
   updatedAt: z.string().datetime(),
   facialStatus: facialAnalysisStatusSchema.default("not_requested"),
@@ -594,3 +595,15 @@ export const facialExpressionResultSchema = z.discriminatedUnion("status", [
     .strict(),
 ]);
 export type FacialExpressionResult = z.infer<typeof facialExpressionResultSchema>;
+
+
+export const journalSignalComparisonSchema=z.object({
+ status:z.enum(['same','different','unavailable']),
+ textEmotion:plutchikEmotionSchema.optional(),faceEmotion:plutchikEmotionSchema.optional(),
+ reason:z.enum(['missing_signal','stale_revision','consent_required']).optional(),
+ journalId:z.string().uuid().optional(),journalRevision:z.string().datetime({offset:true}).optional(),
+ textResultId:z.string().optional(),faceResultId:z.string().optional(),
+}).strict().superRefine((value,context)=>{
+ if(value.status!=='unavailable'&&(!value.textEmotion||!value.faceEmotion||((value.textEmotion===value.faceEmotion)!==(value.status==='same'))))context.addIssue({code:'custom',message:'Comparison requires matching source labels and outcome'});
+});
+export type JournalSignalComparison=z.infer<typeof journalSignalComparisonSchema>;

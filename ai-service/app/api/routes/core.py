@@ -13,6 +13,7 @@ class TextInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=20000)
     language: Literal["en", "fil", "taglish", "unknown"] = "unknown"
+    owner: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class Turn(BaseModel):
@@ -42,21 +43,42 @@ def invoke(fn):
         raise HTTPException(422, "Invalid model input.") from None
     except ModelUnavailableError as error:
         code = str(error)
-        if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
+        if code.startswith(("BUDDY_","FACE_","NATIVE_")) and code.replace("_", "").isalnum() and len(code) < 80:
             raise HTTPException(503, {"code": code}) from None
         raise HTTPException(503, "Local inference is unavailable.") from None
     except Exception:  # noqa: BLE001 -- internal boundary must not expose model inputs or loader paths
         raise HTTPException(503, "Local inference is unavailable.") from None
 
 
+class JournalRuntimeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["prepare", "owners", "unload"]
+    owners: list[str] = Field(default_factory=list, max_length=128)
+    faceOwners: list[str] = Field(default_factory=list, max_length=128)
+
+@router.post("/v2/journal-runtime")
+def journal_runtime(payload: JournalRuntimeInput, request: Request):
+    import re
+    if any(not re.fullmatch(r"[a-f0-9]{64}", owner) for owner in [*payload.owners,*payload.faceOwners]) or not set(payload.faceOwners).issubset(payload.owners):
+        raise HTTPException(422, "Invalid journal ownership")
+    return invoke(lambda: runtime(request).journal_runtime(payload.action, payload.owners, payload.faceOwners))
+
 @router.post("/v2/analyze")
 def analyze(payload: TextInput, request: Request):
-    return invoke(lambda: runtime(request).analyze(payload.text, payload.language))
+    return invoke(lambda: runtime(request).analyze(payload.text, payload.language, **({"owner":payload.owner} if payload.owner else {})))
 
 
 @router.post("/v2/classify")
 def classify(payload: TextInput, request: Request):
-    return invoke(lambda: runtime(request).classify(payload.text, payload.language))
+    return invoke(lambda: runtime(request).classify(payload.text, payload.language, *((payload.owner,) if payload.owner else ())))
+
+
+@router.get("/v2/preparation")
+def preparation_status(request: Request):
+    value = runtime(request)
+    if not hasattr(value, "preparation_status"):
+        return {"preparation": None}
+    return invoke(value.preparation_status)
 
 
 @router.get("/v2/runtime")
@@ -126,7 +148,7 @@ def face(payload: FaceInput, request: Request):
 class TalkInput(BaseModel):
     model_config = ConfigDict(extra='forbid')
     sessionId: str = Field(pattern=r'^[a-f0-9-]{36}$')
-    task: Literal['warm','close','unload','pulse','transcribe','speak','chat','support_check','prepare']
+    task: Literal['warm','warm_chat','warm_nano','warm_whisper','close','unload','pulse','transcribe','speak','chat','support_check','prepare']
     audio: str = Field(default='',max_length=2560000)
     audioFormat: Literal['pcm16','encoded'] = 'pcm16'
     text: str = Field(default='',max_length=12000)

@@ -149,6 +149,22 @@ describe("authentication proxy", () => {
     }
   });
 
+  it("uses the private gateway for access checks instead of the public browser API", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://echo.example.test/api/v1");
+    vi.stubEnv("GATEWAY_API_BASE_URL", "http://127.0.0.1:4200/api/v1");
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "account-a" } } });
+    mocks.createClient.mockReturnValue({ auth: {
+      getClaims: mocks.getClaims,
+      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: "test-token" } } }),
+    } });
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError"));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await proxy(request("/dashboard"));
+      expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:4200/api/v1/access/status", expect.any(Object));
+    } finally { vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
+
   it("keeps the login page available when Supabase configuration is missing", async () => {
     mocks.getConfig.mockReturnValue(null);
 

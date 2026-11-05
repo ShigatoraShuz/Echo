@@ -1,0 +1,10 @@
+{
+  "runtimeVersion": "4.0.0",
+  "files": {
+    "selected_model.joblib": "13ecdbd54ef769a052e3b2131cf7d75eb635f526e63612461b506815cb159efc",
+    "echoface_v4_runtime.py": "2cdeee619ffc42d9aef56cf27f85c3e793a831953aa004720bd8fcd2eebd4f06",
+    "face_landmarker.task": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+    "requirements.txt": "de8d7618f698dc185c2df48f4198c2827c93e341de9a38db37654369ff7d516a",
+    "metadata.json": "3469d40916f26d2599c4423af0d9c2c77b6a6a7c65ca2634e05140861bd62bc2"
+  }
+}

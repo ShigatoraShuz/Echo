@@ -1,3 +1,5 @@
+import { checkCoreTransport } from './check-core-transport.mjs';
+import { remoteDevelopmentEnvironment } from './remote-development.mjs';
 import { loadNativeSettings } from './native-runtime-settings.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { parseEnv } from 'node:util';
@@ -53,6 +55,7 @@ try {
     }
     const env = localEnvironment({ ...configured,
       NODE_ENV: 'development', APP_ENV: 'development', HOST: '127.0.0.1', PORT: '4200',
+      ECHO_APP_PRESENCE: 'true', NEXT_PUBLIC_APP_PRESENCE: 'true', ECHO_PAGE_MODEL_LEASES:'true', NEXT_PUBLIC_PAGE_MODEL_LEASES:'true',
       CORE_MODELS_ENABLED: 'true', CORE_TRANSPORT: 'text_memory', MODELS_ROOT: models, WORKER_ENABLED: localJson ? 'false' : 'true',
       AI_SERVICE_TOKEN: settings.serviceToken, AI_WORKER_TOKEN: settings.workerToken,
       AI_WORKER_ID: 'echo-native-development-v1', BACKEND_URL: 'http://127.0.0.1:4200/api/v1/internal/ai',
@@ -65,6 +68,7 @@ try {
       FRONTEND_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_SUPABASE_URL: configured.SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configured.SUPABASE_PUBLISHABLE_KEY,
       NEXT_PUBLIC_API_BASE_URL: process.env.ECHO_REMOTE_API_BASE_URL ?? 'http://127.0.0.1:4200/api/v1', GATEWAY_API_BASE_URL: 'http://127.0.0.1:4200/api/v1',
+      ...remoteDevelopmentEnvironment(process.env.ECHO_REMOTE_API_BASE_URL),
     });
     // Fail before launching if the additive, service-role-only scoped RPC is absent.
     if (!localJson) {
@@ -86,6 +90,7 @@ try {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     if (!ready) throw Error('Model service did not initialize.');
+    await checkCoreTransport(env.AI_SERVICE_URL, env.AI_SERVICE_TOKEN);
     console.log('Private AI transport ready. Models load on demand; Start Talk prepares CBT, Nano/codec/reference and Whisper. Profile: '+env.AI_CORE_PROFILE+'. Storage: '+env.LOCAL_DATA_DIR);
     launch(process.execPath, [path.join(root, 'scripts/run-local-dev.mjs'), 'all'], root, env);
   }

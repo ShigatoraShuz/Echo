@@ -1,3 +1,4 @@
+import {appPresence} from '../../infrastructure/security/app-presence.js';
 import type { NextFunction, Request, Response } from "express";
 import { AuthenticationError } from "../errors/app-error.js";
 import type { AuthenticatedUser } from "../types/authenticated-user.js";
@@ -45,6 +46,7 @@ export function createAuthMiddleware(verifier: AccessTokenVerifier) {
       }
 
       console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "accepted" }));
+      if(user.sessionId && appPresence()?.isClosed(user.id,user.sessionId))throw new AuthenticationError('APP_SESSION_CLOSED','Your app session ended. Please log in again.');
       request.auth = { ...user, accessToken };
       verifiedRequests.set(request, { token: accessToken, verifier, user });
       setVerifiedAccessToken(accessToken);

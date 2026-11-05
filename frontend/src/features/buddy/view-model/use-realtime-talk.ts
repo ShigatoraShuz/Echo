@@ -1,5 +1,6 @@
 "use client";
-import { talkModelReadinessSchema, talkSegmentReadySchema } from "@echo/contracts";
+import { speechErrorMessage } from "./speech-errors";
+import { modelPageLeaseSchema, talkModelReadinessSchema, talkSegmentReadySchema } from "@echo/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TALK_PROTOCOL, talkAudioEventSchema, type TalkSpeechMode, type TalkLanguage } from "@echo/contracts";
 import { env } from "@/config/environment";
@@ -21,7 +22,11 @@ type LocalSession = {
   sequence: number;
   expires: number;
   conversationId: string | null;
+  suspended?:boolean;
+  modelReady?:boolean;
   stream?: MediaStream;
+  microphoneReady?: Promise<MediaStream|null>;
+  microphoneStarting?: boolean;
   ctx: AudioContext;
   analyser: AnalyserNode;
   busy: boolean;
@@ -47,6 +52,7 @@ type LocalSession = {
 };
 
 function pauseCapture(s: LocalSession, busy: boolean) {
+  busy=busy||s.suspended===true;
   s.busy = busy;
   s.stream?.getAudioTracks().forEach((track) => {
     track.enabled = !busy;
@@ -79,9 +85,13 @@ async function api(path: string, method: string, body?: unknown, signal?: AbortS
     body: body ? JSON.stringify(body) : undefined,
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
     cache: "no-store",
-    keepalive: path === "/buddy/runtime/unload",
+    keepalive: path === "/buddy/runtime/unload" || (method==='DELETE'&&path.startsWith('/ai/runtime/leases/')),
   });
-  if (!res.ok)
+  if (!res.ok) {
+    const failure = await res.json().catch(() => null);
+    const code = failure?.error?.code;
+    if(typeof code==='string'&&(code.startsWith('AI_TRANSPORT_')||code.startsWith('BUDDY_NANO_')))
+      throw Error(speechErrorMessage(code));
     throw Error(
       res.status === 409
         ? "Talk is busy on this installation. Try again shortly."
@@ -89,6 +99,7 @@ async function api(path: string, method: string, body?: unknown, signal?: AbortS
           ? "Sign in again to continue Talk."
           : "Local Talk is unavailable. Text chat is still available.",
     );
+  }
   return (await res.json()).data;
 }
 
@@ -110,6 +121,9 @@ export function useRealtimeTalk(options: Options) {
   const session = useRef<LocalSession | null>(null),
     epoch = useRef(0),
     request = useRef<AbortController | null>(null);
+  const suspended=useRef(false);
+  const pendingStream=useRef<MediaStream|null>(null);
+  const pendingContext=useRef<AudioContext|null>(null);
   const [state, setState] = useState("idle"),
     [error, setError] = useState(""),
     [transcript, setTranscript] = useState(""),
@@ -130,9 +144,12 @@ export function useRealtimeTalk(options: Options) {
     [isCurrent],
   );
   const stop = useCallback(() => {
+    suspended.current=false;
     epoch.current++;
     request.current?.abort();
     request.current = null;
+    pendingStream.current?.getTracks().forEach(track=>track.stop());pendingStream.current=null;
+    if(pendingContext.current){void pendingContext.current.close().catch(()=>{});pendingContext.current=null;}
     const s = session.current;
     session.current = null;
     if (s) {
@@ -185,22 +202,24 @@ export function useRealtimeTalk(options: Options) {
   }, [send, fail]);
   const microphone = useCallback(
     async (s: LocalSession) => {
-      if (s.stream) return;
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: false,
-      });
+      if(s.suspended||s.node||s.microphoneStarting)return;
+      s.microphoneStarting=true;
+      const stream = s.stream??await s.microphoneReady;
+      if(!stream)return;
       if (!isCurrent(s)) {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
+      if(stream.getAudioTracks().some(track=>track.readyState==='ended'))throw Error('The microphone disconnected. Reconnect it and start Talk again.');
       s.stream = stream;
+      if(pendingStream.current===stream)pendingStream.current=null;
       for (const track of stream.getTracks())
         track.onended = () => {
           if (isCurrent(s)) fail("The microphone disconnected. Reconnect it and start Talk again.");
         };
       await s.ctx.audioWorklet.addModule("/vendor/buddy-vad/pcm-worklet.js");
       if (!isCurrent(s)) return;
+      if(s.suspended){s.microphoneStarting=false;return;}
       const source = s.ctx.createMediaStreamSource(stream),
         node = new AudioWorkletNode(s.ctx, "buddy-pcm");
       s.source = source;
@@ -260,6 +279,19 @@ export function useRealtimeTalk(options: Options) {
     },
     [fail, isCurrent, send],
   );
+
+  const resumeTalk=useCallback(async()=>{
+    const s=session.current;if(!s||!isCurrent(s)||document.hidden)return;
+    suspended.current=false;s.suspended=false;
+    try{
+      await s.ctx.resume();if(!isCurrent(s)||s.suspended)return;
+      if(!s.modelReady){setState('preparing');return;}
+      await microphone(s);if(!isCurrent(s)||s.suspended)return;
+      s.submittedAt=0;
+      if(s.node&&s.ctx.state==='running'){pauseCapture(s,false);setError('');setState('listening');}
+      else setState('playback_blocked');
+    }catch(error){if(isCurrent(s))fail(error instanceof Error?error.message:'Microphone unavailable.');}
+  },[isCurrent,microphone,fail]);
 
   const play = useCallback(
     (
@@ -330,7 +362,7 @@ export function useRealtimeTalk(options: Options) {
   );
   const resumePlayback = useCallback(async () => {
     const s = session.current;
-    if (!s || !isCurrent(s)) return;
+    if (!s || !isCurrent(s)||s.suspended) return;
     try {
       await s.ctx.resume();
       if (isCurrent(s) && s.ctx.state === "running") {
@@ -377,8 +409,23 @@ export function useRealtimeTalk(options: Options) {
     let ctx: AudioContext | undefined;
     try {
       if (!realtimeTalkEnabled) throw Error("Experimental Talk is disabled.");
+      if(document.hidden)throw Error('Return to Buddy before starting microphone capture.');
       ctx = new AudioContext({ sampleRate: 48000 });
-      await ctx.resume().catch(() => undefined);
+      pendingContext.current=ctx;
+      // Request permission from Start Talk; do not capture until the server is ready.
+      const microphoneReady=navigator.mediaDevices.getUserMedia({
+        audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false,
+      }).then(stream=>{
+        if(current!==epoch.current){stream.getTracks().forEach(track=>track.stop());return null;}
+        stream.getAudioTracks().forEach(track=>{track.enabled=false;});
+        pendingStream.current=stream;
+        return stream;
+      }).catch(()=>{
+        if(current===epoch.current)fail('Microphone access was denied or is unavailable. Allow microphone access and start Talk again.');
+        return null;
+      });
+      void ctx.resume().catch(() => undefined);
+      if(current!==epoch.current)return;
       const data = await api(
         "/buddy/voice/sessions",
         "POST",
@@ -392,7 +439,8 @@ export function useRealtimeTalk(options: Options) {
         abort.signal,
       );
       if (current !== epoch.current) {
-        await ctx.close();
+        void api('/buddy/voice/sessions/'+data.sessionId,'DELETE').catch(()=>{});
+        await ctx.close().catch(()=>{});
         return;
       }
       const url = new URL(env.apiBaseUrl);
@@ -406,6 +454,9 @@ export function useRealtimeTalk(options: Options) {
       setAnalyser(analyserNode);
       const s: LocalSession = {
         analyser: analyserNode,
+        microphoneReady,
+        suspended:suspended.current,
+        modelReady:false,
         busy: true,
         submittedAt: 0,
         firstPlayback: false,
@@ -432,6 +483,7 @@ export function useRealtimeTalk(options: Options) {
         approvedIds: new Set(),
       };
       session.current = s;
+      if(pendingContext.current===ctx)pendingContext.current=null;
       setActive(true);
       ws.onopen = () => send(s, { type: "authenticate", ticket: data.ticket });
       ws.onerror = () => {
@@ -449,6 +501,7 @@ export function useRealtimeTalk(options: Options) {
         try {
           const event = JSON.parse(String(message.data));
           if (event.protocol !== TALK_PROTOCOL || event.sessionId !== s.id) throw Error("Invalid Talk protocol");
+          if(s.suspended&&!['ready','recovered','pong','delivery','error','approved_reply','final_transcript'].includes(event.type))return;
           if (event.type === "speech_restart" && event.previousGeneration === s.generation) {
             clearPlayback(s);
             pauseCapture(s, true);
@@ -463,11 +516,15 @@ export function useRealtimeTalk(options: Options) {
           }
           if (event.generation !== s.generation && !["ready", "pong", "delivery"].includes(event.type)) return;
           if (event.type === "recovered") {
+            s.modelReady=true;
+            if(s.suspended){setState('paused');return;}
             pauseCapture(s, false);
             setState("listening");
             return;
           }
           if (event.type === "ready") {
+            s.modelReady=true;
+            if(s.suspended)setState('paused');
             setReadiness(talkModelReadinessSchema.parse(event.runtime ?? {}));
             void microphone(s).catch((e) => {
               if (isCurrent(s)) fail(e instanceof Error ? e.message : "Microphone unavailable.");
@@ -555,7 +612,7 @@ export function useRealtimeTalk(options: Options) {
             if (event.code === "SPEECH_UNAVAILABLE") {
               clearPlayback(s);
               pauseCapture(s, true);
-              setError("The approved text answer is retained. Retry speech or stop Talk.");
+              setError(speechErrorMessage(event.causeCode));
               setState("speech_failed");
               return;
             }
@@ -594,7 +651,15 @@ export function useRealtimeTalk(options: Options) {
   }, [options.conversationId, stop]);
   useEffect(() => {
     const hide = () => {
-      if (document.hidden) stop();
+      if(!document.hidden)return;
+      suspended.current=true;
+      const s=session.current;
+      if(s&&isCurrent(s)){
+        s.suspended=true;pauseCapture(s,true);clearPlayback(s);
+        void s.ctx.suspend?.().catch(()=>{});
+        if(s.modelReady&&s.generation>0){s.modelReady=false;try{send(s,{type:'cancel',generation:s.generation});}catch{fail('The audio connection stalled. Restart Talk when you return.');return;}}
+        setState('paused');
+      }else if(request.current){pendingStream.current?.getAudioTracks().forEach(track=>{track.enabled=false;});setState('paused');}
     };
     document.addEventListener("visibilitychange", hide);
     window.addEventListener("pagehide", stop);
@@ -604,7 +669,7 @@ export function useRealtimeTalk(options: Options) {
       window.removeEventListener("pagehide", stop);
       window.removeEventListener("echo:sensitive-state-cleared", stop);
     };
-  }, [stop]);
+  }, [stop,isCurrent,send,fail]);
   return {
     enabled: realtimeTalkEnabled,
     active,
@@ -622,7 +687,7 @@ export function useRealtimeTalk(options: Options) {
     setExperimentalLanguages,
     analyser,
     readiness,
-    resumePlayback,
+    resumePlayback,resumeTalk,
     retrySpeech,
   };
 }
@@ -630,3 +695,8 @@ export function useRealtimeTalk(options: Options) {
 export async function unloadBuddyRuntime(){return api('/buddy/runtime/unload','POST',{});}
 export async function prepareBuddyRuntime(){return api('/buddy/runtime/prepare','POST',{});}
 export async function getBuddyRuntimeStatus(){return api('/buddy/runtime','GET');}
+
+export async function acquireBuddyLease(clientInstanceId:string){return modelPageLeaseSchema.parse(await api('/ai/runtime/leases','POST',{profile:'buddy_chat',clientInstanceId}));}
+export async function heartbeatBuddyLease(id:string){return modelPageLeaseSchema.parse(await api('/ai/runtime/leases/'+encodeURIComponent(id),'PUT',{}));}
+export async function getBuddyLease(id:string){return modelPageLeaseSchema.parse(await api('/ai/runtime/leases/'+encodeURIComponent(id),'GET'));}
+export async function releaseBuddyLease(id:string){return api('/ai/runtime/leases/'+encodeURIComponent(id),'DELETE');}

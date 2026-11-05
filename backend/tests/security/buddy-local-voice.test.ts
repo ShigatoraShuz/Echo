@@ -8,7 +8,7 @@ it('shares bounded temporary context and only speaks approved replies for their 
     if (payload.task === 'prepare') return { groups: [[payload.text]] };
     if (payload.task === 'speak') return {
       segments: [{ audio: Buffer.alloc(4).toString('base64') }],
-      model: { provider: 'synthetic-test' },
+      model: { providerName: 'local-nano' },
     };
     return { ok: true };
   });

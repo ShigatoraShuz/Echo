@@ -287,6 +287,14 @@ it("keeps an approved reply when the speech provider returns malformed audio", a
     expect((await f.wait("error")).code).toBe("SPEECH_UNAVAILABLE");
     expect(f.events.some((e) => e.type === "audio")).toBe(false);
     expect(f.store.get(user, reply.conversationId).messages[1].content).toBe("Take one small step.");
+    f.core.talk.mockImplementation(original);
+    f.send({type:'retry_speech',generation:1,turnId});
+    await f.wait('speech_restart');
+    await f.wait('audio_end');
+    expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(1);
+    expect(f.core.talk.mock.calls.filter(([p])=>p.task==='transcribe')).toHaveLength(1);
+    expect(f.core.talk.mock.calls.filter(([p])=>p.task==='speak')).toHaveLength(2);
+    expect(f.store.get(user,reply.conversationId).messages[1].content).toBe('Take one small step.');
   } finally {
     await f.close();
   }
@@ -432,4 +440,24 @@ it("rejects expired session claims without model loading", async () => {
   } finally {
     await f.close();
   }
+});
+
+it('Stop during shared CBT preparation does not launch speech after the page preparation finishes',async()=>{
+ const f=await fixture();let finish!:()=>void;const preparation=vi.spyOn(f.service,'ensureBuddyPrepared').mockImplementation(()=>new Promise<void>(r=>finish=r));
+ try{
+  f.send({type:'authenticate',ticket:f.session.ticket});await vi.waitFor(()=>expect(preparation).toHaveBeenCalledTimes(1));
+  f.send({type:'stop'});await vi.waitFor(()=>expect(f.events.some(e=>e.type==='state'&&e.state==='paused')).toBe(true));
+  finish();await new Promise(r=>setTimeout(r,20));
+  expect(f.core.talk.mock.calls.some(([payload])=>payload.task==='warm')).toBe(false);
+  expect(f.events.some(e=>e.type==='ready')).toBe(false);
+ }finally{finish?.();preparation.mockRestore();await f.close();}
+});
+
+it('a valid keepalive refreshes the idle clock without another warm-up',async()=>{
+ const f=await fixture();try{
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const active=(f.hub as any).active;active.lastActivity=Date.now()-5000;
+  const warms=f.core.talk.mock.calls.filter(([p])=>p.task==='warm').length;
+  f.send({type:'ping'});await f.wait('pong');expect(active.lastActivity).toBeGreaterThan(Date.now()-2000);expect(f.core.talk.mock.calls.filter(([p])=>p.task==='warm')).toHaveLength(warms);
+ }finally{await f.close();}
 });

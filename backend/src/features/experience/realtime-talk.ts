@@ -1,3 +1,4 @@
+import {appPresence} from '../../infrastructure/security/app-presence.js';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import type { Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -284,6 +285,7 @@ export class RealtimeTalkHub {
                 void this.close(s, "auth_required");
                 return;
               }
+              s.lastActivity=Date.now();
               this.send(s, { type: "pong" });
               if (s.ready && !s.pulseBusy) {
                 s.pulseBusy = true;
@@ -418,6 +420,7 @@ export class RealtimeTalkHub {
     if (s.closed || Date.now() > s.expires) throw new AuthenticationError();
     const user = await this.verifier.getUser(s.token);
     if (!user || user.id !== s.user) throw new AuthenticationError();
+    if(user.sessionId && appPresence()?.isClosed(user.id,user.sessionId))throw new AuthenticationError('APP_SESSION_CLOSED','Your app session ended. Please log in again.');
     if ((await this.access.decide(user)).decision !== "ACCESS_GRANTED") throw new AuthenticationError();
     await this.verification.assertAiAccess(s.user);
     const privacy = await this.service.validateTalk(s.user);
@@ -430,6 +433,7 @@ export class RealtimeTalkHub {
       await this.context(s, async () => {
         await this.authorize(s);
         await this.service.ensureBuddyPrepared();
+        if(s.closed||s.abort.signal.aborted)return;
         const warm = await this.core.talk({ task: "warm", sessionId: s.id }, s.abort.signal);
         if (s.closed) return;
         s.ready = true;

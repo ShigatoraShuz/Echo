@@ -85,9 +85,9 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
     case "SAVE_START":
       return { ...state, isSaving: true, error: null, fieldErrors: {} };
     case "SAVE_SUCCESS":
-      return { ...state, isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
+      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
     case "ANALYSIS_SUBMITTED":
-      return { ...state, isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
+      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
     case "SET_FIXTURE":
       return { ...state, fixture: action.fixture, autosaveStatus: "unsaved" };
     case "SAVE_ERROR":
@@ -101,7 +101,7 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
     case "CLEAR_SAVE_ERROR":
       return { ...state, error: null };
     case "RESET":
-      return { ...initialEditorState };
+      return { ...initialEditorState,analysisConsent:state.analysisConsent };
     default:
       return state;
   }
@@ -126,7 +126,7 @@ const initialEditorState: EditorState = {
   fieldErrors: {},
 };
 
-export function useJournalEditorViewModel() {
+export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:boolean}={}) {
   const [state, dispatch] = useReducer(reducer, initialEditorState);
   const service = getJournalService();
   const [draftReady, setDraftReady] = useState(false);
@@ -143,9 +143,18 @@ export function useJournalEditorViewModel() {
   const revision = useRef(0);
   const savedRevision = useRef(0);
 
+  const [previousDraft,setPreviousDraft]=useState<JournalDraft|null>(null);
+  const previousDraftRef=useRef<JournalDraft|null>(null);
+  const expectedDraftKey=useRef<string|null>(null);
+  const lastSavedDraft=useRef<JournalDraft|null>(null);
+  const generation=useRef(0);
+  const [editorGeneration,setEditorGeneration]=useState(0);
+  const [shouldRestorePhotos,setShouldRestorePhotos]=useState(false);
+  useEffect(()=>()=>{generation.current++;},[]);
   const draftRead = useRef<ReturnType<NonNullable<typeof service.getDraft>> | null>(null);
   useEffect(() => {
     let active = true;
+    const epoch=generation.current;
     if (!draftRead.current && service.getDraft) {
       const read = service.getDraft("current");
       draftRead.current = read;
@@ -153,12 +162,17 @@ export function useJournalEditorViewModel() {
     }
     void draftRead.current
       ?.then((result) => {
-        if (!active) return;
+        if (!active || epoch!==generation.current) return;
         if (result.success && result.data && !edited.current) {
-          idempotencyKeyRef.current = result.data.submissionKey ?? crypto.randomUUID();
-          dispatch({ type: "RESTORE_DRAFT", draft: result.data });
+          if(resumeDraft){
+            idempotencyKeyRef.current=result.data.submissionKey??crypto.randomUUID();
+            expectedDraftKey.current=result.data.submissionKey??null;
+            lastSavedDraft.current=result.data;draftExists.current=true;
+            setShouldRestorePhotos(true);
+            dispatch({type:'RESTORE_DRAFT',draft:result.data});
+          }else{previousDraftRef.current=result.data;setPreviousDraft(result.data);}
         } else if (!result.success) dispatch({ type: "SAVE_ERROR", error: result.error.message });
-        if (result.success) draftExists.current = Boolean(result.data);
+        if (result.success && !result.data) draftExists.current=false;
         restored.current = result.success;
         setDraftReady(result.success);
       })
@@ -176,7 +190,7 @@ export function useJournalEditorViewModel() {
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service,resumeDraft]);
 
   const requestChanged = useCallback(() => {
     if (!restored.current || submitting.current || accepted.current?.success) return false;
@@ -216,10 +230,11 @@ export function useJournalEditorViewModel() {
   );
   const setAnalysisConsent = useCallback(
     (analysisConsent: boolean) => {
-      if (!requestChanged()) return;
+      if(state.analysisConsent===analysisConsent)return;
+      if((draftExists.current||edited.current)&&!requestChanged())return;
       dispatch({ type: "SET_ANALYSIS_CONSENT", analysisConsent });
     },
-    [requestChanged],
+    [requestChanged,state.analysisConsent],
   );
   const setFixture = useCallback(
     (fixture: AnalysisFixture) => {
@@ -232,14 +247,17 @@ export function useJournalEditorViewModel() {
   const performAutosave = useCallback((): Promise<boolean> => {
     if (autosaveInFlight.current) return autosaveInFlight.current;
     if (finalized.current || accepted.current?.success || !restored.current) return Promise.resolve(false);
+    if(previousDraftRef.current){dispatch({type:'SAVE_ERROR',error:'Your earlier draft is preserved. Resume or explicitly discard it before saving a new reflection.'});return Promise.resolve(false);}
+    const epoch=generation.current;
     const savingRevision = revision.current;
     dispatch({ type: "SET_AUTOSAVE_STATUS", status: "saving" });
 
     const operation = Promise.resolve().then(async () => {
       try {
         const draft: JournalDraft = {
+          draftIntent:draftExists.current?"update":"create",expectedSubmissionKey:expectedDraftKey.current,
           submissionKey: (idempotencyKeyRef.current ??= crypto.randomUUID()),
-          id: state.savedEntry?.id ?? `draft-${Date.now()}`,
+          id: "current",
           title: state.title.trim(),
           body: state.body.trim(),
 
@@ -251,21 +269,25 @@ export function useJournalEditorViewModel() {
         };
 
         const result = await service.saveDraft(draft);
+        if(epoch!==generation.current)return false;
         if (result.success) {
           draftExists.current = true;
+          expectedDraftKey.current=result.data?.submissionKey??draft.submissionKey??null;
+          lastSavedDraft.current=result.data??draft;
           savedRevision.current = savingRevision;
           dispatch({ type: "CLEAR_SAVE_ERROR" });
           dispatch({ type: "SET_AUTOSAVE_STATUS", status: savingRevision === revision.current ? "saved" : "unsaved" });
           return savingRevision === revision.current;
         } else dispatch({ type: "SAVE_ERROR", error: result.error.message });
       } catch {
+        if(epoch!==generation.current)return false;
         dispatch({
           type: "SAVE_ERROR",
           error: "The draft could not be saved. Retry when your connection is available.",
         });
       } finally {
-        autosaveInFlight.current = null;
-        if (savingRevision !== revision.current) setAutosaveEpoch((value) => value + 1);
+        if(epoch===generation.current)autosaveInFlight.current = null;
+        if (epoch===generation.current && savingRevision !== revision.current) setAutosaveEpoch((value) => value + 1);
       }
       return false;
     });
@@ -279,12 +301,13 @@ export function useJournalEditorViewModel() {
     state.privacyStatus,
     state.analysisConsent,
     state.savedEntry?.id,
+    previousDraft,
     service,
   ]);
 
   const saveDraftNow = useCallback(
     async (force = false) => {
-      if (!force && !hasContent(state) && !edited.current) return true;
+      if (!force && !hasContent(state) && !draftExists.current) return true;
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
       if (autosaveInFlight.current) await autosaveInFlight.current;
       if (draftExists.current && savedRevision.current === revision.current) return true;
@@ -303,7 +326,7 @@ export function useJournalEditorViewModel() {
       state.autosaveStatus !== "unsaved"
     )
       return;
-    if (!state.title.trim() && !state.body.trim() && !edited.current) return;
+    if (!state.title.trim() && !state.body.trim() && !draftExists.current) return;
 
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
@@ -354,6 +377,8 @@ export function useJournalEditorViewModel() {
         dispatch({ type: "SAVE_ERROR", error: "Please wait for your saved draft to load before submitting." });
         return;
       }
+      if(previousDraftRef.current){dispatch({type:'SAVE_ERROR',error:'Resume or explicitly discard the earlier saved draft before saving a new reflection.'});return;}
+      const epoch=generation.current;
       const input: Record<string, unknown> = {
         title: state.title,
         body: state.body,
@@ -371,6 +396,7 @@ export function useJournalEditorViewModel() {
         dispatch({ type: "SAVE_START" });
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
         await autosaveInFlight.current;
+        if(epoch!==generation.current)return;
         const createInput: CreateJournalInput = {
           title: state.title.trim(),
           body: state.body.trim(),
@@ -387,20 +413,26 @@ export function useJournalEditorViewModel() {
         const draftResult = await service.saveDraft({
           id: "current",
           ...createInput,
+          draftIntent:draftExists.current?'update':'create',expectedSubmissionKey:expectedDraftKey.current,
           submissionKey: idempotencyKeyRef.current,
           updatedAt: new Date().toISOString(),
         });
+        if(epoch!==generation.current)return;
         if (!draftResult.success) {
           submitting.current = false;
           dispatch({ type: "SAVE_ERROR", error: draftResult.error.message });
           return;
         }
+        draftExists.current=true;
+        expectedDraftKey.current=draftResult.data?.submissionKey??idempotencyKeyRef.current;
+        lastSavedDraft.current=draftResult.data;
         const result =
           accepted.current ??
           (await service.createEntry(createInput, {
             idempotencyKey: idempotencyKeyRef.current,
             ...(env.enableAnalysisFixtures && state.analysisConsent ? { fixture: state.fixture } : {}),
           }));
+        if(epoch!==generation.current)return;
         if (result.success) {
           accepted.current = result;
           const data = result.data;
@@ -414,6 +446,7 @@ export function useJournalEditorViewModel() {
             data.kind === "analysis"
           ) {
             const token = await supabaseAuthTokenProvider.getAccessToken();
+            if(epoch!==generation.current)return;
             try {
               const deadline = Date.now() + 65000;
               while (true) {
@@ -423,14 +456,18 @@ export function useJournalEditorViewModel() {
                   body: facial.image,
                   signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
                 });
+                if(epoch!==generation.current)return;
                 if (faceResponse.ok) break;
                 const failure = await faceResponse.json().catch(() => null);
+                if(epoch!==generation.current)return;
                 if (failure?.error?.code !== "FACE_BUSY" || Date.now() + 1000 >= deadline)
                   throw new Error("Face result was not saved.");
                 await new Promise((resolve) => setTimeout(resolve, 1000));
+                if(epoch!==generation.current)return;
               }
               window.dispatchEvent(new CustomEvent("echo:analysis-completed", { detail: { journalId } }));
             } catch {
+              if(epoch!==generation.current)return;
               dispatch({
                 type: "SAVE_ERROR",
                 error: "Your reflection is saved, but face analysis was not saved. Check your camera and retry saving.",
@@ -439,6 +476,7 @@ export function useJournalEditorViewModel() {
             }
           }
           const attached = await service.attachDraftImages(journalId);
+          if(epoch!==generation.current)return;
           if (!attached.success) {
             dispatch({
               type: "SAVE_ERROR",
@@ -447,6 +485,7 @@ export function useJournalEditorViewModel() {
             return;
           }
           const cleared = await service.deleteDraft(idempotencyKeyRef.current);
+          if(epoch!==generation.current)return;
           if (!cleared.success) {
             dispatch({
               type: "SAVE_ERROR",
@@ -455,6 +494,8 @@ export function useJournalEditorViewModel() {
             });
             return;
           }
+          if(epoch!==generation.current)return;
+          draftExists.current=false;expectedDraftKey.current=null;lastSavedDraft.current=null;
           finalized.current = true;
           if ("kind" in data && data.kind === "analysis") {
             dispatch({ type: "ANALYSIS_SUBMITTED", submission: data.submission });
@@ -471,6 +512,7 @@ export function useJournalEditorViewModel() {
           dispatch({ type: "SAVE_ERROR", error: result.error.message });
         }
       } catch {
+        if(epoch!==generation.current)return;
         dispatch({
           type: "SAVE_ERROR",
           error: "The save could not be confirmed. Your draft and retry information are preserved; please retry.",
@@ -496,13 +538,33 @@ export function useJournalEditorViewModel() {
   }, []);
 
   const reset = useCallback(() => {
-    if (submitting.current) return;
+    if (submitting.current || autosaveInFlight.current) return;
+    generation.current++;setEditorGeneration(generation.current);
+    if(autosaveTimerRef.current)clearTimeout(autosaveTimerRef.current);
+    previousDraftRef.current=draftExists.current&&!finalized.current?lastSavedDraft.current:null;
+    setPreviousDraft(previousDraftRef.current);
+    draftExists.current=false;expectedDraftKey.current=null;
+    setShouldRestorePhotos(false);
+    revision.current=0;savedRevision.current=0;
     idempotencyKeyRef.current = null;
     accepted.current = null;
     finalized.current = false;
     edited.current = false;
     dispatch({ type: "RESET" });
   }, []);
+
+  const discardPreviousDraft=useCallback(async()=>{
+    const previous=previousDraftRef.current;if(!previous||submitting.current)return false;
+    const epoch=generation.current;
+    try{
+      const result=await service.deleteDraft(previous.id,{expectedSubmissionKey:previous.submissionKey??null});
+      if(epoch!==generation.current)return false;
+      if(!result.success){dispatch({type:'SAVE_ERROR',error:result.error.message});return false;}
+      previousDraftRef.current=null;setPreviousDraft(null);draftExists.current=false;
+      expectedDraftKey.current=null;lastSavedDraft.current=null;
+      dispatch({type:'CLEAR_SAVE_ERROR'});return true;
+    }catch{if(epoch!==generation.current)return false;dispatch({type:'SAVE_ERROR',error:'The saved draft could not be discarded. It has been preserved.'});return false;}
+  },[service]);
 
   const retryAutosave = useCallback(() => {
     if (hasContent(state) || edited.current) {
@@ -511,6 +573,7 @@ export function useJournalEditorViewModel() {
   }, [state, performAutosave]);
 
   return {
+    previousDraft,discardPreviousDraft,shouldRestorePhotos,editorGeneration,
     draftReady,
     title: state.title,
     body: state.body,

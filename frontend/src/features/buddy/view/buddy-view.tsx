@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
 import { BuddyTalkAvatar } from "../components/buddy-talk-avatar";
-import { useRealtimeTalk, prepareBuddyRuntime, getBuddyRuntimeStatus, unloadBuddyRuntime } from "../view-model/use-realtime-talk";
+import { useRealtimeTalk, acquireBuddyLease, heartbeatBuddyLease, getBuddyLease, releaseBuddyLease } from "../view-model/use-realtime-talk";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyTypingIndicator } from "../components/buddy-typing-indicator";
 import { BuddyChatBubble } from "../components/buddy-chat-bubble";
@@ -37,6 +37,7 @@ import { usePrefersReducedMotion } from "@/shared/hooks/usePrefersReducedMotion"
 import { BuddyEmptyState } from "../components/buddy-empty-state";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 import { EchoSheet } from "@/shared/components/ui/echo-sheet";
+import type { ModelPreparation } from "@echo/contracts";
 import type { BuddyConversation } from "../model/buddy.model";
 import { PROMPT_CHIPS } from "../model/buddy.constants";
 
@@ -55,27 +56,39 @@ export function BuddyView() {
   const [mode, setMode] = useState<"chat" | "talk">("chat");
   const speakNext = useRef(false);
   const [draft, setDraft] = useState("");
-  useEffect(()=>{
-    let leaving=false;
-    const leave=()=>{if(leaving)return;leaving=true;stopRealtime();cancelVoice();void unloadBuddyRuntime().catch(()=>{});};
-    window.addEventListener('pagehide',leave);
-    return ()=>{window.removeEventListener('pagehide',leave);leave();};
-  },[stopRealtime,cancelVoice]);
   const [runtimeStatus,setRuntimeStatus]=useState('unloaded');
+  const [runtimePreparation,setRuntimePreparation]=useState<ModelPreparation|null>(null);
+  const [showRuntimeDetails,setShowRuntimeDetails]=useState(false);
+  const preparingComponent=runtimePreparation&&(Boolean(runtimePreparation.loadingComponents?.length)||['checking','loading','warming','retrying'].includes(runtimePreparation.state));
+  const runtimeDisplayStatus=preparingComponent?'preparing':runtimeStatus;
   useEffect(()=>{
-    if(vm.accessStatus!=='allowed'||(!draft.trim()&&mode!=='talk'))return;
-    let cancelled=false;let poll:ReturnType<typeof setInterval>|undefined;
-    const timer=setTimeout(()=>{
-      void prepareBuddyRuntime().then(result=>{
-        if(cancelled)return;setRuntimeStatus(result.state);
-        poll=setInterval(()=>{void getBuddyRuntimeStatus().then(status=>{
-          if(cancelled)return;setRuntimeStatus(status.state);
-          if(status.state==='ready'||status.state==='failed')clearInterval(poll);
-        }).catch(()=>{if(!cancelled)setRuntimeStatus('failed');});},1000);
-      }).catch(()=>{if(!cancelled)setRuntimeStatus('failed');});
-    },mode==='talk'?0:750);
-    return ()=>{cancelled=true;clearTimeout(timer);if(poll)clearInterval(poll);};
-  },[draft,mode,vm.accessStatus]);
+    if(vm.accessStatus!=='allowed')return;
+    let disposed=false;let leaseId:string|undefined;
+    let poll:ReturnType<typeof setInterval>|undefined;
+    let heartbeat:ReturnType<typeof setInterval>|undefined;
+    let polling=false;let renewing=false;
+    const leave=()=>{
+      if(disposed)return;disposed=true;
+      if(poll)clearInterval(poll);if(heartbeat)clearInterval(heartbeat);
+      stopRealtime();cancelVoice();
+      if(leaseId)void releaseBuddyLease(leaseId).catch(()=>{});
+    };
+    window.addEventListener('pagehide',leave);
+    setRuntimeStatus('preparing');setRuntimePreparation(null);
+    void acquireBuddyLease(crypto.randomUUID()).then(async lease=>{
+      if(disposed){await releaseBuddyLease(lease.id).catch(()=>{});return;}
+      leaseId=lease.id;setRuntimeStatus(lease.state);setRuntimePreparation(lease.preparation??null);
+      poll=setInterval(()=>{if(polling||!leaseId)return;polling=true;
+        void getBuddyLease(leaseId).then(value=>{if(!disposed){setRuntimeStatus(value.state);setRuntimePreparation(value.preparation??null);}})
+          .catch(()=>{if(!disposed)setRuntimeStatus('failed');}).finally(()=>{polling=false;});
+      },1000);
+      heartbeat=setInterval(()=>{if(renewing||!leaseId)return;renewing=true;
+        void heartbeatBuddyLease(leaseId).then(value=>{if(!disposed)setRuntimeStatus(value.state);})
+          .catch(()=>{if(!disposed)setRuntimeStatus('failed');}).finally(()=>{renewing=false;});
+      },15000);
+    }).catch(()=>{if(!disposed)setRuntimeStatus('failed');});
+    return ()=>{window.removeEventListener('pagehide',leave);leave();};
+  },[vm.accessStatus,stopRealtime,cancelVoice]);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
@@ -461,8 +474,8 @@ export function BuddyView() {
             </h1>
             <p className="text-[11px] text-[var(--landing-muted)]">
               {vm.responderState === "DEMO_FALLBACK"
-                ? "DEMO_FALLBACK Â· prewritten guided support; no LLM or therapy"
-                : "Buddy Â· reflective support"}
+                ? "DEMO_FALLBACK · prewritten guided support; no LLM or therapy"
+                : "Buddy · reflective support"}
             </p>
           </div>
           <button
@@ -571,6 +584,7 @@ export function BuddyView() {
                     {realtime.state.replaceAll("_", " ")}
                   </p>
                 </div>
+                {realtime.active&&realtime.state==='paused'&&<button type="button" onClick={()=>void realtime.resumeTalk()}>Resume Talk</button>}
                 {realtime.state === "playback_blocked" && (
                   <button type="button" onClick={() => void realtime.resumePlayback()}>
                     Play Buddy reply
@@ -636,7 +650,7 @@ export function BuddyView() {
               </div>
             )}
             {voice.isTranscribing && <p role="status">Transcribing locally...</p>}
-            {mode === "talk" && (voice.isTranscribing || voice.isSpeaking || vm.isSending) && (
+            {mode === "talk" && (voice.isTranscribing || voice.isPreparingSpeech || voice.isSpeaking || vm.isSending) && (
               <button
                 type="button"
                 onClick={() => {
@@ -728,9 +742,9 @@ export function BuddyView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => (voice.isSpeaking ? voice.stopSpeaking() : voice.speak(latestBuddyReply))}
+                  onClick={() => ((voice.isSpeaking || voice.isPreparingSpeech) ? voice.stopSpeaking() : voice.speak(latestBuddyReply))}
                   disabled={!voice.speechSupported || !latestBuddyReply || realtime.active}
-                  aria-label={voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
+                  aria-label={voice.isPreparingSpeech ? "Cancel preparing Buddy speech" : voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
                   className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
                 >
                   {voice.isSpeaking ? (
@@ -751,9 +765,11 @@ export function BuddyView() {
                 <span className="ml-1 hidden text-[11px] text-[var(--landing-muted)] sm:inline">
                   Reflective support, not emergency care
                 </span>
-                <span role="status" aria-label={`Buddy models: ${runtimeStatus}`} title={`Buddy models: ${runtimeStatus}`} className="ml-auto grid h-8 w-8 place-items-center text-[var(--landing-primary)]">
-                  {runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:runtimeStatus==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
-                </span>
+                <button type="button" aria-label="Model loading details" aria-expanded={showRuntimeDetails} aria-controls="buddy-model-details" onClick={()=>setShowRuntimeDetails(value=>!value)} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-[var(--landing-primary)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                  <span role="status" aria-label={`Buddy models: ${runtimeDisplayStatus}`} title={`Buddy models: ${runtimeDisplayStatus}`}>
+                    {runtimeStatus==='failed'||runtimePreparation?.state==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'||preparingComponent?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => void handleSend()}
@@ -765,11 +781,25 @@ export function BuddyView() {
                 </button>
               </div>
             </div>
+            {showRuntimeDetails&&<div id="buddy-model-details" className="mt-2 rounded-xl border border-[var(--landing-border)] p-3 text-xs text-[var(--landing-muted)]">
+              <p>Chat models: {runtimeStatus.replaceAll('_',' ')}.</p>
+              {runtimePreparation&&<>
+                <p>{({safety:'Safety screening',cbt:'Buddy response model',nano:'Speech model and voice',whisper:'Speech recognition'})[runtimePreparation.component]}: {runtimePreparation.state}. Attempt {runtimePreparation.attempt} of {runtimePreparation.maxAttempts}.</p>
+                {Boolean(runtimePreparation.loadingComponents?.length)&&<p>Preparing: {runtimePreparation.loadingComponents?.map(name=>({safety:'Safety screening',cbt:'Buddy response model',nano:'Speech model and voice',whisper:'Speech recognition'})[name]).join(', ')}.</p>}
+                {runtimePreparation.elapsedSeconds!==undefined&&<p>Elapsed: {Math.floor(runtimePreparation.elapsedSeconds)} seconds.</p>}
+                {runtimePreparation.state==='retrying'&&<p>Retrying in {Math.ceil(runtimePreparation.retryInSeconds??0)} seconds.</p>}
+                {runtimePreparation.code&&<p>Error: {runtimePreparation.code}. {runtimePreparation.retryable===false?'Check the configured environment and model files before trying again.':''}</p>}
+                {runtimePreparation.correlationId&&<p>Reference: {runtimePreparation.correlationId}</p>}
+              </>}
+              {runtimeStatus==='waiting_for_capacity'&&<p>Waiting for enough GPU capacity. Existing work will finish first.</p>}
+            </div>}
+            {voice.isPreparingSpeech && <p role="status" className="text-sm text-[var(--landing-muted)]">Preparing Buddy speech… Your approved answer is retained.</p>}
             {voice.voiceError && (
               <p role="status" className="mt-2 text-xs text-[var(--landing-muted)]">
                 {voice.voiceError}
               </p>
             )}
+            {vm.loadingNotice&&<p role="status" className="mt-2 text-xs text-[var(--landing-muted)]">{runtimeStatus==='ready'?'Buddy is ready. Your message is still in the text box; press Send when you are ready.':vm.loadingNotice}</p>}
             {vm.error && (
               <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium text-danger">
                 <span>{vm.error}</span>
