@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.core.exceptions import ModelUnavailableError, TalkCancelledError, TalkBusyError
 from app.buddy.config import BUDDY_ENV_KEYS
+from app.buddy.loading import PREPARATION_SECONDS, PREPARATION_TASKS, safe_progress
 from app.buddy.job import spawn_owned
 
 MAX_PACKET = 1024 * 1024
@@ -28,15 +29,23 @@ class TextRuntime:
         self.buddy_enabled = getattr(settings, "echo_buddy_enabled", False)
         self.max_packet = 40 * 1024 * 1024 if self.buddy_enabled else MAX_PACKET
         self.wire_lock = threading.Lock()
+        self.progress_lock = threading.Lock()
+        self.preparation = None
+        self.preparation_at = 0
+        self.preparation_id = None
         if self.buddy_enabled:
             from app.buddy.transport import TalkProxy
             self.talk = TalkProxy(self)
         self.adapter_path = str(Path(settings.models_root) / "cbt/adapter")
         self.loaded = False
         self.model_loaded = False
+        from app.model.face_transport import ResidentFaceRuntime
+        self.face_runtime = ResidentFaceRuntime(settings.models_root)
         self.process = None
-        self.lock = threading.Lock()
+        from app.model.priority_gate import PriorityGate
+        self.lock = PriorityGate()
         self.pending = threading.BoundedSemaphore(getattr(settings, "queue_limit", 4))
+        self.interactive_pending = threading.BoundedSemaphore(getattr(settings, "queue_limit", 4))
         self.responses = queue.Queue(maxsize=2)
         # Deliberately exclude tokens, proxy settings, DB URLs and user credentials.
         env = {
@@ -103,7 +112,16 @@ class TextRuntime:
                 line = self.process.stdout.readline(self.max_packet + 1)
                 if not line or len(line) > self.max_packet or not line.endswith(b"\n"):
                     break
-                self.responses.put_nowait(json.loads(line))
+                value = json.loads(line)
+                if isinstance(value, dict) and value.get("event") == "preparation":
+                    with self.progress_lock:
+                        if self.preparation_id and value.get("id") == self.preparation_id:
+                            progress = safe_progress({**value.get("progress", {}), "correlationId": self.preparation_id}) if isinstance(value.get("progress"), dict) else None
+                            if progress:
+                                self.preparation = progress
+                                self.preparation_at = time.monotonic()
+                    continue
+                self.responses.put_nowait(value)
         except (OSError, ValueError, queue.Full):
             pass
         finally:
@@ -111,6 +129,17 @@ class TextRuntime:
                 self.responses.put_nowait(None)
             except queue.Full:
                 pass
+
+    def preparation_status(self):
+        # Independent of request/GPU locks: status remains responsive while loading.
+        with self.progress_lock:
+            value = dict(self.preparation) if self.preparation else None
+            if value and self.preparation_id == value.get("correlationId"):
+                delta = max(0, time.monotonic() - self.preparation_at)
+                value["elapsedSeconds"] = min(PREPARATION_SECONDS, value.get("elapsedSeconds", 0) + delta)
+                if "retryInSeconds" in value:
+                    value["retryInSeconds"] = max(0, value["retryInSeconds"] - delta)
+            return {"preparation": value}
 
     def _receive(self, timeout):
         try:
@@ -122,6 +151,8 @@ class TextRuntime:
             raise ModelUnavailableError("Text worker unavailable or timed out.") from None
 
     def release(self):
+        if getattr(self, "face_runtime", None):
+            self.face_runtime.close()
         self.loaded = False
         self.model_loaded = False
         process = self.process
@@ -140,22 +171,29 @@ class TextRuntime:
         if not self.loaded or self.process.poll() is not None:
             raise ModelUnavailableError("Text worker unavailable.")
 
-    def _call(self, operation, *args, cancelled=None):
+    def _call(self, operation, *args, cancelled=None, journal_owner=None):
         self.require_ready()
         # One GPU owner, bounded admission. Overlapping journal/Buddy requests wait
         # without changing generation parameters or caching user text/results.
-        if not self.pending.acquire(blocking=False):
+        admission = self.interactive_pending if operation in ("buddy", "chat", "journal_runtime") else self.pending
+        if not admission.acquire(blocking=False):
             raise ModelUnavailableError("Text worker queue is full.")
-        deadline = time.monotonic() + (600 if operation == "buddy" else self.settings.core_request_timeout_seconds)
+        preparing = operation == "buddy" and len(args) > 1 and isinstance(args[1], dict) and args[1].get("task") in PREPARATION_TASKS
+        deadline = time.monotonic() + (PREPARATION_SECONDS if preparing else 600 if operation == "buddy" else self.settings.core_request_timeout_seconds)
+        identity = None
         acquired = False
         try:
-            acquired = self.lock.acquire(timeout=max(0, deadline - time.monotonic()))
+            acquired = self.lock.acquire(timeout=max(0, deadline - time.monotonic()), interactive=operation in ("buddy", "chat", "journal_runtime"))
             if not acquired:
                 raise ModelUnavailableError("Text worker busy.")
             self.require_ready()
             identity = uuid.uuid4().hex
+            if preparing:
+                with self.progress_lock:
+                    self.preparation_id = identity
+                    self.preparation = None
             packet = (
-                json.dumps({"id": identity, "op": operation, "args": args}, allow_nan=False).encode(
+                json.dumps({"id": identity, "op": operation, "args": args, **({"journalOwner": journal_owner} if journal_owner else {})}, allow_nan=False).encode(
                     "utf-8"
                 )
                 + b"\n"
@@ -210,21 +248,49 @@ class TextRuntime:
                 code = reply.get("code", "")
                 if code == "TALK_BUSY":
                     raise TalkBusyError("Talk has priority")
-                if isinstance(code, str) and code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
+                if isinstance(code, str) and code.startswith(("BUDDY_","NATIVE_")) and code.replace("_", "").isalnum() and len(code) < 80:
                     raise ModelUnavailableError(code)
                 raise ModelUnavailableError("Model operation unavailable.")
             return reply["result"]
         finally:
+            if preparing and identity:
+                with self.progress_lock:
+                    if self.preparation_id == identity:
+                        self.preparation_id = None
             if acquired:
                 self.lock.release()
-            self.pending.release()
+            admission.release()
 
-    def classify(self, text, language="unknown"):
-        return self._call("classify", text, language)
+    def classify(self, text, language="unknown", owner=None):
+        return self._call("classify", text, language, **({"journal_owner": owner} if owner else {}))
 
-    def analyze(self, text, language="unknown", classification=None):
-        # The journal worker already classified this exact input for its safety gate.
-        return self._call("analyze", text, language, classification)
+    def analyze(self, text, language="unknown", classification=None, owner=None):
+        guard = {"journal_owner": owner} if owner else {}
+        if not self.buddy_enabled and owner is None:
+            return self._call("analyze", text, language, classification)
+        classification = classification or self.classify(text, language, owner)
+        emotion = self._call("emotions", text, **guard)
+        try:
+            screening = self._call("screening", text, **guard)
+        except (TalkBusyError, TalkCancelledError):
+            # Ownership/cancellation must pause the job, never manufacture a result.
+            raise
+        except ModelUnavailableError as error:
+            code = str(error)
+            if not code.startswith("NATIVE_PHQ_") and code != "Model operation unavailable.":
+                # A dead transport cannot safely assemble a result in its worker.
+                raise
+            unavailable = "ASSET" in code or "INTEGRITY" in code
+            screening = {"status": "unavailable" if unavailable else "failed", "experimental": True,
+                "inferenceVersion": "journal-nullable-v1", "items": None, "coverage": 0,
+                "subtotal": None, "total": None}
+        return self._call("analyze", text, language, classification, emotion, screening, **guard)
+
+    def journal_runtime(self, action, owners, face_owners=None):
+        if action=='unload' or (owners and not face_owners):self.face_runtime.unload()
+        result=self._call("journal_runtime", action, owners)
+        if action=='prepare' and face_owners:self.face_runtime.prepare()
+        return result
 
     def chat(self, messages):
         return self._call("chat", messages)
@@ -238,5 +304,6 @@ class TextRuntime:
     def speech(self, *_):
         raise ModelUnavailableError("Speech transport is not approved in text-memory mode.")
 
-    def face(self, *_):
-        raise ModelUnavailableError("Face transport is not approved in text-memory mode.")
+    def face(self, encoded):
+        self.require_ready()
+        return self.face_runtime.predict(encoded)

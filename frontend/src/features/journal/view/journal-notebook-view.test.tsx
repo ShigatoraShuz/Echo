@@ -47,6 +47,7 @@ describe("JournalNotebookView", () => {
       setSearch: vi.fn(),
       applySearch: vi.fn(),
       setFilters: vi.fn(),
+      setEmotionFilter:vi.fn(),
       setMoodFilter: vi.fn(),
       setSort: vi.fn(),
       setPage: vi.fn(),
@@ -56,6 +57,10 @@ describe("JournalNotebookView", () => {
     });
     const user = userEvent.setup();
     render(<JournalNotebookView />);
+    for(const name of ['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'])expect(screen.getByRole('button',{name})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'calm'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'neutral'})).not.toBeInTheDocument();
+
 
     expect(screen.getByRole("link", { name: /write reflection/i })).toHaveAttribute("href", "/journal/new");
     expect(screen.getByRole("link", { name: /resume a draft/i })).toHaveAttribute("href", "/journal/drafts");

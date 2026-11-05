@@ -1,5 +1,7 @@
 # ECHO model integration and environment handover
 
+Current runtime handover: [2026-11-05 system checkpoint](handover/CURRENT_SYSTEM_2026-11-05.md). This October 31 document is historical; its model/voice selection is superseded.
+
 Snapshot: 2026-10-31, Asia/Taipei. This document combines a **fresh installed-package audit** with source inspection and previously recorded integration results. It does not claim every earlier test was rerun today. No environment packages, models, database records, application configuration, or Git settings were changed to prepare this handover. Protected environment/credential files were not opened.
 
 ## 1. Current checkout and change ownership

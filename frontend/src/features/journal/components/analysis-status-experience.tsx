@@ -452,7 +452,13 @@ export function AnalysisStatusExperience({
           </h2>
           {waiting ? (
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              Your journal was saved securely. Analysis will begin when the private provider is available.
+              {progress?.waitReason==='page_inactive'
+                ? 'Your journal is saved. Analysis is paused while Journal is closed; return to Journal to resume.'
+                : progress?.waitReason==='buddy_priority'
+                  ? 'Your journal is saved. Analysis will resume after Buddy releases GPU capacity.'
+                  : progress?.waitReason==='gpu_capacity'
+                    ? 'Your journal is saved. Analysis is waiting for GPU capacity.'
+                    : 'Your journal was saved securely. Analysis will begin when the private provider is available.'}
             </p>
           ) : null}
           {failed ? (

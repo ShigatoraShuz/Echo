@@ -1,8 +1,14 @@
-import { facialExpressionResultSchema } from "@echo/contracts";
+import { modelPreparationSchema, facialExpressionResultSchema } from "@echo/contracts";
 import { z } from "zod";
 import { journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema } from "@echo/contracts";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
 
+/** Only preparation gets the full five-attempt envelope; inference stays bounded. */
+export function coreRequestTimeout(path:string,body:unknown){
+ const task=(body as {task?:unknown}|null)?.task;
+ if(path==='/v2/journal-runtime'&&(body as {action?:string})?.action==='prepare')return 1_000_000;
+ return path==='/v1/talk'&&['warm','warm_chat','warm_nano','warm_whisper'].includes(String(task))?6_600_000:path==='/v1/talk'?600_000:300_000;
+}
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 const responseSchema = z.object({
   reply: z.string().min(1).max(12000).nullable(),
@@ -74,25 +80,32 @@ export class CoreClient {
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
         body: encoded,
         signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(path === "/v1/talk" ? 600_000 : 300_000)])
-          : AbortSignal.timeout(path === "/v1/talk" ? 600_000 : 300_000),
+          ? AbortSignal.any([signal, AbortSignal.timeout(coreRequestTimeout(path,body))])
+          : AbortSignal.timeout(coreRequestTimeout(path,body)),
       });
       if (!response.ok) {
+        if ([401,403].includes(response.status))
+          throw new ExternalServiceError('AI_TRANSPORT_AUTH_FAILED','The private AI service rejected its connection credential. Restart Echo using one coordinated launcher.');
+        if (response.status===429)
+          throw new ExternalServiceError('AI_TRANSPORT_RATE_LIMITED','The local AI service is receiving too many requests. Wait briefly, then retry speech.');
         if (response.status === 503) {
           const value = (await this.readResponse(response).catch(() => null)) as { detail?: { code?: string } } | null;
           const code = value?.detail?.code;
-          if (typeof code === "string" && /^BUDDY_[A-Z_]{1,70}$/.test(code))
+          if (typeof code === "string" && /^(BUDDY|FACE|NATIVE)_[A-Z_]{1,70}$/.test(code))
             throw new ExternalServiceError(
               code,
               code === "BUDDY_CBT_ENV_ACCESS_DENIED"
                 ? "Windows denied access to Thesis2_VENV. Restore access before starting Buddy."
                 : code === "BUDDY_RESPONSE_WITHHELD"
                   ? "Buddy could not approve a complete reply. Please try again."
+                  : code.startsWith('NATIVE_') ? 'Journal model loading failed: '+code
                   : "Buddy model readiness or inference failed: " + code,
             );
           if (value?.detail?.code === "TALK_BUSY")
             throw new ExternalServiceError("TALK_BUSY", "Journal inference is waiting while Talk is active.");
         }
+        if(path==='/v1/talk'||path==='/v2/speech')
+          throw new ExternalServiceError('AI_TRANSPORT_UNAVAILABLE','The local speech runtime is unavailable. Your approved answer is retained; retry speech after recovery.');
         throw new Error();
       }
       return await this.readResponse(
@@ -101,6 +114,15 @@ export class CoreClient {
       );
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
+      if(path==='/v1/talk'||path==='/v2/speech') {
+        if(signal?.aborted)throw new ExternalServiceError('BUDDY_CANCELLED','Speech was cancelled.');
+        const name=(error as {name?:string})?.name;
+        if(name==='TimeoutError'||name==='AbortError')
+          throw new ExternalServiceError('AI_TRANSPORT_TIMEOUT','Local speech preparation or synthesis timed out. Your approved answer is retained. Retry speech.');
+        if(error instanceof TypeError)
+          throw new ExternalServiceError('AI_TRANSPORT_CONNECTION_FAILED','Cannot connect to the local speech service. Check that Echo is running.');
+        throw new ExternalServiceError('AI_TRANSPORT_INVALID_RESPONSE','The local speech service returned an unavailable or invalid response. Your approved answer is retained.');
+      }
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
     }
   }
@@ -136,6 +158,25 @@ export class CoreClient {
     if (payload.task === "warm") return warmResponseSchema.parse(value);
     return value;
   }
+  private preparationPending?:Promise<import('@echo/contracts').ModelPreparation|undefined>;
+  private preparationCache:{until:number;value?:import('@echo/contracts').ModelPreparation}={until:0};
+  async preparationStatus(){
+    if(Date.now()<this.preparationCache.until)return this.preparationCache.value;
+    if(this.preparationPending)return this.preparationPending;
+    this.preparationPending=(async()=>{
+      try{
+        const response=await fetch(this.url.replace(/\/$/,'')+'/v2/preparation',{
+          redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+this.token},signal:AbortSignal.timeout(2000),
+        });
+        if(!response.ok)throw Error();
+        const result=z.object({preparation:modelPreparationSchema.nullable()}).strict().parse(await this.readResponse(response,8192));
+        this.preparationCache={until:Date.now()+500,value:result.preparation??undefined};
+        return this.preparationCache.value;
+      }catch{this.preparationCache={until:Date.now()+500};return undefined;}
+      finally{this.preparationPending=undefined;}
+    })();
+    return this.preparationPending;
+  }
   private busyCache = { until: 0, value: false };
   private busyPending?: Promise<boolean>;
   async talkBusy(force = false): Promise<boolean> {
@@ -167,16 +208,16 @@ export class CoreClient {
   async screening(text: string) {
     return await this.request("/v3/screening", { text });
   }
-  async classify(text: string) {
+  async classify(text: string, owner?:string) {
     return z
       .object({ suicidal_language_flag: z.boolean() })
-      .parse(await this.request("/v2/classify", { text, language: "unknown" }));
+      .parse(await this.request("/v2/classify", { text, language: "unknown", ...(owner?{owner}:{}) }));
   }
-  async analyze(text: string) {
+  async analyze(text: string, owner?:string) {
     try {
       return z
         .union([journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema])
-        .parse(await this.request("/v2/analyze", { text, language: "unknown" }));
+        .parse(await this.request("/v2/analyze", { text, language: "unknown", ...(owner?{owner}:{}) }));
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
@@ -188,10 +229,11 @@ export class CoreClient {
       if (!value.supportRequired && !value.reply) throw new Error();
       return value;
     } catch (error) {
-      if (error instanceof ExternalServiceError && error.code.startsWith("BUDDY_")) throw error;
+      if (error instanceof ExternalServiceError && (error.code.startsWith("BUDDY_")||error.code.startsWith("NATIVE_"))) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Buddy is temporarily unavailable. Please try again later.");
     }
   }
+  async journalRuntime(action:'prepare'|'owners'|'unload',owners:string[],faceOwners:string[]=[]){return this.request('/v2/journal-runtime',{action,owners,faceOwners});}
   async ready(): Promise<boolean> {
     try {
       return (

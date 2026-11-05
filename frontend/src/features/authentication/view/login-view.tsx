@@ -1,4 +1,5 @@
 "use client";
+import {appPresenceEnabled} from "@/infrastructure/security/app-presence";
 
 import Link from "next/link";
 import { useEffect } from "react";
@@ -125,11 +126,11 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
 
             <div className="flex flex-col items-start gap-1 pt-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="[&_label]:min-h-11 [&_label]:items-center">
-                <EchoCheckbox
+                {appPresenceEnabled ? <p className="text-xs text-muted-foreground">Signed in across Echo tabs until you log out or close the app.</p> : <EchoCheckbox
                   label="Remember me on this device"
                   checked={rememberSession}
                   onChange={(event) => setRememberSession(event.target.checked)}
-                />
+                />}
               </div>
               <Link
                 href="/forgot-password"

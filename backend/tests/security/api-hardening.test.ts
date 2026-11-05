@@ -20,6 +20,13 @@ describe("central API hardening", () => {
   it("rejects spoofed proxy headers on a direct deployment", async () => {
     expect((await request(createApp()).get("/api/v1/health").set("X-Forwarded-For", "1.2.3.4")).status).toBe(400);
   });
+  it("accepts forwarded requests from the configured loopback proxy while preserving origin checks", async () => {
+    const app = createApp({ allowedOrigin: "https://echo.example", trustedProxyAddresses: ["127.0.0.1", "::1"] });
+    const allowed = await request(app).get("/api/v1/health").set("Origin", "https://echo.example").set("X-Forwarded-For", "100.100.100.100");
+    expect(allowed.status).toBe(200);
+    const denied = await request(app).get("/api/v1/health").set("Origin", "https://evil.example").set("X-Forwarded-For", "100.100.100.100");
+    expect(denied.status).toBe(403);
+  });
   it("returns safe errors and security headers for oversized/malformed input", async () => {
     const app = createApp({ bodyLimit: "1kb" });
     const large = await request(app).post("/api/v1/journals").send({ content: "x".repeat(2000) });

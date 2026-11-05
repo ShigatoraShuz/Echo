@@ -31,6 +31,7 @@ function mapRiskBand(band: string): JournalRiskBand {
 export function mapEntryResponseToDomain(dto: JournalEntryResponseDTO): JournalEntry {
   return {
     images: dto.images,
+    dominantEmotion:dto.dominant_emotion,
     id: dto.id,
     title: dto.title,
     body: dto.body,

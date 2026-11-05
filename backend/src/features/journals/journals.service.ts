@@ -1,3 +1,7 @@
+import {compareJournalSignals} from './journal-signal-comparison.js';
+import {createHash} from 'node:crypto';
+import {ModelPageLeases} from '../../infrastructure/analysis/model-page-leases.js';
+import {appPresence} from '../../infrastructure/security/app-presence.js';
 import { encryptText,decryptText } from "../../infrastructure/encryption/encryption.service.js";
 import {facialExpressionResultSchema} from "@echo/contracts";
 import { analysisTrends } from "./analysis-insights.js";
@@ -56,6 +60,7 @@ export interface JournalInput {
 }
 
 export interface JournalResponse {
+  dominant_emotion?:string|null;
   images?: Array<{id:string;url:string}>;
   id: string;
   title: string;
@@ -106,6 +111,8 @@ export interface JournalAnalysisRuntime {
 
 export interface JournalDraftInput {
   submissionKey?: string;
+  draftIntent?: "create"|"update";
+  expectedSubmissionKey?: string|null;
   title: string;
   body: string;
   mood?: JournalInput["mood"];
@@ -188,6 +195,24 @@ export class JournalService {
     private readonly coreClient?: CoreClient,
   ) {}
 
+  private readonly journalLeases=new ModelPageLeases(
+    async()=>{if(!this.coreClient)throw new ExternalServiceError('AI_UNAVAILABLE','Local journal inference is unavailable.');await this.coreClient.journalRuntime('prepare',this.journalLeases.users().map(user=>this.journalOwner(user)),await this.journalFaceOwners());},
+    async()=>{if(this.coreClient)await this.coreClient.journalRuntime('unload',[]);},
+    Date.now,(user,session)=>appPresence()?.isClosed(user,session)??false,'journal',
+    async()=>{if(this.coreClient)await this.coreClient.journalRuntime('owners',this.journalLeases.users().map(user=>this.journalOwner(user)),await this.journalFaceOwners());},
+  );
+  async acquireModelLease(user:string,session:string,client:string){
+    await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Journal analysis consent is required.');
+    return {...this.journalLeases.acquire(user,session,client),faceEligible:await this.hasGlobalFacialConsent(user)};
+  }
+  modelLeaseStatus(user:string,session:string,id:string){return this.journalLeases.status(user,session,id);}
+  heartbeatModelLease(user:string,session:string,id:string){return this.journalLeases.heartbeat(user,session,id);}
+  releaseModelLease(user:string,session:string,id:string){return this.journalLeases.release(user,session,id);}
+  closeModelLeases(){return this.journalLeases.close();}
+  private async journalFaceOwners(){const users=this.journalLeases.users();const enabled=await Promise.all(users.map(user=>this.hasGlobalFacialConsent(user)));return users.filter((_,index)=>enabled[index]).map(user=>this.journalOwner(user));}
+  private journalOwner(user:string){return createHash('sha256').update('journal-runtime:'+user).digest('hex');}
+  private journalPageActive(user:string){return process.env.ECHO_PAGE_MODEL_LEASES!=='true'||this.journalLeases.hasUser(user);}
   private localRow(job:LocalAnalysisJob):AnalysisRow {
     return {id:job.id,journal_id:job.journal_id,user_id:job.user_id,status:job.status,created_at:job.created_at,
       result_payload:job.result_ciphertext?{ciphertext:job.result_ciphertext}:null,severity:null,phq8_score:null,
@@ -197,8 +222,12 @@ export class JournalService {
     if(this.runtime?.isProduction)throw new NotFoundError('Development face analysis is unavailable in production.');
     await this.assertAnalysisGates(user);
     if(!await this.hasGlobalFacialConsent(user)||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Enable journal and facial analysis consent.');
-    const {evaluateFinalFace}=await import('../../infrastructure/analysis/final-face.js');
-    return evaluateFinalFace(image);
+    if(!this.coreClient)throw new ExternalServiceError('FACE_UNAVAILABLE','Local expression analysis is unavailable. Start the AI service and retry.');
+    if(!image.length||image.length>2*1024*1024)throw new ValidationError({image:['Capture must be between 1 byte and 2 MiB.']});
+    const result=await this.coreClient.face(image);
+    await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalFacialConsent(user)||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Facial analysis consent was revoked.');
+    return result;
   }
   private faceActive = new Set<string>();
   private faceStopped=false;
@@ -228,17 +257,22 @@ export class JournalService {
     return results;
   }
   async faceStatus(user:string,journal:string){
-    await this.get(user,journal);
+    const entry=await this.get(user,journal);
+    const compare=async(result:import('@echo/contracts').FacialExpressionResult|null)=>{
+      if(!await this.hasGlobalAnalysisConsent(user))return {status:'unavailable' as const,reason:'consent_required' as const};
+      const analysis=await this.latestAnalysis(journal,user);
+      return compareJournalSignals({journalId:journal,revision:entry.updated_at,textEmotion:this.detectedEmotion(analysis),textTime:analysis?asString(analysis.created_at):undefined,textId:analysis?asString(analysis.id):undefined,face:result});
+    };
     if(!this.localResults){
       if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
       const {data,error}=await this.database.schema('ai_analysis').from('journal_face_results').select('result_ciphertext').eq('user_id',user).eq('journal_id',journal).maybeSingle();
       if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Face result could not be loaded.');
       const result=data?facialExpressionResultSchema.parse(JSON.parse(decryptText(data.result_ciphertext,this.encryption))):null;
-      return {status:result?.status==='available'?'completed':result?.status??'not_requested',result};
+      return {status:result?.status==='available'?'completed':result?.status??'not_requested',result,comparison:await compare(result)};
     }
     const job=this.localResults.journal(user,journal);
     if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
-    return {status:job?.facial_status??'not_requested',result:job?.face_result??null};
+    return {status:job?.facial_status??'not_requested',result:job?.face_result??null,comparison:await compare(job?.face_result??null)};
   }
   async submitFace(user:string,journal:string,image:Buffer){
     if(!this.localResults){
@@ -299,7 +333,7 @@ export class JournalService {
   async recoverLocalJobs():Promise<void> {
     if(!this.localResults || !this.coreClient || !await this.coreClient.ready() || await this.coreClient.talkBusy?.())return;
     for(const user of this.localResults.users())for(const job of this.localResults.completed(user))if((['queued','analyzing'].includes(job.facial_status)||(job.facial_status==='captured_pending_provider'&&Date.now()-Date.parse(job.updated_at)>60000))&&!this.faceActive.has(job.id))this.localResults.setFace(user,job.id,'unavailable',{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:'interrupted'});
-    for(const job of this.localResults.pending())this.enqueueLocal(job);
+    for(const job of this.localResults.pending()){if(this.journalPageActive(job.user_id))this.enqueueLocal(job);else this.localResults.wait(job.user_id,job.id,'page_inactive');}
   }
   private enqueueLocal(job:LocalAnalysisJob){
     if(this.localActive.has(job.id))return;
@@ -309,6 +343,7 @@ export class JournalService {
   private async processLocal(job:LocalAnalysisJob){
     const store=this.localResults!;
     if(!store.get(job.user_id,job.id))return;
+    if(!this.journalPageActive(job.user_id)){store.wait(job.user_id,job.id,'page_inactive');return;}
     if(await this.coreClient?.talkBusy?.()){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
     if(!this.coreClient || !await this.coreClient.ready()){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
     try {
@@ -316,23 +351,35 @@ export class JournalService {
       await this.assertAnalysisGates(job.user_id);
       const entry=await this.get(job.user_id,job.journal_id);
       store.set(job.user_id,job.id,'safety_checking',10);
-      const classification=await this.coreClient.classify(entry.body);
+      const classification=await this.coreClient.classify(entry.body,process.env.ECHO_PAGE_MODEL_LEASES==='true'?this.journalOwner(job.user_id):undefined);
       if(!store.get(job.user_id,job.id))return;
       if(!job.approved && (classification.suicidal_language_flag || /\b(kill myself|end my life|hurt myself|want to die)\b/i.test(entry.body))){
         store.set(job.user_id,job.id,'safety_action_required',10);return;
       }
       await this.assertAnalysisGates(job.user_id);
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
+      if(!this.journalPageActive(job.user_id)){store.wait(job.user_id,job.id,'page_inactive');return;}
       store.set(job.user_id,job.id,'analyzing_emotions',25);
-      const result=await this.coreClient.analyze(entry.body);
+      const result=await this.coreClient.analyze(entry.body,process.env.ECHO_PAGE_MODEL_LEASES==='true'?this.journalOwner(job.user_id):undefined);
       if(!store.get(job.user_id,job.id))return;
       const current=await this.get(job.user_id,job.journal_id);
       if(current.body!==entry.body)throw new ConflictError('JOURNAL_CHANGED','The reflection changed during local analysis.');
       await this.assertAnalysisGates(job.user_id);
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
+      if(!this.journalPageActive(job.user_id)){store.wait(job.user_id,job.id,'page_inactive');return;}
       store.set(job.user_id,job.id,'completed',100,JSON.stringify(result));
     } catch(error) {
-      store.set(job.user_id,job.id,(error instanceof AppError && error.code==='TALK_BUSY') || await this.coreClient?.talkBusy?.(true)?'waiting_for_provider':'failed',job.progress);
+      if(!this.journalPageActive(job.user_id)){store.wait(job.user_id,job.id,'page_inactive');return;}
+      if(error instanceof AppError&&error.code==='TALK_BUSY'){store.wait(job.user_id,job.id,'buddy_priority');return;}
+      if(await this.coreClient?.talkBusy?.(true)){store.set(job.user_id,job.id,'waiting_for_provider',job.progress);return;}
+      const current=store.get(job.user_id,job.id);
+      if(!current)return;
+      const code=error instanceof AppError&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:'LOCAL_ANALYSIS_FAILED';
+      // This RPC combines emotion, distress and optional PHQ; progress alone is not a model diagnosis.
+      // Log only allowlisted metadata. Never journal text, exception messages, account IDs or paths.
+      console.warn(JSON.stringify({service:'local-ai',event:'journal_analysis_failed',code,
+        stage:'combined_analysis',progress:current.progress}));
+      store.set(job.user_id,job.id,'failed',job.progress);
     }
   }
   private async createLocal(userId:string,input:JournalInput,key:string|undefined,fixture?:string):Promise<JournalSubmissionResult>{
@@ -477,6 +524,7 @@ export class JournalService {
     const severity = analysis?.severity;
     return {
       id: asString(row.id),
+      dominant_emotion:this.detectedEmotion(analysis),
       title: journal.title,
       body: journal.body,
       excerpt: journal.body.slice(0, 180),
@@ -498,8 +546,15 @@ export class JournalService {
     };
   }
 
+  private detectedEmotion(analysis:AnalysisRow|null):string|null{
+    if(!analysis?.result_payload)return null;
+    const result=this.readAnalysisResult(analysis.result_payload);
+    if(!result||result.isSimulated||!['echo-journal-analysis-v2','echo-journal-analysis-v3'].includes(result.schemaVersion))return null;
+    const label=(result as {dominantEmotion?:string}).dominantEmotion;
+    return label&&['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'].includes(label)?label:null;
+  }
   async listPage(userId: string, options: {
-    page: number; pageSize: number; query: string; mood?: JournalInput["mood"];
+    page: number; pageSize: number; query: string; emotion?:string; mood?: JournalInput["mood"];
     dateFrom?: string; dateTo?: string; sort: "newest" | "oldest";
   }): Promise<{ entries: JournalResponse[]; total: number; page: number; page_size: number }> {
     const start = (options.page - 1) * options.pageSize;
@@ -513,7 +568,7 @@ export class JournalService {
     };
     let rows: JournalRow[] = [];
     let total = 0;
-    if (options.query) {
+    if (options.query || options.emotion) {
       const needle = options.query.toLocaleLowerCase();
       const matches: JournalRow[] = [];
       // shortcut: encrypted search scans owner-scoped rows; add a privacy-reviewed index if per-user volume makes this slow.
@@ -521,7 +576,15 @@ export class JournalService {
         const { data, error } = await base().range(offset, offset + 499);
         if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journals", operation: "search journals" }, "The journal service is temporarily unavailable.");
         const batch = (data ?? []) as JournalRow[];
+        let emotionResults=new Map<string,AnalysisRow>();
+        if(options.emotion&&batch.length){
+          const ids=batch.map(row=>asString(row.id));
+          const result=this.localResults?{data:ids.flatMap(id=>{const job=this.localResults!.journal(userId,id);return job?.result_ciphertext?[{...this.localRow(job),analysis_requests:{journal_id:id}}]:[];}),error:null}:await this.database.schema('ai_analysis').from('analysis_results').select('*,analysis_requests!inner(journal_id,deleted_at)').eq('user_id',userId).is('analysis_requests.deleted_at',null).in('analysis_requests.journal_id',ids).order('created_at',{ascending:false});
+          if(result.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Detected emotions could not be loaded.');
+          for(const item of result.data??[]){const id=asString((item.analysis_requests as Record<string,unknown>)?.journal_id);if(id&&!emotionResults.has(id))emotionResults.set(id,item as AnalysisRow);}
+        }
         for (const row of batch) {
+          if(options.emotion&&this.detectedEmotion(emotionResults.get(asString(row.id))??null)!==options.emotion)continue;
           const { title, body } = this.decryptJournal(row);
           if (`${title}\n${body}\n${asStringArray(row.tags).join("\n")}`.toLocaleLowerCase().includes(needle)) matches.push(row);
         }
@@ -1120,33 +1183,38 @@ export class JournalService {
     };
   }
 
+  private sameDraft(input:JournalDraftInput,current:JournalDraftResponse){
+    return Boolean(input.submissionKey&&current.submission_key===input.submissionKey&&current.title===input.title&&current.body===input.body
+      &&current.privacy_status===input.privacyStatus&&current.analysis_consent===input.analysisConsent
+      &&JSON.stringify(current.emotions)===JSON.stringify(input.emotions)&&JSON.stringify(current.tags)===JSON.stringify(input.tags));
+  }
   async saveDraft(userId: string, input: JournalDraftInput): Promise<JournalDraftResponse> {
-    const encrypted = this.encryptJournal(input);
-    const { data, error } = await this.database
-      .schema("journal_service")
-      .from("journal_drafts")
-      .upsert(
-        {
-          user_id: userId,
-          submission_key: input.submissionKey ?? null,
-          title: "[encrypted]",
-          content_ciphertext: bytea(encrypted.ciphertext),
-          encryption_iv: bytea(encrypted.iv),
-          encryption_auth_tag: bytea(encrypted.authenticationTag),
-          encryption_key_version: encrypted.keyVersion,
-
-          emotions: input.emotions,
-          tags: input.tags,
-          privacy_status: input.privacyStatus,
-          analysis_consent: input.analysisConsent,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      )
-      .select("*")
-      .single();
-    if (error || !data) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "save draft" }, "Your draft could not be saved.");
-    return this.toDraftResponse(data as JournalRow);
+    if(input.draftIntent==='update'&&(!input.submissionKey||input.expectedSubmissionKey===undefined))
+      throw new ConflictError('DRAFT_CONFLICT','Reload the saved draft before updating it.');
+    if(input.draftIntent==='update'&&input.submissionKey===input.expectedSubmissionKey){
+      const current=await this.getDraft(userId);
+      if(current&&this.sameDraft(input,current))return current;
+      throw new ConflictError('DRAFT_CONFLICT','The draft retry identity cannot be reused for different writing.');
+    }
+    const encrypted=this.encryptJournal(input);
+    const payload={user_id:userId,submission_key:input.submissionKey??null,title:'[encrypted]',
+      content_ciphertext:bytea(encrypted.ciphertext),encryption_iv:bytea(encrypted.iv),
+      encryption_auth_tag:bytea(encrypted.authenticationTag),encryption_key_version:encrypted.keyVersion,
+      emotions:input.emotions,tags:input.tags,privacy_status:input.privacyStatus,analysis_consent:input.analysisConsent,updated_at:new Date().toISOString()};
+    const table=this.database.schema('journal_service').from('journal_drafts');
+    let response;
+    if(input.draftIntent==='update'){
+      let query=table.update(payload).eq('user_id',userId);
+      query=input.expectedSubmissionKey?query.eq('submission_key',input.expectedSubmissionKey):query.is('submission_key',null);
+      response=await query.select('*').maybeSingle();
+    }else response=await table.insert(payload).select('*').single();
+    if(response.data&&!response.error)return this.toDraftResponse(response.data as JournalRow);
+    if(!response.error||response.error.code==='23505'||response.error.code==='PGRST116'){
+      const current=await this.getDraft(userId);
+      if(current&&this.sameDraft(input,current))return current;
+      throw new ConflictError('DRAFT_CONFLICT','A saved draft already exists or changed in another tab. Resume it or explicitly discard it before saving a new reflection.');
+    }
+    throw databaseError(response.error,{module:'journals',schema:'journal_service',table:'journal_drafts',operation:'save draft'},'Your draft could not be saved.');
   }
 
   async getDraft(userId: string): Promise<JournalDraftResponse | null> {
@@ -1160,13 +1228,19 @@ export class JournalService {
     return data ? this.toDraftResponse(data as JournalRow) : null;
   }
 
-  async deleteDraft(userId: string, submissionKey?: string): Promise<void> {
+  async deleteDraft(userId: string, submissionKey?: string, guard?:{id:string;key:string|null}): Promise<void> {
     let query = this.database
       .schema("journal_service")
       .from("journal_drafts")
       .delete()
       .eq("user_id", userId);
     if (submissionKey) query = query.eq("submission_key", submissionKey);
+    if(guard){query=query.eq('id',guard.id);query=guard.key?query.eq('submission_key',guard.key):query.is('submission_key',null);
+      const result=await query.select('id').maybeSingle();
+      if(result.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','The saved draft could not be discarded.');
+      if(!result.data)throw new ConflictError('DRAFT_CONFLICT','The saved draft changed in another tab. Reload before discarding it.');
+      return;
+    }
     const {error} = await query;
     if (error) throw databaseError(error, { module: "journals", schema: "journal_service", table: "journal_drafts", operation: "remove draft" }, "Your draft could not be removed.");
   }
@@ -1205,7 +1279,7 @@ export class JournalService {
     if(this.localResults){
       const job=this.localResults.get(userId,jobId);if(!job)throw new NotFoundError('The local analysis job was not found.');
       await this.get(userId,job.journal_id);
-      return {userId,journalId:job.journal_id,jobId:job.id,status:job.status,progress:job.progress,facialStatus:job.facial_status,updatedAt:job.updated_at,
+      return {userId,journalId:job.journal_id,jobId:job.id,status:job.status,progress:job.progress,waitReason:job.waitReason,facialStatus:job.facial_status,updatedAt:job.updated_at,
         checks:analysisChecksFor(job.status,job.facial_status,job.progress).map(x=>x.id==='phq8'?{...x,state:(job.status==='completed'?(job.result_ciphertext&&JSON.parse(job.result_ciphertext).journalScreening?.status==='available'?'complete':'partial'):'pending') as 'complete'|'partial'|'pending',detail:'Experimental journal estimate; questionnaire remains separate'}:x)};
     }
     const { data, error } = await this.database

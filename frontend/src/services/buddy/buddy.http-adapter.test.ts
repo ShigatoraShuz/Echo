@@ -195,3 +195,9 @@ describe("buddy HTTP adapter", () => {
     expect(fetch).toHaveBeenCalledWith("http://api.example.test/api/v1/buddy/conversations", expect.any(Object));
   });
 });
+
+it('preserves the specific loading status instead of displaying the generic server error',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>jsonResponse({success:false,error:{code:'BUDDY_LOADING',message:'Buddy is still loading its local models. Your message has not been sent.'}},409)));
+ const {createBuddyHttpAdapter}=await import('@/services/buddy/buddy.http-adapter');
+ expect(await createBuddyHttpAdapter().sendMessage({content:'Pending message'})).toEqual({success:false,error:{code:'LOADING',message:'Buddy is still loading its local models. Your message has not been sent.'}});
+});

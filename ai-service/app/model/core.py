@@ -108,6 +108,30 @@ class CoreRuntime:
             from app.model.talk import TalkRuntime
             self.talk=TalkRuntime(self)
 
+    def require_journal_owner(self, owner):
+        if owner and owner not in getattr(self, "journal_owners", set()):
+            raise TalkBusyError("Journal page is inactive")
+
+    def journal_runtime(self, action, owners):
+        with self.lock:
+            self.journal_owners = set(owners)
+            self.journal_paused = not bool(owners)
+            if action == "owners": return {"ownersUpdated": True}
+            if action == "prepare":
+                self.journal_paused = False
+                self.classify("Today was a quiet day.")
+                return {"ready": True}
+            if action != "unload": raise ValueError("Invalid journal action")
+            self.journal_owners = set()
+            self.journal_paused = True
+            if isinstance(self.resident, dict): self.resident.clear()
+            self.instance = None
+            self.active = None
+            gc.collect()
+            import torch
+            torch.cuda.empty_cache()
+            return {"unloaded": True}
+
     def require_ready(self):
         if not self.loaded:
             raise ModelUnavailableError("Core model runtime unavailable.")
@@ -179,6 +203,22 @@ class CoreRuntime:
                 del resident[alias]
 
     def _load(self, name):
+        from app.model.loading_policy import load_with_retries
+        resident=getattr(self,'resident',None)
+        def cleanup():
+            # Keep successfully resident components; discard only this failed load.
+            if isinstance(resident,dict):resident.pop(name,None)
+            if getattr(self,'active',None)==name:self.instance=None;self.active=None
+            gc.collect()
+            import torch
+            torch.cuda.empty_cache()
+        return load_with_retries(name,lambda:self._load_once(name),cleanup)
+
+    def _load_once(self, name):
+        buddy = getattr(self, "buddy", None)
+        cbt = getattr(buddy, "workers", {}).get("cbt") if buddy else None
+        if name in ("xlmr", "e4", "phq8") and cbt and cbt.process.poll() is None:
+            raise TalkBusyError("Buddy residency has priority")
         if getattr(self, "buddy", None):
             self.buddy.evict()
         if self.active == name:
@@ -284,6 +324,8 @@ class CoreRuntime:
 
     def call(self, name, fn):
         self.require_ready()
+        if name in ("xlmr", "e4", "phq8") and getattr(self, "journal_paused", False):
+            raise TalkBusyError("Journal page is inactive")
         if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False):raise TalkBusyError("Talk has priority between stages")
         if not self.slots.acquire(blocking=False):
             raise ModelUnavailableError("Inference queue is full.")
@@ -295,7 +337,8 @@ class CoreRuntime:
                 try:
                     return fn(self._load(name))
                 except Exception as error:
-                    if not isinstance(error,TalkCancelledError):self.release()
+                    from app.model.loading_policy import NativeLoadError
+                    if not isinstance(error,(TalkCancelledError,TalkBusyError,NativeLoadError)):self.release()
                     raise
             finally:
                 self.lock.release()
@@ -328,11 +371,13 @@ class CoreRuntime:
             ).hexdigest(),
         }
 
-    def analyze(self, text, language="unknown", classification=None):
-        classification = classification or self.classify(text, language)
+    def emotions(self, text):
         from app.vendor.e4.inference import infer_journal
+        return self.call("e4", lambda m: infer_journal(m[0], m[1], m[3], text))
 
-        emotion = self.call("e4", lambda m: infer_journal(m[0], m[1], m[3], text))
+    def analyze(self, text, language="unknown", classification=None, emotion=None, screening_result=None):
+        classification = classification or self.classify(text, language)
+        emotion = emotion if emotion is not None else self.emotions(text)
         category = classification["distress_category"]
         features = {
             "Anxious": "paced_breathing",
@@ -342,7 +387,7 @@ class CoreRuntime:
             "Others": "grounding",
         }
         try:
-            screening=self.screening(text)
+            screening=screening_result if screening_result is not None else self.screening(text)
         except TalkBusyError:
             raise
         except Exception:
@@ -449,22 +494,15 @@ class CoreRuntime:
         return self.call('speech',execute)
 
     def face(self, encoded):
-        import base64, subprocess, tempfile
-        data = base64.b64decode(encoded, validate=True)
-        if not data or len(data) > 2 * 1024 * 1024:
-            raise ValueError('Image exceeds 2 MiB')
-        def execute(_):
-            python = Path(os.environ.get('FACE_PYTHON', str(self.root.parent/'face-venv/Scripts/python.exe')))
-            with tempfile.TemporaryDirectory(dir=self.root.parent/'runtime-cache') as folder:
-                image = Path(folder)/'capture.image'
-                output = Path(folder)/'result.json'
-                image.write_bytes(data)
-                subprocess.run([str(python), '-B', str(Path(__file__).parents[1]/'face_worker.py'), str(self.root/'face_model'), str(image), str(output)], check=True, timeout=90, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-                return json.loads(output.read_text())
-        return self.call('face', execute)
+        from app.model.face_transport import FaceRuntime
+        runtime = FaceRuntime(self.root)
+        try:
+            return runtime.predict(encoded)
+        finally:
+            runtime.close()
 
     def screening(self,text):
-        if getattr(self,'screening_unavailable',None):raise ModelUnavailableError('Screening model unavailable')
+        if getattr(self,'screening_unavailable',None):raise ModelUnavailableError('NATIVE_PHQ_ASSET_UNAVAILABLE')
         if not isinstance(text,str) or not text.strip() or len(text)>20000:raise ValueError('Invalid journal text')
         from app.model.screening import infer
         result=self.call('phq8',lambda m:infer(m[0],m[1],text))

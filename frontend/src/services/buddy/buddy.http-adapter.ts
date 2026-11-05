@@ -53,6 +53,8 @@ const NOT_SUPPORTED_MESSAGE =
 function toBuddyError(error: unknown): BuddyServiceError {
   const normalized = normalizeError(error);
   switch (normalized.code) {
+    case "BUDDY_LOADING":
+      return {code:"LOADING",message:normalized.userMessage};
     case "NOT_FOUND":
       return { code: "NOT_FOUND", message: normalized.userMessage };
     case "VALIDATION_ERROR":
@@ -192,7 +194,7 @@ export function createBuddyHttpAdapter(): BuddyService {
         const response = await client.post<ApiEnvelope<BuddySessionResponse>, { content: string; conversationId?: string;temporarySessionId?:string }>(
           "/buddy/messages",
           { content: input.content, conversationId: input.conversationId,temporarySessionId:input.temporarySessionId },
-          // Native inference has a bounded five-minute backend deadline, including cold model loading.
+          // Preparation has its own asynchronous status; this deadline covers generation only.
           { timeout: 315_000 },
         );
         const messages = mapMessages(response.data.conversationId ?? "temporary", response.data.messages).slice(-2);

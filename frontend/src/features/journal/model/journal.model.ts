@@ -1,3 +1,5 @@
+export const JOURNAL_EMOTIONS = ['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'] as const;
+export type JournalEmotion=typeof JOURNAL_EMOTIONS[number];
 // ─── Enums ───────────────────────────────────────────
 
 export type JournalMood = "calm" | "happy" | "neutral" | "sad" | "anxious" | "angry";
@@ -8,6 +10,7 @@ export type JournalSortOption = "newest" | "oldest";
 // ─── Domain Interfaces ───────────────────────────────
 
 export interface JournalEntry {
+  dominantEmotion?:JournalEmotion|null;
   images?: Array<{id:string;url:string}>;
   id: string;
   title: string;
@@ -28,6 +31,8 @@ export interface JournalEntry {
 
 export interface JournalDraft {
   submissionKey?: string;
+  draftIntent?: "create"|"update";
+  expectedSubmissionKey?: string|null;
   id: string;
   title: string;
   body: string;
@@ -83,6 +88,7 @@ export interface UpdateJournalInput {
 // ─── Filter / Sort / Pagination ──────────────────────
 
 export interface JournalSearchFilters {
+  emotion?: JournalEmotion | null;
   query: string;
   mood: JournalMood | null;
   dateFrom: string | null;
@@ -91,6 +97,7 @@ export interface JournalSearchFilters {
 }
 
 export const DefaultJournalFilters: JournalSearchFilters = {
+  emotion:null,
   query: "",
   mood: null,
   dateFrom: null,

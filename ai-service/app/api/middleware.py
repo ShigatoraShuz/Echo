@@ -43,6 +43,19 @@ def create_rate_limiter(limit: int, window_seconds: int = 60):
 
 
 _limiter = create_rate_limiter(limit=get_settings().rate_limit_per_minute)
+_status_limiter = create_rate_limiter(limit=600)
+_inference_limiter = create_rate_limiter(limit=get_settings().rate_limit_per_minute)
+
+
+def request_limiter(request):
+    from app.core.security import require_internal_token
+    try:
+        require_internal_token(request.headers.get("authorization"))
+    except HTTPException:
+        return _limiter
+    if request.method == "GET" and request.url.path in ("/v2/preparation", "/v2/runtime"):
+        return _status_limiter
+    return _inference_limiter
 
 
 async def request_id_middleware(request: Request, call_next):
@@ -102,7 +115,7 @@ async def request_id_middleware(request: Request, call_next):
 async def rate_limit_middleware(request: Request, call_next):
     settings = get_settings()
     client_key = request.client.host if request.client else "unknown"
-    if not _limiter(client_key):
+    if not request_limiter(request)(client_key):
         # Middleware layers receive separate Request instances, so the request
         # id set by the outer request-id middleware is not visible here.
         request_id = getattr(request.state, "request_id", None) or str(uuid4())

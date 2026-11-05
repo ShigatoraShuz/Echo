@@ -98,6 +98,7 @@ export function createJournalHttpAdapter(): JournalService {
       try {
         const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
         if (filters.query) params.set("query", filters.query);
+        if (filters.emotion) params.set("emotion",filters.emotion);
 
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
@@ -188,10 +189,10 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async saveDraft(draft) {
       try {
-        const { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent } = draft;
-        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, Pick<JournalDraft, "submissionKey" | "title" | "body" | "mood" | "emotions" | "tags" | "privacyStatus" | "analysisConsent">>(
+        const { submissionKey, title, body, mood, emotions, tags, privacyStatus, analysisConsent, draftIntent, expectedSubmissionKey } = draft;
+        const response = await client.put<{ success: true; data: JournalDraftResponseDTO }, Pick<JournalDraft, "submissionKey" | "title" | "body" | "mood" | "emotions" | "tags" | "privacyStatus" | "analysisConsent" | "draftIntent" | "expectedSubmissionKey">>(
           "/journals/draft",
-          { submissionKey, title, body, emotions, tags, privacyStatus, analysisConsent },
+          { submissionKey, title, body, emotions, tags, privacyStatus, analysisConsent, draftIntent:draftIntent??"create", expectedSubmissionKey:expectedSubmissionKey??null },
         );
         return { success: true, data: mapDraftResponseToDomain(response.data) };
       } catch (error) {
@@ -208,9 +209,10 @@ export function createJournalHttpAdapter(): JournalService {
         return { success: false, error: toServiceError(error) };
       }
     },
-    async deleteDraft(id) {
+    async deleteDraft(id, options) {
       try {
-        await client.delete<undefined>(`/journals/draft${/^[0-9a-f-]{36}$/i.test(id) ? `?submissionKey=${encodeURIComponent(id)}` : ""}`);
+        const query=options?`?draftId=${encodeURIComponent(id)}&expectedSubmissionKey=${encodeURIComponent(options.expectedSubmissionKey??'none')}`:(/^[0-9a-f-]{36}$/i.test(id)?`?submissionKey=${encodeURIComponent(id)}`:'');
+        await client.delete<undefined>('/journals/draft'+query);
         return { success: true, data: undefined as unknown as void };
       } catch (error) {
         return { success: false, error: toServiceError(error) };
@@ -272,8 +274,12 @@ export function createJournalHttpAdapter(): JournalService {
         return { success: false, error: toServiceError(error) };
       }
     },
-    async exportEntry() {
-      return { success: false, error: { code: "UNKNOWN", message: "Export not available" } };
+    async exportEntry(id) {
+      try {
+        const pdf=await client.get<Blob>(`/journals/${encodeURIComponent(id)}/export?format=pdf`);
+        if(!(pdf instanceof Blob)||!pdf.size||!pdf.type.includes('application/pdf'))throw Error('Invalid PDF response');
+        return {success:true,data:{pdf,filename:`journal-${id.replace(/[^a-zA-Z0-9-]/g,'').slice(0,36)}.pdf`}};
+      } catch(error){return {success:false,error:toServiceError(error)};}
     },
   };
 }

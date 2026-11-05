@@ -1,3 +1,4 @@
+import {sessionPolicyEnvironment} from './session-policy.mjs';
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -14,7 +15,7 @@ export function localEnvironment(environment) {
     .map((x) => x.trim())
     .filter(Boolean);
   const bypass = [...new Set([...exclusions, "localhost", "127.0.0.1", "::1", "[::1]"])].join(",");
-  return { ...environment, NO_PROXY: bypass, no_proxy: bypass };
+  return { ...sessionPolicyEnvironment(environment), NO_PROXY: bypass, no_proxy: bypass };
 }
 async function listening(port, host) {
   return await new Promise((resolve) => {

@@ -51,3 +51,45 @@ it("does not transmit an oversized text payload", async () => {
   await expect(new CoreClient("http://127.0.0.1:8000",token).analyze("x".repeat(65537))).rejects.toMatchObject({code:"AI_UNAVAILABLE"});
   expect(fetcher).not.toHaveBeenCalled();
 });
+
+
+it.each(['unavailable','failed'] as const)('keeps native emotion/distress results when optional PHQ is %s',async(status)=>{
+  const partial={...native,schemaVersion:'echo-journal-analysis-v3',journalScreening:{status,experimental:true,
+    inferenceVersion:'journal-nullable-v1',items:null,coverage:0,subtotal:null,total:null}};
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify(partial))));
+  const result=await new CoreClient('http://127.0.0.1:8000',token).analyze('Synthetic reflection');
+  expect(result.emotionDistribution).toEqual(native.emotionDistribution);
+  expect(result.distressCategory).toEqual(native.distressCategory);
+  expect(result.schemaVersion).toBe('echo-journal-analysis-v3');
+  if(result.schemaVersion==='echo-journal-analysis-v3')expect(result.journalScreening).toMatchObject({status,items:null,total:null});
+});
+
+
+it.each([[401,'AI_TRANSPORT_AUTH_FAILED'],[403,'AI_TRANSPORT_AUTH_FAILED'],[429,'AI_TRANSPORT_RATE_LIMITED']] as const)('preserves sanitized transport status %s',async(status,code)=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('secret rejected draft',{status})));
+ const pending=new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano',sessionId:'synthetic'});
+ await expect(pending).rejects.toMatchObject({code});
+ await expect(pending).rejects.not.toThrow('secret rejected draft');
+});
+it.each([['TimeoutError','AI_TRANSPORT_TIMEOUT'],['TypeError','AI_TRANSPORT_CONNECTION_FAILED']] as const)('preserves sanitized speech %s',async(name,code)=>{
+ const failure=name==='TypeError'?new TypeError('secret path'):new DOMException('secret path',name);
+ vi.stubGlobal('fetch',vi.fn().mockRejectedValue(failure));
+ const pending=new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano'});
+ await expect(pending).rejects.toMatchObject({code});await expect(pending).rejects.not.toThrow('secret path');
+});
+it('preserves Nano failures and accepts delayed warm-up without a second request',async()=>{
+ let release!:(r:Response)=>void;
+ const fetcher=vi.fn(()=>new Promise<Response>(r=>release=r));vi.stubGlobal('fetch',fetcher);
+ const pending=new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano'});
+ expect(fetcher).toHaveBeenCalledTimes(1);
+ release(Response.json({detail:{code:'BUDDY_NANO_LOAD_TIMEOUT'}},{status:503}));
+ await expect(pending).rejects.toMatchObject({code:'BUDDY_NANO_LOAD_TIMEOUT'});
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it('distinguishes unavailable speech runtime from malformed successful output',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('private internal exception',{status:503})));
+ await expect(new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano'})).rejects.toMatchObject({code:'AI_TRANSPORT_UNAVAILABLE'});
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('not-json')));
+ await expect(new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano'})).rejects.toMatchObject({code:'AI_TRANSPORT_INVALID_RESPONSE'});
+});

@@ -34,7 +34,7 @@ export interface JournalService {
   deleteEntry(id: string): Promise<JournalServiceResult<void>>;
   saveDraft(draft: JournalDraft): Promise<JournalServiceResult<JournalDraft>>;
   getDraft(id: string): Promise<JournalServiceResult<JournalDraft | null>>;
-  deleteDraft(id: string): Promise<JournalServiceResult<void>>;
+  deleteDraft(id: string, options?:{expectedSubmissionKey:string|null}): Promise<JournalServiceResult<void>>;
   requestAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis>>;
   getAnalysis(entryId: string): Promise<JournalServiceResult<JournalAnalysis | null>>;
   getAnalysisAvailability?(entryId: string): Promise<JournalServiceResult<JournalAnalysisAvailability>>;
@@ -55,5 +55,5 @@ export interface JournalService {
       }>
     >
   >;
-  exportEntry(id: string): Promise<JournalServiceResult<{ markdown: string }>>;
+  exportEntry(id: string): Promise<JournalServiceResult<{ pdf: Blob; filename: string }>>;
 }

@@ -20,8 +20,6 @@ def cbt(request):
         sys.path.insert(0, str(HERE / "v3"))
         import echo_cbt_standalone as v3
         import torch
-        import peft
-        import bitsandbytes
         if not torch.cuda.is_available():
             raise RuntimeError("BUDDY_CUDA_UNAVAILABLE")
         base, adapter = verify_adapter()
@@ -40,10 +38,14 @@ def cbt(request):
                 file = base / name[len("cbt/base/"):]
                 if file.stat().st_size != entry["bytes"] or digest(file) != entry["sha256"]:
                     raise ValueError("CBT base integrity failed")
-        ENGINE = v3.LocalCBT(base, adapter)
+        from app.buddy.config import verify_policy
+        from app.buddy.llama_backend import make_engine
+        verify_policy()
+        ENGINE = make_engine(v3, base, adapter)
         MODEL_IDENTITY = {"providerName": "buddy-mixed-epochs-2", "modelVersion": ADAPTER_SHA,
                           "inferenceVersion": v3.VERSION, "base": "SeaLLMs-v3-7B-Chat",
-                          "template": ENGINE.template_state, "formatterVersion": digest(HERE / "formatter-source.lock.json")}
+                          "template": ENGINE.template_state, "formatterVersion": digest(HERE / "formatter-source.lock.json"),
+                          **ENGINE.gguf_identity}
     if request.get("check"):
         return MODEL_IDENTITY
     from app.buddy.gpu_memory import require_headroom
@@ -173,6 +175,16 @@ def residency():
         result["computeType"] = str(ENGINE.model.compute_type)
         return result
     import torch
+    if KIND == "cbt" and hasattr(ENGINE, "llama_server"):
+        from app.buddy.gpu_memory import global_memory
+        memory = global_memory(torch)
+        server = ENGINE.llama_server
+        result.update(engine=ENGINE.gguf_identity["engine"], serverPid=server.process.pid,
+            parameterDevices={"cbt": ["cuda:0"]}, offloadedLayers=server.offloaded,
+            totalLayers=server.total_layers, modelGpuBufferBytes=server.cuda_model_bytes,
+            deviceEvidence="llama.cpp full-layer offload and complete CUDA model buffer",
+            globalFreeBytes=memory["freeBytes"], globalTotalBytes=memory["totalBytes"], memorySource=memory["source"])
+        return result
     models = {"cbt": ENGINE.model} if KIND == "cbt" else {"nano": ENGINE[1], "codec": ENGINE[2]}
     result["parameterDevices"] = {
         name: sorted({str(parameter.device) for parameter in model.parameters()})
@@ -186,6 +198,25 @@ def residency():
                   peakReservedBytes=torch.cuda.max_memory_reserved(),
                   processReportedFreeBytes=torch.cuda.mem_get_info()[0])
     return result
+
+def loading_error_code(error, kind, checking=False):
+    """No exception message/path is returned unless it is already a safe code."""
+    code = str(error)
+    if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
+        return code
+    suffix = "PREFLIGHT_OR_INFERENCE_FAILED"
+    if type(error).__name__ == "OutOfMemoryError":
+        suffix = "INSUFFICIENT_MEMORY"
+    elif isinstance(error, FileNotFoundError):
+        suffix = "ASSET_MISSING"
+    elif isinstance(error, (ImportError, ModuleNotFoundError)):
+        suffix = "ENV_IMPORT_FAILED"
+    elif isinstance(error, PermissionError) or "Access is denied" in code:
+        suffix = "ENV_ACCESS_DENIED"
+    elif checking and isinstance(error, ValueError):
+        suffix = "ASSET_INVALID"
+    return "BUDDY_" + kind.upper() + "_" + suffix
+
 
 def main():
     # Windows job ownership already releases this worker on parent death.
@@ -203,13 +234,7 @@ def main():
                 result = residency() if packet["request"].get("stats") else {"cbt": cbt, "nano": nano, "whisper": whisper}[KIND](packet["request"])
             reply = {"id": packet["id"], "result": result}
         except Exception as error:
-            code = str(error)
-            if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
-                reply = {"id": packet["id"], "error": code}
-            elif KIND == "cbt" and ("Access is denied" in str(error) or isinstance(error, PermissionError)):
-                reply = {"id": packet["id"], "error": "BUDDY_CBT_ENV_ACCESS_DENIED"}
-            else:
-                reply = {"id": packet["id"], "error": "BUDDY_" + KIND.upper() + "_PREFLIGHT_OR_INFERENCE_FAILED"}
+            reply = {"id": packet["id"], "error": loading_error_code(error, KIND, packet["request"].get("check") is True)}
         data = json.dumps(reply, allow_nan=False).encode() + b"\n"
         if len(data) > 40 * 1024 * 1024:
             data = json.dumps({"id": packet["id"], "error": "BUDDY_AUDIO_LIMIT"}).encode() + b"\n"

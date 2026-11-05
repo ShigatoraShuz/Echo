@@ -1,3 +1,5 @@
+import {ModelPageLeases} from '../../infrastructure/analysis/model-page-leases.js';
+import {appPresence} from '../../infrastructure/security/app-presence.js';
 import {z} from 'zod';
 import {prepareBuddyContext} from './buddy-context.js';
 import { AuthorizationError } from "../../shared/errors/app-error.js";
@@ -118,9 +120,9 @@ export class ExperienceService {
   async transcribeVoice(user:string,audio:Buffer,signal?:AbortSignal){await assertVoiceEnabled();await this.historyEnabled(user);if(!this.coreClient)throw new NotFoundError('Local speech is unavailable.');return this.buddyVoiceTask({task:'transcribe',audio:audio.toString('base64'),audioFormat:'encoded'},signal);}
   async speakVoice(user:string,text:string,signal?:AbortSignal){await assertVoiceEnabled();const allowed=[...this.approvedVoice.entries()].some(([key,v])=>key.startsWith(user+':')&&v.expires>Date.now()&&v.text===text);if(!allowed&&!this.localBuddy?.list(user).some(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text)))throw new AuthorizationError('Only recent approved Buddy replies can be spoken.');if(!this.coreClient)throw new NotFoundError('Local speech unavailable.');const result=await this.buddyVoiceTask({task:'speak',text},signal);if(result.model&&this.localBuddy){const c=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text));if(c){c.provenance.push({speech:result.model,at:new Date().toISOString()});this.localBuddy.save(c);}}return result;}
   private async buddyVoiceTask(payload:Record<string,unknown>,signal?:AbortSignal):Promise<{audio?:string;text?:string;model?:Record<string,unknown>}>{
-    await this.ensureBuddyPrepared();const sessionId=randomUUID();
+    const sessionId=randomUUID();
     try{
-      await this.coreClient!.talk({task:'warm',sessionId},signal);
+      await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);
       if(payload.task==='transcribe')return z.object({text:z.string(),model:z.record(z.string(),z.unknown()).optional()}).parse(await this.coreClient!.talk({...payload,sessionId},signal));
       const prepared=z.object({groups:z.array(z.array(z.string()))}).parse(await this.coreClient!.talk({task:'prepare',sessionId,text:payload.text,language:'English',speechMode:'sentences_2_then_3'},signal));
       const chunks:Buffer[]=[];let model:Record<string,unknown>|undefined;
@@ -358,15 +360,30 @@ export class ExperienceService {
     return { conversationId, conversation: this.conversationSummary(conversation), messages };
   }
 
+  private readonly modelPageLeases:ModelPageLeases=new ModelPageLeases(
+    ()=>this.ensureBuddyPrepared(),()=>this.unloadBuddyResources(),Date.now,
+    (user,session)=>appPresence()?.isClosed(user,session)??false,
+  );
+  async acquireModelLease(user:string,session:string,client:string){await this.validateTalk(user);return this.modelPageLeases.acquire(user,session,client);}
+  async modelLeaseStatus(user:string,session:string,id:string){
+    this.modelPageLeases.status(user,session,id);
+    const preparation=await this.coreClient?.preparationStatus();
+    // A release/expiry during the private status read must not revive an old lease.
+    const lease=this.modelPageLeases.status(user,session,id);
+    return {...lease,...(preparation?{preparation}:{})};
+  }
+  heartbeatModelLease(user:string,session:string,id:string){return this.modelPageLeases.heartbeat(user,session,id);}
+  releaseModelLease(user:string,session:string,id:string){return this.modelPageLeases.release(user,session,id);}
+  closeModelLeases(){return this.modelPageLeases.close();}
   private preparingBuddy?:Promise<void>;
   private runtimeState:{state:string;code?:string}={state:'unloaded'};
-  buddyRuntimeStatus(){return {...this.runtimeState};}
+  buddyRuntimeStatus():{state:string;code?:string;releasePending:boolean;releaseAt?:string}{return {...this.runtimeState,...this.modelPageLeases.releaseStatus};}
   ensureBuddyPrepared():Promise<void>{
     if(this.preparingBuddy)return this.preparingBuddy;
     const sessionId=randomUUID();
     this.runtimeState={state:'preparing'};
     this.preparingBuddy=(async()=>{
-      try {await this.coreClient!.talk({task:'warm',sessionId});this.runtimeState={state:'ready'};}
+      try {await this.coreClient!.talk({task:'warm_chat',sessionId});this.runtimeState={state:'ready'};}
       catch(error){this.runtimeState={state:'failed',code:(error as {code?:string}).code??'BUDDY_PREPARATION_FAILED'};throw error;}
       finally{await this.coreClient!.talk({task:'close',sessionId}).catch(()=>{});this.preparingBuddy=undefined;}
     })();
@@ -374,6 +391,10 @@ export class ExperienceService {
   }
   async unloadBuddyRuntime(user:string){
     await this.validateTalk(user);
+    if(this.modelPageLeases.count)throw new ConflictError('BUDDY_IN_USE','Buddy is still open in another page.');
+    return this.unloadBuddyResources();
+  }
+  private async unloadBuddyResources(){
     await this.preparingBuddy?.catch(()=>{});
     // Socket closure releases the owner asynchronously. Never evict another active owner.
     for(let attempt=0;;attempt++){
@@ -480,6 +501,15 @@ export class ExperienceService {
     let provenance:Record<string,unknown>|undefined;
     let reply: string;
     if (this.coreClient && !urgent) {
+      // Loading is an asynchronous runtime operation, never a long-lived Send.
+      if(process.env.ECHO_BUDDY_ENABLED==='true'&&this.runtimeState.state!=='ready'){
+        if(this.runtimeState.state==='failed'){
+          const code=this.runtimeState.code;
+          throw new ExternalServiceError(typeof code==='string'&&/^BUDDY_[A-Z_]{1,70}$/.test(code)?code:'BUDDY_PREPARATION_FAILED','Buddy could not finish loading. Open the model loading details to check the failure.');
+        }
+        if(!this.preparingBuddy)void this.ensureBuddyPrepared().catch(()=>{});
+        throw new ConflictError('BUDDY_LOADING','Buddy is still loading its local models. Your message has not been sent. Wait for the loading icon to finish, then press Send.');
+      }
       const turns: ChatTurn[] = [];
       if (selectedConversationId) {
         await this.ownedConversation(userId, selectedConversationId);
@@ -489,7 +519,6 @@ export class ExperienceService {
       if(!saving){const prior=this.temporary.get(temporaryKey);if(prior&&prior.expires>Date.now())turns.push(...prior.turns);}
       turns.push({ role: "user", content });
       const context=prepareBuddyContext(turns);
-      if(process.env.ECHO_BUDDY_ENABLED==='true')await this.ensureBuddyPrepared();
       const generated = await this.coreClient.chat(context.messages);
       provenance={model:generated.model,quality:{...generated.quality,backendContextReduction:context.reduction}};
       urgent = generated.supportRequired;

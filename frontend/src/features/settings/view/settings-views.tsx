@@ -1,4 +1,5 @@
 "use client";
+import {PhilippineMobileInput} from "@/shared/components/ui/philippine-mobile-input";
 
 import { LocalDataControls } from "../components/local-data-controls";
 import { InterfaceSoundControls } from "@/shared/components/navigation/interface-sound-controls";
@@ -1015,7 +1016,7 @@ export function NotificationSettingsView() {
                     <button type="button" disabled={pushBusy || !canUseDevicePush()}
                       onClick={() => { void choosePush(true); }}
                       className="mt-3 rounded-full border border-border px-4 py-2 font-medium disabled:opacity-50">
-                      {pushBusy ? "Registering…" : "Register this device"}
+                      {pushBusy ? "Registeringâ€¦" : "Register this device"}
                     </button>
                   )}
                 </div>
@@ -1346,7 +1347,7 @@ export function SecuritySettingsView() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Change Password</p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {email ?? "Loading…"}
+                  {email ?? "Loadingâ€¦"}
                 </p>
               </div>
             </div>
@@ -1740,7 +1741,7 @@ export function TrustedContactsSettingsView() {
                 </div>
 
                 <Field label="Phone number">
-                  <input
+                  <PhilippineMobileInput
                     type="tel"
                     className="echo-input h-11 w-full min-w-0 rounded-xl px-4"
                     value={form.contactPhone ?? ""}

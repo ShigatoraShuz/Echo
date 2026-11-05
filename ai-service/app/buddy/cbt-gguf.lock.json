@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "adapterSHA256": "6bfe92fc0ba316997a18abcb7c79a1fda7cec608bce07baaa7719bfb47c7c04e",
+  "adapterConfigSHA256": "69ecc08861220cf86bc11d770c2914d3a350c12b9037097900b1fe0787c0efad",
+  "sourceIdentity": "af5e7caf52347e8f43f9780483ef3c67de2cec452b17ae4a78701beeb6891652",
+  "llamaCommit": "cd959bae99ff4bed22bef2604f45241c09bbb8c8",
+  "artifact": "llama/artifacts/cbt-mixed-epochs-2-q4_k_m",
+  "model": {
+    "path": "cbt-mixed-epochs-2-q4_k_m.gguf",
+    "bytes": 4683071456,
+    "sha256": "04bade07fd81c4a116eb8f2b62da4ad0bb28b74bb15d2ed85e3a9cf70f6d4bb6"
+  },
+  "runtimeInventorySHA256": "e27e105fb35d6038ae7d19c6e9886384359027e9bb016264ad830328f13592e9"
+}

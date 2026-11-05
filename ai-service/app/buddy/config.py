@@ -78,3 +78,58 @@ def verify_policy():
         file = (root / name).resolve()
         if not file.is_relative_to(root) or digest(file) != expected:
             raise ValueError("BUDDY_POLICY_INTEGRITY_FAILED")
+
+
+def verify_cbt_gguf():
+    """Pinned application artifacts only. No implicit download or native fallback."""
+    root = HERE.parents[2] / "models"
+    lock = json.loads((HERE / "cbt-gguf.lock.json").read_text(encoding="utf-8"))
+    artifact = (root / lock["artifact"]).resolve()
+    if not artifact.is_relative_to(root.resolve()):
+        raise ValueError("BUDDY_CBT_GGUF_IDENTITY_FAILED")
+    manifest = json.loads((artifact / "manifest.json").read_text(encoding="utf-8"))
+    expected = {"model": "mixed_epochs_2", "base": "SeaLLMs/SeaLLMs-v3-7B-Chat",
+        "adapterSHA256": ADAPTER_SHA, "adapterConfigSHA256": ADAPTER_CONFIG_SHA,
+        "sourceIdentity": lock["sourceIdentity"], "llamaCommit": lock["llamaCommit"]}
+    if any(manifest.get(key) != value for key, value in expected.items()):
+        raise ValueError("BUDDY_CBT_GGUF_IDENTITY_FAILED")
+    source = json.loads((artifact / "source-identity.json").read_text(encoding="utf-8"))
+    body = {key: value for key, value in source.items() if key not in ("identity", "baseBytes")}
+    if source.get("identity") != lock["sourceIdentity"] or hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest() != lock["sourceIdentity"]:
+        raise ValueError("BUDDY_CBT_GGUF_IDENTITY_FAILED")
+    token_files = set()
+    for entry in source["files"]:
+        if not entry["path"].startswith("buddy/adapter/"):
+            continue
+        asset = (root / entry["path"]).resolve()
+        if not asset.is_relative_to(root.resolve()) or asset.stat().st_size != entry["bytes"] or digest(asset) != entry["sha256"]:
+            raise ValueError("BUDDY_CBT_TOKENIZER_INTEGRITY_FAILED")
+        token_files.add(entry["path"])
+    if not {"buddy/adapter/tokenizer.json", "buddy/adapter/tokenizer_config.json", "buddy/adapter/chat_template.jinja"}.issubset(token_files):
+        raise ValueError("BUDDY_CBT_TOKENIZER_ASSET_MISSING")
+    model = lock["model"]
+    file = (artifact / model["path"]).resolve()
+    if not file.is_relative_to(artifact) or file.stat().st_size != model["bytes"] or digest(file) != model["sha256"]:
+        raise ValueError("BUDDY_CBT_GGUF_INTEGRITY_FAILED")
+    runtime_lock = json.loads((HERE.parents[2] / "scripts/llama-runtime.lock.json").read_text(encoding="utf-8"))
+    if runtime_lock["commit"] != lock["llamaCommit"]:
+        raise ValueError("BUDDY_CBT_LLAMA_IDENTITY_FAILED")
+    runtime = root / "llama/runtime" / runtime_lock["tag"]
+    installed = json.loads((runtime / "manifest.json").read_text(encoding="utf-8"))
+    canonical = {**installed, "files": sorted(installed["files"], key=lambda entry: entry["path"])}
+    if hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest() != lock["runtimeInventorySHA256"]:
+        raise ValueError("BUDDY_CBT_LLAMA_INTEGRITY_FAILED")
+    if installed.get("commit") != lock["llamaCommit"] or installed.get("assets") != runtime_lock["assets"]:
+        raise ValueError("BUDDY_CBT_LLAMA_INTEGRITY_FAILED")
+    required = {"llama-server.exe", "llama.dll", "ggml.dll", "ggml-base.dll", "ggml-cuda.dll"}
+    seen = set()
+    for entry in installed["files"]:
+        file_path = (runtime / entry["path"]).resolve()
+        if not file_path.is_relative_to(runtime.resolve()):
+            raise ValueError("BUDDY_CBT_LLAMA_INTEGRITY_FAILED")
+        if file_path.stat().st_size != entry["bytes"] or digest(file_path) != entry["sha256"]:
+            raise ValueError("BUDDY_CBT_LLAMA_INTEGRITY_FAILED")
+        seen.add(file_path.name)
+    if not required.issubset(seen) or not any(name.startswith("ggml-cpu-") and name.endswith(".dll") for name in seen):
+        raise ValueError("BUDDY_CBT_LLAMA_ASSET_MISSING")
+    return file, runtime / "bin/llama-server.exe", lock

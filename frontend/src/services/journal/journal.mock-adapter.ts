@@ -7,7 +7,7 @@ import type {
 } from "@/features/journal/model/journal.model";
 import type { JournalService } from "@/services/journal/journal.service";
 
-// ─── In-memory store factory ─────────────────────────
+// â”€â”€â”€ In-memory store factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function createStore() {
   let nextId = 100;
@@ -44,7 +44,7 @@ function createStore() {
       riskBand: "mild",
       summary: "Post-meeting frustration with self-compassion attempt.",
       perspective:
-        "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time — not as criticism, but as preparation.",
+        "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time â€” not as criticism, but as preparation.",
       createdAt: "2026-07-11",
       updatedAt: "2026-07-11",
     },
@@ -129,7 +129,7 @@ async function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// ─── Mock Adapter ─────────────────────────────────────
+// â”€â”€â”€ Mock Adapter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function createJournalMockAdapter(): JournalService {
   const service: JournalService = {
@@ -173,6 +173,7 @@ export function createJournalMockAdapter(): JournalService {
         );
       }
 
+      if(filters.emotion)filtered=filtered.filter(entry=>entry.dominantEmotion===filters.emotion);
       if (filters.mood) {
         filtered = filtered.filter((e) => e.mood === filters.mood);
       }
@@ -367,7 +368,11 @@ export function createJournalMockAdapter(): JournalService {
         .filter(Boolean)
         .join("\n");
 
-      return { success: true, data: { markdown } };
+      const {PDFDocument,StandardFonts}=await import('pdf-lib');
+      const doc=await PDFDocument.create();const font=await doc.embedFont(StandardFonts.Helvetica);
+      let page=doc.addPage(),y=780;
+      for(const line of markdown.split('\n')){for(let offset=0;offset<Math.max(1,line.length);offset+=75){if(y<50){page=doc.addPage();y=780;}page.drawText(line.slice(offset,offset+75),{x:45,y,size:11,font});y-=16;}}
+      const bytes=await doc.save();return {success:true,data:{pdf:new Blob([bytes.slice().buffer],{type:'application/pdf'}),filename:`journal-${id}.pdf`}};
     },
   };
 

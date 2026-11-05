@@ -30,6 +30,14 @@ export function createJournalsRouter(
     res.setHeader("Cache-Control", "no-store");
     res.json({ success: true, data: await service.supportCheckIn(req.auth!.id) });
   });
+  router.get('/journals/:journalId/export',authenticate,async(req,res)=>{
+    if(req.query.format!=='pdf'){res.status(400).json({success:false,error:{message:'Choose PDF export.'}});return;}
+    const entry=await service.get(req.auth!.id,String(req.params.journalId));
+    const {journalPdf}=await import('./journal-pdf.js');
+    const bytes=await journalPdf(entry);
+    res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition',`attachment; filename="journal-${String(req.params.journalId).replace(/[^a-zA-Z0-9-]/g,'').slice(0,36)}.pdf"`);res.send(bytes);
+  });
   router.get("/journals", authenticate, controller.list);
   router.post("/journals", authenticate, controller.create);
   router.get("/journals/draft/images", authenticate, controller.listDraftImages);

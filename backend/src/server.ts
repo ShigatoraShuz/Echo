@@ -249,7 +249,9 @@ function shutdown(signal: string): void {
   if(localRecoveryTimer)clearInterval(localRecoveryTimer);
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
   void experienceService.realtime?.shutdown();
+  void experienceService.closeModelLeases();
   journalService.stopLocalFaceProcessing();
+  void journalService.closeModelLeases();
   developmentRunner.stop();
   void professionalEvents.stop();
   if (maintenanceTimer) clearInterval(maintenanceTimer);

@@ -1,3 +1,4 @@
+import {JournalRuntimeOwner} from "@/features/journal/components/journal-runtime-owner";
 import type { ReactNode } from "react";
 import { JournalSupportJourney } from "@/features/journal/components/journal-support-journey";
 
@@ -6,5 +7,5 @@ export default function JournalSupportLayout({
 }: {
   children: ReactNode;
 }) {
-  return <JournalSupportJourney>{children}</JournalSupportJourney>;
+  return <JournalSupportJourney><JournalRuntimeOwner/>{children}</JournalSupportJourney>;
 }

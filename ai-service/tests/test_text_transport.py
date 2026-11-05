@@ -31,6 +31,8 @@ for line in sys.stdin:
 """.replace(
                 " MODE",
                 {
+                    "progress": " print(json.dumps({'id':packet['id'],'event':'preparation','progress':{'component':'cbt','state':'loading','attempt':2,'elapsedSeconds':3,'prompt':'private-journal-sentinel','path':'C:/private/model'}}),flush=True); time.sleep(.3); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
+                    "foreignprogress": " print(json.dumps({'id':'foreign','event':'preparation','progress':{'component':'cbt','state':'failed','attempt':1}}),flush=True); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "echo": " print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "hang": " time.sleep(60)",
                     "delay": " time.sleep(.1); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
@@ -77,7 +79,7 @@ def test_round_trip_is_serialized_memory_only_and_does_not_retain_previous_input
     runtime.lock.release()
     with pytest.raises(ValueError, match="large"):
         runtime.classify("x" * 65536)
-    with pytest.raises(ModelUnavailableError):
+    with pytest.raises(ValueError):
         runtime.face("unused")
     with pytest.raises(ModelUnavailableError):
         runtime.speech({})
@@ -236,12 +238,50 @@ def test_overlapping_buddy_and_journal_requests_wait_without_crossing_outputs(ch
     assert runtime.loaded
     # Admission remains bounded and a rejected request does not kill the owner.
     for _ in range(4):
-        assert runtime.pending.acquire(blocking=False)
+        assert runtime.interactive_pending.acquire(blocking=False)
     try:
         with pytest.raises(ModelUnavailableError, match="queue is full"):
             runtime.chat([{"role": "user", "content": "another"}])
         assert runtime.loaded
     finally:
         for _ in range(4):
-            runtime.pending.release()
+            runtime.interactive_pending.release()
     runtime.release()
+
+
+def test_background_admission_cannot_fill_interactive_capacity(child):
+    runtime = child()
+    held = []
+    try:
+        while runtime.pending.acquire(blocking=False):
+            held.append(True)
+        assert runtime.chat([{"role":"user","content":"Synthetic interactive turn"}]) == [[{"role":"user","content":"Synthetic interactive turn"}]]
+    finally:
+        for _ in held: runtime.pending.release()
+        runtime.release()
+
+def test_loading_progress_is_responsive_detached_redacted_and_separate_from_replies(child):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    runtime=child('progress')
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            result=pool.submit(runtime._call,'buddy','synthetic-session',{'task':'warm_chat'})
+            deadline=time.monotonic()+2
+            while not runtime.preparation_status()['preparation'] and time.monotonic()<deadline:time.sleep(.01)
+            started=time.monotonic();status=runtime.preparation_status()['preparation']
+            assert time.monotonic()-started < .1 and not result.done()
+            assert status['attempt']==2 and status['component']=='cbt'
+            assert 'prompt' not in status and 'path' not in status
+            status['attempt']=5
+            assert runtime.preparation_status()['preparation']['attempt']==2
+            assert result.result()==['synthetic-session',{'task':'warm_chat'}]
+        assert runtime.responses.empty()
+    finally:runtime.release()
+
+def test_foreign_preparation_events_cannot_change_the_active_operation(child):
+    runtime=child('foreignprogress')
+    try:
+        assert runtime._call('buddy','session',{'task':'warm_chat'})==['session',{'task':'warm_chat'}]
+        assert runtime.preparation_status()=={'preparation':None}
+    finally:runtime.release()

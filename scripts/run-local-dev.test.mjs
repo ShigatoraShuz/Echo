@@ -58,3 +58,11 @@ test("child Node fetch reaches loopback even with environment proxies enabled", 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('interactive startup enables matching server/browser presence policy without mutating its caller',()=>{
+ const input={};const result=localEnvironment(input);
+ assert.equal(result.ECHO_APP_PRESENCE,'true');assert.equal(result.NEXT_PUBLIC_APP_PRESENCE,'true');assert.deepEqual(input,{});
+});
+test('interactive startup rejects a split or disabled session policy before starting services',()=>{
+ for(const input of [{ECHO_APP_PRESENCE:'false'},{NEXT_PUBLIC_APP_PRESENCE:'false'},{ECHO_APP_PRESENCE:'true',NEXT_PUBLIC_APP_PRESENCE:'false'}])assert.throws(()=>localEnvironment(input),/conflicting legacy session setting/);
+});
