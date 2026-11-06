@@ -8,13 +8,13 @@ import {
   BookOpen,
   CalendarRange,
   ChevronRight,
-  HeartPulse,
   Leaf,
   LockKeyhole,
   PenLine,
   Sparkles,
 } from "lucide-react";
-import reflectionLandscape from "../../../../assets/growth-doorway-hill.png";
+import reflectionLandscape from "../../../../assets/journal-writing.webp";
+import { DashboardDistressGauge } from "../components/dashboard-distress-gauge";
 import { ErrorState, LoadingState } from "@/shared/components/feedback";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
@@ -42,18 +42,6 @@ function DashboardCard({
     >
       {children}
     </EchoMotionSurface>
-  );
-}
-
-function StatusPill({ children, tone = "calm" }: { children: ReactNode; tone?: "calm" | "warm" | "sage" }) {
-  const styles = {
-    calm: "bg-[hsl(var(--calm)/0.23)] text-primary",
-    warm: "bg-[hsl(var(--anxious)/0.18)] text-[hsl(var(--risk-high-foreground))]",
-    sage: "bg-secondary text-secondary-foreground",
-  };
-
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${styles[tone]}`}>{children}</span>
   );
 }
 
@@ -107,15 +95,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
   const latestAnalysis = data.analysisInsights?.latest;
   const latestSummary = analysisSummary(latestAnalysis);
-  const needsSupport =
-    latestAnalysis &&
-    !latestAnalysis.isSimulated &&
-    (latestAnalysis.schemaVersion === "echo-journal-analysis-v1"
-      ? ["moderate", "high", "severe"].includes(latestAnalysis.distressBand)
-      : latestAnalysis.schemaVersion === "echo-model-pipeline-v2"
-        ? false
-        : latestAnalysis.supportReviewRequired);
-
   const weekStart = Date.now() - 7 * 86_400_000;
   const thisWeek = journalEntries.filter(
     (entry) => Date.parse(entry.createdAt) >= weekStart && Date.parse(entry.createdAt) <= Date.now(),
@@ -142,7 +121,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
   return (
     <div aria-busy={isLoading} className="echo-dashboard-welcome dashboard-premium space-y-4">
-      {isLoading && <p role="status" className="sr-only">Updating your dashboard…</p>}
+      {isLoading && <p role="status" className="sr-only">Updating your dashboardâ€¦</p>}
       <WellnessCheckin preview={preview} />
 
       <div className="dashboard-top-grid grid gap-4 lg:grid-cols-2 xl:grid-cols-12">
@@ -162,7 +141,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
             <p className="mt-1 text-xs text-[var(--landing-muted)]">
               {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"}{" "}
-              <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
+              <span aria-hidden="true">Â·</span> {userProfile.streakDays}-day gentle streak
             </p>
           </div>
 
@@ -188,51 +167,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
         {/* CURRENT DISTRESS */}
         <DashboardCard className="dashboard-signal-card echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">Wellbeing signal</p>
-
-          <h2 className="mt-1 text-lg font-semibold tracking-[-0.035em]">
-            {latestSummary.distressKind === "band" ? "Journal distress" : "Journal category"}
-          </h2>
-
-          <div className="mt-3 flex items-end gap-1.5">
-            <span className="text-4xl font-semibold tracking-[-0.06em]">
-              {latestAnalysis?.isSimulated ? "Sample only" : (latestSummary.distress ?? "Not assessed")}
-            </span>
-
-            <span className="pb-1 text-sm text-muted-foreground">
-              {latestAnalysis?.isSimulated ? "simulated result" : ""}
-            </span>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <StatusPill tone={needsSupport ? "warm" : "calm"}>
-              {!latestAnalysis
-                ? "No completed analysis"
-                : latestAnalysis.isSimulated
-                  ? "Development example"
-                  : needsSupport
-                    ? "Consider support"
-                    : "Latest analysis"}
-            </StatusPill>
-
-            <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
-          </div>
-
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            {latestAnalysis?.isSimulated
-              ? "This development example does not describe your wellbeing."
-              : latestAnalysis
-                ? latestSummary.distressKind === "band"
-                  ? "From your latest saved analysis. This band is not a diagnosis or current safety assessment."
-                  : "A dataset category from your latest saved analysis. It is not clinical severity or a current safety assessment."
-                : "No analysis result is available. Your saved reflections do not imply a low distress score."}
-          </p>
-          <Link
-            href="/insights/risk"
-            className="mt-2 inline-flex min-h-9 items-center text-xs font-semibold text-primary underline underline-offset-4"
-          >
-            Understand this signal
-          </Link>
+          <DashboardDistressGauge result={latestAnalysis} />
         </DashboardCard>
 
         {/* REFLECTION SPACE */}
@@ -259,9 +194,10 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
           <Image
             src={reflectionLandscape}
-            alt="A doorway on a quiet hillside"
+            alt="An open journal and green fountain pen in warm sunlight"
             priority
-            className="dashboard-landscape absolute bottom-0 right-0 h-full w-[46%] object-cover object-[59%_center] opacity-80 [mask-image:linear-gradient(to_left,black_66%,transparent)]"
+            sizes="(min-width: 1280px) 260px, (min-width: 1024px) 34vw, 50vw"
+            className="dashboard-landscape absolute bottom-0 right-0 h-full w-[46%] object-cover object-[62%_center] opacity-95 [mask-image:linear-gradient(to_left,black_66%,transparent)]"
           />
         </DashboardCard>
 

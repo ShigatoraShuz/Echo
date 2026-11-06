@@ -30,7 +30,7 @@ describe("dashboard welcome motion", () => {
     const first = render(<DashboardView />);
     expect(first.container.querySelector(".echo-dashboard-welcome")).toBeInTheDocument();
     expect(first.container.querySelector("[data-echo-reveal]")).not.toBeInTheDocument();
-    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("Journal category");
+    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("Distress level");
     first.unmount();
 
     const second = render(<DashboardView />);
@@ -57,6 +57,6 @@ it("opens the public dashboard heading before any private data is ready", () => 
 it("keeps the current dashboard visible during a background model-result refresh", () => {
   loadingState.loading = true;
   const view = render(<DashboardView />);
-  expect(view.container.querySelector(".echo-immediate-card")).toHaveTextContent("Journal category");
+  expect(view.container.querySelector(".echo-immediate-card")).toHaveTextContent("Distress level");
   expect(screen.getByRole("status")).toHaveTextContent("Updating your dashboard");
 });
