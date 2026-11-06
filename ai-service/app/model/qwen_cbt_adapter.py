@@ -119,11 +119,13 @@ class QwenCbtAdapter:
         model.tie_weights()
         for name, buffer in list(model.named_buffers()):
             if buffer.is_meta:
-                if name != "model.rotary_emb.inv_freq":
+                if name not in ("model.rotary_emb.inv_freq","model.rotary_emb.original_inv_freq"):
                     raise ManifestError("QWEN_UNINITIALIZED_BUFFER")
-                inv_freq, scale = ROPE_INIT_FUNCTIONS["default"](config, device=torch.device("cpu"))
+                initializer=ROPE_INIT_FUNCTIONS.get('default') or getattr(model.model.rotary_emb,'compute_default_rope_parameters',None)
+                if initializer is None:raise ManifestError('QWEN_ROPE_INITIALIZER_UNAVAILABLE')
+                inv_freq, scale = initializer(config, device=torch.device("cpu"))
                 model.model.rotary_emb.register_buffer("inv_freq", inv_freq, persistent=False)
-                model.model.rotary_emb.original_inv_freq = inv_freq
+                model.model.rotary_emb.original_inv_freq = inv_freq.clone()
                 model.model.rotary_emb.attention_scaling = scale
         if any(p.is_meta or p.device.type != "cpu" for p in model.parameters()):
             raise ManifestError("QWEN_INCOMPLETE_PARAMETERS")

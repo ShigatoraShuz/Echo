@@ -1,0 +1,61 @@
+{
+  "storageRevision": 5,
+  "storageGeneration": 0,
+  "provenance": [
+    {
+      "turnId": "ab05965d-cb63-4288-a2e3-2a2066524f22"
+    },
+    {
+      "quality": {
+        "backendContextReduction": {
+          "droppedMessages": 0,
+          "source": "backend",
+          "maxMessages": 20,
+          "maxCharacters": 20000
+        }
+      }
+    }
+  ],
+  "id": "59acdb4d-cb1a-4cd0-8d21-bd6f3b7d9763",
+  "user_id": "a0f62b0b-ff9c-4cdb-a000-a00b8709f2c7",
+  "title": "A conversation with Buddy",
+  "preview": "Spoken followup",
+  "archived": false,
+  "pinned_at": null,
+  "last_message_at": "2026-11-06T12:08:31.018Z",
+  "created_at": "2026-11-06T12:08:31.000Z",
+  "supportRequired": false,
+  "messages": [
+    {
+      "id": "ab05965d-cb63-4288-a2e3-2a2066524f22",
+      "role": "user",
+      "content": "Spoken first turn",
+      "timestamp": "2026-11-06T12:08:30.999Z"
+    },
+    {
+      "id": "ca00a091-735c-4008-b7e8-79e95aefac37",
+      "role": "buddy",
+      "content": "Approved first answer",
+      "timestamp": "2026-11-06T12:08:31.009Z"
+    },
+    {
+      "id": "f1e8febc-03a9-4a10-be81-4264ef1764b5",
+      "role": "user",
+      "content": "Typed followup",
+      "timestamp": "2026-11-06T12:08:31.015Z"
+    },
+    {
+      "id": "a2b2b599-2ef7-400a-adb0-eff25b8b9740",
+      "role": "buddy",
+      "content": "Typed reply",
+      "timestamp": "2026-11-06T12:08:31.015Z"
+    },
+    {
+      "id": "9e36cfee-f4ba-4c84-9d53-84444433ba9d",
+      "role": "user",
+      "content": "Spoken followup",
+      "timestamp": "2026-11-06T12:08:31.018Z"
+    }
+  ],
+  "schemaVersion": 1
+}

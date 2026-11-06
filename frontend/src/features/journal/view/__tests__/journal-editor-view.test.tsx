@@ -317,4 +317,18 @@ it('late restored photos cannot refill a freshly reset editor',async()=>{
  await act(async()=>{finish({success:true,data:[{id:'late',url:'https://storage.example.test/old-photo'}]});await Promise.resolve();});
  expect(screen.queryByRole('img',{name:'Draft photo 1'})).not.toBeInTheDocument();
 });
+
+it('retains attached photo previews after queued analysis until Write Another',async()=>{
+ const user=userEvent.setup();const mock={...setupMock(),title:'Saved reflection',body:'Saved text',analysisSubmission:null as unknown};
+ vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
+ uploadDraftImage.mockResolvedValue({success:true,data:{id:'kept-photo'}});
+ const view=render(<JournalEditorView/>);await waitFor(()=>expect(screen.getByLabelText('Upload journal photos')).toBeEnabled());
+ await user.upload(screen.getByLabelText('Upload journal photos'),new File(['photo'],'retained.png',{type:'image/png'}));
+ await waitFor(()=>expect(uploadDraftImage).toHaveBeenCalled());
+ mock.analysisSubmission={journalId:'saved-reflection',analysisJobId:'queued-model',status:'waiting_for_provider'};
+ vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);view.rerender(<JournalEditorView/>);
+ expect(screen.getByRole('img',{name:'retained.png'})).toBeInTheDocument();expect(URL.revokeObjectURL).not.toHaveBeenCalledWith('blob:journal-photo');
+ await user.click(screen.getByRole('button',{name:/write another reflection/i}));expect(mock.reset).toHaveBeenCalled();expect(screen.queryByRole('img',{name:'retained.png'})).not.toBeInTheDocument();
+});
+
 });

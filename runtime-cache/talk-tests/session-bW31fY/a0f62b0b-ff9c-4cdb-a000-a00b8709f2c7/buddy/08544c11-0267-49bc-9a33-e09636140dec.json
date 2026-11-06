@@ -1,0 +1,61 @@
+{
+  "storageRevision": 6,
+  "storageGeneration": 0,
+  "provenance": [
+    {
+      "turnId": "6f2c2c36-53f3-44b2-af1d-15725667bed6",
+      "stt": {
+        "version": "test"
+      },
+      "model": {
+        "version": "test"
+      },
+      "quality": {
+        "backendContextReduction": {
+          "droppedMessages": 0,
+          "source": "backend",
+          "maxMessages": 20,
+          "maxCharacters": 20000
+        }
+      },
+      "supportRequired": false,
+      "timings": {
+        "transcriptionMs": 0.1454999999998563
+      },
+      "tts": [
+        {
+          "version": "test"
+        }
+      ],
+      "speechTiming": {
+        "firstSegmentReadyMs": 0.6814999999999145,
+        "totalSynthesisMs": 0,
+        "synthesisAndDeliveryMs": 4.090099999999893
+      }
+    }
+  ],
+  "id": "08544c11-0267-49bc-9a33-e09636140dec",
+  "user_id": "a0f62b0b-ff9c-4cdb-a000-a00b8709f2c7",
+  "title": "A conversation with Buddy",
+  "preview": "Take one small step.",
+  "archived": false,
+  "pinned_at": null,
+  "last_message_at": "2026-11-06T12:08:31.183Z",
+  "created_at": "2026-11-06T12:08:31.171Z",
+  "supportRequired": false,
+  "messages": [
+    {
+      "id": "6f2c2c36-53f3-44b2-af1d-15725667bed6",
+      "role": "user",
+      "content": "Synthetic input",
+      "timestamp": "2026-11-06T12:08:31.171Z"
+    },
+    {
+      "id": "ea238635-2bfa-4a06-b078-0074d90ec76a",
+      "role": "buddy",
+      "content": "Take one small step.",
+      "timestamp": "2026-11-06T12:08:31.183Z"
+    }
+  ],
+  "schemaVersion": 1
+}

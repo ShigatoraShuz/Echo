@@ -129,3 +129,14 @@ it('explicit resume before loading finishes resumes audio and listens when readi
  await act(async()=>hook.result.current.resumeTalk());expect(hook.result.current.state).toBe('preparing');expect(microphone.track.enabled).toBe(false);
  await act(async()=>sockets[0].ready());await waitFor(()=>expect(hook.result.current.state).toBe('listening'));expect(microphone.track.enabled).toBe(true);expect(sockets).toHaveLength(1);hook.unmount();
 });
+
+it('sends the selected expressive voice with Start Talk',async()=>{
+ const microphone=stream();media(vi.fn(async()=>microphone.value));
+ const hook=renderHook(()=>useRealtimeTalk(options));
+ await act(async()=>hook.result.current.setVoiceMode('expressive'));
+ await act(async()=>hook.result.current.start());
+ const requests=vi.mocked(fetch).mock.calls;
+ const creation=requests.find(([url])=>String(url).endsWith('/buddy/voice/sessions'));
+ expect(creation).toBeDefined();expect(JSON.parse(String(creation![1]?.body)).voiceMode).toBe('expressive');
+ hook.unmount();
+});

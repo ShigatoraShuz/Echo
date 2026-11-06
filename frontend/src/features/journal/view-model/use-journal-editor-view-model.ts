@@ -85,9 +85,9 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
     case "SAVE_START":
       return { ...state, isSaving: true, error: null, fieldErrors: {} };
     case "SAVE_SUCCESS":
-      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
+      return { ...state, isSaving: false, autosaveStatus: "saved", savedEntry: action.entry };
     case "ANALYSIS_SUBMITTED":
-      return { ...state, title:"",body:"",tags:[],emotions:[],wordCount:0,charCount:0,isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
+      return { ...state, isSaving: false, autosaveStatus: "saved", analysisSubmission: action.submission };
     case "SET_FIXTURE":
       return { ...state, fixture: action.fixture, autosaveStatus: "unsaved" };
     case "SAVE_ERROR":

@@ -51,7 +51,7 @@ describe("verification routes", () => {
       .send({
         legalName: "Echo User",
         dateOfBirth: "2000-01-01",
-        phoneNumber: "5551234567",
+        phoneNumber: "+639171234567",
         address: {
           line1: "1 Main Street",
           line2: null,

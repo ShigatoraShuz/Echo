@@ -32,6 +32,11 @@ function harness(collections: Record<string, unknown[]> = {}, calendarRows: unkn
   });
   const download = vi.fn().mockResolvedValue({ data: new Blob(["synthetic-image"]), error: null });
   const from = vi.fn((table: string) => {
+    if(table==='export_artifacts'){
+      let owner:string|undefined,request:string|undefined;
+      const query={select:vi.fn(()=>query),eq:vi.fn((key:string,value:string)=>{if(key==='user_id')owner=value;if(key==='request_id')request=value;return query;}),gt:vi.fn(()=>query),maybeSingle:vi.fn(async()=>({data:owner===user&&request===id&&ciphertext?{ciphertext}:null,error:null}))};
+      return query;
+    }
     if (table === "calendar_items" || table === "buddy_conversations" || table === "journal_draft_images") {
       const rows = table === "calendar_items" ? calendarRows : table === "buddy_conversations" ? buddyPins : draftImages;
       const query = {

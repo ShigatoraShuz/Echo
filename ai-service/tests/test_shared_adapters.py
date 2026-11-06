@@ -81,7 +81,11 @@ def test_shared_adapter_loading_does_not_bypass_architecture_validation(runtime)
     (obj.root / "cbt/adapter/adapter_config.json").write_text(json.dumps({
         "peft_type":"LORA","bias":"none","auto_mapping":{"base_model_class":"WrongArchitecture"}}))
     with pytest.raises(Exception, match="architecture mismatch"):
+        obj._shared_adapter("cbt", obj.resident)
+    # The outer retry boundary sanitizes private loader exceptions.
+    with pytest.raises(Exception, match="NATIVE_CBT_LOAD_FAILED"):
         obj._load("cbt")
+    obj.resident["phq8"][0].load_adapter.assert_not_called()
 
 
 def test_peer_with_shared_base_bias_must_not_be_reused(runtime):

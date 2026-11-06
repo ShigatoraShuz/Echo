@@ -49,14 +49,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         app.state.model_runtime = ModelRuntime.from_settings(settings)
     worker_task = None
+    preload_task = None
+    preload_cancelled = None
     try:
         app.state.pipeline_registry = ModelRegistry(settings)
         if safe_text and settings.worker_enabled:
             from app.worker import Worker
 
             worker_task = asyncio.create_task(Worker(app.state.model_runtime, settings).run())
+        if safe_text and settings.echo_buddy_enabled:
+            import threading
+            preload_cancelled = threading.Event()
+            async def prepare_base():
+                app.state.buddy_startup = {'state':'loading'}
+                try:
+                    await asyncio.to_thread(app.state.model_runtime.preload, preload_cancelled)
+                    app.state.buddy_startup = {'state':'ready'}
+                except Exception as error:
+                    code=str(error)
+                    safe=code if code.startswith(('BUDDY_','NATIVE_')) and code.replace('_','').isalnum() and len(code)<80 else 'BUDDY_STARTUP_PRELOAD_FAILED'
+                    app.state.buddy_startup = {'state':'failed','code':safe}
+            preload_task = asyncio.create_task(prepare_base())
         yield
     finally:
+        if preload_cancelled:preload_cancelled.set()
+        if preload_task:
+            try:await asyncio.wait_for(asyncio.shield(preload_task),timeout=10)
+            except (asyncio.TimeoutError,asyncio.CancelledError):preload_task.cancel()
         if worker_task:
             worker_task.cancel()
             with suppress(asyncio.CancelledError):

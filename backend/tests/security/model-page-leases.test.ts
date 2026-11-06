@@ -83,3 +83,56 @@ it('confirmed logout bypasses the release grace',async()=>{
  const unload=vi.fn(async()=>{});let closed=false;const store=new Leases(async()=>{},unload,Date.now,()=>closed);
  const a=store.acquire('u','s','a');await store.settled();closed=true;store.release('u','s',a.id);await store.settled();expect(unload).toHaveBeenCalledTimes(1);expect(store.releaseStatus.releasePending).toBe(false);await store.close();
 });
+
+
+it('cancels cooperative preparation when the final-owner grace expires',async()=>{
+ vi.useFakeTimers();let signal!:AbortSignal;const unload=vi.fn(async()=>{});
+ const prepare=vi.fn((s?:AbortSignal)=>new Promise<void>((_,reject)=>{signal=s!;s!.addEventListener('abort',()=>reject(Error('cancelled')),{once:true});}));
+ const store=new Leases(prepare,unload);
+ try{
+  const lease=store.acquire('u','s','tab');await Promise.resolve();store.release('u','s',lease.id);
+  await vi.advanceTimersByTimeAsync(9999);expect(signal.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);await store.settled();
+  expect(signal.aborted).toBe(true);expect(prepare).toHaveBeenCalledTimes(1);expect(unload).toHaveBeenCalledTimes(1);
+ }finally{await store.close();vi.useRealTimers();}
+});
+it('returning during grace keeps the same in-progress preparation',async()=>{
+ vi.useFakeTimers();let signal!:AbortSignal,finish!:()=>void;
+ const prepare=vi.fn((s?:AbortSignal)=>new Promise<void>(resolve=>{signal=s!;finish=resolve;}));const unload=vi.fn(async()=>{});const store=new Leases(prepare,unload);
+ try{
+  const old=store.acquire('u','s','old');await Promise.resolve();store.release('u','s',old.id);
+  await vi.advanceTimersByTimeAsync(9000);const next=store.acquire('u','s','next');
+  await vi.advanceTimersByTimeAsync(2000);expect(signal.aborted).toBe(false);finish();await store.settled();
+  expect(prepare).toHaveBeenCalledTimes(1);expect(unload).not.toHaveBeenCalled();expect(store.status('u','s',next.id).state).toBe('ready');
+ }finally{await store.close();vi.useRealTimers();}
+});
+it('another owner protects an in-progress preparation from cancellation',async()=>{
+ vi.useFakeTimers();let signal!:AbortSignal,finish!:()=>void;
+ const store=new Leases((s)=>new Promise<void>(r=>{signal=s!;finish=r;}),async()=>{});
+ try{
+  const a=store.acquire('u','s','a');store.acquire('u','s','b');await Promise.resolve();store.release('u','s',a.id);
+  await vi.advanceTimersByTimeAsync(10000);expect(signal.aborted).toBe(false);finish();await store.settled();
+ }finally{await store.close();vi.useRealTimers();}
+});
+it('a return after cancellation starts fresh preparation and ignores late old readiness',async()=>{
+ vi.useFakeTimers();let finishOld!:()=>void,signal!:AbortSignal;
+ const prepare=vi.fn((s?:AbortSignal)=>prepare.mock.calls.length===1?new Promise<void>(r=>{signal=s!;finishOld=r;}):Promise.resolve());
+ const unload=vi.fn(async()=>{});const store=new Leases(prepare,unload);
+ try{
+  const a=store.acquire('u','s','a');await Promise.resolve();store.release('u','s',a.id);await vi.advanceTimersByTimeAsync(10000);expect(signal.aborted).toBe(true);
+  const b=store.acquire('u','s','b');expect(store.status('u','s',b.id).state).not.toBe('ready');finishOld();await store.settled();
+  expect(prepare).toHaveBeenCalledTimes(2);expect(unload).not.toHaveBeenCalled();expect(store.status('u','s',b.id).state).toBe('ready');
+ }finally{await store.close();vi.useRealTimers();}
+});
+it('shutdown aborts preparation without waiting for the release grace',async()=>{
+ let signal!:AbortSignal;const unload=vi.fn(async()=>{});
+ const store=new Leases(s=>new Promise<void>((_,reject)=>{signal=s!;s!.addEventListener('abort',()=>reject(Error('cancelled')),{once:true});}),unload);
+ store.acquire('u','s','tab');await Promise.resolve();await store.close();expect(signal.aborted).toBe(true);expect(unload).toHaveBeenCalledTimes(1);
+});
+
+it('confirmed logout cancels active preparation without the ten-second grace',async()=>{
+ let closed=false,signal!:AbortSignal;const unload=vi.fn(async()=>{});
+ const store=new Leases(s=>new Promise<void>((_,reject)=>{signal=s!;s!.addEventListener('abort',()=>reject(Error('cancelled')),{once:true});}),unload,Date.now,()=>closed);
+ const lease=store.acquire('u','s','tab');await Promise.resolve();closed=true;store.release('u','s',lease.id);await store.settled();
+ expect(signal.aborted).toBe(true);expect(unload).toHaveBeenCalledTimes(1);await store.close();
+});

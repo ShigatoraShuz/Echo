@@ -52,7 +52,9 @@ def test_allocation_above_job_memory_budget_is_denied():
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows job API acceptance")
 def test_hidden_worker_flag_cannot_run_without_limits():
-    result = subprocess.run([sys.executable, str(SCRIPTS / "prepare-cbt-gguf.py"), "--limited-worker"], capture_output=True, text=True, timeout=30)
+    environment=dict(os.environ)
+    environment.pop('ECHO_CONVERSION_JOB_NAME',None)
+    result = subprocess.run([sys.executable, str(SCRIPTS / "prepare-cbt-gguf.py"), "--limited-worker"], capture_output=True, text=True, timeout=30,env=environment)
     assert result.returncode != 0
     assert 'verifying_sources' not in result.stdout
 

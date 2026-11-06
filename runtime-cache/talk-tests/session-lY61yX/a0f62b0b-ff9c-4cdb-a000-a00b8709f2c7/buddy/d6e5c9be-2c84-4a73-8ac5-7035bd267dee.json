@@ -1,0 +1,30 @@
+{
+  "storageRevision": 3,
+  "storageGeneration": 0,
+  "provenance": [
+    {
+      "turnId": "2c76d228-b887-46c8-94ce-8ec39aecc3f5",
+      "stt": {
+        "version": "test"
+      }
+    }
+  ],
+  "id": "d6e5c9be-2c84-4a73-8ac5-7035bd267dee",
+  "user_id": "a0f62b0b-ff9c-4cdb-a000-a00b8709f2c7",
+  "title": "A conversation with Buddy",
+  "preview": "Synthetic input",
+  "archived": false,
+  "pinned_at": null,
+  "last_message_at": "2026-11-06T12:08:30.746Z",
+  "created_at": "2026-11-06T12:08:30.746Z",
+  "supportRequired": false,
+  "messages": [
+    {
+      "id": "2c76d228-b887-46c8-94ce-8ec39aecc3f5",
+      "role": "user",
+      "content": "Synthetic input",
+      "timestamp": "2026-11-06T12:08:30.746Z"
+    }
+  ],
+  "schemaVersion": 1
+}

@@ -3,13 +3,24 @@ import sys,json,hashlib,io,contextlib,base64
 from pathlib import Path
 from datetime import datetime,timezone
 
+def approved_pins():
+ return json.loads((Path(__file__).parent/'model'/'face-package.lock.json').read_text(encoding='utf-8'))['files']
+
+def verify_package(root):
+ root=Path(root).resolve();pins=approved_pins()
+ if json.loads((root/'package_checksums.json').read_text(encoding='utf-8'))!=pins:raise ValueError('Package inventory mismatch')
+ for name,digest in pins.items():
+  path=(root/name).resolve()
+  if path.parent!=root or not path.is_file():raise ValueError('Package integrity failure')
+  with path.open('rb') as stream:
+   if hashlib.file_digest(stream,'sha256').hexdigest()!=digest:raise ValueError('Package integrity failure')
+ return pins
+
 class FaceEngine:
  def __init__(self,root):
   self.root=Path(root).resolve()
   with contextlib.redirect_stdout(sys.stderr):
-   for name,digest in json.loads((self.root/'package_checksums.json').read_text()).items():
-    path=(self.root/name).resolve()
-    if path.parent!=self.root or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:raise ValueError('Package integrity failure')
+   self.fingerprint=verify_package(self.root)['selected_model.joblib']
    sys.path.insert(0,str(self.root))
    import echoface_v4_runtime as rt
    import joblib
@@ -51,7 +62,7 @@ def main():
   engine=FaceEngine(sys.argv[1])
   if '--resident' not in sys.argv:
    print(json.dumps(engine.predict(sys.stdin.buffer.read(2*1024*1024+1)),allow_nan=False));return
-  print(json.dumps({'ready':True}),flush=True)
+  print(json.dumps({'ready':True,'modelFingerprint':engine.fingerprint}),flush=True)
   for line in iter(lambda:sys.stdin.buffer.readline(3*1024*1024+1),b''):
    if len(line)>3*1024*1024 or not line.endswith(b'\n'):break
    packet=json.loads(line)

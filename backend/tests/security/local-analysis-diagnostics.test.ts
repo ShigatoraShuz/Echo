@@ -9,6 +9,7 @@ it.each([
   const job:any={id:'synthetic-job',user_id:'synthetic-owner',journal_id:'synthetic-journal',status:'queued',progress:0,approved:0};
   const store={get:()=>job,set:(_user:string,_id:string,status:string,progress:number)=>{job.status=status;job.progress=Math.max(job.progress,progress);}};
   const service:any=Object.create(JournalService.prototype);
+  service.localControllers=new Map();service.localStages=new Set();
   service.localResults=store;service.journalPageActive=()=>true;
   service.hasGlobalAnalysisConsent=async()=>true;service.assertAnalysisGates=async()=>{};
   service.get=async()=>({body:'private reflection sentinel'});

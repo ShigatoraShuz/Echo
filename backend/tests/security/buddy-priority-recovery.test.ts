@@ -13,13 +13,13 @@ it('resumes waiting journal jobs after Buddy releases ownership and does not run
  const core={ready:async()=>true,talkBusy:async()=>busy,classify:async()=>({suicidal_language_flag:false}),analyze:async()=>{analyzed++;return fixture;}};
  const service:any=new JournalService({} as any,{} as any,{} as any,undefined,undefined,undefined,undefined,undefined,store,core as any);
  service.hasGlobalAnalysisConsent=async()=>true;service.assertAnalysisGates=async()=>{};service.get=async()=>({body:'Synthetic reflection'});
- try{
-  const job=store.create(user,randomUUID(),'priority','priority');await service.processLocal(job);
+ await store.ready;try{
+  const job=await store.create(user,randomUUID(),'priority','priority');await service.processLocal(job);
   expect(store.get(user,job.id)?.status).toBe('waiting_for_provider');expect(analyzed).toBe(0);
   busy=false;await service.recoverLocalJobs();await service.localTail;
   expect(store.get(user,job.id)?.status).toBe('completed');expect(analyzed).toBe(1);
   await service.recoverLocalJobs();await service.localTail;expect(analyzed).toBe(1);
- }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+ }finally{await store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
 it('rechecks consent when a waiting journal resumes',async()=>{
@@ -29,8 +29,8 @@ it('rechecks consent when a waiting journal resumes',async()=>{
  const service:any=new JournalService({} as any,{} as any,{} as any,undefined,undefined,undefined,undefined,undefined,store,core as any);
  service.hasGlobalAnalysisConsent=async()=>consent;service.assertAnalysisGates=async()=>{};service.get=async()=>({body:'Synthetic reflection'});
  try{
-  const job=store.create(user,randomUUID(),'consent','consent');await service.processLocal(job);
+  const job=await store.create(user,randomUUID(),'consent','consent');await service.processLocal(job);
   busy=false;consent=false;await service.recoverLocalJobs();await service.localTail;
   expect(store.get(user,job.id)?.status).toBe('failed');expect(analyzed).toBe(0);
- }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+ }finally{await store.close();rmSync(dir,{recursive:true,force:true});}
 });

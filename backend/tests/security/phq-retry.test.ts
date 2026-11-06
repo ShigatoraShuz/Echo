@@ -31,8 +31,8 @@ it("retries only screening, preserves native results and enforces the retry limi
     store = new LocalAnalysisStore(dir),
     user = randomUUID(),
     journal = randomUUID();
-  const job = store.create(user, journal, "key", "hash");
-  store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
+  const job = await store.create(user, journal, "key", "hash");
+  await store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
   let calls = 0;
   const service: any = new JournalService(
     {} as any,
@@ -68,7 +68,7 @@ it("retries only screening, preserves native results and enforces the retry limi
     await expect(service.retryScreening(user, journal)).rejects.toThrow();
     expect(calls).toBe(3);
   } finally {
-    store.close();
+    await store.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -77,8 +77,8 @@ it("discards a retry when consent is revoked and preserves the saved result", as
     store = new LocalAnalysisStore(dir),
     user = randomUUID(),
     journal = randomUUID();
-  const job = store.create(user, journal, "key", "hash");
-  store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
+  const job = await store.create(user, journal, "key", "hash");
+  await store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
   let consent = true;
   const service: any = new JournalService(
     {} as any,
@@ -104,7 +104,7 @@ it("discards a retry when consent is revoked and preserves the saved result", as
     await expect(service.retryScreening(user, journal)).rejects.toThrow();
     expect(JSON.parse(store.get(user, job.id)!.result_ciphertext!)).toEqual(fixture);
   } finally {
-    store.close();
+    await store.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

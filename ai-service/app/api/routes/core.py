@@ -57,11 +57,29 @@ class JournalRuntimeInput(BaseModel):
     faceOwners: list[str] = Field(default_factory=list, max_length=128)
 
 @router.post("/v2/journal-runtime")
-def journal_runtime(payload: JournalRuntimeInput, request: Request):
+async def journal_runtime(payload: JournalRuntimeInput, request: Request):
     import re
     if any(not re.fullmatch(r"[a-f0-9]{64}", owner) for owner in [*payload.owners,*payload.faceOwners]) or not set(payload.faceOwners).issubset(payload.owners):
         raise HTTPException(422, "Invalid journal ownership")
-    return invoke(lambda: runtime(request).journal_runtime(payload.action, payload.owners, payload.faceOwners))
+    import asyncio, threading
+    cancelled = threading.Event()
+    def execute():
+        options = {"cancelled": cancelled} if payload.action == "prepare" else {}
+        return runtime(request).journal_runtime(payload.action, payload.owners, payload.faceOwners, **options)
+    task = asyncio.create_task(asyncio.to_thread(execute))
+    try:
+        while not task.done():
+            if await request.is_disconnected():
+                cancelled.set()
+            await asyncio.wait({task}, timeout=.1)
+        return invoke(task.result)
+    finally:
+        cancelled.set()
+        if not task.done():
+            try:
+                await task
+            except Exception:
+                pass
 
 @router.post("/v2/analyze")
 def analyze(payload: TextInput, request: Request):
@@ -81,9 +99,18 @@ def preparation_status(request: Request):
     return invoke(value.preparation_status)
 
 
+@router.get("/v2/journal-preparation")
+def journal_preparation_status(request: Request):
+    value = runtime(request)
+    if not hasattr(value, "preparation_status"):
+        return {"preparation": None}
+    return invoke(lambda: value.preparation_status("journal"))
+
+
 @router.get("/v2/runtime")
 def metrics(request: Request):
-    return invoke(lambda: runtime(request).metrics())
+    engine=runtime(request)
+    return invoke(lambda: engine.runtime_status() if hasattr(engine,'runtime_status') else engine.metrics())
 
 
 @router.post("/v2/chat")
@@ -154,6 +181,8 @@ class TalkInput(BaseModel):
     text: str = Field(default='',max_length=12000)
     texts: list[str] = Field(default_factory=list,max_length=3)
     speechMode: Literal['sentences_2_then_3','buffered'] = 'sentences_2_then_3'
+    voiceMode: Literal['fast','expressive'] = 'fast'
+    preserveStartup: bool = False
     language: Literal['English','Filipino','Taglish','eng','tgl'] = 'English'
     messages: list[Turn] = Field(default_factory=list,max_length=20)
 
@@ -172,7 +201,7 @@ async def talk(payload: TalkInput, request: Request):
         raise HTTPException(422,'Invalid sentence batch')
     cancelled=threading.Event()
     def execute():
-        if payload.task=='warm':return engine.start(payload.sessionId,cancelled) if hasattr(engine,'runtime') else engine.start(payload.sessionId)
+        if payload.task=='warm':return engine.start(payload.sessionId,cancelled,**({"voice_mode":payload.voiceMode} if payload.voiceMode!="fast" else {})) if hasattr(engine,'runtime') else engine.start(payload.sessionId)
         if payload.task=='close':engine.stop(payload.sessionId);return {'closed':True}
         if payload.task=='pulse':engine.require(payload.sessionId);return {'active':True}
         if payload.task=='support_check' and hasattr(engine,'support_check'):return engine.support_check(payload.sessionId,payload.text,cancelled)
@@ -180,7 +209,7 @@ async def talk(payload: TalkInput, request: Request):
             engine.require(payload.sessionId)
             with engine.core.lock:return engine.cpu_classifier.classify(payload.text)
         if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled)
-        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode},cancelled)
+        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode,'voiceMode':payload.voiceMode,'preserveStartup':payload.preserveStartup},cancelled)
     task=asyncio.create_task(asyncio.to_thread(execute))
     try:
         while not task.done():

@@ -3,14 +3,14 @@ class TalkProxy:
     def __init__(self, runtime):
         self.runtime = runtime
 
-    def start(self, session, cancelled=None):
-        return self.runtime._call("buddy", session, {"task": "warm"}, cancelled=cancelled)
+    def start(self, session, cancelled=None, voice_mode="fast"):
+        return self.runtime._call("buddy", session, {"task": "warm", **({"voiceMode":voice_mode} if voice_mode!="fast" else {})}, cancelled=cancelled)
 
     def stop(self, session):
         return self.runtime._call("buddy", session, {"task": "close"})
 
     def require(self, session):
-        return self.runtime._call("buddy", session, {"task": "pulse"})
+        return self.runtime.pulse(session)
 
     def chat(self, session, messages, cancelled=None):
         return self.runtime._call("buddy", session, {"task": "chat", "messages": messages}, cancelled=cancelled)

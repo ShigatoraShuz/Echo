@@ -83,15 +83,20 @@ try {
     if (build.status !== 0) throw Error('Shared contracts build failed.');
     const ai = launch(python, ['-B', '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8002', '--workers', '1', '--no-access-log'], path.join(root, 'ai-service'), env);
     let ready = false;
-    const deadline = Date.now() + 100000;
+    const deadline = Date.now() + 630000;
+    let nextStartupNotice = Date.now() + 15000;
     while (!stopping && ai.exitCode === null && Date.now() < deadline) {
       try { ready = (await fetch('http://127.0.0.1:8002/ready', { signal: AbortSignal.timeout(1500) })).ok; } catch {}
       if (ready) break;
+      if (Date.now() >= nextStartupNotice) {
+        console.log('Waiting for private AI startup: imports, CUDA and model integrity verification may take several minutes. See the preceding startup stage.');
+        nextStartupNotice = Date.now() + 15000;
+      }
       await new Promise(resolve => setTimeout(resolve, 500));
     }
-    if (!ready) throw Error('Model service did not initialize.');
+    if (!ready) throw Error('Model service did not initialize. Check the preceding NATIVE_STARTUP error/stage; startup is bounded to ten minutes plus service overhead.');
     await checkCoreTransport(env.AI_SERVICE_URL, env.AI_SERVICE_TOKEN);
-    console.log('Private AI transport ready. Models load on demand; Start Talk prepares CBT, Nano/codec/reference and Whisper. Profile: '+env.AI_CORE_PROFILE+'. Storage: '+env.LOCAL_DATA_DIR);
+    console.log('Private AI transport ready. Buddy base preparation runs in the background when enabled; Chat and speech readiness are reported separately. Profile: '+env.AI_CORE_PROFILE+'. Storage: '+env.LOCAL_DATA_DIR);
     launch(process.execPath, [path.join(root, 'scripts/run-local-dev.mjs'), 'all'], root, env);
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; stop(); }

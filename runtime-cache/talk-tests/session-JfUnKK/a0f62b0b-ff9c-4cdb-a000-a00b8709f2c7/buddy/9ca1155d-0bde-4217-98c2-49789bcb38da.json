@@ -1,0 +1,97 @@
+{
+  "storageRevision": 10,
+  "storageGeneration": 0,
+  "provenance": [
+    {
+      "turnId": "2d0b21cd-34f0-4e15-bb04-9c1dfbe7c362",
+      "stt": {
+        "version": "test"
+      },
+      "model": {
+        "version": "test"
+      },
+      "quality": {
+        "backendContextReduction": {
+          "droppedMessages": 0,
+          "source": "backend",
+          "maxMessages": 20,
+          "maxCharacters": 20000
+        }
+      },
+      "supportRequired": false,
+      "timings": {
+        "transcriptionMs": 0.04719999999997526
+      }
+    },
+    {
+      "turnId": "7238966d-655f-443e-9300-1e80ed337e36",
+      "stt": {
+        "version": "test"
+      },
+      "model": {
+        "version": "test"
+      },
+      "quality": {
+        "backendContextReduction": {
+          "droppedMessages": 0,
+          "source": "backend",
+          "maxMessages": 20,
+          "maxCharacters": 20000
+        }
+      },
+      "supportRequired": false,
+      "timings": {
+        "transcriptionMs": 0.04489999999987049
+      },
+      "tts": [
+        {
+          "version": "test"
+        }
+      ]
+    }
+  ],
+  "id": "9ca1155d-0bde-4217-98c2-49789bcb38da",
+  "user_id": "a0f62b0b-ff9c-4cdb-a000-a00b8709f2c7",
+  "title": "A conversation with Buddy",
+  "preview": "Take one small step.",
+  "archived": false,
+  "pinned_at": null,
+  "last_message_at": "2026-11-06T12:08:31.120Z",
+  "created_at": "2026-11-06T12:08:31.051Z",
+  "supportRequired": false,
+  "messages": [
+    {
+      "id": "2d0b21cd-34f0-4e15-bb04-9c1dfbe7c362",
+      "role": "user",
+      "content": "Synthetic input",
+      "timestamp": "2026-11-06T12:08:31.051Z"
+    },
+    {
+      "id": "dd1adf69-a198-46a4-91bc-d0ad2d58e9ce",
+      "role": "buddy",
+      "delivery": {
+        "state": "interrupted",
+        "playedMs": 0
+      },
+      "content": "Take one small step.",
+      "timestamp": "2026-11-06T12:08:31.104Z"
+    },
+    {
+      "id": "7238966d-655f-443e-9300-1e80ed337e36",
+      "role": "user",
+      "content": "Synthetic input",
+      "timestamp": "2026-11-06T12:08:31.112Z"
+    },
+    {
+      "id": "add7d271-79e4-4981-97b3-3173e5e790cc",
+      "role": "buddy",
+      "delivery": {
+        "state": "interrupted",
+        "playedMs": 0
+      },
+      "content": "Take one small step.",
+      "timestamp": "2026-11-06T12:08:31.120Z"
+    }
+  ],
+  "schemaVersion": 1
+}

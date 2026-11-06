@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "manifestSHA256": "d48daa49637a6b21376bf58106db0f4a46f6bbe04c32606a088a7524239b4fe3",
+  "llamaCommit": "cd959bae99ff4bed22bef2604f45241c09bbb8c8",
+  "runtimeInventorySHA256": "e27e105fb35d6038ae7d19c6e9886384359027e9bb016264ad830328f13592e9",
+  "model": {
+    "path": "base-q4_k_m.gguf",
+    "bytes": 4683071936,
+    "sha256": "518dc35db6966f45a0f5b0d8a36d182127b92b081b6ae4a116e3f1576d412de6"
+  },
+  "adapters": {
+    "cbt": {
+      "path": "cbt-lora-f32.gguf",
+      "bytes": 161508032,
+      "sha256": "b26b520c48eac46ba8762a7b9e3b2e7796846fca5262fcf25619887f7f25b6ff"
+    },
+    "phq": {
+      "path": "phq-lora-f32.gguf",
+      "bytes": 161507936,
+      "sha256": "9eeef4dc9c8ddab444baa145d1a19758f04d38595f2845642385fd5a6a91fcd7"
+    }
+  }
+}

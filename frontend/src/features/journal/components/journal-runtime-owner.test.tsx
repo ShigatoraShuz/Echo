@@ -21,7 +21,7 @@ it('prefetches eligible camera assets without requesting a camera stream',async(
  expect(getUserMedia).not.toHaveBeenCalled();
 });
 it('late acquisition after exit releases itself instead of updating a new page',async()=>{
- let finish!:(v:any)=>void;const pending=new Promise(r=>{finish=r;});
+ let finish!:(v:unknown)=>void;const pending=new Promise(r=>{finish=r;});
  const fetcher=vi.fn().mockReturnValueOnce(pending).mockResolvedValue(response({released:true}));vi.stubGlobal('fetch',fetcher);
  const view=render(<JournalRuntimeOwner/>);await waitFor(()=>expect(fetcher).toHaveBeenCalledTimes(1));view.unmount();
  await act(async()=>{finish(response(lease));});

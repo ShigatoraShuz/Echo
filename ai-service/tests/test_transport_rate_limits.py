@@ -25,6 +25,7 @@ def test_status_polling_cannot_starve_generation(monkeypatch):
  assert middleware.request_limiter(request('/v1/talk'))('127.0.0.1')
  # Runtime and preparation share the bounded status bucket.
  assert not middleware.request_limiter(request('/v2/runtime'))('127.0.0.1')
+ assert not middleware.request_limiter(request('/v2/journal-preparation'))('127.0.0.1')
 
 
 def test_invalid_credentials_cannot_consume_authenticated_budgets(monkeypatch):

@@ -1,3 +1,5 @@
+> Current selection update (2026-11-06): startup-pinned shared Transformers/PEFT SeaLLMs with exact CBT/PHQ adapters; unchanged CUDA Nano Fast Talk; optional repaired OpenMOSS llama.cpp MOSS v1.5 Expressive Talk. This supersedes older no-startup-load/page-exit-base-unload and active-CBT-GGUF descriptions below. See the current startup/voice guide and STARTUP_EXPRESSIVE_STRESS_2026-11-06 validation report. Browser/hardware/listening and broader acceptance remain unfinished. No new push.
+
 # Buddy CBT with resident llama.cpp
 
 Buddy Chat and Talk now share the same resident CBT worker running the exact mixed_epochs_2-derived Q4_K_M artifact. The existing V3 prompt construction, history/token limits, complete-sentence stopping, quality checks, single rewrite attempt, withholding and internal formatter remain authoritative. The V3 source files and their lock hashes were not edited. Historical policy version names do not select model weights; the adapter/GGUF hashes do.
@@ -52,3 +54,12 @@ Update 2026-11-05: the configured job memory ceiling is now 28,000,000,000 bytes
 
 
 Speech transport update (2026-11-05): the coordinated launcher now verifies protected transport authentication before starting the app. Local JSON credentials are ephemeral; the hosted native-runtime.json token is not a valid diagnostic credential for that running profile. Status polling has a separate bounded budget and cannot consume inference admission. Speech preparation remains visible; safe transport/Nano failures retain the approved reply for speech-only retry. See ../validation/LOCAL_SPEECH_TRANSPORT_2026-11-05.md for automated and real-model results and remaining browser limitations.
+
+
+Native worker isolation (2026-11-05): Journal safety/emotion/PHQ and Buddy CPU safety now use bounded owned workers in the existing core environment. Buddy's CBT remains the pinned llama.cpp backend; PHQ is still HF/PEFT with strict adapted/unadapted validation. Journal/Buddy progress is scoped separately. HTTP transport envelopes include cold-loading retries, while actual model generation retains its own deadlines. See ../validation/NATIVE_WORKER_ISOLATION_2026-11-05.md for exact limits, measured reuse/recovery and remaining acceptance.
+
+
+Shared base / PHQ candidate: see [qualification status](../validation/SHARED_SEALLMS_2026-11-05.md). Offline setup is `scripts/prepare-shared-seallms.py --build`; it does not change active inference. Normal PHQ remains on the current native worker because the shared candidate failed nullable-agreement comparison. Never point PHQ at the existing CBT-merged GGUF. The diagnostic-only `ECHO_SHARED_SEALLMS_VALIDATE` flag must not be enabled in normal startup.
+
+
+Shared HF selection follow-through (2026-11-06): current Buddy now uses one Transformers/PEFT NF4 SeaLLMs base with exact mixed_epochs_2 CBT and PHQ adapters. This supersedes earlier statements that current CBT remains llama.cpp. The failed shared llama.cpp candidate remains inactive. Real initial switching matched PHQ coverage 0 and approved two CBT replies on one PID, with Nano headroom above 2 GiB. See ../validation/SHARED_HF_2026-11-06.md for checkpoint, configuration, slower CBT timing, final capped validation and remaining browser/hardware acceptance. No push or environment change.

@@ -1,4 +1,5 @@
 import {ModelPageLeases} from '../../infrastructure/analysis/model-page-leases.js';
+import {LocalVoiceJobs} from './local-voice-jobs.js';
 import {appPresence} from '../../infrastructure/security/app-presence.js';
 import {z} from 'zod';
 import {prepareBuddyContext} from './buddy-context.js';
@@ -117,16 +118,31 @@ function searchWords(value: string): string[] {
 export class ExperienceService {
   private temporary=new Map<string,{turns:ChatTurn[];expires:number}>();
   private approvedVoice=new Map<string,{text:string;expires:number}>();
+  private voiceJobs=new LocalVoiceJobs(
+    async(session,kind,signal)=>{if(!this.coreClient)throw new NotFoundError('Local voice is unavailable.');return this.coreClient.talk({task:kind==='speak'?'warm_nano':'warm_whisper',sessionId:session},signal);},
+    async(session,payload,signal,user)=>{const result=await this.buddyVoiceTask(payload,signal,session);if(!signal.aborted&&payload.task==='speak'&&result.model&&this.localBuddy){const conversation=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===payload.text));if(conversation)await this.localBuddy.mutate(user,conversation.id,c=>{c.provenance.push({speech:result.model,at:new Date().toISOString()});return c;});}return result;},
+    async session=>{if(this.coreClient)await this.coreClient.talk({task:'close',sessionId:session},AbortSignal.timeout(5000));},
+  );
+  async createVoiceOperation(user:string,kind:'speak'|'transcribe'){await assertVoiceEnabled();await this.historyEnabled(user);return this.voiceJobs.create(user,kind);}
+  voiceOperationStatus(user:string,id:string){return this.voiceJobs.status(user,id);}
+  voiceOperationResult(user:string,id:string){return this.voiceJobs.take(user,id);}
+  cancelVoiceOperation(user:string,id:string){return this.voiceJobs.cancel(user,id);}
+  async closeVoiceOperations(){await this.voiceJobs.close();}
+  async submitVoiceOperation(user:string,id:string,kind:'speak'|'transcribe',payload:Record<string,unknown>){await assertVoiceEnabled();
+    if(kind==='speak'){const text=String(payload.text??'');const allowed=[...this.approvedVoice.entries()].some(([key,v])=>key.startsWith(user+':')&&v.expires>Date.now()&&v.text===text)||this.localBuddy?.list(user).some(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text));if(!allowed)throw new AuthorizationError('Only approved Buddy replies can be spoken.');}
+    return this.voiceJobs.start(user,id,kind,payload);
+  }
   async transcribeVoice(user:string,audio:Buffer,signal?:AbortSignal){await assertVoiceEnabled();await this.historyEnabled(user);if(!this.coreClient)throw new NotFoundError('Local speech is unavailable.');return this.buddyVoiceTask({task:'transcribe',audio:audio.toString('base64'),audioFormat:'encoded'},signal);}
-  async speakVoice(user:string,text:string,signal?:AbortSignal){await assertVoiceEnabled();const allowed=[...this.approvedVoice.entries()].some(([key,v])=>key.startsWith(user+':')&&v.expires>Date.now()&&v.text===text);if(!allowed&&!this.localBuddy?.list(user).some(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text)))throw new AuthorizationError('Only recent approved Buddy replies can be spoken.');if(!this.coreClient)throw new NotFoundError('Local speech unavailable.');const result=await this.buddyVoiceTask({task:'speak',text},signal);if(result.model&&this.localBuddy){const c=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text));if(c){c.provenance.push({speech:result.model,at:new Date().toISOString()});this.localBuddy.save(c);}}return result;}
-  private async buddyVoiceTask(payload:Record<string,unknown>,signal?:AbortSignal):Promise<{audio?:string;text?:string;model?:Record<string,unknown>}>{
-    const sessionId=randomUUID();
+  async speakVoice(user:string,text:string,signal?:AbortSignal){await assertVoiceEnabled();const allowed=[...this.approvedVoice.entries()].some(([key,v])=>key.startsWith(user+':')&&v.expires>Date.now()&&v.text===text);if(!allowed&&!this.localBuddy?.list(user).some(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text)))throw new AuthorizationError('Only recent approved Buddy replies can be spoken.');if(!this.coreClient)throw new NotFoundError('Local speech unavailable.');const result=await this.buddyVoiceTask({task:'speak',text},signal);if(result.model&&this.localBuddy){const c=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===text));if(c){c.provenance.push({speech:result.model,at:new Date().toISOString()});await this.localBuddy.save(c);}}return result;}
+  private async buddyVoiceTask(payload:Record<string,unknown>,signal?:AbortSignal,preparedSession?:string):Promise<{audio?:string;text?:string;model?:Record<string,unknown>}>{
+    const sessionId=preparedSession??randomUUID();
     try{
-      await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);
+      if(!preparedSession)await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);
+      else try{await this.coreClient!.talk({task:'pulse',sessionId},signal);}catch(error){if(signal?.aborted)throw error;await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);}
       if(payload.task==='transcribe')return z.object({text:z.string(),model:z.record(z.string(),z.unknown()).optional()}).parse(await this.coreClient!.talk({...payload,sessionId},signal));
       const prepared=z.object({groups:z.array(z.array(z.string()))}).parse(await this.coreClient!.talk({task:'prepare',sessionId,text:payload.text,language:'English',speechMode:'sentences_2_then_3'},signal));
-      const chunks:Buffer[]=[];let model:Record<string,unknown>|undefined;
-      for(const texts of prepared.groups){const result=z.object({segments:z.array(z.object({audio:z.string()})),model:z.record(z.string(),z.unknown())}).parse(await this.coreClient!.talk({task:'speak',sessionId,texts,language:'English'},signal));model=result.model;for(const segment of result.segments)chunks.push(Buffer.from(segment.audio,'base64'));}
+      const chunks:Buffer[]=[];let model:Record<string,unknown>|undefined;let bytes=0;
+      for(const texts of prepared.groups){const result=z.object({segments:z.array(z.object({audio:z.string(),sampleRate:z.literal(48000),channels:z.literal(2)})),model:z.record(z.string(),z.unknown())}).parse(await this.coreClient!.talk({task:'speak',sessionId,texts,language:'English'},signal));model=result.model;for(const segment of result.segments){const data=Buffer.from(segment.audio,'base64');bytes+=data.length;if(!data.length||data.length%4||data.toString('base64')!==segment.audio||bytes>32*1024*1024)throw new ConflictError('BUDDY_AUDIO_LIMIT','Speech exceeded the safe audio limit. The approved text is retained.');chunks.push(data);}}
       const pcm=Buffer.concat(chunks);if(pcm.length>32*1024*1024)throw Error('Speech audio limit');
       const h=Buffer.alloc(44);h.write('RIFF');h.writeUInt32LE(36+pcm.length,4);h.write('WAVEfmt ',8);h.writeUInt32LE(16,16);h.writeUInt16LE(1,20);h.writeUInt16LE(2,22);h.writeUInt32LE(48000,24);h.writeUInt32LE(192000,28);h.writeUInt16LE(4,32);h.writeUInt16LE(16,34);h.write('data',36);h.writeUInt32LE(pcm.length,40);
       return {audio:Buffer.concat([h,pcm]).toString('base64'),model};
@@ -144,10 +160,11 @@ export class ExperienceService {
     readonly localBuddy?: LocalBuddyStore,
   ) { this.wellness = new WellnessService(database, schedule, encryption, localBuddy ? async user=>(await journals.blockedLocalReflections(user))[0]?.journalId??null : undefined); }
 
-  async cancelLocal(user:string,journal:string){await this.journals.get(user,journal);this.journals.localResults?.remove(user,journal);}
-  archiveLocal(user:string,id:string,archived:boolean){if(!this.localBuddy)throw new NotFoundError('Local storage is disabled.');return this.localBuddy.save({...this.localBuddy.get(user,id),archived});}
-  exportLocal(user:string){if(!this.localBuddy||!this.journals.localResults)throw new NotFoundError('Local storage is disabled.');return {format:'echo-local-v1',analysis:this.journals.localResults.export(user),buddy:this.localBuddy.list(user)};}
-  clearLocal(user:string){void this.realtime?.endUser(user);for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);this.journals.localResults?.clear(user);for(const c of this.localBuddy?.list(user)??[])this.localBuddy!.remove(user,c.id);}
+  localJournalProcessing(user:string){return this.journals.localProcessing(user);}
+  async cancelLocal(user:string,journal:string){await this.journals.get(user,journal);this.journals.cancelLocalWork(user,journal);await this.journals.localResults?.remove(user,journal);}
+  async archiveLocal(user:string,id:string,archived:boolean){if(!this.localBuddy)throw new NotFoundError('Local storage is disabled.');return this.localBuddy.mutate(user,id,c=>({...c,archived}));}
+  async exportLocal(user:string){if(!this.localBuddy||!this.journals.localResults)throw new NotFoundError('Local storage is disabled.');return {format:'echo-local-v1',...await this.journals.localResults.exportAccount(user)};}
+  async clearLocal(user:string){this.journals.cancelLocalWork(user);await this.realtime?.endUser(user);await this.voiceJobs.clear(user);for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);if(this.journals.localResults)await this.journals.localResults.clear(user);else await this.localBuddy?.clear(user);}
   async retryLocal(user:string,journal:string){return this.journals.retryLocalAnalysis(user,journal);}
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
@@ -163,6 +180,7 @@ export class ExperienceService {
 
   async buddyPrivacy(userId: string) {
     return { buddyHistoryEnabled: await this.historyEnabled(userId),
+      historyStore: this.localBuddy?'local_json' as const:'supabase' as const,
       responderState: this.coreClient ? undefined : "DEMO_FALLBACK" as const };
   }
 
@@ -273,7 +291,7 @@ export class ExperienceService {
 
   async createBuddyConversation(userId: string) {
     if (!(await this.historyEnabled(userId))) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to create a saved conversation.");
-    if(this.localBuddy)return this.localBuddy.create(userId);
+    if(this.localBuddy)return await this.localBuddy.create(userId);
     const title = "Buddy conversation";
     const { data, error } = await this.database.schema("buddy_service").rpc("create_conversation", {
       p_user_id: userId, p_title_ciphertext: encryptText(title, this.encryption),
@@ -286,7 +304,7 @@ export class ExperienceService {
   }
 
   async renameBuddyConversation(userId: string, conversationId: string, title: string) {
-    if(this.localBuddy)return this.localBuddy.save({...this.localBuddy.get(userId,conversationId),title});
+    if(this.localBuddy)return this.localBuddy.mutate(userId,conversationId,c=>({...c,title}));
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").rpc("rename_conversation", {
       p_user_id: userId, p_conversation_id: conversationId,
@@ -299,7 +317,7 @@ export class ExperienceService {
   }
 
   async deleteBuddyConversation(userId: string, conversationId: string) {
-    if(this.localBuddy){await this.realtime?.endConversation(userId,conversationId);return this.localBuddy.remove(userId,conversationId);}
+    if(this.localBuddy){await this.realtime?.endConversation(userId,conversationId);return await this.localBuddy.remove(userId,conversationId);}
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .delete().eq("id", conversationId).eq("user_id", userId).select("id").maybeSingle();
@@ -361,7 +379,7 @@ export class ExperienceService {
   }
 
   private readonly modelPageLeases:ModelPageLeases=new ModelPageLeases(
-    ()=>this.ensureBuddyPrepared(),()=>this.unloadBuddyResources(),Date.now,
+    (signal)=>this.ensureBuddyPrepared(signal),()=>this.unloadBuddyResources(true),Date.now,
     (user,session)=>appPresence()?.isClosed(user,session)??false,
   );
   async acquireModelLease(user:string,session:string,client:string){await this.validateTalk(user);return this.modelPageLeases.acquire(user,session,client);}
@@ -378,12 +396,12 @@ export class ExperienceService {
   private preparingBuddy?:Promise<void>;
   private runtimeState:{state:string;code?:string}={state:'unloaded'};
   buddyRuntimeStatus():{state:string;code?:string;releasePending:boolean;releaseAt?:string}{return {...this.runtimeState,...this.modelPageLeases.releaseStatus};}
-  ensureBuddyPrepared():Promise<void>{
+  ensureBuddyPrepared(signal?:AbortSignal):Promise<void>{
     if(this.preparingBuddy)return this.preparingBuddy;
     const sessionId=randomUUID();
     this.runtimeState={state:'preparing'};
     this.preparingBuddy=(async()=>{
-      try {await this.coreClient!.talk({task:'warm_chat',sessionId});this.runtimeState={state:'ready'};}
+      try {await this.coreClient!.talk({task:'warm_chat',sessionId},signal);this.runtimeState={state:'ready'};}
       catch(error){this.runtimeState={state:'failed',code:(error as {code?:string}).code??'BUDDY_PREPARATION_FAILED'};throw error;}
       finally{await this.coreClient!.talk({task:'close',sessionId}).catch(()=>{});this.preparingBuddy=undefined;}
     })();
@@ -394,11 +412,11 @@ export class ExperienceService {
     if(this.modelPageLeases.count)throw new ConflictError('BUDDY_IN_USE','Buddy is still open in another page.');
     return this.unloadBuddyResources();
   }
-  private async unloadBuddyResources(){
+  private async unloadBuddyResources(preserveStartup=false){
     await this.preparingBuddy?.catch(()=>{});
     // Socket closure releases the owner asynchronously. Never evict another active owner.
     for(let attempt=0;;attempt++){
-      try{await this.coreClient!.talk({task:'unload',sessionId:randomUUID()});break;}
+      try{await this.coreClient!.talk({task:'unload',sessionId:randomUUID(),preserveStartup});break;}
       catch(error){if(attempt>=10 || !String((error as {code?:string}).code??error).includes('BUSY'))throw error;await new Promise(resolve=>setTimeout(resolve,200));}
     }
     this.runtimeState={state:'unloaded'};return this.buddyRuntimeStatus();
@@ -408,11 +426,13 @@ export class ExperienceService {
   async validateTalk(user:string){await assertVoiceEnabled();if(!this.coreClient)throw new NotFoundError('Local Talk is unavailable.');return {historyEnabled:await this.historyEnabled(user)};}
   async startTalkContext(user:string,conversationId:string|undefined){const privacy=await this.validateTalk(user);if(conversationId){if(!privacy.historyEnabled)throw new ConflictError('BUDDY_HISTORY_DISABLED','Saved chats are read-only.');await this.ownedConversation(user,conversationId);}return {conversationId:conversationId??null,...privacy};}
   async acceptTalkTurn(user:string,content:string,conversationId:string|null,temporarySessionId:string,turnId:string){
+    const storageEpoch=this.localBuddy?.generation(user);
     const privacy=await this.validateTalk(user);
+    if(storageEpoch!==this.localBuddy?.generation(user))throw new ConflictError('LOCAL_DATA_DELETED','Local data was cleared during this turn.');
     const timestamp=new Date().toISOString();
     const message={id:turnId,role:'user' as const,content,timestamp};
     if(privacy.historyEnabled&&!this.localBuddy)return this.acceptHostedTalk(user,content,conversationId,turnId);
-    if(privacy.historyEnabled){const c=conversationId?this.localBuddy!.get(user,conversationId):this.localBuddy!.create(user);if(c.messages.some(m=>m.id===turnId))throw new ConflictError('TURN_ALREADY_ACCEPTED','Turn already accepted.');if(!c.messages.some(m=>m.id===turnId)){c.messages.push(message);c.last_message_at=timestamp;c.preview=content.slice(0,120);if(c.messages.length===1)c.title=buddyTitle(content);this.localBuddy!.save(c);}return {conversationId:c.id,message,messages:c.messages.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content})) as ChatTurn[]};}
+    if(privacy.historyEnabled){const initial=conversationId?this.localBuddy!.get(user,conversationId):await this.localBuddy!.create(user);const c=await this.localBuddy!.mutate(user,initial.id,c=>{if(c.messages.some(m=>m.id===turnId))throw new ConflictError('TURN_ALREADY_ACCEPTED','Turn already accepted.');c.messages.push(message);c.last_message_at=timestamp;c.preview=content.slice(0,120);if(c.messages.length===1)c.title=buddyTitle(content);return c;});return {conversationId:c.id,message,messages:c.messages.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content})) as ChatTurn[]};}
     if(conversationId)throw new ConflictError('BUDDY_HISTORY_DISABLED','Saved chats are read-only.');
     const key=user+':'+temporarySessionId;const prior=this.temporary.get(key);const turns=prior&&prior.expires>Date.now()?prior.turns:[];
     turns.push({role:'user',content});while(turns.length>16||turns.reduce((a,t)=>a+t.content.length,0)>20000)turns.shift();
@@ -431,14 +451,16 @@ export class ExperienceService {
     return {reply,supportRequired:urgent,model:generated?.model??{providerName:'application-support-rules',modelVersion:'buddy-support-v1'},quality:{...generated?.quality,backendContextReduction:context.reduction}};
   }
   async completeTalk(user:string,conversationId:string|null,temp:string,text:string,turnId:string,provenance:Record<string,unknown>){
+    const storageEpoch=this.localBuddy?.generation(user);
     const privacy=await this.validateTalk(user);const message={id:randomUUID(),role:'buddy' as const,content:text,timestamp:new Date().toISOString()};
+    if(storageEpoch!==this.localBuddy?.generation(user))throw new ConflictError('LOCAL_DATA_DELETED','Local data was cleared during this turn.');
     if(privacy.historyEnabled&&conversationId&&!this.localBuddy)return this.completeHostedTalk(user,conversationId,text,turnId,provenance);
-    if(privacy.historyEnabled&&conversationId){const c=this.localBuddy!.get(user,conversationId);if(!c.messages.some(m=>m.id===turnId))throw new NotFoundError('Accepted turn was removed.');c.messages.push(message);c.supportRequired=Boolean(provenance.supportRequired);c.preview=text.slice(0,120);c.last_message_at=message.timestamp;{const prior=c.provenance.find(r=>r.turnId===turnId);if(prior)Object.assign(prior,provenance);else c.provenance.push({turnId,...provenance});}this.localBuddy!.save(c);}
+    if(privacy.historyEnabled&&conversationId){await this.localBuddy!.mutate(user,conversationId,c=>{if(!c.messages.some(m=>m.id===turnId))throw new NotFoundError('Accepted turn was removed.');c.messages.push(message);c.supportRequired=Boolean(provenance.supportRequired);c.preview=text.slice(0,120);c.last_message_at=message.timestamp;const prior=c.provenance.find(r=>r.turnId===turnId);if(prior)Object.assign(prior,provenance);else c.provenance.push({turnId,...provenance});return c;});}
     else{const key=user+':'+temp,previous=this.temporary.get(key);this.temporary.set(key,{turns:[...(previous?.turns??[]),{role:'assistant' as const,content:text}].slice(-16),expires:Date.now()+1800000});conversationId=null;}
     this.rememberReply(user,text);return {message,conversationId};
   }
-  async talkProvenance(user:string,conversationId:string|null,turnId:string,field:string,value:unknown){if(!conversationId)return;if(!this.localBuddy){await this.hostedTalkMetadata(user,conversationId,turnId,field,value);return;}const c=this.localBuddy!.get(user,conversationId);let record=c.provenance.find(r=>r.turnId===turnId);if(!record){record={turnId};c.provenance.push(record);}if(field==='tts'){const models=Array.isArray(record.tts)?record.tts:[];if(!models.some((m:any)=>m.modelVersion===(value as any)?.modelVersion))models.push(value);record.tts=models;}else record[field]=value;this.localBuddy!.save(c);}
-  async talkDelivery(user:string,conversationId:string|null,messageId:string,delivery:import('@echo/contracts').TalkDelivery){if(!conversationId)return;if(!this.localBuddy){await this.hostedTalkMetadata(user,conversationId,messageId,'delivery',delivery);return;}const c=this.localBuddy!.get(user,conversationId),message=c.messages.find(m=>m.id===messageId&&m.role==='buddy');if(message){message.delivery=delivery;this.localBuddy!.save(c);}}
+  async talkProvenance(user:string,conversationId:string|null,turnId:string,field:string,value:unknown){if(!conversationId)return;if(!this.localBuddy){await this.hostedTalkMetadata(user,conversationId,turnId,field,value);return;}await this.localBuddy.mutate(user,conversationId,c=>{let record=c.provenance.find(r=>r.turnId===turnId);if(!record){record={turnId};c.provenance.push(record);}if(field==='tts'){const models=Array.isArray(record.tts)?record.tts:[];if(!models.some((m:any)=>m.modelVersion===(value as any)?.modelVersion))models.push(value);record.tts=models;}else record[field]=value;return c;});}
+  async talkDelivery(user:string,conversationId:string|null,messageId:string,delivery:import('@echo/contracts').TalkDelivery){if(!conversationId)return;if(!this.localBuddy){await this.hostedTalkMetadata(user,conversationId,messageId,'delivery',delivery);return;}await this.localBuddy.mutate(user,conversationId,c=>{const message=c.messages.find(m=>m.id===messageId&&m.role==='buddy');if(message)message.delivery=delivery;return c;});}
   private hostedTurns=new Map<string,{content:string;conversationId:string;metadata:Record<string,unknown>;expires:number}>();
   private hostedWrites:Promise<unknown>=Promise.resolve();
   private async acceptHostedTalk(user:string,content:string,selected:string|null,turnId:string){
@@ -492,6 +514,7 @@ export class ExperienceService {
     const next=this.hostedWrites.then(work,work);this.hostedWrites=next.catch(()=>undefined);await next;
   }
   async sendBuddyMessage(userId: string, content: string, selectedConversationId?: string,temporarySessionId?:string) {
+    const storageEpoch=this.localBuddy?.generation(userId);
     const temporaryKey=userId+':'+(temporarySessionId??'legacy');
     const saving = await this.historyEnabled(userId);
     if (!saving && selectedConversationId) throw new ConflictError("BUDDY_HISTORY_DISABLED", "Turn on Save Buddy history to continue a saved conversation.");
@@ -524,6 +547,7 @@ export class ExperienceService {
       urgent = generated.supportRequired;
       reply = urgent ? buddyReply(content, true) : generated.reply!;
     } else reply = buddyReply(content, urgent);
+    if(storageEpoch!==this.localBuddy?.generation(userId))throw new ConflictError('LOCAL_DATA_DELETED','Local data was cleared while Buddy was responding.');
     this.rememberReply(userId,reply);
     if (!saving) {
       const prior=this.temporary.get(temporaryKey);const turns=prior&&prior.expires>Date.now()?prior.turns:[];
@@ -542,7 +566,7 @@ export class ExperienceService {
         { id: randomUUID(), role: "buddy", content: reply, timestamp: new Date().toISOString() },
       ] };
     }
-    if(this.localBuddy){const c=selectedConversationId?this.localBuddy.get(userId,selectedConversationId):this.localBuddy.create(userId);const timestamp=new Date().toISOString();c.messages.push({id:randomUUID(),role:"user",content,timestamp},{id:randomUUID(),role:"buddy",content:reply,timestamp});c.preview=reply.slice(0,120);c.last_message_at=timestamp;c.supportRequired=urgent;if(provenance)c.provenance.push(provenance);if(c.messages.length===2)c.title=buddyTitle(content);this.localBuddy.save(c);return {conversationId:c.id,persisted:true,conversation:c,messages:c.messages};}
+    if(this.localBuddy){const initial=selectedConversationId?this.localBuddy.get(userId,selectedConversationId):await this.localBuddy.create(userId);const timestamp=new Date().toISOString();const c=await this.localBuddy.mutate(userId,initial.id,c=>{c.messages.push({id:randomUUID(),role:'user',content,timestamp},{id:randomUUID(),role:'buddy',content:reply,timestamp});c.preview=reply.slice(0,120);c.last_message_at=timestamp;c.supportRequired=urgent;if(provenance)c.provenance.push(provenance);if(c.messages.length===2)c.title=buddyTitle(content);return c;});return {conversationId:c.id,persisted:true,conversation:c,messages:c.messages};}
     const conversation = selectedConversationId
       ? await this.ownedConversation(userId, selectedConversationId)
       : await this.ownedConversation(userId, (await this.createBuddyConversation(userId)).id);
@@ -717,7 +741,7 @@ export class ExperienceService {
   }
 
   async buddyHistory(userId: string, options: { page: number; pageSize: number; query: string }) {
-    if(this.localBuddy){const rows=this.localBuddy.list(userId).filter(c=>!options.query||JSON.stringify(c).toLowerCase().includes(options.query.toLowerCase())).sort((a,b)=>(b.pinned_at??b.last_message_at??b.created_at).localeCompare(a.pinned_at??a.last_message_at??a.created_at));return {conversations:rows.slice((options.page-1)*options.pageSize,options.page*options.pageSize),total:rows.length,page:options.page,page_size:options.pageSize,pinsAvailable:true};}
+    if(this.localBuddy)return this.localBuddy.history(userId,options);
     if (options.query) {
       const words = searchWords(options.query);
       if (!words.length) return { conversations: [], total: 0, page: options.page, page_size: options.pageSize, pinsAvailable: true };
@@ -774,7 +798,7 @@ export class ExperienceService {
   }
 
   async pinBuddyConversation(userId: string, conversationId: string, pinned: boolean) {
-    if(this.localBuddy)return this.localBuddy.save({...this.localBuddy.get(userId,conversationId),pinned_at:pinned?new Date().toISOString():null});
+    if(this.localBuddy)return this.localBuddy.mutate(userId,conversationId,c=>({...c,pinned_at:pinned?new Date().toISOString():null}));
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .update({ pinned_at: pinned ? new Date().toISOString() : null })
       .eq("id", conversationId).eq("user_id", userId)

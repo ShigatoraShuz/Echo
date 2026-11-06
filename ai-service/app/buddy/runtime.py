@@ -12,6 +12,7 @@ class BuddyRuntime:
     def __init__(self, core):
         self.core = core
         self.owner = None
+        self.voice_mode = "fast"
         self.deadline = 0
         self.cpu_classifier = None
         self.workers = {}
@@ -26,7 +27,7 @@ class BuddyRuntime:
 
     @property
     def process(self):
-        worker = self.workers.get("nano")
+        worker = self.workers.get("moss" if getattr(self,"voice_mode","fast") == "expressive" else "nano")
         return worker.process if worker else None
 
     def _watch(self):
@@ -34,6 +35,10 @@ class BuddyRuntime:
             time.sleep(1)
             if self.core.lock.acquire(blocking=False):
                 try:
+                    shared = getattr(self.core, 'shared_runtime', None)
+                    if shared and shared.model and shared.model.server.process.poll() is not None:
+                        shared.close()
+                        self.component_status['cbt'] = 'failed'
                     if self.ready and not self.healthy():
                         self.stop_speech()
                         cbt = self.workers.get("cbt")
@@ -48,7 +53,7 @@ class BuddyRuntime:
 
     def healthy(self):
         return all(kind in self.workers and self.workers[kind].process.poll() is None
-                   for kind in ("cbt", "nano", "whisper"))
+                   for kind in ("cbt", "moss" if getattr(self,"voice_mode","fast") == "expressive" else "nano", "whisper"))
 
     def require(self, session):
         if not self.owner or self.owner != session:
@@ -57,7 +62,7 @@ class BuddyRuntime:
 
     def evict(self):
         self.ready = False
-        for kind in ("cbt", "nano"):
+        for kind in ("cbt", "nano", "moss"):
             worker = self.workers.pop(kind, None)
             if worker:
                 worker.close()
@@ -68,8 +73,13 @@ class BuddyRuntime:
             raise TalkCancelledError("Cancelled")
         if getattr(self, "closed", False):
             raise TalkCancelledError("Cancelled")
+        if kind == "cbt" and getattr(self.core, "shared_enabled", False):
+            request = {**request, "shared": self.core.shared_runtime.capability(cancelled)}
         if kind not in self.workers:
-            worker = Process(paths()[kind], kind, cancelled, **({"deadline":deadline} if deadline else {}))
+            if kind=='nano' and getattr(self.core,'hf_enabled',False):self.core.ensure_buddy_capacity(2*1024**3)
+            worker = (self.core.hf_runtime.acquire('cbt',cancelled,deadline)
+                      if kind=='cbt' and getattr(self.core,'hf_enabled',False)
+                      else Process(paths()[kind], kind, cancelled, **({"deadline":deadline} if deadline else {})))
             with getattr(self, "progress_lock", self.core.lock):
                 rejected = getattr(self, "closed", False) or (cancelled and cancelled.is_set())
                 if not rejected:
@@ -78,11 +88,17 @@ class BuddyRuntime:
                 worker.close()
                 raise TalkCancelledError("Cancelled")
         try:
-            return self.workers[kind].call(request, cancelled, **({"deadline":deadline} if deadline else {}))
+            options={'deadline':deadline} if deadline else {}
+            if kind=='moss' and request.get('check'):
+                started=time.monotonic();attempt=self.status.get('attempt',1);generation=self.loading_generation
+                options['progress']=lambda stage:self._publish('moss','loading',attempt,_generation=generation,stage=stage,elapsedSeconds=time.monotonic()-started)
+            return self.workers[kind].call(request, cancelled, **options)
         except Exception:
             failed = self.workers.pop(kind, None)
             if failed:
                 failed.close()
+            if kind == "cbt" and getattr(self.core, "shared_runtime", None):
+                self.core.shared_runtime.quiesce()
             # A cancelled or failed GPU worker must warm again before listening.
             self.ready = False
             raise
@@ -114,8 +130,11 @@ class BuddyRuntime:
             deadline = time.monotonic() + COMPONENT_SECONDS[kind]
             try:
                 result = self._worker(kind, {"check": True}, cancelled, deadline=deadline)
-                if kind == "nano":
-                    publish("warming", attempt, elapsedSeconds=time.monotonic()-started)
+                if kind in ("nano", "moss"):
+                    if getattr(self.core,"hf_enabled",False):
+                        publish('loading',attempt,stage='gpu_admission',elapsedSeconds=time.monotonic()-started)
+                        self.core.ensure_buddy_capacity(result["requiredGpuBytes"] if kind=='moss' else 1024**3)
+                    publish("warming", attempt, **({'stage':'warm_up'} if kind=='moss' else {}), elapsedSeconds=time.monotonic()-started)
                     result = self._worker(kind, {"texts": ["You can take one slow breath."]}, cancelled, deadline=deadline)
                     if result["freeGpuBytes"] < 2 * 1024**3:
                         raise ModelUnavailableError("BUDDY_INSUFFICIENT_GPU_HEADROOM")
@@ -125,6 +144,9 @@ class BuddyRuntime:
                 return result
             except TalkCancelledError:
                 publish("cancelled", attempt, elapsedSeconds=time.monotonic()-started)
+                raise
+            except TalkBusyError:
+                if kind=='moss':publish('loading',attempt,stage='gpu_admission',elapsedSeconds=time.monotonic()-started)
                 raise
             except Exception as error:
                 code = str(error)
@@ -148,20 +170,34 @@ class BuddyRuntime:
 
     def stop_speech(self):
         self.ready = False
-        for kind in ("nano", "whisper"):
+        for kind in ("nano", "moss", "whisper"):
             worker = self.workers.pop(kind, None)
             if worker: worker.close()
 
     def _classifier(self):
-        if self.cpu_classifier is None:
-            import torch
-            from app.vendor.xlmr.classifier import Classifier
-            self.core.release()
-            classifier = Classifier(str(self.core.root / "xlmr-v2"), stride=64)
-            classifier.model.to("cpu")
-            classifier.device = torch.device("cpu")
-            self.cpu_classifier = classifier
-            torch.cuda.empty_cache()
+        from app.model.native_process import NativeProcess
+        from app.model.loading_policy import load_with_retries
+        value = self.cpu_classifier
+        if value is None or (hasattr(value,'healthy') and not value.healthy()):
+            if value is not None:
+                value.close()
+            self.cpu_classifier = None
+            cancelled = getattr(self.core,'operation_cancelled',None)
+            if self.core.instance is not None and not getattr(self.core,"hf_enabled",False):
+                self.core.release()
+            def load():
+                return NativeProcess(self.core.root,'xlmr',cancelled,cpu=True,inference_seconds=600)
+            report=(lambda value:self._publish('safety',value['state'],**{k:v for k,v in value.items() if k not in ('component','state')})) if hasattr(self,'progress_lock') else None
+            worker = load_with_retries('xlmr',load,lambda:None,cancelled=cancelled,report=report)
+            core = self.core
+            class ClassifierProxy:
+                def classify(self,text,language='unknown'):
+                    return worker.call(text,language,getattr(core,'operation_cancelled',None))
+                def healthy(self):
+                    return worker.ready and worker.process.poll() is None
+                def close(self):
+                    worker.close()
+            self.cpu_classifier = ClassifierProxy()
         return self.cpu_classifier
 
     def generate(self, messages, cancelled=None):
@@ -170,7 +206,8 @@ class BuddyRuntime:
             classification = self._classifier().classify(messages[-1]["content"])
             if classification["suicidal_language_flag"]:
                 return {"reply": None, "supportRequired": True, "model": self.core.provenance("xlmr")}
-            self.core.release() if self.core.instance is not None else None
+            self.core.release() if self.core.instance is not None and not getattr(self.core,"hf_enabled",False) else None
+            if getattr(self.core,"hf_enabled",False):self.core.ensure_buddy_capacity()
             value = self._worker("cbt", {"messages": messages}, cancelled)
             if cancelled and cancelled.is_set():
                 raise TalkCancelledError("Cancelled")
@@ -179,14 +216,19 @@ class BuddyRuntime:
             return {"reply": value["reply"], "supportRequired": False, "model": value["model"],
                     "quality": {**value.get("quality", {}), "generationSeconds": value["seconds"]}}
 
-    def start(self, session, cancelled=None, speech=True):
+    def start(self, session, cancelled=None, speech=True, voice_mode="fast"):
         with self.core.lock:
             cbt = self.workers.get("cbt")
-            if not speech and cbt and cbt.process.poll() is None:
+            classifier=self.cpu_classifier
+            safety_ready=classifier is not None and (not hasattr(classifier,'healthy') or classifier.healthy())
+            if not speech and cbt and cbt.process.poll() is None and safety_ready:
                 return {"ready": True, "chatReady": True, "speechReady": self.ready,
                         "workers": {k: v.process.pid for k, v in self.workers.items()}}
             if self.owner and self.owner != session:
                 raise TalkBusyError("Talk is busy")
+            if speech and voice_mode != getattr(self,"voice_mode","fast"):
+                self.stop_speech()
+                self.voice_mode = voice_mode
             pending = self.whisper_preparation
             if pending and not pending.done.is_set():
                 raise ModelUnavailableError("BUDDY_WHISPER_RECOVERY_PENDING")
@@ -201,12 +243,12 @@ class BuddyRuntime:
                 self._publish("safety", "ready")
                 cbt = self.workers.get("cbt")
                 if cbt is None or cbt.process.poll() is not None:
-                    self.core.release()
+                    if not getattr(self.core,'hf_enabled',False):self.core.release()
                     self._prepare("cbt", cancelled)
                 if speech and (not self.ready or not self.healthy()):
                     parallel = ParallelPreparation(lambda signal:self._prepare("whisper", signal), cancelled)
                     self.whisper_preparation = parallel
-                    warm = self._prepare("nano", parallel.cancelled)
+                    warm = self._prepare("moss" if getattr(self,"voice_mode","fast") == "expressive" else "nano", parallel.cancelled)
                     parallel.result()
                     if cancelled and cancelled.is_set():
                         raise TalkCancelledError("Cancelled")
@@ -228,13 +270,19 @@ class BuddyRuntime:
                     self.status = {"ready":False,"code":code if code.startswith("BUDDY_") else "BUDDY_WHISPER_PREFLIGHT_FAILED"}
                     raise ModelUnavailableError(self.status["code"]) from None
                 raise
+            except TalkBusyError:
+                if parallel: parallel.cancel_and_join()
+                if self.owner == session:self.owner = None
+                self.ready = False
+                self.status = {"ready":False,"code":"TALK_BUSY"}
+                raise
             except Exception as exc:
                 if parallel: parallel.cancel_and_join()
                 self.loading_generation += 1
                 self.stop_speech()
                 self.owner = None
                 code = str(exc)
-                self.status = {"ready": False, "code": code if code.startswith("BUDDY_") else "BUDDY_PREFLIGHT_FAILED"}
+                self.status = {"ready": False, "code": code if code.startswith(("BUDDY_","NATIVE_")) else "BUDDY_PREFLIGHT_FAILED"}
                 raise ModelUnavailableError(self.status["code"]) from None
 
     def chat(self, session, messages, cancelled=None):
@@ -252,10 +300,17 @@ class BuddyRuntime:
         with self.core.lock:
             self.require(session)
             task = payload["task"]
-            kind = "whisper" if task == "transcribe" else "nano"
+            if task == 'speak' and payload.get('voiceMode','fast') != getattr(self,'voice_mode','fast'):
+                self.stop_speech()
+                self.voice_mode = payload.get('voiceMode','fast')
+            kind = "whisper" if task == "transcribe" else "moss" if getattr(self,"voice_mode","fast") == "expressive" else "nano"
             worker = self.workers.get(kind)
             if worker is None or worker.process.poll() is not None:
                 self._prepare(kind, cancelled)
+            if task=='speak' and getattr(self.core,'hf_enabled',False):
+                required=(len(payload.get('texts') or [payload.get('text','')])*1024**3 if kind=='nano'
+                          else self._worker('moss',{'check':True},cancelled)['requiredGpuBytes'])
+                self.core.ensure_buddy_capacity(required)
             result = self._worker(kind, payload, cancelled)
             self.require(session)
             return result
@@ -266,11 +321,19 @@ class BuddyRuntime:
             with self.core.lock:
                 if self.owner:
                     raise TalkBusyError("BUDDY_TALK_BUSY")
+                hf=getattr(self.core,'hf_runtime',None)
+                explicit=not payload.get('preserveStartup',False)
+                if explicit and hf and hf.handles.get('phq8'):
+                    raise TalkBusyError('BUDDY_SHARED_BASE_IN_USE')
                 self.evict()
+                if explicit and hf:hf.disable_startup_residency()
                 worker = self.workers.pop("whisper", None)
                 if worker:
                     worker.close()
+                if self.cpu_classifier is not None and hasattr(self.cpu_classifier,"close"):
+                    self.cpu_classifier.close()
                 self.cpu_classifier = None
+                if getattr(self.core,'shared_runtime',None):self.core.shared_runtime.maybe_release()
                 return {"unloaded": True}
         if task in ("warm_nano", "warm_whisper"):
             with self.core.lock:
@@ -278,6 +341,9 @@ class BuddyRuntime:
                 if pending and not pending.done.is_set():
                     raise ModelUnavailableError("BUDDY_WHISPER_RECOVERY_PENDING")
                 if self.owner and self.owner != session: raise TalkBusyError("Talk is busy")
+                if task=='warm_nano' and self.voice_mode!='fast':
+                    self.stop_speech()
+                    self.voice_mode='fast'
                 self.owner = session
                 self.deadline = time.monotonic() + 60
                 self._prepare("nano" if task == "warm_nano" else "whisper", cancelled)
@@ -286,7 +352,7 @@ class BuddyRuntime:
         if task == "warm_chat":
             return self.start(session, cancelled, speech=False)
         if task == "warm":
-            return self.start(session, cancelled)
+            return self.start(session, cancelled, voice_mode=payload.get("voiceMode","fast"))
         if task == "close":
             self.stop(session)
             return {"closed": True}
@@ -306,6 +372,10 @@ class BuddyRuntime:
             from app.buddy.segmenting import speech_segments
             text = prepare(payload["text"], payload.get("language", "English"))
             parts = sentences(text) if payload.get("speechMode") == "sentences_2_then_3" else speech_segments(text)
+            if payload.get('voiceMode','fast')=='fast':
+                with self.core.lock:
+                    if 'nano' not in self.workers:self._prepare('nano',cancelled)
+                    parts=self._worker('nano',{'prepareTexts':parts},cancelled)['parts']
             groups = list(batches(parts)) if payload.get("speechMode") == "sentences_2_then_3" else [[part] for part in parts]
             if "".join(parts) != text:
                 raise ValueError("Speech coverage failed")
@@ -328,6 +398,9 @@ class BuddyRuntime:
         if self.whisper_preparation: self.whisper_preparation.cancel_and_join()
         self.owner = None
         self.evict()
+        if self.cpu_classifier is not None and hasattr(self.cpu_classifier,"close"):
+            self.cpu_classifier.close()
+        self.cpu_classifier = None
         worker = self.workers.pop("whisper", None)
         if worker:
             worker.close()

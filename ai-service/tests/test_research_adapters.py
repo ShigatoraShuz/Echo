@@ -111,6 +111,7 @@ def bundle(tmp_path):
             )
             tokenizer.save_model(str(root))
             hf = RobertaTokenizerFast(
+                tokenizer_object=tokenizer._tokenizer,
                 vocab_file=str(root / "vocab.json"),
                 merges_file=str(root / "merges.txt"),
                 model_max_length=64,
@@ -164,7 +165,7 @@ def bundle(tmp_path):
             },
             inference_spec_file="inference-spec.json",
             research_status="provisional_nonfinal",
-            frameworks={"torch": ">=2.6,<3", "transformers": ">=4.50,<5"},
+            frameworks={"torch": ">=2.6,<3", "transformers": '=='+__import__('transformers').__version__},
             provenance={
                 "source": "Fictional RANDOM-weight unit-test artifact; no trained research model"
             },

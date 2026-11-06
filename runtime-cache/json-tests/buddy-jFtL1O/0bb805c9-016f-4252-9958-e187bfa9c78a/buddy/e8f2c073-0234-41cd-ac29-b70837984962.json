@@ -1,0 +1,23 @@
+{
+  "storageRevision": 2,
+  "storageGeneration": 0,
+  "provenance": [],
+  "id": "e8f2c073-0234-41cd-ac29-b70837984962",
+  "user_id": "0bb805c9-016f-4252-9958-e187bfa9c78a",
+  "title": "Buddy conversation",
+  "preview": "",
+  "archived": false,
+  "pinned_at": null,
+  "last_message_at": null,
+  "created_at": "2026-11-06T12:08:35.081Z",
+  "supportRequired": false,
+  "messages": [
+    {
+      "id": "c9036d28-3806-4fad-8744-283981e825d3",
+      "role": "buddy",
+      "content": "Synthetic reply",
+      "timestamp": "2026-11-06T12:08:35.085Z"
+    }
+  ],
+  "schemaVersion": 1
+}

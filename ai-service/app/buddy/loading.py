@@ -4,17 +4,17 @@ import re
 
 ATTEMPTS = 5
 RETRY_DELAYS = (2, 5, 10, 20)
-COMPONENT_SECONDS = {"cbt": 600, "nano": 300, "whisper": 180}
+COMPONENT_SECONDS = {"cbt": 600, "nano": 300, "whisper": 180, "moss": 300}
 # Includes safety preparation, all component attempts/backoffs and scheduling margin.
 # Ordinary generation deadlines remain unchanged.
 PREPARATION_SECONDS = 6600
-PREPARATION_TASKS = frozenset(("warm", "warm_chat", "warm_nano", "warm_whisper"))
+PREPARATION_TASKS = frozenset(("warm", "warm_chat", "warm_nano", "warm_whisper", "prepare"))
 
 
 def retryable(code):
     return not any(word in code for word in (
         "INTEGRITY", "IDENTITY", "ACCESS_DENIED", "ENV_IMPORT", "ENV_UNAVAILABLE",
-        "CHECKPOINT", "CUDA", "MEMORY", "HEADROOM", "MISSING", "ASSET", "MISMATCH", "METADATA",
+        "VALIDATION", "AUDIO_INCOMPLETE", "AUDIO_INVALID", "CHECKPOINT", "CUDA", "MEMORY", "HEADROOM", "MISSING", "ASSET", "MISMATCH", "METADATA",
     ))
 
 
@@ -22,7 +22,7 @@ def safe_progress(value):
     """Rebuild, rather than forward, internal worker status packets."""
     if not isinstance(value, dict):
         return None
-    if value.get("component") not in ("safety", "cbt", "nano", "whisper"):
+    if value.get("component") not in ("safety", "emotion", "phq", "cbt", "nano", "moss", "whisper"):
         return None
     if value.get("state") not in ("checking", "loading", "warming", "retrying", "ready", "failed", "cancelled"):
         return None
@@ -35,10 +35,11 @@ def safe_progress(value):
         if type(number) in (int, float) and math.isfinite(number) and 0 <= number <= PREPARATION_SECONDS:
             result[name] = number
     components = value.get("loadingComponents")
-    if isinstance(components, list) and len(components) <= 4 and all(name in ("safety","cbt","nano","whisper") for name in components):
+    if isinstance(components, list) and len(components) <= 7 and all(name in ("safety","emotion","phq","cbt","nano","moss","whisper") for name in components):
         result["loadingComponents"] = list(dict.fromkeys(components))
+    if value.get('stage') in ('asset_verification','reference_validation','gpu_admission','warm_up'):result['stage']=value['stage']
     code = value.get("code")
-    if isinstance(code, str) and re.fullmatch(r"BUDDY_[A-Z_]{1,70}", code):
+    if isinstance(code, str) and re.fullmatch(r"(?:(?:BUDDY|NATIVE)_[A-Z_]{1,70}|BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8})", code):
         result["code"] = code
     if type(value.get("retryable")) is bool:
         result["retryable"] = value["retryable"]

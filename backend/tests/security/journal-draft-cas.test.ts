@@ -5,7 +5,7 @@ const input=(overrides:any={})=>({submissionKey:randomUUID(),draftIntent:'create
 function setup(){
  const rows=new Map<string,any>();
  const table=()=>{
-  let mode='read',payload:any,filters:Array<[string,any]>=[];
+  let mode='read',payload:any;const filters:Array<[string,any]>=[];
   const execute=async()=>{
    if(mode==='insert'){
     if(rows.has(payload.user_id))return {data:null,error:{code:'23505'}};

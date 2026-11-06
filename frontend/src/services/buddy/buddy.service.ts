@@ -14,7 +14,7 @@ export type BuddyServiceResult<T> =
   | { success: false; error: BuddyServiceError };
 
 export interface BuddyService {
-  getAccessStatus(signal?: AbortSignal): Promise<BuddyServiceResult<{ canAccessAi: boolean; accessRequirement?: "verification" | "trusted_contact" | null; buddyHistoryEnabled?: boolean; responderState?: "DEMO_FALLBACK" }>>;
+  getAccessStatus(signal?: AbortSignal): Promise<BuddyServiceResult<{ canAccessAi: boolean; accessRequirement?: "verification" | "trusted_contact" | null; buddyHistoryEnabled?: boolean; historyStore?:'local_json'|'supabase'; responderState?: "DEMO_FALLBACK" }>>;
   listConversations(page: number, pageSize: number, signal?: AbortSignal, query?: string): Promise<BuddyServiceResult<{ conversations: BuddyConversation[]; pagination: BuddyPagination }>>;
   getConversation(id: string, signal?: AbortSignal): Promise<BuddyServiceResult<BuddySession>>;
   pinConversation(id: string, pinned: boolean): Promise<BuddyServiceResult<string | null>>;

@@ -93,3 +93,19 @@ it('distinguishes unavailable speech runtime from malformed successful output',a
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('not-json')));
  await expect(new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_nano'})).rejects.toMatchObject({code:'AI_TRANSPORT_INVALID_RESPONSE'});
 });
+
+it('forwards journal preparation cancellation without adding client-supplied model data',async()=>{
+ let received!:AbortSignal;
+ const fetcher=vi.fn((_url,options)=>{received=options.signal;return new Promise((_resolve,reject)=>received.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')),{once:true}));});vi.stubGlobal('fetch',fetcher);
+ const controller=new AbortController();const pending=new CoreClient('http://127.0.0.1:8002',token).journalRuntime('prepare',['a'.repeat(64)],[],controller.signal);
+ expect(received.aborted).toBe(false);controller.abort();await expect(pending).rejects.toMatchObject({code:'AI_UNAVAILABLE'});
+ expect(received.aborted).toBe(true);expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({action:'prepare',owners:['a'.repeat(64)],faceOwners:[]});
+});
+
+it('labels isolated Buddy safety failures without calling them Journal failures',async()=>{
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({detail:{code:'NATIVE_SAFETY_IMPORT_FAILED'}},{status:503})));
+ const pending=new CoreClient('http://127.0.0.1:8002',token).talk({task:'warm_chat'});
+ await expect(pending).rejects.toMatchObject({code:'NATIVE_SAFETY_IMPORT_FAILED'});
+ await expect(pending).rejects.toThrow('Buddy safety screening failed');
+});

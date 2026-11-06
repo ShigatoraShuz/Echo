@@ -2,15 +2,16 @@
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ADAPTER_SHA = "6bfe92fc0ba316997a18abcb7c79a1fda7cec608bce07baaa7719bfb47c7c04e"
 ADAPTER_CONFIG_SHA = "69ecc08861220cf86bc11d770c2914d3a350c12b9037097900b1fe0787c0efad"
 VOICE_SHA = "3842d142fe4570197a059261467b806ccc36d2d35d4044255dc0d224be03a08f"
-BUDDY_ENV_KEYS = ("ECHO_BUDDY_ENABLED", "BUDDY_NANO_ROOT", "BUDDY_CBT_PYTHON",
+BUDDY_ENV_KEYS = ("ECHO_SHARED_SEALLMS_VALIDATE", "ECHO_BUDDY_ENABLED", "BUDDY_NANO_ROOT", "BUDDY_CBT_PYTHON",
                   "BUDDY_NANO_PYTHON", "BUDDY_WHISPER_PYTHON", "BUDDY_WHISPER_DIR",
-                  "BUDDY_CBT_ADAPTER")
+                  "BUDDY_CBT_ADAPTER", "BUDDY_MOSS_NATIVE_ROOT", "BUDDY_MOSS_PYTHON", "ECHO_MOSS_NATIVE_VALIDATE")
 DEFAULT_ADAPTER = str(HERE.parents[2] / "models/buddy/adapter")
 
 def enabled():
@@ -23,6 +24,7 @@ def paths():
         "root": root,
         "adapter": Path(os.environ.get("BUDDY_CBT_ADAPTER", DEFAULT_ADAPTER)).resolve(),
         "cbt": Path(os.environ.get("BUDDY_CBT_PYTHON", "C:/Users/tolen/miniconda3/envs/Thesis2_VENV/python.exe")),
+        "moss": Path(os.environ.get("BUDDY_MOSS_PYTHON", sys.executable)),
         "nano": Path(os.environ.get("BUDDY_NANO_PYTHON", str(parent / "TTS_INFERENCE_NANO_PRELOAD/.venv-nano/Scripts/python.exe"))),
         "whisper": Path(os.environ.get("BUDDY_WHISPER_PYTHON", str(parent / "speech-venv/Scripts/python.exe"))),
         "whisper_model": Path(os.environ.get("BUDDY_WHISPER_DIR", str(HERE.parents[2] / "models/voice/whisper"))),

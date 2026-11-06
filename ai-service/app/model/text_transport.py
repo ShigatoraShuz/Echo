@@ -16,6 +16,7 @@ from app.buddy.loading import PREPARATION_SECONDS, PREPARATION_TASKS, safe_progr
 from app.buddy.job import spawn_owned
 
 MAX_PACKET = 1024 * 1024
+STARTUP_SECONDS = 600
 
 
 class TextRuntime:
@@ -26,6 +27,8 @@ class TextRuntime:
 
     def __init__(self, settings):
         self.settings = settings
+        from app.buddy.shared_seallms import selected
+        self.shared_enabled = True  # Native shared HF supports admitted PHQ pass boundaries.
         self.buddy_enabled = getattr(settings, "echo_buddy_enabled", False)
         self.max_packet = 40 * 1024 * 1024 if self.buddy_enabled else MAX_PACKET
         self.wire_lock = threading.Lock()
@@ -47,6 +50,8 @@ class TextRuntime:
         self.pending = threading.BoundedSemaphore(getattr(settings, "queue_limit", 4))
         self.interactive_pending = threading.BoundedSemaphore(getattr(settings, "queue_limit", 4))
         self.responses = queue.Queue(maxsize=2)
+        self.control_replies = {}
+        self.control_lock = threading.Lock()
         # Deliberately exclude tokens, proxy settings, DB URLs and user credentials.
         env = {
             key: os.environ[key]
@@ -81,6 +86,7 @@ class TextRuntime:
                 "-B",
                 str(Path(__file__).with_name("text_worker.py")),
                 str(Path(settings.models_root).resolve()),
+                str(settings.core_request_timeout_seconds),
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -91,12 +97,26 @@ class TextRuntime:
         self.reader = threading.Thread(target=self._read, daemon=True)
         self.reader.start()
         try:
-            if self._receive(90) != {"ready": True}:
-                raise ModelUnavailableError("Text worker initialization failed.")
+            started=time.monotonic()
+            while True:
+                remaining=STARTUP_SECONDS-(time.monotonic()-started)
+                if remaining<=0:raise ModelUnavailableError('NATIVE_STARTUP_TIMEOUT')
+                try:initial=self.responses.get(timeout=min(1,remaining))
+                except queue.Empty:
+                    if self.process.poll() is not None:raise ModelUnavailableError('NATIVE_STARTUP_WORKER_EXITED')
+                    continue
+                if initial=={'ready':True}:break
+                code=initial.get('code') if isinstance(initial,dict) else None
+                import re
+                if isinstance(code,str) and re.fullmatch(r'NATIVE_STARTUP_[A-Z_]{1,60}',code):
+                    raise ModelUnavailableError(code)
+                raise ModelUnavailableError('NATIVE_STARTUP_WORKER_EXITED')
             self.loaded = True
-        except (OSError, ModelUnavailableError):
-            self.release()
-            raise ModelUnavailableError("Text worker initialization failed.") from None
+        except (OSError, ModelUnavailableError) as error:
+            try:self.release()
+            except Exception:pass
+            if isinstance(error,ModelUnavailableError):raise
+            raise ModelUnavailableError('NATIVE_STARTUP_TRANSPORT_FAILED') from None
 
     @property
     def loaded(self):
@@ -113,6 +133,19 @@ class TextRuntime:
                 if not line or len(line) > self.max_packet or not line.endswith(b"\n"):
                     break
                 value = json.loads(line)
+                if isinstance(value,dict) and value.get('event')=='control':
+                    with self.control_lock:
+                        pending=self.control_replies.get(value.get('id'))
+                    if pending:
+                        try:pending.put_nowait(value)
+                        except queue.Full:pass
+                    continue
+                if isinstance(value,dict) and value.get('event')=='startup':
+                    stage=value.get('stage')
+                    if stage in ('imports','cuda','asset_verification'):
+                        import logging
+                        logging.getLogger('uvicorn.error').info('Private text worker startup: %s',stage)
+                    continue
                 if isinstance(value, dict) and value.get("event") == "preparation":
                     with self.progress_lock:
                         if self.preparation_id and value.get("id") == self.preparation_id:
@@ -130,11 +163,11 @@ class TextRuntime:
             except queue.Full:
                 pass
 
-    def preparation_status(self):
+    def preparation_status(self, profile="buddy_chat"):
         # Independent of request/GPU locks: status remains responsive while loading.
         with self.progress_lock:
-            value = dict(self.preparation) if self.preparation else None
-            if value and self.preparation_id == value.get("correlationId"):
+            value = dict(self.preparation) if self.preparation and getattr(self,"preparation_kind","buddy_chat")==profile else None
+            if value and self.preparation_id and self.preparation_id == value.get("correlationId"):
                 delta = max(0, time.monotonic() - self.preparation_at)
                 value["elapsedSeconds"] = min(PREPARATION_SECONDS, value.get("elapsedSeconds", 0) + delta)
                 if "retryInSeconds" in value:
@@ -149,6 +182,32 @@ class TextRuntime:
             return value
         except (queue.Empty, TypeError):
             raise ModelUnavailableError("Text worker unavailable or timed out.") from None
+
+    def pulse(self, session):
+        """Session liveness bypasses inference admission and the GPU queue."""
+        self._control('buddy_pulse',{'session':session})
+        return {'active':True}
+
+    def runtime_status(self):
+        return self._control('runtime_status',{}).get('result',{})
+
+    def _control(self,operation,payload):
+        self.require_ready()
+        identity=uuid.uuid4().hex
+        pending=queue.Queue(maxsize=1)
+        with self.control_lock:self.control_replies[identity]=pending
+        try:
+            if not self.wire_lock.acquire(timeout=1):raise TalkBusyError('BUDDY_CONTROL_BUSY')
+            try:
+                self.process.stdin.write(json.dumps({'op':operation,'id':identity,**payload}).encode()+b'\n')
+                self.process.stdin.flush()
+            finally:self.wire_lock.release()
+            try:value=pending.get(timeout=3)
+            except queue.Empty:raise ModelUnavailableError('BUDDY_HEARTBEAT_TIMEOUT') from None
+            if not value.get('ok'):raise ModelUnavailableError('BUDDY_TALK_NOT_ACTIVE')
+            return value
+        finally:
+            with self.control_lock:self.control_replies.pop(identity,None)
 
     def release(self):
         if getattr(self, "face_runtime", None):
@@ -178,19 +237,27 @@ class TextRuntime:
         admission = self.interactive_pending if operation in ("buddy", "chat", "journal_runtime") else self.pending
         if not admission.acquire(blocking=False):
             raise ModelUnavailableError("Text worker queue is full.")
-        preparing = operation == "buddy" and len(args) > 1 and isinstance(args[1], dict) and args[1].get("task") in PREPARATION_TASKS
-        deadline = time.monotonic() + (PREPARATION_SECONDS if preparing else 600 if operation == "buddy" else self.settings.core_request_timeout_seconds)
+        preparing = operation == "preload" or operation == "buddy" and len(args) > 1 and isinstance(args[1], dict) and args[1].get("task") in PREPARATION_TASKS
+        from app.model.native_process import envelope
+        native_kind={'classify':'xlmr','emotions':'e4','screening':'phq8','screening_phase':'phq8','journal_runtime':'xlmr'}.get(operation)
+        native_window=(envelope(native_kind) if native_kind else PREPARATION_SECONDS if operation=='analyze' else None) if hasattr(self,'settings') and getattr(self.settings,'core_models_enabled',False) else None
+        buddy_loading = operation == 'chat' or (operation == 'buddy' and len(args)>1 and args[1].get('task') in ('chat','support_check'))
+        track_progress=preparing or buddy_loading or native_window is not None
+        deadline = time.monotonic() + (PREPARATION_SECONDS if preparing or buddy_loading else native_window if native_window is not None else 600 if operation == "buddy" else self.settings.core_request_timeout_seconds)
         identity = None
         acquired = False
+        queued_at=time.monotonic()
         try:
             acquired = self.lock.acquire(timeout=max(0, deadline - time.monotonic()), interactive=operation in ("buddy", "chat", "journal_runtime"))
             if not acquired:
-                raise ModelUnavailableError("Text worker busy.")
+                raise ModelUnavailableError("NATIVE_ADMISSION_TIMEOUT")
+            queue_seconds=time.monotonic()-queued_at
             self.require_ready()
             identity = uuid.uuid4().hex
-            if preparing:
+            if track_progress:
                 with self.progress_lock:
                     self.preparation_id = identity
+                    self.preparation_kind = 'buddy_chat' if preparing or buddy_loading else 'journal'
                     self.preparation = None
             packet = (
                 json.dumps({"id": identity, "op": operation, "args": args, **({"journalOwner": journal_owner} if journal_owner else {})}, allow_nan=False).encode(
@@ -219,7 +286,7 @@ class TextRuntime:
                 cancel_sent = False
                 while True:
                     if time.monotonic() >= deadline:
-                        raise ModelUnavailableError("Text worker unavailable or timed out.")
+                        raise ModelUnavailableError("NATIVE_REQUEST_TIMEOUT")
                     if cancelled and cancelled.is_set() and not cancel_sent and not self.writer.is_alive():
                         with self.wire_lock:
                             self.process.stdin.write(json.dumps({"op": "cancel", "id": identity}).encode() + b"\n")
@@ -228,7 +295,7 @@ class TextRuntime:
                     try:
                         reply = self.responses.get(timeout=.1)
                         if not isinstance(reply, dict):
-                            raise ModelUnavailableError("Text worker unavailable.")
+                            raise ModelUnavailableError("NATIVE_WORKER_EXITED")
                         break
                     except queue.Empty:
                         continue
@@ -237,10 +304,14 @@ class TextRuntime:
                     or type(reply.get("ok")) is not bool
                     or (reply["ok"] and "result" not in reply)
                 ):
-                    raise ModelUnavailableError("Invalid text worker response.")
-            except (OSError, ModelUnavailableError):
-                self.release()
-                raise ModelUnavailableError("Text worker unavailable or timed out.") from None
+                    raise ModelUnavailableError("NATIVE_RESPONSE_INVALID")
+            except (OSError, ModelUnavailableError) as error:
+                import logging
+                code=str(error) if isinstance(error,ModelUnavailableError) and str(error).startswith('NATIVE_') else 'NATIVE_TRANSPORT_FAILED'
+                logging.getLogger('uvicorn.error').warning('Private operation failed: operation=%s code=%s queue_seconds=%.3f correlation=%s',operation,code,queue_seconds,identity)
+                try:self.release()
+                except Exception:pass
+                raise ModelUnavailableError(code) from None
             self.model_loaded = reply.get("modelLoaded") is True
             if cancelled and cancelled.is_set():
                 raise TalkCancelledError("Cancelled")
@@ -253,13 +324,16 @@ class TextRuntime:
                 raise ModelUnavailableError("Model operation unavailable.")
             return reply["result"]
         finally:
-            if preparing and identity:
+            if track_progress and identity:
                 with self.progress_lock:
                     if self.preparation_id == identity:
                         self.preparation_id = None
             if acquired:
                 self.lock.release()
             admission.release()
+
+    def preload(self, cancelled=None):
+        return self._call('preload', cancelled=cancelled)
 
     def classify(self, text, language="unknown", owner=None):
         return self._call("classify", text, language, **({"journal_owner": owner} if owner else {}))
@@ -271,7 +345,15 @@ class TextRuntime:
         classification = classification or self.classify(text, language, owner)
         emotion = self._call("emotions", text, **guard)
         try:
-            screening = self._call("screening", text, **guard)
+            if getattr(self, 'shared_enabled', False):
+                from app.model.screening import assemble_passes
+                adapted = self._call("screening_phase", text, False, **guard)
+                checked = self._call("screening_phase", text, True, **guard)
+                if adapted['provenance'] != checked['provenance']:
+                    raise ModelUnavailableError('NATIVE_PHQ_IDENTITY_CHANGED')
+                screening = {**assemble_passes(adapted, checked), **checked['provenance']}
+            else:
+                screening = self._call("screening", text, **guard)
         except (TalkBusyError, TalkCancelledError):
             # Ownership/cancellation must pause the job, never manufacture a result.
             raise
@@ -286,10 +368,20 @@ class TextRuntime:
                 "subtotal": None, "total": None}
         return self._call("analyze", text, language, classification, emotion, screening, **guard)
 
-    def journal_runtime(self, action, owners, face_owners=None):
+    def journal_runtime(self, action, owners, face_owners=None, cancelled=None):
         if action=='unload' or (owners and not face_owners):self.face_runtime.unload()
-        result=self._call("journal_runtime", action, owners)
-        if action=='prepare' and face_owners:self.face_runtime.prepare()
+        epoch = getattr(self.face_runtime, "generation", None)
+        options = {"cancelled": cancelled} if cancelled is not None else {}
+        if cancelled is not None and cancelled.is_set():
+            raise TalkCancelledError("Cancelled")
+        result=self._call("journal_runtime", action, owners, **options)
+        if cancelled is not None and cancelled.is_set():
+            raise TalkCancelledError("Cancelled")
+        if action=='prepare' and face_owners:
+            if epoch is not None:
+                self.face_runtime.prepare(cancelled=cancelled, expected_generation=epoch)
+            else:
+                self.face_runtime.prepare()
         return result
 
     def chat(self, messages):

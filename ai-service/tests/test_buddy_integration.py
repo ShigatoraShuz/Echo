@@ -74,6 +74,8 @@ def test_scheduler_releases_only_optional_buddy_workers():
 
 def test_prepare_modes_preserve_prepared_text():
     runtime = stub(); runtime.owner = "session"
+    runtime.workers={'nano':object()}
+    runtime._worker=lambda kind,payload,cancelled=None:{'parts':payload['prepareTexts']}
     for mode in ("sentences_2_then_3", "buffered"):
         result = runtime.dispatch("session", {"task": "prepare", "text": "First. Second. Third. Fourth. Fifth. Sixth.",
                                               "language": "English", "speechMode": mode})
@@ -91,7 +93,7 @@ def test_no_production_payload_file_writes():
 def test_v3_delivery_strips_rejected_drafts(monkeypatch):
     from app.buddy import worker, gpu_memory
     monkeypatch.setattr(gpu_memory,"require_headroom",lambda *a,**kw:{"freeBytes":8*1024**3})
-    engine = SimpleNamespace(reply=lambda messages: {"needs_review": True, "reply": None,
+    engine = SimpleNamespace(model=SimpleNamespace(set_adapter=lambda name: None, eval=lambda: None), reply=lambda messages: {"needs_review": True, "reply": None,
         "_raw_reply": "Rejected private draft", "issues": ["incomplete"]})
     monkeypatch.setattr(worker, "ENGINE", engine)
     monkeypatch.setattr(worker, "MODEL_IDENTITY", {"modelVersion": ADAPTER_SHA})

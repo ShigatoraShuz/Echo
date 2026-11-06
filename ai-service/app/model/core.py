@@ -15,13 +15,24 @@ EMOTIONS = ["joy", "trust", "fear", "surprise", "sadness", "disgust", "anger", "
 
 
 class CoreRuntime:
-    def __init__(self, settings, *, text_only=False):
+    def __init__(self, settings, *, text_only=False, component=None):
+        if component not in (None,'xlmr','e4','phq8'):
+            raise ValueError('Invalid native component')
         self.root = Path(settings.models_root).resolve()
         self.lock = threading.RLock()
         self.slots = threading.BoundedSemaphore(settings.queue_limit)
         self.active = None
         self.instance = None
         self.resident = {} if text_only else None
+        self.isolated_native = text_only
+        self.operation_cancelled = None
+        self.native_progress = None
+        from app.buddy.shared_seallms import selected,SharedRuntime
+        self.shared_enabled = False  # Shared llama.cpp candidate remains unselected.
+        self.shared_runtime = None
+        from app.buddy.hf_shared import SharedHF
+        self.hf_enabled = component is None and text_only
+        self.hf_runtime = SharedHF() if self.hf_enabled else None
         self.loaded = False
         self.load_milliseconds = {}
         self.load_counts = {}
@@ -53,7 +64,12 @@ class CoreRuntime:
             if hashlib.sha256(source.read_bytes()).hexdigest() != item["sha256"]:
                 raise ModelUnavailableError("Inference code differs from its manifest.")
         self.screening_unavailable=None
+        prefixes={'xlmr':('xlmr-v2/',),'e4':('e4-c/',),'phq8':('phq8-seallms/','cbt/base/')}.get(component)
+        if prefixes and not any(str(item['path']).replace('\\','/').startswith(prefixes) for item in self.manifest['files']):
+            raise ModelUnavailableError('Missing native component inventory')
         for item in self.manifest["files"]:
+            if prefixes and not str(item['path']).replace('\\','/').startswith(prefixes):
+                continue
             try:
                 p = (self.root / item["path"]).resolve()
                 if (
@@ -108,9 +124,23 @@ class CoreRuntime:
             from app.model.talk import TalkRuntime
             self.talk=TalkRuntime(self)
 
+    def preload(self):
+        if not self.hf_enabled:
+            raise ModelUnavailableError('BUDDY_CBT_SHARED_PROFILE_REQUIRED')
+        with self.lock:
+            self.hf_runtime.keep_loaded = True
+            self.buddy._prepare('cbt', self.operation_cancelled)
+            return {'baseReady': True, 'startupResident': True}
+
     def require_journal_owner(self, owner):
         if owner and owner not in getattr(self, "journal_owners", set()):
             raise TalkBusyError("Journal page is inactive")
+
+    def _close_native_values(self, values):
+        from app.model.native_process import NativeProcess
+        for value in list(values):
+            if isinstance(value, NativeProcess) or hasattr(value, 'phq_pass'):
+                value.close()
 
     def journal_runtime(self, action, owners):
         with self.lock:
@@ -124,12 +154,15 @@ class CoreRuntime:
             if action != "unload": raise ValueError("Invalid journal action")
             self.journal_owners = set()
             self.journal_paused = True
-            if isinstance(self.resident, dict): self.resident.clear()
+            if isinstance(self.resident, dict):
+                self._close_native_values(self.resident.values())
+                self.resident.clear()
             self.instance = None
             self.active = None
             gc.collect()
             import torch
             torch.cuda.empty_cache()
+            if getattr(self,'shared_runtime',None):self.shared_runtime.maybe_release()
             return {"unloaded": True}
 
     def require_ready(self):
@@ -140,6 +173,7 @@ class CoreRuntime:
         if getattr(self, "buddy", None):
             self.buddy.evict()
         if isinstance(getattr(self, "resident", None), dict):
+            self._close_native_values(self.resident.values())
             self.resident.clear()
         self.instance = None
         self.active = None
@@ -147,6 +181,7 @@ class CoreRuntime:
         import torch
 
         torch.cuda.empty_cache()
+        if getattr(self,'shared_runtime',None):self.shared_runtime.maybe_release()
 
     def _activate(self, name, value):
         if name in ("cbt", "phq8") and isinstance(value, tuple):
@@ -200,19 +235,77 @@ class CoreRuntime:
         identity = id(value[0] if isinstance(value, tuple) else value)
         for alias, candidate in list(resident.items()):
             if id(candidate[0] if isinstance(candidate, tuple) else candidate) == identity:
+                self._close_native_values([candidate])
                 del resident[alias]
+        if getattr(self,'instance',None) is value:
+            self.instance, self.active = None, None
+
+    def ensure_buddy_capacity(self, additional_bytes=4*1024**3):
+        from app.buddy.gpu_memory import global_memory
+        import torch
+        # Measured 4096-token prefill/generation reserve, independent of live weights.
+        target = additional_bytes + 2*1024**3
+        for name in ('e4','xlmr'):
+            if global_memory(torch)['freeBytes'] >= target:
+                return
+            if name in self.resident:
+                self._evict_resident(self.resident,name)
+        if global_memory(torch)['freeBytes'] < target:
+            raise TalkBusyError('GPU capacity waiting')
+
+    def _load_native_once(self, name):
+        from app.model.native_process import NativeProcess
+        from app.buddy.gpu_memory import global_memory
+        import torch
+        buddy = getattr(self, 'buddy', None)
+        cbt = getattr(buddy, 'workers', {}).get('cbt') if buddy else None
+        if cbt and cbt.process.poll() is None and not getattr(self,'hf_enabled',False):
+            raise TalkBusyError('Buddy residency has priority')
+        if name == 'phq8' and getattr(self, 'hf_enabled', False):
+            value = self.hf_runtime.acquire('phq8',getattr(self,'operation_cancelled',None))
+            self.resident[name] = value
+            value.call({'check':True},getattr(self,'operation_cancelled',None))
+            return self._activate(name,value)
+        shared=self.shared_runtime.capability(getattr(self,'operation_cancelled',None)) if name=='phq8' and getattr(self,'shared_enabled',False) else None
+        value = self.resident.get(name)
+        if isinstance(value, NativeProcess):
+            if value.ready and value.process.poll() is None:
+                return self._activate(name, value)
+            value.close(); self.resident.pop(name, None)
+        required = (0 if shared is not None else {'xlmr':2,'e4':2,'phq8':7}[name])*1024**3
+        if global_memory(torch)['freeBytes'] < required+2*1024**3:
+            for previous in list(self.resident):
+                if previous != 'xlmr':
+                    self._evict_resident(self.resident, previous)
+                if global_memory(torch)['freeBytes'] >= required+2*1024**3:
+                    break
+        if global_memory(torch)['freeBytes'] < required+2*1024**3:
+            raise TalkBusyError('GPU capacity waiting')
+        started = time.perf_counter()
+        value = NativeProcess(self.root, name, getattr(self,'operation_cancelled',None),inference_seconds=getattr(self,'native_inference_seconds',270),**({'shared':shared} if shared is not None else {}))
+        self.resident[name] = value
+        self._record_load(name, started)
+        return self._activate(name, value)
 
     def _load(self, name):
         from app.model.loading_policy import load_with_retries
         resident=getattr(self,'resident',None)
         def cleanup():
             # Keep successfully resident components; discard only this failed load.
-            if isinstance(resident,dict):resident.pop(name,None)
+            if isinstance(resident,dict):
+                value=resident.pop(name,None);self._close_native_values([value])
             if getattr(self,'active',None)==name:self.instance=None;self.active=None
             gc.collect()
-            import torch
-            torch.cuda.empty_cache()
-        return load_with_retries(name,lambda:self._load_once(name),cleanup)
+            if not isolated:
+                import torch
+                torch.cuda.empty_cache()
+        isolated = getattr(self,'isolated_native',False) and name in ('xlmr','e4','phq8')
+        report = getattr(self,'native_progress',None) if isolated else None
+        def progress(value):
+            if report:
+                report({**value,'component':{'xlmr':'safety','e4':'emotion','phq8':'phq'}[name]})
+        return load_with_retries(name,lambda:self._load_native_once(name) if isolated else self._load_once(name),cleanup,
+                                 report=progress if report else None,cancelled=getattr(self,'operation_cancelled',None))
 
     def _load_once(self, name):
         buddy = getattr(self, "buddy", None)
@@ -303,18 +396,27 @@ class CoreRuntime:
 
     def metrics(self):
         import torch
+        from app.buddy.gpu_memory import global_memory
 
+        hf=getattr(self,'hf_runtime',None)
+        base_ready=bool(hf and hf.worker and hf.worker.process.poll() is None)
+        shared_count=(len({id(v) for name,v in self.resident.items() if name!='phq8'})+int(base_ready)
+                      +sum(name in self.buddy.workers and self.buddy.workers[name].process.poll() is None for name in ('nano','moss'))
+                      if getattr(self,'hf_enabled',False) else None)
         return {
             "buddy": self.buddy.status if getattr(self, "buddy", None) else None,
             "ready": self.loaded,
+            "sharedBasePid": (self.hf_runtime.worker.process.pid if getattr(self,"hf_runtime",None) and self.hf_runtime.worker and self.hf_runtime.worker.process.poll() is None else None),
+            "baseReady": bool(getattr(self,"hf_runtime",None) and self.hf_runtime.worker and self.hf_runtime.worker.process.poll() is None),
+            "startupResident": bool(getattr(self,"hf_runtime",None) and self.hf_runtime.keep_loaded),
             "talkActive": bool(getattr(self,"talk",None) and self.talk.owner),
             "screeningReady": getattr(self,"screening_unavailable",None) is None,
             "activeModel": self.active,
-            "residentModelCount": (len({id(v[0] if isinstance(v, tuple) else v) for v in self.resident.values()}) if isinstance(getattr(self, "resident", None), dict)
+            "residentModelCount": shared_count if shared_count is not None else (len({id(v[0] if isinstance(v, tuple) else v) for v in self.resident.values()}) if isinstance(getattr(self, "resident", None), dict)
                                    else int(self.instance is not None or self.active == "speech"))
                                   + (sum(kind in self.buddy.workers and self.buddy.workers[kind].process.poll() is None for kind in ("cbt", "nano"))
                                      if getattr(self, "buddy", None) else int(bool(getattr(self,"talk",None) and self.talk.owner and self.talk.device=="cuda" and self.talk.process is not None))),
-            "freeGpuBytes": torch.cuda.mem_get_info()[0],
+            "freeGpuBytes": global_memory(torch)["freeBytes"],
             "speechPeakAllocatedBytes": getattr(self,"speech_peak_allocated",None),
             "peakAllocatedBytes": torch.cuda.max_memory_allocated(),
             "loadMilliseconds": self.load_milliseconds.copy(),
@@ -326,19 +428,26 @@ class CoreRuntime:
         self.require_ready()
         if name in ("xlmr", "e4", "phq8") and getattr(self, "journal_paused", False):
             raise TalkBusyError("Journal page is inactive")
-        if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False):raise TalkBusyError("Talk has priority between stages")
+        if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False) and not getattr(self,"hf_enabled",False):raise TalkBusyError("Talk has priority between stages")
         if not self.slots.acquire(blocking=False):
             raise ModelUnavailableError("Inference queue is full.")
         try:
             if not self.lock.acquire(timeout=30):
                 raise ModelUnavailableError("Inference queue timed out.")
             try:
-                if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False):raise TalkBusyError("Talk has priority between stages")
+                if getattr(self,"talk",None) and self.talk.owner and not getattr(self._talk_context,"active",False) and not getattr(self,"hf_enabled",False):raise TalkBusyError("Talk has priority between stages")
                 try:
                     return fn(self._load(name))
                 except Exception as error:
-                    from app.model.loading_policy import NativeLoadError
-                    if not isinstance(error,(TalkCancelledError,TalkBusyError,NativeLoadError)):self.release()
+                    from app.model.loading_policy import NativeLoadError,ComponentOperationError
+                    if isinstance(error,ComponentOperationError):
+                        resident=getattr(self,'resident',{})
+                        value=resident.pop(name,None) if isinstance(resident,dict) else None
+                        self._close_native_values([value])
+                        if getattr(self,'active',None)==name:self.active=None;self.instance=None
+                        report=getattr(self,'native_progress',None)
+                        if report:report({'component':{'xlmr':'safety','e4':'emotion','phq8':'phq'}[name],'state':'failed','attempt':1,'maxAttempts':5,'code':str(error),'retryable':False})
+                    if not isinstance(error,(TalkCancelledError,TalkBusyError,NativeLoadError,ComponentOperationError)):self.release()
                     raise
             finally:
                 self.lock.release()
@@ -349,7 +458,7 @@ class CoreRuntime:
         if getattr(getattr(self,"_talk_context",None),"active",False):return self._talk_classifier.classify(text,language=language)
         if not isinstance(text, str) or not text.strip() or len(text) > 20000:
             raise ValueError("Invalid journal text.")
-        return self.call("xlmr", lambda m: m.classify(text, language=language))
+        return self.call("xlmr", lambda m: m.call(text, language, getattr(self,"operation_cancelled",None)) if getattr(self,"isolated_native",False) else m.classify(text, language=language))
 
     def provenance(self, name):
         prefix = {"xlmr": "xlmr-v2/", "e4": "e4-c/", "cbt": "cbt/"}[name]
@@ -372,6 +481,8 @@ class CoreRuntime:
         }
 
     def emotions(self, text):
+        if getattr(self,'isolated_native',False):
+            return self.call('e4',lambda m:m.call(text,cancelled=getattr(self,'operation_cancelled',None)))
         from app.vendor.e4.inference import infer_journal
         return self.call("e4", lambda m: infer_journal(m[0], m[1], m[3], text))
 
@@ -505,12 +616,27 @@ class CoreRuntime:
         if getattr(self,'screening_unavailable',None):raise ModelUnavailableError('NATIVE_PHQ_ASSET_UNAVAILABLE')
         if not isinstance(text,str) or not text.strip() or len(text)>20000:raise ValueError('Invalid journal text')
         from app.model.screening import infer
-        result=self.call('phq8',lambda m:infer(m[0],m[1],text))
+        result=self.call('phq8',lambda m:(m.screening(text,getattr(self,'operation_cancelled',None)) if hasattr(m,'screening') else m.call(text,cancelled=getattr(self,'operation_cancelled',None))) if getattr(self,'isolated_native',False) else infer(m[0],m[1],text))
         result.update(self.screening_provenance())
         return result
+
+    def screening_phase(self, text, check=False):
+        if not getattr(self, 'hf_enabled', False):
+            raise ModelUnavailableError('NATIVE_PHQ_SHARED_PROFILE_REQUIRED')
+        if getattr(self, 'screening_unavailable', None):
+            raise ModelUnavailableError('NATIVE_PHQ_ASSET_UNAVAILABLE')
+        result = self.call('phq8', lambda worker: worker.phq_pass(text, check, getattr(self, 'operation_cancelled', None)))
+        return {**result, 'provenance': self.screening_provenance()}
 
     def screening_provenance(self):
         from app.model.screening import VERSION
         files=[(v['path'],v['sha256']) for v in self.manifest['files'] if v['path'].startswith(('phq8-seallms/','cbt/base/'))]
         code=Path(__file__).with_name('screening.py').read_bytes()
-        return {'modelFingerprint':hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest(),'inferenceVersion':VERSION+':'+hashlib.sha256(code).hexdigest()[:16]}
+        provenance = {'modelFingerprint':hashlib.sha256(json.dumps(files,sort_keys=True).encode()).hexdigest(),'inferenceVersion':VERSION+':'+hashlib.sha256(code).hexdigest()[:16]}
+        if getattr(self, 'hf_enabled', False):
+            provenance['executionEngine'] = 'transformers-peft-shared-nf4-v1'
+        if getattr(self, 'shared_enabled', False):
+            lock = json.loads((Path(__file__).parents[1]/'buddy/shared-seallms.lock.json').read_text(encoding='utf-8'))
+            provenance['runtimeEngine'] = {'name':'shared-seallms-llama-cpp', 'version':lock['llamaCommit'],
+                'baseSHA256':lock['model']['sha256'], 'adapterSHA256':lock['adapters']['phq']['sha256'], 'quantization':'Q4_K_M'}
+        return provenance

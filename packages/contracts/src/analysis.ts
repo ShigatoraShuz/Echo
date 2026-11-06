@@ -356,6 +356,14 @@ export const journalScreeningSchema = z
     subtotal: z.number().int().min(0).max(24).nullable(),
     total: z.number().int().min(0).max(24).nullable(),
     modelFingerprint: z.string().optional(),
+    executionEngine: z.literal("transformers-peft-shared-nf4-v1").optional(),
+    runtimeEngine: z.object({
+      name: z.literal("shared-seallms-llama-cpp"),
+      version: z.string().regex(/^[a-f0-9]{40}$/),
+      baseSHA256: z.string().regex(/^[a-f0-9]{64}$/),
+      adapterSHA256: z.string().regex(/^[a-f0-9]{64}$/),
+      quantization: z.literal("Q4_K_M"),
+    }).strict().optional(),
     truncated: z.boolean().optional(),
     inputTokens: z.number().int().optional(),
     retainedTokens: z.number().int().optional(),
@@ -488,7 +496,7 @@ function facialCheck(status: FacialAnalysisStatus): AnalysisCheckProgress {
     case "not_captured":
       return { id: "facial", state: "skipped", detail: "No valid mesh captured" };
     case "captured_pending_provider":
-      return { id: "facial", state: "partial", detail: "Captured — analysis provider not connected" };
+      return { id: "facial", state: "partial", detail: "Captured â€” analysis provider not connected" };
     case "queued":
       return { id: "facial", state: "pending", detail: "Mesh queued securely" };
     case "analyzing":

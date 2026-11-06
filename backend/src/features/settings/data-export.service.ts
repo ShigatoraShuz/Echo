@@ -220,7 +220,16 @@ export class DataExportService {
       throw new ExternalServiceError("EXPORT_BUSY", "Export processing is busy. Please retry shortly.");
     this.active++;
     try {
-      const localSnapshot=this.localData?.(userId);
+      // Validate the complete local composition before consuming the one-time artifact.
+      const localSnapshot=await this.localData?.(userId);
+      const preview=await this.database.schema('user_service').from('export_artifacts').select('ciphertext').eq('user_id',userId).eq('request_id',requestId).gt('expires_at',new Date().toISOString()).maybeSingle();
+      if(preview.error)throw unavailable();
+      if(typeof preview.data?.ciphertext!=='string')throw new NotFoundError('This export is unavailable, expired or already downloaded.');
+      let payload:Row;
+      try{payload=JSON.parse(decryptText(preview.data.ciphertext,this.encryption)) as Row;}catch{throw unavailable();}
+      if(payload.userId!==userId||payload.requestId!==requestId||payload.format!=='echo-account-export-v1')throw unavailable();
+      const composed=JSON.stringify({...payload,dataSources:localSnapshot?['supabase','local_json']:['supabase'],...(localSnapshot?{localAI:localSnapshot}:{})});
+      if(Buffer.byteLength(composed)>MAX_EXPORT_BYTES)throw new PayloadTooLargeError('The complete export exceeds automatic delivery limits.');
       const result = await this.database
         .schema("user_service")
         .rpc("consume_data_export", { p_user_id: userId, p_request_id: requestId });
@@ -228,12 +237,7 @@ export class DataExportService {
       if (typeof result.data !== "string")
         throw new NotFoundError("This export is unavailable, expired or already downloaded.");
       try {
-        const plaintext = decryptText(result.data, this.encryption);
-        const payload = JSON.parse(plaintext) as Row;
-        if (payload.userId !== userId || payload.requestId !== requestId || payload.format !== "echo-account-export-v1")
-          throw unavailable();
-        const composed=JSON.stringify({...payload,dataSources:localSnapshot?['supabase','local_json']:['supabase'],...(localSnapshot?{localAI:localSnapshot}:{})});
-        if(Buffer.byteLength(composed)>MAX_EXPORT_BYTES)throw unavailable();
+        if(result.data!==preview.data.ciphertext)throw unavailable();
         return composed;
       } catch {
         throw unavailable();

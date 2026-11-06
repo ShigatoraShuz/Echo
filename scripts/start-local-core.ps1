@@ -134,14 +134,14 @@ try {
     Push-Location $echoRoot
     try {
         $process = Start-Process -FilePath $Python -ArgumentList @('-B','-m','uvicorn','app.main:app','--host','127.0.0.1','--port',[string]$AIPort,'--workers','1','--no-access-log') -WorkingDirectory (Join-Path $echoRoot 'ai-service') -WindowStyle Hidden -PassThru
-        $deadline = (Get-Date).AddSeconds(100)
+        $deadline = (Get-Date).AddSeconds(630)
         $ready = $false
         while ((Get-Date) -lt $deadline -and !$process.HasExited) {
             try { $ready = (Invoke-WebRequest "http://127.0.0.1:$AIPort/ready" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200 } catch { $ready = $false }
             if ($ready) { break }
             Start-Sleep -Milliseconds 500
         }
-        if (!$ready) { throw 'The bounded text worker did not initialize. No application was started.' }
+        if (!$ready) { throw 'The bounded text worker did not initialize within ten minutes plus service overhead. Check the NATIVE_STARTUP diagnostic. No application was started.' }
         if ($EnableBuddy) {
             Write-Host "AI transport ready at http://127.0.0.1:$AIPort. Start Talk preflights CBT, Nano and CPU Whisper; failures disable Talk."
         } else {

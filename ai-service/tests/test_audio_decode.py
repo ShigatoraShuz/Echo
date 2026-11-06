@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 sf = pytest.importorskip("soundfile")
+pytest.importorskip('av',reason='Media decoding is qualified in the configured speech environment.')
+pytest.importorskip('faster_whisper',reason='Whisper is installed in the configured speech environment, not necessarily core.')
 from app.speech_worker import decode_recording
 
 

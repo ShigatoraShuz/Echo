@@ -74,7 +74,7 @@ def test_round_trip_is_serialized_memory_only_and_does_not_retain_previous_input
     ]
     assert runtime.responses.empty()
     runtime.lock.acquire()
-    with pytest.raises(ModelUnavailableError, match="busy"):
+    with pytest.raises(ModelUnavailableError, match="NATIVE_ADMISSION_TIMEOUT"):
         runtime.classify("other")
     runtime.lock.release()
     with pytest.raises(ValueError, match="large"):
