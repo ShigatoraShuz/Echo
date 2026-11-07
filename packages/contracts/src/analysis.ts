@@ -380,15 +380,31 @@ export const journalScreeningSchema = z
     )
       c.addIssue({ code: "custom", message: "Invalid nullable screening arithmetic" });
   });
+export const journalDistressEstimateSchema = z.object({
+  status: z.enum(["available", "insufficient_evidence", "unavailable", "failed"]),
+  band: distressBandSchema.nullable(),
+  experimental: z.literal(true),
+  method: z.literal("seallms-base-prompt"),
+  inferenceVersion: z.literal("journal-distress-rubric-v1"),
+  baseModel: z.literal("SeaLLMs/SeaLLMs-v3-7B-Chat"),
+  modelVersion: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict().superRefine((value, ctx) => {
+  if ((value.status === "available") !== (value.band !== null))
+    ctx.addIssue({ code: "custom", message: "A distress band requires an available estimate" });
+  if ((value.status === "available" || value.status === "insufficient_evidence") && !value.modelVersion)
+    ctx.addIssue({ code: "custom", message: "Model inference requires provenance" });
+});
+
 export const journalAnalysisV3ResultSchema = z
   .object({
     ...journalAnalysisV2ResultSchema.shape,
     schemaVersion: z.literal("echo-journal-analysis-v3"),
     journalScreening: journalScreeningSchema,
+    distressEstimate: journalDistressEstimateSchema.optional(),
   })
   .strict()
   .superRefine((v, c) => {
-    const { journalScreening, ...native } = v;
+    const { journalScreening, distressEstimate, ...native } = v;
     const checked = journalAnalysisV2ResultSchema.safeParse({ ...native, schemaVersion: "echo-journal-analysis-v2" });
     if (!checked.success)
       for (const issue of checked.error.issues)

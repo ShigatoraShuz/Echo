@@ -208,3 +208,16 @@ describe("compact native screening and face results", () => {
     expect(container.querySelector("video,canvas")).toBeNull();
   });
 });
+
+it("explains the saved experimental distress level separately from classifier categories", () => {
+  showNative = true;
+  nativeOverride = journalAnalysisV3ResultSchema.parse({ ...native, schemaVersion: "echo-journal-analysis-v3",
+    journalScreening: { status: "unavailable", experimental: true, inferenceVersion: "test", items: null, coverage: 0, subtotal: null, total: null },
+    distressEstimate: { status: "available", band: "high", experimental: true, method: "seallms-base-prompt",
+      inferenceVersion: "journal-distress-rubric-v1", baseModel: "SeaLLMs/SeaLLMs-v3-7B-Chat", modelVersion: "a".repeat(64) },
+  });
+  render(<EmotionInsightsView />);
+  expect(screen.getByRole("region", {name: "Experimental distress estimate"})).toHaveTextContent("high");
+  expect(screen.getByText(/Intensity calibration has not been validated/)).toBeVisible();
+  expect(screen.getByRole("heading", {name: "Saved journal category"})).toBeVisible();
+});

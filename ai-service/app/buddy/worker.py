@@ -49,6 +49,22 @@ def cbt(request):
                           **getattr(ENGINE, "gguf_identity", {"engine": "hf-peft-native-v1"})}
     if request.get("check"):
         return MODEL_IDENTITY
+    if 'distressText' in request:
+        from app.model.distress_estimate import infer as infer_distress
+        try:
+            value = infer_distress(ENGINE.model, ENGINE.tokenizer, request['distressText'])
+            import hashlib
+            from app.buddy.config import models_root
+            inventory = json.loads((models_root() / 'manifest.json').read_text(encoding='utf-8'))
+            base_files = [(x['path'], x['sha256']) for x in inventory['files'] if x['path'].startswith('buddy/base/')]
+            value['modelVersion'] = hashlib.sha256(json.dumps(sorted(base_files)).encode()).hexdigest()
+            return value
+        except (ValueError, TypeError):
+            raise RuntimeError('NATIVE_DISTRESS_OUTPUT_INVALID') from None
+        finally:
+            ENGINE.model.set_adapter('cbt'); ENGINE.model.eval()
+            import torch
+            torch.cuda.empty_cache()
     if 'phqText' in request:
         if not isinstance(request['phqText'],str) or not request['phqText'].strip() or len(request['phqText'])>20000:
             raise ValueError('Invalid PHQ text')
@@ -239,7 +255,7 @@ def residency():
 def loading_error_code(error, kind, checking=False):
     """No exception message/path is returned unless it is already a safe code."""
     code = str(error)
-    if code == "NATIVE_PHQ_OUTPUT_INVALID":return code
+    if code in ("NATIVE_PHQ_OUTPUT_INVALID", "NATIVE_DISTRESS_OUTPUT_INVALID"):return code
     if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
         return code
     suffix = "PREFLIGHT_OR_INFERENCE_FAILED"

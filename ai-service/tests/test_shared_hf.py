@@ -88,3 +88,15 @@ def test_explicit_unload_releases_startup_pin(monkeypatch):
  runtime=SharedHF();runtime.keep_loaded=True;page=runtime.acquire('cbt');worker=page.worker
  page.close();runtime.disable_startup_residency()
  assert worker.closed==1 and runtime.worker is None and not runtime.keep_loaded
+
+
+def test_distress_role_reuses_base_and_bad_output_does_not_evict_cbt(monkeypatch):
+ from app.core.exceptions import ModelUnavailableError
+ monkeypatch.setattr('app.buddy.hf_shared.Process',Worker)
+ runtime=SharedHF();cbt=runtime.acquire('cbt');distress=runtime.acquire('distress')
+ assert distress.worker is cbt.worker
+ def fail(*args,**kwargs):raise ModelUnavailableError('NATIVE_DISTRESS_OUTPUT_INVALID')
+ distress.worker.call=fail
+ with pytest.raises(ModelUnavailableError):distress.call({'distressText':'synthetic'})
+ distress.close();assert cbt.ready and cbt.worker.closed==0
+ runtime.invalidate()

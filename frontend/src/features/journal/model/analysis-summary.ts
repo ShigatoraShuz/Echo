@@ -10,7 +10,8 @@ export function analysisSummary(result?: JournalAnalysisResult | null) {
   };
   return {
     status: result.schemaVersion === "echo-journal-analysis-v3" &&
-      (result.journalScreening.status !== "available" || result.journalScreening.coverage !== 8) ? "partial" : "complete",
+      (result.journalScreening.status !== "available" || result.journalScreening.coverage !== 8 ||
+        (result.distressEstimate && result.distressEstimate.status !== "available")) ? "partial" : "complete",
     emotion: result.dominantEmotion,
     distress: result.schemaVersion === "echo-journal-analysis-v1" ? result.distressBand : result.distressCategory,
     distressKind: result.schemaVersion === "echo-journal-analysis-v1" ? "band" : "category",

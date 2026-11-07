@@ -109,3 +109,13 @@ it('labels isolated Buddy safety failures without calling them Journal failures'
  await expect(pending).rejects.toMatchObject({code:'NATIVE_SAFETY_IMPORT_FAILED'});
  await expect(pending).rejects.toThrow('Buddy safety screening failed');
 });
+
+it("preserves the optional experimental distress estimate through the native client", async () => {
+  const output = { ...native, schemaVersion: "echo-journal-analysis-v3",
+    journalScreening: { status: "unavailable", experimental: true, inferenceVersion: "test", items: null, coverage: 0, subtotal: null, total: null },
+    distressEstimate: { status: "available", band: "high", experimental: true, method: "seallms-base-prompt",
+      inferenceVersion: "journal-distress-rubric-v1", baseModel: "SeaLLMs/SeaLLMs-v3-7B-Chat", modelVersion: "a".repeat(64) },
+  };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(output))));
+  expect(await new CoreClient("http://127.0.0.1:8000", token).analyze("Fictional")).toEqual(output);
+});

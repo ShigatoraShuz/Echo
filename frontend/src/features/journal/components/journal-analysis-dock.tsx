@@ -74,6 +74,7 @@ export function JournalAnalysisDock({
     !result.isSimulated
       ? result
       : null;
+  const distress = native?.schemaVersion === "echo-journal-analysis-v3" ? native.distressEstimate : undefined;
   const screening =
     native?.schemaVersion === "echo-journal-analysis-v3"
       ? native.journalScreening
@@ -203,8 +204,9 @@ export function JournalAnalysisDock({
                   <div className="my-5 grid grid-cols-2 gap-3">
                     <div className="journal-report-stat">
                       <Activity size={17} />
-                      <span>Journal category</span>
-                      <strong>{native.distressCategory}</strong>
+                      <span>{distress ? "Distress estimate" : "Journal category"}</span>
+                      <strong className="capitalize">{distress ? distress.status === "available" ? distress.band : "Not estimated" : native.distressCategory}</strong>
+                      {distress && <span>Experimental AI estimate</span>}
                     </div>
                     <div className="journal-report-stat">
                       <ClipboardList size={17} />

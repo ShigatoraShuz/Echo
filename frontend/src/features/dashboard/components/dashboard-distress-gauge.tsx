@@ -16,7 +16,9 @@ function point(degrees: number, radius = 102) {
 export function DashboardDistressGauge({ result }: { result?: JournalAnalysisResult | null }) {
   const id = useId().replace(/:/g, "");
   // Dataset categories and class confidence cannot establish distress intensity.
-  const band = result?.schemaVersion === "echo-journal-analysis-v1" && !result.isSimulated ? result.distressBand : null;
+  const estimate = result?.schemaVersion === "echo-journal-analysis-v3" ? result.distressEstimate : undefined;
+  const prompted = !result?.isSimulated && estimate?.status === "available";
+  const band = prompted ? estimate.band : result?.schemaVersion === "echo-journal-analysis-v1" && !result.isSimulated ? result.distressBand : null;
   const index = band ? bands.indexOf(band) : -1;
   const label = result?.isSimulated ? "Sample only" : band ?? (result ? "Not estimated" : "No analysis yet");
   const angle = index * 36 - 72;
@@ -53,9 +55,9 @@ export function DashboardDistressGauge({ result }: { result?: JournalAnalysisRes
       </div>
       <div className={styles.reading}>
         <p className={styles.value}>{label}</p>
-        <span className={styles.caption}>{result?.isSimulated ? "Development example" : band ? "Latest saved analysis" : "Intensity unavailable"}</span>
+        <span className={styles.caption}>{result?.isSimulated ? "Development example" : prompted ? "Experimental AI estimate" : band ? "Latest saved analysis" : "Intensity unavailable"}</span>
       </div>
-      <p className={styles.note}>{result?.isSimulated ? "Sample data does not describe your wellbeing." : band ? "A reflection signal, not a diagnosis or a measure of your safety." : result ? "Your current model does not estimate distress intensity. No level is assumed." : "Save a reflection to begin. No reading does not mean low distress."}</p>
+      <p className={styles.note}>{result?.isSimulated ? "Sample data does not describe your wellbeing." : prompted ? "Estimated from your latest reflection. Not a clinical assessment or safety rating." : band ? "A reflection signal, not a diagnosis or a measure of your safety." : estimate ? "No distress level was estimated for this reflection. No level is assumed." : result ? "This saved analysis has no distress-level estimate. No level is assumed." : "Save a reflection to begin. No reading does not mean low distress."}</p>
       <Link href="/insights/risk" className={styles.link}>About this reading <ArrowUpRight size={14} aria-hidden="true" /></Link>
     </div>
   );
