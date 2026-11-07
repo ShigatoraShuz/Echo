@@ -380,6 +380,7 @@ export const journalScreeningSchema = z
     )
       c.addIssue({ code: "custom", message: "Invalid nullable screening arithmetic" });
   });
+// Retired prompted estimate: read compatibility for existing saved journals only.
 export const journalDistressEstimateSchema = z.object({
   status: z.enum(["available", "insufficient_evidence", "unavailable", "failed"]),
   band: distressBandSchema.nullable(),

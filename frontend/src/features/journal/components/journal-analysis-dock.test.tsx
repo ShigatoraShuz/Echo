@@ -105,15 +105,3 @@ it.each(["failed", "unavailable"] as const)(
     ).toBeVisible();
   },
 );
-
-it("shows the saved experimental distress estimate independently of PHQ and category", () => {
-  const value = analysis(0);
-  const result = value.result as ReturnType<typeof journalAnalysisV3ResultSchema.parse>;
-  result.distressEstimate = { status: "available", band: "moderate", experimental: true,
-    method: "seallms-base-prompt", inferenceVersion: "journal-distress-rubric-v1",
-    baseModel: "SeaLLMs/SeaLLMs-v3-7B-Chat", modelVersion: "a".repeat(64) };
-  render(<JournalAnalysisDock enabled journalId="entry" analysis={value} />);
-  expect(screen.getByText("Distress estimate")).toBeVisible();
-  expect(screen.getByText("moderate")).toBeVisible();
-  expect(screen.getByText("Experimental AI estimate")).toBeVisible();
-});

@@ -6,7 +6,7 @@ from app.buddy.config import paths
 class SharedHF:
  def __init__(self):self.worker=None;self.handles={};self.lock=threading.RLock();self.keep_loaded=False
  def acquire(self,role,cancelled=None,deadline=None):
-  if role not in ('cbt','phq8','distress'):raise ValueError('Invalid shared role')
+  if role not in ('cbt','phq8'):raise ValueError('Invalid shared role')
   with self.lock:
    if self.worker is not None and self.worker.process.poll() is not None:self.invalidate()
    if self.worker is None:self.worker=Process(paths()['cbt'],'cbt',cancelled,deadline=deadline)
@@ -37,12 +37,10 @@ class Handle:
    from app.model.loading_policy import ComponentOperationError
    if not self.ready or self.owner.worker is not self.worker:
     if self.role=='phq8':raise ComponentOperationError('phq8','WORKER_UNAVAILABLE')
-    if self.role=='distress':raise ModelUnavailableError('NATIVE_DISTRESS_WORKER_UNAVAILABLE')
     raise ModelUnavailableError('BUDDY_CBT_WORKER_UNAVAILABLE')
    try:return self.worker.call(request,cancelled,deadline=deadline)
    except Exception as error:
     if str(error)=='BUDDY_CBT_CONTEXT_LIMIT':raise
-    if self.role=='distress' and str(error)=='NATIVE_DISTRESS_OUTPUT_INVALID':raise
     if self.role=='phq8' and str(error)=='NATIVE_PHQ_OUTPUT_INVALID':
      raise ComponentOperationError('phq8','OUTPUT_INVALID') from None
     self.owner.invalidate();self.ready=False;raise

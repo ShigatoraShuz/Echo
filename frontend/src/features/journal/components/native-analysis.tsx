@@ -85,9 +85,6 @@ export function NativeAnalysis({
         <p className="text-sm text-foreground/75">
           These are the classifier’s dataset labels, not clinical severity.
         </p>
-        {result.schemaVersion === "echo-journal-analysis-v3" && result.distressEstimate && (
-          <p className="mt-2 text-sm">Experimental distress estimate: <strong className="capitalize">{result.distressEstimate.status === "available" ? result.distressEstimate.band : "Not estimated"}</strong>. From the journal text; not a clinical assessment or safety rating.</p>
-        )}
         <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
           {Object.entries(result.categoryScores).map(([name, value]) => (
             <div key={name} className="min-w-0 rounded-xl border border-border bg-card p-3">

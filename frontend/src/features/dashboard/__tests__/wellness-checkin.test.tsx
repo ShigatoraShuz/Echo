@@ -369,3 +369,27 @@ describe("dashboard check-in order", () => {
     expect(api.saveSelfReportedPhq8.mock.calls[0][0].responses).toEqual(Array(8).fill(1));
   });
 });
+
+
+describe("questionnaire dashboard card", () => {
+  it("opens from the card, updates on save, and restores the same completed result on remount", async () => {
+    const responses = [1, 1, 1, 1, 1, 1, 1, 1];
+    const saved = { id: "synthetic-fixture", completedAt: "2026-11-08T00:00:00Z", ...summarizeSelfReportedPhq8(responses) };
+    const completed = { ...status, support: { ...status.support, eligible: false }, assessment: {
+      ...status.assessment, due: false, history: [{ id: saved.id, completedAt: saved.completedAt, score: 8, severity: "mild" as const }], selfReports: [saved],
+    } };
+    api.getWellnessStatus.mockResolvedValueOnce(status).mockResolvedValue(completed);
+    api.saveSelfReportedPhq8.mockResolvedValue(saved);
+    const view = render(<WellnessCheckin showGauge />);
+    fireEvent.click(await screen.findByRole("button", { name: "Take PHQ-8 check-in" }));
+    screen.getAllByRole("radio", { name: "Several days" }).forEach(option => fireEvent.click(option));
+    fireEvent.click(screen.getByRole("button", { name: "Save check-in" }));
+    await waitFor(() => expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "8"));
+    expect(api.saveSelfReportedPhq8).toHaveBeenCalledWith(expect.objectContaining({ responses }));
+    view.unmount();
+    render(<WellnessCheckin showGauge />);
+    await waitFor(() => expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "8"));
+    fireEvent.click(screen.getByRole("button", { name: "View my check-in" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName("Your check-in is saved");
+  });
+});

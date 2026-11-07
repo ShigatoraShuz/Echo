@@ -14,7 +14,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import reflectionLandscape from "../../../../assets/journal-writing.webp";
-import { DashboardDistressGauge } from "../components/dashboard-distress-gauge";
 import { ErrorState, LoadingState } from "@/shared/components/feedback";
 import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
@@ -122,7 +121,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   return (
     <div aria-busy={isLoading} className="echo-dashboard-welcome dashboard-premium space-y-4">
       {isLoading && <p role="status" className="sr-only">Updating your dashboard…</p>}
-      <WellnessCheckin preview={preview} />
 
       <div className="dashboard-top-grid grid gap-4 lg:grid-cols-2 xl:grid-cols-12">
         <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 lg:col-span-2 xl:col-span-6">
@@ -165,9 +163,9 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           <DominantEmotionWheel entries={journalEntries} insights={data.analysisInsights ?? null} />
         </DashboardCard>
 
-        {/* CURRENT DISTRESS */}
+        {/* USER-COMPLETED PHQ-8 CHECK-IN */}
         <DashboardCard className="dashboard-signal-card echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
-          <DashboardDistressGauge result={latestAnalysis} />
+          <WellnessCheckin preview={preview} showGauge />
         </DashboardCard>
 
         {/* REFLECTION SPACE */}

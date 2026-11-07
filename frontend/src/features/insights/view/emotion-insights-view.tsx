@@ -675,13 +675,6 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
               />
               {native ? (
                 <>
-                  {native.schemaVersion === "echo-journal-analysis-v3" && native.distressEstimate && (
-                    <section aria-label="Experimental distress estimate" className="mt-4 rounded-xl border border-primary/15 bg-secondary/30 p-3">
-                      <p className="text-xs font-semibold">Experimental distress estimate</p>
-                      <p className="mt-1 text-xl capitalize">{native.distressEstimate.status === "available" ? native.distressEstimate.band : "Not estimated"}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Estimated from this journal using SeaLLMs. Intensity calibration has not been validated; this is not a clinical assessment or safety rating.</p>
-                    </section>
-                  )}
                   <p className="insights-main-value mt-5">{native.distressCategory}</p>
                   <dl className="mt-4 space-y-2">
                     {Object.entries(native.categoryScores).map(([label, value]) => (

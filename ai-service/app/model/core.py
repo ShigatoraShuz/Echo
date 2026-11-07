@@ -486,23 +486,6 @@ class CoreRuntime:
         from app.vendor.e4.inference import infer_journal
         return self.call("e4", lambda m: infer_journal(m[0], m[1], m[3], text))
 
-    def estimate_distress(self, text):
-        from app.model.distress_estimate import result
-        if not getattr(self, 'hf_enabled', False):
-            return result('unavailable')
-        handle = None
-        try:
-            self.ensure_buddy_capacity()
-            handle = self.hf_runtime.acquire('distress', self.operation_cancelled)
-            return handle.call({'distressText': text}, self.operation_cancelled)
-        except (TalkBusyError, TalkCancelledError):
-            raise
-        except ModelUnavailableError:
-            return result('failed')
-        finally:
-            if handle is not None:
-                handle.close()
-
     def analyze(self, text, language="unknown", classification=None, emotion=None, screening_result=None):
         classification = classification or self.classify(text, language)
         emotion = emotion if emotion is not None else self.emotions(text)
@@ -523,7 +506,6 @@ class CoreRuntime:
         return {
             "schemaVersion": "echo-journal-analysis-v3",
             "journalScreening":screening,
-            "distressEstimate":self.estimate_distress(text),
             "thresholdVersion": "xlmr-v2-frozen",
             "providerName": "echo-core",
             "modelVersion": "echo-core-v3",

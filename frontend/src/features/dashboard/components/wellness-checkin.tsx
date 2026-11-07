@@ -7,6 +7,7 @@ import { HeartHandshake, Leaf, Sparkles, X } from "lucide-react";
 
 import { summarizeSelfReportedPhq8, type SelfReportedPhq8, type WellnessStatus } from "@echo/contracts";
 import { experienceApi } from "@/services/experience/experience-api";
+import { DashboardPhq8Gauge } from "./dashboard-phq8-gauge";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 
 // Standard PHQ-8 wording; source and interpretation notes: docs/wine-app-updates.md.
@@ -59,7 +60,7 @@ function setStorageFlag(scope: "local" | "session", key: string): void {
   }
 }
 
-export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
+export function WellnessCheckin({ preview = false, showGauge = false }: { preview?: boolean; showGauge?: boolean }) {
   const [status, setStatus] = useState<WellnessStatus | null>(preview ? previewStatus : null);
 
   const [prompt, setPrompt] = useState<Prompt>(null);
@@ -265,11 +266,15 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
           Retry
         </button>
       </p>
-    ) : null;
+    ) : showGauge ? <p role="status" className="text-sm text-muted-foreground">Loading your PHQ-8 check-in…</p> : null;
   }
 
   return (
     <>
+      {showGauge ? <DashboardPhq8Gauge assessment={status.assessment.history[0] ?? null}
+        partial={status.assessment.selfReports?.[0]?.complete === false} due={status.assessment.due}
+        onOpen={() => { setSaved(status.assessment.selfReports?.[0] ?? null); closeDock(); setPrompt("phq8"); }}
+        onStart={() => { setSaved(null); closeDock(); setPrompt("phq8"); }} /> : null}
       {status.urgentJournalId ? (
         <section className="rounded-2xl border border-primary/25 bg-secondary p-4" role="status">
           <p className="font-semibold">Support is available right now.</p>
@@ -399,7 +404,7 @@ export function WellnessCheckin({ preview = false }: { preview?: boolean }) {
         open={prompt === "phq8"}
         onClose={close}
         title={saved ? (preview ? "Preview check-in complete" : "Your check-in is saved") : "How have the last two weeks felt?"}
-        description="SELF-REPORTED PHQ-8 | DEMO_FALLBACK for the unavailable AI estimate. Your own answers, never AI predictions. Screening is not a diagnosis."
+        description="SELF-REPORTED PHQ-8 | Based on your answers about the last two weeks. Screening is not a diagnosis."
         size="large"
         className={saved ? undefined : "md:max-w-4xl"}
       >

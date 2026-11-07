@@ -1,3 +1,5 @@
+> Superseded: prompted distress estimation has been removed from inference and user-facing results. The dashboard now uses a user-completed PHQ-8 check-in. Historical records are retained for compatibility.
+
 # Distress-level model inventory — 2026-11-08
 
 Requested: connect a real distress-intensity output to the existing wellbeing gauge without changing the UI or other model behavior.

@@ -19,7 +19,7 @@ vi.mock("../view-model/use-dashboard-view-model", () => ({
 vi.mock("@/services/settings/settings.service", () => ({
   settingsService: { get: () => Promise.resolve({ profile: { displayName: "Lloyd" } }) },
 }));
-vi.mock("../components/wellness-checkin", () => ({ WellnessCheckin: () => null }));
+vi.mock("../components/wellness-checkin", () => ({ WellnessCheckin: () => <h2>PHQ-8 check-in</h2> }));
 vi.mock("../components/analysis-insights-dashboard", () => ({ AnalysisInsightsDashboard: () => null }));
 vi.mock("../components/overall-analysis", () => ({ OverallAnalysis: () => null }));
 vi.mock("../components/dominant-emotion-wheel", () => ({ DominantEmotionWheel: () => null }));
@@ -30,7 +30,7 @@ describe("dashboard welcome motion", () => {
     const first = render(<DashboardView />);
     expect(first.container.querySelector(".echo-dashboard-welcome")).toBeInTheDocument();
     expect(first.container.querySelector("[data-echo-reveal]")).not.toBeInTheDocument();
-    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("Distress level");
+    expect(first.container.querySelector(".echo-immediate-card")).toHaveTextContent("PHQ-8 check-in");
     first.unmount();
 
     const second = render(<DashboardView />);
@@ -57,6 +57,6 @@ it("opens the public dashboard heading before any private data is ready", () => 
 it("keeps the current dashboard visible during a background model-result refresh", () => {
   loadingState.loading = true;
   const view = render(<DashboardView />);
-  expect(view.container.querySelector(".echo-immediate-card")).toHaveTextContent("Distress level");
+  expect(view.container.querySelector(".echo-immediate-card")).toHaveTextContent("PHQ-8 check-in");
   expect(screen.getByRole("status")).toHaveTextContent("Updating your dashboard");
 });
