@@ -1,4 +1,5 @@
 import {RealtimeTalkHub} from "./features/experience/realtime-talk.js";
+import {createServer} from 'node:http';
 import { LocalAnalysisStore } from "./infrastructure/analysis/local-analysis-store.js";
 import { LocalBuddyStore } from "./infrastructure/analysis/local-buddy-store.js";
 import { httpOnlyMode } from "./config/http-only-mode.js";
@@ -39,6 +40,7 @@ import { CoreClient } from "./infrastructure/analysis/core-client.js";
 const environment = loadEnvironment();
 const localResults=environment.AI_ANALYSIS_MODE==="local_json"?new LocalAnalysisStore(environment.LOCAL_DATA_DIR):undefined;
 const localBuddy=localResults?new LocalBuddyStore(environment.LOCAL_DATA_DIR):undefined;
+const localStorageReady=localResults?Promise.all([localResults.ready,localBuddy!.ready]):Promise.resolve();
 const coreClient = environment.AI_SERVICE_URL ? new CoreClient(environment.AI_SERVICE_URL, environment.AI_SERVICE_TOKEN!) : undefined;
 const httpOnly = httpOnlyMode(environment.NODE_ENV, process.env.ECHO_HTTP_ONLY_MODE);
 const supabaseAdmin = createSupabaseAdminClient(environment);
@@ -103,7 +105,7 @@ const localWorkerService = new LocalWorkerService(
     createdAfter: environment.AI_NATIVE_CREATED_AFTER!,
   } : undefined,
 );
-const dataExports = new DataExportService(supabaseAdmin, encryptionService, localResults ? user=>({analysis:localResults.export(user),buddy:localBuddy!.list(user)}) : undefined);
+const dataExports = new DataExportService(supabaseAdmin, encryptionService, localResults ? user=>localResults.exportAccount(user) : undefined);
 const pushSubscriptions = environment.PUSH_VAPID_PUBLIC_KEY
   ? new PushSubscriptionsService(supabaseAdmin, encryptionService, true) : undefined;
 const settingsService = new SettingsService(supabaseAdmin, () => createSupabasePublicServerClient(environment), () => createRequestUserClient(environment), dataExports, pushSubscriptions);
@@ -192,14 +194,16 @@ const app = createApp({
 });
 
 app.locals.checkReadiness = async () => {
+  await localStorageReady;
   if(localResults){const storage=localResults.healthy();for(const user of localResults.users())localBuddy?.list(user);const db=await supabaseAdmin.schema("user_service").from("privacy_preferences").select("user_id").limit(1);const models=Boolean(await coreClient?.ready());app.locals.readinessComponents={database:!db.error,localStorage:storage,models};return !db.error && models;}
   const { data, error } = await supabaseAdmin.schema("ai_analysis").from("worker_health").select("accepting_jobs,last_heartbeat_at").eq("worker_id", authorizedWorkerId).maybeSingle();
   const workerReady = environment.AI_ANALYSIS_MODE !== "local_worker" || (data?.accepting_jobs === true && Date.now() - Date.parse(data.last_heartbeat_at) < 60_000);
   return !error && workerReady && (!coreClient || await coreClient.ready());
 };
-const server = app.listen(environment.PORT, httpOnly ? "127.0.0.1" : "0.0.0.0", () => {
-  console.info(JSON.stringify({ service: "backend", event: "started", port: environment.PORT }));
-});
+const server = createServer(app);
+void localStorageReady.then(()=>server.listen(environment.PORT,httpOnly?'127.0.0.1':'0.0.0.0',()=>{
+ console.info(JSON.stringify({service:'backend',event:'started',port:environment.PORT}));
+})).catch(()=>{console.error(JSON.stringify({service:'backend',code:'LOCAL_STORAGE_INITIALIZATION_FAILED'}));process.exitCode=1;});
 experienceService.realtime?.attach(server);
 const professionalEvents = startProfessionalEventProcessor(new ProfessionalEventService(supabaseAdmin), {
   enabled: environment.PROFESSIONAL_EVENTS_ENABLED,
@@ -215,7 +219,7 @@ if(!localResults)void backgroundJournalService.recoverDevelopmentJobs().catch(re
 void dataExports.expire().catch(reportMaintenanceFailure);
 if(localResults)void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);
 maintenanceTimer = setInterval(() => {
-  if(localResults){void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);void (async()=>{for(const user of localResults.users()){const found=await supabaseAdmin.auth.admin.getUserById(user);if(found.error?.status===404 && found.error.code==="user_not_found")experienceService.clearLocal(user);}})().catch(reportMaintenanceFailure);}
+  if(localResults)void journalService.recoverLocalJobs().catch(reportMaintenanceFailure);
   void new JournalImagesService(supabaseAdmin).cleanup().catch(reportMaintenanceFailure);
   if(!localResults)void maintenance.tick().catch(reportMaintenanceFailure);
   void dataExports.expire().catch(reportMaintenanceFailure);
@@ -235,29 +239,41 @@ async function recoverLocalAI(){
   if(!localResults||localRecoveryBusy||localRecoveryStopped)return;
   localRecoveryBusy=true;
   try {
+    await localStorageReady;
     await journalService.recoverLocalJobs();
-    for(const user of localResults.users()){
-      const found=await supabaseAdmin.auth.admin.getUserById(user);
-      if(found.error?.status===404&&found.error.code==='user_not_found')experienceService.clearLocal(user);
-    }
   } catch {reportMaintenanceFailure();} finally {localRecoveryBusy=false;}
 }
 const localRecoveryTimer=localResults?setInterval(()=>void recoverLocalAI(),5000):undefined;
 localRecoveryTimer?.unref();
 void recoverLocalAI();
+let deletionReconciliationBusy=false;
+async function reconcileLocalDeletion(){
+ if(!localResults||localRecoveryStopped||deletionReconciliationBusy)return;
+ deletionReconciliationBusy=true;
+ try{await localStorageReady;for(const user of localResults.users()){
+  if(localRecoveryStopped)break;
+  const found=await supabaseAdmin.auth.admin.getUserById(user);
+  if(found.error?.status===404&&found.error.code==='user_not_found')await experienceService.clearLocal(user);
+ }}catch{reportMaintenanceFailure();}finally{deletionReconciliationBusy=false;}
+}
+const localDeletionTimer=localResults?setInterval(()=>void reconcileLocalDeletion(),30000):undefined;
+localDeletionTimer?.unref();void reconcileLocalDeletion();
 function shutdown(signal: string): void {
   localRecoveryStopped=true;
   if(localRecoveryTimer)clearInterval(localRecoveryTimer);
+  if(localDeletionTimer)clearInterval(localDeletionTimer);
   console.info(JSON.stringify({ service: "backend", event: "shutdown", signal }));
   void experienceService.realtime?.shutdown();
+  void experienceService.closeVoiceOperations();
   void experienceService.closeModelLeases();
   journalService.stopLocalFaceProcessing();
+  journalService.cancelLocalWork();
   void journalService.closeModelLeases();
   developmentRunner.stop();
   void professionalEvents.stop();
   if (maintenanceTimer) clearInterval(maintenanceTimer);
-  server.close((error) => {
-    localResults?.close();
+  server.close(async(error) => {
+    await localResults?.close();
     process.exitCode = error ? 1 : 0;
   });
 }

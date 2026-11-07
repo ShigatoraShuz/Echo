@@ -69,14 +69,8 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
   const [privacyReady, setPrivacyReady] = useState(false);
   const privacyRead = useRef<ReturnType<typeof settingsService.get> | null>(null);
   const facialEnabled = privacyReady && journalAiAllowed === true && facialAllowed && analysisConsent && env.enableFacialAnalysis;
-  const facialRunning = !previousDraft && facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving && !analysisSubmission;
+  const facialRunning = !previousDraft && facialEnabled && Boolean(title.trim() || body.trim()) && !isSaving && !analysisSubmission && !savedEntry;
 
-  useEffect(() => {
-    if (!savedEntry) return;
-    const destination = `/journal/${savedEntry.id}`;
-    if (photoBackGuardRef.current) router.replace(destination);
-    else router.push(destination);
-  }, [savedEntry, router]);
   useEffect(() => {
     let active = true,
       revision = 0;
@@ -170,12 +164,14 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
   useEffect(() => {
     if (draftReady) void loadDraftPhotos();
   }, [draftReady, loadDraftPhotos]);
+  const lastPhotoEditorGeneration=useRef(editorGeneration);
   useEffect(()=>{
-    if(!savedEntry&&!analysisSubmission)return;
+    if(lastPhotoEditorGeneration.current===editorGeneration)return;
+    lastPhotoEditorGeneration.current=editorGeneration;
     photoReadSequence.current++;
     for(const photo of photosRef.current)if(photo.src.startsWith('blob:'))URL.revokeObjectURL(photo.src);
     setPhotos([]);setPhotoError('');setPhotosLoaded(true);
-  },[savedEntry?.id,analysisSubmission?.journalId]);
+  },[editorGeneration]);
   const pendingPhotos = photos.some((photo) => photo.status !== "saved");
   useEffect(() => {
     if (!pendingPhotos || savedEntry || analysisSubmission || photoBackGuardRef.current) return;
@@ -365,8 +361,8 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All reflections
         </Link>
-        {analysisSubmission ? (
-          <Link href={`/journal/${analysisSubmission.journalId}`} className="text-sm font-semibold text-primary underline underline-offset-4">Open saved reflection</Link>
+        {analysisSubmission || savedEntry ? (
+          <Link href={`/journal/${analysisSubmission?.journalId ?? savedEntry?.id}`} className="text-sm font-semibold text-primary underline underline-offset-4">Open saved reflection</Link>
         ) : <JournalAutosaveStatus autosaveStatus={autosaveStatus} isSaving={isSaving} />}
       </div>
       {previousDraft ? <section role="status" className="mb-5 rounded-2xl border border-border bg-card p-4">
@@ -384,7 +380,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
           <article className="journal-writing-page overflow-hidden rounded-[1.5rem] border border-border/70 bg-card shadow-[0_20px_70px_rgba(31,53,42,0.09)] sm:rounded-[2rem]">
             <div className="border-b border-border/60 bg-[linear-gradient(115deg,hsl(var(--secondary)/0.65),hsl(var(--card)))] px-5 py-5 sm:px-10 sm:py-7">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{analysisSubmission ? "Saved reflection" : "New reflection"}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{analysisSubmission || savedEntry ? "Saved reflection" : "New reflection"}</p>
                 <time className="text-xs text-muted-foreground" dateTime={new Date().toISOString()}>
                   {new Intl.DateTimeFormat("en-US", {
                     weekday: "long",
@@ -399,7 +395,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               </label>
               <input
                 id="journal-title"
-                readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
+                readOnly={preparingFace || isSaving || Boolean(activeSubmission || savedEntry)}
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => void saveDraftNow()}
@@ -419,7 +415,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               </label>
               <textarea
                 id="journal-body"
-                readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
+                readOnly={preparingFace || isSaving || Boolean(activeSubmission || savedEntry)}
                 value={body}
                 onChange={(event) => {
                   setBody(event.target.value);
@@ -467,7 +463,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                     accept="image/jpeg,image/png,image/webp"
                     multiple
                     onChange={addPhotos}
-                    disabled={photos.length >= 5 || !photosLoaded || isSaving || Boolean(activeSubmission)}
+                    disabled={photos.length >= 5 || !photosLoaded || isSaving || Boolean(activeSubmission || savedEntry)}
                     className="sr-only"
                     aria-label="Upload journal photos"
                   />
@@ -502,7 +498,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                             : "Upload failed"
                       }
                       index={index}
-                      onRemove={isSaving || analysisSubmission ? undefined : () => void removePhoto(photo.id)}
+                      onRemove={isSaving || analysisSubmission || savedEntry ? undefined : () => void removePhoto(photo.id)}
                       removeLabel={`Remove ${photo.name}`}
                     />
                   ))
@@ -532,7 +528,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               )}
               {photos.length > 0 && (
                 <p className="mt-4 text-xs text-muted-foreground">
-                  {analysisSubmission ? "Your photos are saved with this reflection." : "Saved photos stay with your private draft and attach when you finish this reflection."}
+                  {analysisSubmission || savedEntry ? "Your photos are saved with this reflection." : "Saved photos stay with your private draft and attach when you finish this reflection."}
                 </p>
               )}
             </div>}
@@ -543,7 +539,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 </label>
                 <input
                   id="journal-tags"
-                  readOnly={preparingFace || isSaving || Boolean(activeSubmission)}
+                  readOnly={preparingFace || isSaving || Boolean(activeSubmission || savedEntry)}
                   value={tags.join(", ")}
                   onChange={(event) =>
                     setTags(
@@ -600,7 +596,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 size="medium"
                 isLoading={isSaving || preparingFace}
                 disabled={!photosLoaded || pendingPhotos || !privacyReady || preparingFace}
-                onClick={analysisSubmission ? () => {
+                onClick={analysisSubmission || savedEntry ? () => {
                   photosRef.current.forEach((photo) => { if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src); });
                   setPhotos([]);
                   setPhotoError("");
@@ -609,7 +605,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 } : finish}
                 className="w-full sm:w-auto"
               >
-                <Save className="h-4 w-4" aria-hidden="true" /> {analysisSubmission ? "Write another reflection" : "Save reflection"}
+                <Save className="h-4 w-4" aria-hidden="true" /> {analysisSubmission || savedEntry ? "Write another reflection" : "Save reflection"}
               </EchoButton>
             </div>
           </div>
@@ -623,7 +619,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
           analysis={activeSubmission ? report.analysis : null}
           availability={activeSubmission ? report.analysisAvailability : null}
           onRetry={report.retry}
-          capture={facialEnabled && !analysisSubmission && !isSaving ? <JournalFaceCapture ref={faceCaptureRef} running={facialRunning} /> : undefined}
+          capture={facialEnabled && !analysisSubmission && !savedEntry && !isSaving ? <JournalFaceCapture ref={faceCaptureRef} running={facialRunning} /> : undefined}
         />
       </div>
     </main>

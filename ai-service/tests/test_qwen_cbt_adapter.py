@@ -121,7 +121,7 @@ def test_exact_tensors_and_omitted_tied_alias_load_without_random_parameters(tmp
     loaded = adapter._load_model()
     assert not any(p.is_meta for p in loaded.parameters())
     assert loaded.lm_head.weight.data_ptr() == loaded.model.embed_tokens.weight.data_ptr()
-    assert loaded.config.rope_theta == 1000000
+    assert getattr(loaded.config,'rope_theta',None) == 1000000 or loaded.config.rope_parameters['rope_theta'] == 1000000
     assert torch.equal(loaded.model.embed_tokens.weight, weights["model.embed_tokens.weight"])
     assert torch.isfinite(
         loaded(input_ids=torch.tensor([[1, 2, 3]]), logits_to_keep=1).logits

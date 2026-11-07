@@ -30,26 +30,26 @@ const result = {
   generatedAt: new Date().toISOString(),
 };
 
-it("stores a separately validated face result, reopens it and isolates accounts", () => {
+it("stores a separately validated face result, reopens it and isolates accounts", async () => {
   const dir = mkdtempSync(join(base, "face-"));
-  let store = new LocalAnalysisStore(dir);
+  let store = new LocalAnalysisStore(dir);await store.ready;
   const user = randomUUID(),
     journal = randomUUID();
   try {
-    const job = store.create(user, journal, "key", "hash");
-    store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
-    store.setFace(user, job.id, "completed", result);
+    const job = await store.create(user, journal, "key", "hash");
+    await store.set(user, job.id, "completed", 100, JSON.stringify(fixture));
+    await store.setFace(user, job.id, "completed", result);
     expect(store.get(randomUUID(), job.id)).toBeUndefined();
     expect(JSON.parse(store.get(user, job.id)!.result_ciphertext!)).toEqual(fixture);
     const json = readFileSync(join(dir, user, "analysis", job.id + ".json"), "utf8");
     expect(json).not.toContain("image");
     expect(JSON.parse(json).face_result.prediction).toBe("joy");
-    store.close();
-    store = new LocalAnalysisStore(dir);
+    await store.close();
+    store = new LocalAnalysisStore(dir);await store.ready;
     expect(store.get(user, job.id)?.face_result).toEqual(result);
-    expect(() => store.setFace(user, job.id, "completed", { ...result, classProbabilities: { joy: 1 } })).toThrow();
+    await expect(store.setFace(user, job.id, "completed", { ...result, classProbabilities: { joy: 1 } })).rejects.toThrow();
   } finally {
-    store.close();
+    await store.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

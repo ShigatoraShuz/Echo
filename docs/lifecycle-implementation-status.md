@@ -1,3 +1,5 @@
+> Current selection update (2026-11-06): startup-pinned shared Transformers/PEFT SeaLLMs with exact CBT/PHQ adapters; unchanged CUDA Nano Fast Talk; optional repaired OpenMOSS llama.cpp MOSS v1.5 Expressive Talk. This supersedes older no-startup-load/page-exit-base-unload and active-CBT-GGUF descriptions below. See the current startup/voice guide and STARTUP_EXPRESSIVE_STRESS_2026-11-06 validation report. Browser/hardware/listening and broader acceptance remain unfinished. No new push.
+
 # Lifecycle implementation status
 
 The combined plan is NOT fully implemented or ready for acceptance.
@@ -269,3 +271,36 @@ PHQ-specific diagnostic (2026-11-05):
 
 
 2026-11-05 speech transport repair: separate authenticated status/inference rate buckets; authenticated launcher preflight; sanitized speech errors; visible cancellable read-aloud preparation and speech-only retry regression. Coordinated services restarted, both Nano-only and full Talk preparation/synthetic speech passed with >2 GiB global headroom. Physical microphone/authenticated-browser/listening acceptance remains unfinished. See validation/LOCAL_SPEECH_TRANSPORT_2026-11-05.md.
+
+
+C4 cancellable-face preparation follow-on (2026-11-05, after a6f44d8):
+- Model-package hashing, imports and estimator load now occur in the owned child under the 120-second response deadline; ready fingerprint is checked against the unchanged approved pins. Failed/hung children are terminated before retry.
+- Immutable generation/cancellation identity covers queued admission, startup, ready, retry backoff and prediction. Unload cannot be overwritten by old failed/ready callbacks. Inference timeout never replays capture. Five transient attempts and permanent-failure handling are preserved.
+- 100 affected Python tests and 17 backend tests passed. Installed model prepared in 3.499 seconds; two generated blank PNGs reused one PID, unload exited it and reload used a fresh PID. No physical camera or accuracy review.
+- Backend final-page release is still queued after active operations; immediate page-exit preemption and shared safety/emotion/PHQ hard-preemption remain unfinished. This is a face-worker substage, not completion of all C4/C8 acceptance. Running app needs restart; changes remain local and were not pushed. See validation/FACE_CANCELLABLE_PREPARATION_2026-11-05.md.
+
+
+C7 final-page preparation cancellation (2026-11-05):
+- Preparation AbortControllers now leave the serialized lease work queue at final-owner grace expiry, confirmed logout or shutdown; another owner/return during grace protects the shared load. Late cancelled completions cannot mark replacement preparation ready or failed.
+- Buddy warm_chat and Journal preparation propagate cancellation through private HTTP. The async Journal route monitors disconnects; face loading links the external event with its own generation. A stale Journal native stage cannot start face preparation after an unload.
+- 103 Python and 77 backend tests passed; backend build, frontend types and diff checks passed. Isolated actual HTTP disconnect killed one synthetic owned face worker and returned unloaded in 0.114 seconds; all probe resources closed.
+- This supersedes the earlier statement that all preparation release signals wait behind the lease queue. Shared native safety/emotion/PHQ calls still require a safe stage boundary and hard-preemption remains unfinished. No authenticated browser/GPU or physical-media acceptance is claimed; running Python service needs restart. Changes are local, not pushed. See validation/PAGE_LEASE_CANCELLATION_2026-11-05.md.
+
+
+C4 native owned-worker isolation (2026-11-05):
+- Safety/XLM-R, emotion/E4-C and PHQ now load/infer in separate resident owned workers. Buddy CPU safety is isolated too. Hard component load deadlines and five transient retries terminate only the failed worker; actual inference deadlines remain independent. Policy/model identities and PHQ's unadapted check are unchanged.
+- Component-scoped asset verification retains all used-model/base checks; parent startup still verifies the full bundle. Loading HTTP/wire envelopes, scoped Journal/Buddy progress and driver-wide memory reporting are aligned. Limits remain 28 GB/60% per controlled tree, with 2 GiB global GPU reserve.
+- Final checks: 136 Python, 78 backend, 29 frontend tests passed; contracts/backend build and frontend types passed. Installed GPU safety/emotion/PHQ and CPU safety each reused one PID for two calls and exited on close.
+- Real isolated Journal IPC ran four requests: PHQ available, available, invalid output withheld, available after PHQ-only reload; eight emotions preserved throughout, safety/emotion loaded once, global GPU free ~5.6 GiB. Unload cleared all resident models. PHQ output quality remains imperfect and strict checks were not weakened.
+- This supersedes earlier statements that native model loading remains in the shared controller. Remaining work includes parent startup/hardware fault boundaries, saved-job safe-stage cancellation, full authenticated browser/microphone/listening/stress and storage/export/deletion acceptance. The main app is stopped and must be started normally; no push. See validation/NATIVE_WORKER_ISOLATION_2026-11-05.md.
+
+
+Urgent reflection retention and C5 shared-base follow-on (2026-11-06 reporting):
+- Save/queued analysis preserves writing and photo previews; explicit New/Write Another resets the generation. 28 focused frontend tests and frontend types passed.
+- Verified offline unmerged SeaLLMs base + separate exact mixed_epochs_2/PHQ LoRAs are prepared. Shared private worker integration, adapter-local requests, PHQ stage boundaries, cleanup and gated atomic selection are implemented.
+- Real configured workers reused one GPU base across two approved CBT replies with PHQ between. Nano/codec/reference stayed on CUDA; Whisper used CPU INT8. Global headroom was 9,238,482,944 bytes. Normal PHQ remains native: shared Q4 and diagnostic Q8 failed supported-nullable agreement against the unchanged HF fixture. Do not claim C5 acceptance complete or enable the diagnostic bypass in normal startup.
+- Final Python run: 462 passed, 33 failed, 5 skipped. Untouched HEAD reproduced all 34 initially observed failures; one architecture assertion was repaired and now passes. No new failure identities. Contracts/backend build, frontend types, 53 affected backend tests and 28 frontend tests passed.
+- See validation/REFLECTION_RETENTION_2026-11-05.md and validation/SHARED_SEALLMS_2026-11-05.md. Context/recovery stress, storage/export/deletion, authenticated browser and physical-media acceptance remain unfinished. Source remains local; no push.
+
+
+Shared HF selection follow-through (2026-11-06): current Buddy now uses one Transformers/PEFT NF4 SeaLLMs base with exact mixed_epochs_2 CBT and PHQ adapters. This supersedes earlier statements that current CBT remains llama.cpp. The failed shared llama.cpp candidate remains inactive. Real initial switching matched PHQ coverage 0 and approved two CBT replies on one PID, with Nano headroom above 2 GiB. See validation/SHARED_HF_2026-11-06.md for checkpoint, configuration, slower CBT timing, final capped validation and remaining browser/hardware acceptance. No push or environment change.

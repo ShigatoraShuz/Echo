@@ -223,7 +223,8 @@ def run_diagnostic(root, settings, text, exploratory_pooling=None):
         else "XLMRobertaTokenizerFast"
     )
     if (
-        type(tokenizer).__name__ != expected_tokenizer
+        type(tokenizer).__name__ not in (expected_tokenizer,expected_tokenizer.removesuffix('Fast'))
+        or not tokenizer.is_fast
         or len(tokenizer) != config["vocab_size"]
         or any(
             getattr(tokenizer, k) != config[k]

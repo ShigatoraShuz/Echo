@@ -12,6 +12,7 @@ from app.buddy.config import BUDDY_ENV_KEYS, paths
 from app.buddy.loading import COMPONENT_SECONDS
 from app.buddy.job import spawn_owned, terminate_owned
 
+WORKER_SCRIPT = Path(__file__).with_name("worker.py")
 MAX_RESPONSE = 40 * 1024 * 1024
 SAFE_ENV = ("SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP", "COMSPEC", "USERPROFILE",
             "USERNAME", "LOCALAPPDATA", "CUDA_VISIBLE_DEVICES")
@@ -23,11 +24,13 @@ def check_environment(python, kind, env, cancelled=None, deadline=None):
     imports = {
         "cbt": "import ctypes,torch,transformers",
         "nano": "import ctypes,torch,torchaudio,transformers,soundfile",
+        "moss": "import ctypes,numpy,soundfile,scipy,torch",
         "whisper": "import ctypes,faster_whisper,numpy",
     }[kind]
     check = spawn_owned([str(python), "-I", "-B", "-c", imports],
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-        env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        resource_limits={"memory_bytes":28_000_000_000,"cpu_percent":60})
     deadline = min(deadline or float("inf"), time.monotonic() + 180)
     try:
         while True:
@@ -56,6 +59,7 @@ def check_environment(python, kind, env, cancelled=None, deadline=None):
 class Process:
     def __init__(self, python, kind, cancelled=None, deadline=None):
         self.kind = kind
+        self.latest_progress = None
         self.responses = queue.Queue(maxsize=2)
         env = {key: os.environ[key] for key in (*SAFE_ENV, *BUDDY_ENV_KEYS) if key in os.environ}
         env.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1",
@@ -66,9 +70,10 @@ class Process:
         try:
             check_environment(python, kind, env, cancelled, deadline)
             self.process = spawn_owned(
-                [str(python), "-I", "-B", "-u", str(Path(__file__).with_name("worker.py")), kind],
+                [str(python), "-I", "-B", "-u", str(WORKER_SCRIPT), kind],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                resource_limits={"memory_bytes":28_000_000_000,"cpu_percent":60})
         except OSError:
             raise ModelUnavailableError("BUDDY_" + kind.upper() + "_ENV_UNAVAILABLE") from None
         threading.Thread(target=self._read, daemon=True).start()
@@ -79,7 +84,11 @@ class Process:
                 line = self.process.stdout.readline(MAX_RESPONSE + 1)
                 if not line or len(line) > MAX_RESPONSE or not line.endswith(b"\n"):
                     break
-                self.responses.put_nowait(json.loads(line))
+                value=json.loads(line)
+                if self.kind=='moss' and value.get('event')=='progress':
+                    if value.get('stage') in ('asset_verification','reference_validation'):self.latest_progress=(value.get('id'),value['stage'])
+                    continue
+                self.responses.put_nowait(value)
         except (OSError, ValueError, queue.Full):
             pass
         finally:
@@ -88,8 +97,9 @@ class Process:
             except queue.Full:
                 pass
 
-    def call(self, request, cancelled=None, deadline=None):
+    def call(self, request, cancelled=None, deadline=None, progress=None):
         identity = uuid.uuid4().hex
+        last_progress=0
         packet = json.dumps({"id": identity, "request": request}, allow_nan=False).encode() + b"\n"
         if len(packet) > 3 * 1024 * 1024:
             raise ValueError("Buddy packet too large")
@@ -108,6 +118,8 @@ class Process:
                     except queue.Full: pass
             threading.Thread(target=send, daemon=True).start()
             while time.monotonic() < deadline:
+                if progress and self.latest_progress and self.latest_progress[0]==identity and time.monotonic()-last_progress>=1:
+                    progress(self.latest_progress[1]);last_progress=time.monotonic()
                 if cancelled and cancelled.is_set():
                     self.close()
                     raise TalkCancelledError("Cancelled")

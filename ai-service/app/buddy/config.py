@@ -2,36 +2,35 @@
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ADAPTER_SHA = "6bfe92fc0ba316997a18abcb7c79a1fda7cec608bce07baaa7719bfb47c7c04e"
 ADAPTER_CONFIG_SHA = "69ecc08861220cf86bc11d770c2914d3a350c12b9037097900b1fe0787c0efad"
 VOICE_SHA = "3842d142fe4570197a059261467b806ccc36d2d35d4044255dc0d224be03a08f"
-BUDDY_ENV_KEYS = ("ECHO_BUDDY_ENABLED", "BUDDY_NANO_ROOT", "BUDDY_CBT_PYTHON",
+BUDDY_ENV_KEYS = ("MODELS_ROOT", "ECHO_SHARED_SEALLMS_VALIDATE", "ECHO_BUDDY_ENABLED", "BUDDY_NANO_ROOT", "BUDDY_CBT_PYTHON",
                   "BUDDY_NANO_PYTHON", "BUDDY_WHISPER_PYTHON", "BUDDY_WHISPER_DIR",
-                  "BUDDY_CBT_ADAPTER", "BUDDY_CBT_BACKEND")
+                  "BUDDY_CBT_ADAPTER", "BUDDY_MOSS_NATIVE_ROOT", "BUDDY_MOSS_PYTHON", "ECHO_MOSS_NATIVE_VALIDATE")
 DEFAULT_ADAPTER = str(HERE.parents[2] / "models/buddy/adapter")
 
 def enabled():
     return os.environ.get("ECHO_BUDDY_ENABLED") == "true"
 
-def cbt_backend():
-    value = os.environ.get("BUDDY_CBT_BACKEND", "llama_cpp")
-    if value not in ("native", "llama_cpp"):
-        raise ValueError("BUDDY_CBT_BACKEND_INVALID")
-    return value
+def models_root():
+    return Path(os.environ.get("MODELS_ROOT", str(HERE.parents[2] / "models"))).resolve()
 
 
 def paths():
     service = HERE.parents[1]
-    root = Path(os.environ.get("BUDDY_NANO_ROOT", str(HERE.parents[2] / "models/buddy"))).resolve()
+    root = Path(os.environ.get("BUDDY_NANO_ROOT", str(models_root() / "buddy"))).resolve()
     return {
         "root": root,
-        "adapter": Path(os.environ.get("BUDDY_CBT_ADAPTER", DEFAULT_ADAPTER)).resolve(),
+        "adapter": Path(os.environ.get("BUDDY_CBT_ADAPTER", str(models_root() / "buddy/adapter"))).resolve(),
         "cbt": Path(os.environ.get("BUDDY_CBT_PYTHON", str(service / ".venv-core/Scripts/python.exe"))),
         "nano": Path(os.environ.get("BUDDY_NANO_PYTHON", str(service / ".venv-nano/Scripts/python.exe"))),
         "whisper": Path(os.environ.get("BUDDY_WHISPER_PYTHON", str(service / ".venv-speech/Scripts/python.exe"))),
+        "moss": Path(os.environ.get("BUDDY_MOSS_PYTHON", str(service / ".venv-core/Scripts/python.exe"))),
         "whisper_model": Path(os.environ.get("BUDDY_WHISPER_DIR", str(HERE.parents[2] / "models/voice/whisper"))),
     }
 
@@ -48,7 +47,7 @@ def verify_adapter():
         raise ValueError("BUDDY_ADAPTER_IDENTITY_FAILED")
     config = json.loads((adapter / "adapter_config.json").read_text("utf-8"))
     declared = Path(config["base_model_name_or_path"])
-    base = HERE.parents[2] / "models/buddy/base"
+    base = models_root() / "buddy/base"
     if declared.name != "SeaLLMs-v3-7B-Chat":raise ValueError("BUDDY_BASE_IDENTITY_FAILED")
     if not base.is_dir():
         raise ValueError("BUDDY_BASE_IDENTITY_FAILED")

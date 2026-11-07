@@ -43,7 +43,7 @@ def verify_sampling(expected, actual):
 
 
 class Server:
-    def __init__(self, model, executable, *, context=4096, layers=29):
+    def __init__(self, model, executable, *, context=4096, layers=29, adapters=None, cancelled=None):
         self.token = secrets.token_urlsafe(48)
         self.context = context
         self.offloaded = 0
@@ -65,13 +65,24 @@ class Server:
             "--log-verbosity", "4", "--log-colors", "off", "--fit", "off", "--override-tensor", "token_embd.weight=CUDA0", "--no-context-shift", "--threads", str(threads), "--threads-batch", str(threads),
             "--threads-http", "2", "--cache-ram", "0", "--no-webui", "--slots", "--no-cors-credentials",
             "--cors-origins", "http://127.0.0.1:" + str(self.port), "--alias", "buddy-mixed-epochs-2"]
+        working_directory = {}
+        if adapters:
+            from pathlib import Path
+            directory = Path(adapters[0]).resolve().parent
+            if any(Path(value).resolve().parent != directory for value in adapters):
+                raise fail('SHARED_ADAPTER_IDENTITY_FAILED')
+            working_directory = {'cwd': str(directory)}
+            command += ['--lora-scaled', ','.join(Path(value).name+':0' for value in adapters), '--lora-init-without-apply']
         try:
             self.process = spawn_owned(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                resource_limits={"memory_bytes": 28_000_000_000, "cpu_percent": 60})
+                resource_limits={"memory_bytes": 28_000_000_000, "cpu_percent": 60}, **working_directory)
             threading.Thread(target=self._discard_logs, daemon=True).start()
             deadline = time.monotonic() + 480
             while time.monotonic() < deadline:
+                if cancelled and cancelled.is_set():
+                    from app.core.exceptions import TalkCancelledError
+                    raise TalkCancelledError('Cancelled')
                 if self.process.poll() is not None:
                     raise fail(self.failure_suffix or "LLAMA_LOAD_FAILED")
                 try:
@@ -116,6 +127,11 @@ class Server:
                 buffer = re.search(rb"CUDA0 model buffer size =\s*([0-9.]+) MiB", line)
                 if buffer:
                     self.cuda_model_bytes = int(float(buffer[1]) * 1024**2)
+                adapter_buffer = re.search(rb"CUDA0 LoRA buffer size =\s*([0-9.]+) MiB", line)
+                if adapter_buffer:
+                    self.lora_cuda_buffers = getattr(self,'lora_cuda_buffers',[]) + [int(float(adapter_buffer[1])*1024**2)]
+                if re.search(rb"CPU LoRA buffer size",line):
+                    self.lora_cpu_buffer = True
                 lower = line.lower()
                 if b"out of memory" in lower:
                     self.failure_suffix = "INSUFFICIENT_MEMORY"
@@ -132,7 +148,9 @@ class Server:
     def connection(self, method, path, payload=None, timeout=60):
         if self.closed or self.process.poll() is not None:
             raise fail("WORKER_UNAVAILABLE")
-        if path not in ("/health", "/tokenize", "/completion", "/slots", "/props", "/v1/models"):
+        if path == '/lora-adapters' and method != 'GET':
+            raise fail('TRANSPORT_INVALID')
+        if path not in ("/health", "/tokenize", "/completion", "/slots", "/props", "/v1/models", "/lora-adapters"):
             raise fail("TRANSPORT_INVALID")
         body = None if payload is None else json.dumps(payload, allow_nan=False).encode("utf-8")
         if body and len(body) > 2 * 1024**2:
@@ -218,6 +236,8 @@ class GenerateBridge:
         payload = {"prompt": prompt, "n_predict": max_new_tokens, "stream": True, "return_tokens": True,
                    "cache_prompt": False, "n_keep": -1,
                    **sampling_parameters(settings, self.server.context, int(torch.initial_seed()))}
+        if hasattr(self.server,'adapter_scales'):
+            payload['lora'] = self.server.adapter_scales()
         generated = []
         stream = self.server.stream(payload)
         finished = False
@@ -257,14 +277,17 @@ class GenerateBridge:
         return SimpleNamespace(sequences=torch.tensor([prompt + generated], device=input_ids.device, dtype=input_ids.dtype))
 
 
-def make_engine(v3, base, adapter):
+def make_engine(v3, base, adapter, *, shared=None):
     import torch
     from transformers import AutoTokenizer, StoppingCriteria, StoppingCriteriaList
     if not torch.cuda.is_available():
         raise fail("CUDA_UNAVAILABLE")
-    model, executable, lock = verify_cbt_gguf()
+    if shared is None:
+        model, executable, lock = verify_cbt_gguf()
+    else:
+        model, executable, lock = None, None, shared.identity
     from app.buddy.gpu_memory import require_headroom
-    require_headroom(torch, additional_bytes=lock["model"]["bytes"] + 1024**3)
+    require_headroom(torch, additional_bytes=lock["model"]["bytes"] + 1024**3 if shared is None else 0)
     engine = v3.LocalCBT.__new__(v3.LocalCBT)
     engine.torch = torch
     engine.device = torch.device("cuda:0")
@@ -274,7 +297,7 @@ def make_engine(v3, base, adapter):
         engine.tokenizer.pad_token = engine.tokenizer.eos_token
     engine.eos = v3.stop_ids(engine.tokenizer)
     engine.StoppingCriteria, engine.StoppingCriteriaList = StoppingCriteria, StoppingCriteriaList
-    server = Server(model, executable, context=v3.policy()["runtime"]["seqLength"],
+    server = shared if shared is not None else Server(model, executable, context=v3.policy()["runtime"]["seqLength"],
                     layers=json.loads((base / "config.json").read_text(encoding="utf-8"))["num_hidden_layers"] + 1)
     try:
         for content in ("Hello, Buddy.", "Kumusta? Let's take one step."):
@@ -300,7 +323,7 @@ def make_engine(v3, base, adapter):
         engine.model = GenerateBridge(server, torch)
         engine.close = server.close
         engine.llama_server = server
-        engine.gguf_identity = {"engine": ENGINE_VERSION, "quantization": "Q4_K_M", "artifactSHA256": lock["model"]["sha256"],
+        engine.gguf_identity = {"engine": 'shared-seallms-b12110-q4km-v1' if shared is not None else ENGINE_VERSION, "quantization": "Q4_K_M", "artifactSHA256": lock["model"]["sha256"],
             "llamaCommit": lock["llamaCommit"], "contextTokens": server.context}
         return engine
     except BaseException:

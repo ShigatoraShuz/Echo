@@ -222,7 +222,7 @@ describe("useBuddyViewModel", () => {
 
 it('clears a missing conversation from the previous history store without creating or deleting records',async()=>{
   const service=createMockService();
-  service.getConversation.mockResolvedValue({success:false,error:{code:'NOT_FOUND',message:'Local conversation unavailable.'}} as any);
+  service.getConversation.mockResolvedValue({success:false,error:{code:'NOT_FOUND',message:'Local conversation unavailable.'}});
   vi.mocked(getBuddyService).mockReturnValue(service);
   window.history.replaceState(null,'','/buddy?conversation=old-hosted-id');
   const {result}=renderHook(()=>useBuddyViewModel());

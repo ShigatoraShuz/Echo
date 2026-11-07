@@ -17,14 +17,22 @@ it('shows preparation while the response is pending and cancellation fences late
  expect(hook.result.current.isPreparingSpeech).toBe(false);expect(audio).not.toHaveBeenCalled();hook.unmount();
 });
 it('keeps safe Nano errors and retries only synthesis of the approved answer',async()=>{
- const fetcher=vi.fn(async()=>Response.json({error:{code:'BUDDY_NANO_LOAD_TIMEOUT',message:'PRIVATE REJECTED DRAFT'}},{status:503}));vi.stubGlobal('fetch',fetcher);
+ const id='10000000-0000-4000-8000-000000000001';
+ const fetcher=vi.fn(async(url:string,options:RequestInit)=>{
+  if(options.method==='DELETE')return new Response(null,{status:204});
+  if(url.endsWith('/jobs'))return Response.json({data:{id,state:'preparing'}});
+  if(url.endsWith('/jobs/'+id))return Response.json({data:{id,state:'prepared'}});
+  return Response.json({error:{code:'BUDDY_NANO_LOAD_TIMEOUT',message:'PRIVATE REJECTED DRAFT'}},{status:503});
+ });vi.stubGlobal('fetch',fetcher);
  const hook=renderHook(()=>useBuddyVoiceControls());
  await act(async()=>hook.result.current.speak('Approved answer'));
  expect(hook.result.current.voiceError).toContain('timed out');expect(hook.result.current.voiceError).not.toContain('PRIVATE');
  expect(hook.result.current.isPreparingSpeech).toBe(false);
  await act(async()=>hook.result.current.speak('Approved answer'));
- expect(fetcher).toHaveBeenCalledTimes(2);
- for(const [url,options] of fetcher.mock.calls as unknown as [string,RequestInit][]) {
+ const speechCalls=fetcher.mock.calls.filter(([url])=>url.includes('/buddy/voice/speak'));
+ expect(speechCalls).toHaveLength(2);
+ expect(fetcher.mock.calls.some(([url])=>url.includes('/buddy/messages'))).toBe(false);
+ for(const [url,options] of speechCalls as unknown as [string,RequestInit][]) {
   expect(url).toContain('/buddy/voice/speak');expect(options.body).toBe(JSON.stringify({text:'Approved answer'}));
  }
  hook.unmount();

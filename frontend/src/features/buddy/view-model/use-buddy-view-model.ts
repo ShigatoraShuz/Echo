@@ -4,6 +4,7 @@ import { getBuddyService } from "@/services/buddy/buddy-service.factory";
 import type { BuddyConversation, BuddyMessage, BuddyPagination } from "../model/buddy.model";
 
 interface BuddyState {
+  historyStore?:'local_json'|'supabase';
   responderState?: "DEMO_FALLBACK";
   historyEnabled: boolean;
   accessStatus: "loading" | "allowed" | "verification" | "trusted_contact" | "error";
@@ -24,7 +25,7 @@ interface BuddyState {
 type BuddyAction =
   | {type:"TALK_MESSAGE";message:BuddyMessage;conversationId:string|null}
   | {type:"TALK_DELIVERY";id:string;interrupted:boolean}
-  | { type: "SET_ACCESS_STATUS"; status: BuddyState["accessStatus"]; historyEnabled?: boolean; error?: string; responderState?: "DEMO_FALLBACK" }
+  | { type: "SET_ACCESS_STATUS"; status: BuddyState["accessStatus"]; historyEnabled?: boolean; historyStore?:BuddyState['historyStore']; error?: string; responderState?: "DEMO_FALLBACK" }
   | { type: "LOAD_CONVERSATIONS_START" }
   | { type: "LOAD_CONVERSATIONS_SUCCESS"; conversations: BuddyConversation[]; pagination: BuddyPagination }
   | { type: "LOAD_CONVERSATIONS_ERROR"; error: string }
@@ -67,7 +68,10 @@ function reducer(state: BuddyState, action: BuddyAction): BuddyState {
   switch (action.type) {
     case "TALK_MESSAGE":return {...state,activeConversationId:action.conversationId,messages:[...state.messages.filter(m=>m.id!==action.message.id),action.message]};
     case "TALK_DELIVERY":return {...state,messages:state.messages.map(m=>m.id===action.id?{...m,playbackInterrupted:action.interrupted}:m)};
-    case "SET_ACCESS_STATUS": return { ...state, accessStatus: action.status, historyEnabled: action.historyEnabled ?? state.historyEnabled, error: action.error ?? null, responderState: action.responderState };
+    case "SET_ACCESS_STATUS": {
+      const changed=state.historyStore!==undefined&&action.historyStore!==undefined&&state.historyStore!==action.historyStore;
+      return {...state,...(changed?{activeConversationId:null,conversations:[],messages:[],isLoadingMessages:false,isSending:false,isStreaming:false,streamingContent:'',loadingNotice:null}:{}),historyStore:action.historyStore??state.historyStore,accessStatus:action.status,historyEnabled:action.historyEnabled??state.historyEnabled,error:action.error??null,responderState:action.responderState};
+    }
     case "LOAD_CONVERSATIONS_START": return { ...state, isLoadingList: true, error: null };
     case "LOAD_CONVERSATIONS_SUCCESS": return { ...state, conversations: action.conversations, pagination: action.pagination, isLoadingList: false };
     case "LOAD_CONVERSATIONS_ERROR": return { ...state, isLoadingList: false, error: action.error };
@@ -99,8 +103,11 @@ export function useBuddyViewModel() {
   const abortRef = useRef<AbortController | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
   const searchQueryRef = useRef("");
+  const historyStoreRef=useRef<BuddyState['historyStore']>(undefined);
+  const storageEpoch=useRef(0);
 
 const selectConversation = useCallback(async (id: string) => {
+    storageEpoch.current++;
     activeConversationIdRef.current = id;
     dispatch({ type: "SET_ACTIVE_CONVERSATION", id });
     dispatch({ type: "LOAD_MESSAGES_START" });
@@ -132,12 +139,15 @@ const selectConversation = useCallback(async (id: string) => {
   }, [service]);
 
   const createConversation = useCallback(async () => {
+    storageEpoch.current++;
+    const epoch=storageEpoch.current;
     activeConversationIdRef.current = null;
     dispatch({ type: "NEW_TEMPORARY_CONVERSATION" });
     if (!state.historyEnabled) {
       return null;
     }
     const result = await service.createConversation();
+    if(epoch!==storageEpoch.current)return null;
     if (result.success) {
       activeConversationIdRef.current = result.data.id;
       dispatch({ type: "ADD_CONVERSATION", conversation: result.data });
@@ -151,15 +161,18 @@ const selectConversation = useCallback(async (id: string) => {
 
   const temporarySession=useRef<string|undefined>(undefined);
   const clearConversation = useCallback(() => {
+    storageEpoch.current++;
     temporarySession.current=undefined;
     activeConversationIdRef.current = null;
     dispatch({ type: "NEW_TEMPORARY_CONVERSATION" });
   }, []);
 
   const sendMessage = useCallback(async (conversationId: string | null, content: string) => {
+    const epoch=storageEpoch.current;
     let targetId = conversationId;
     if (state.historyEnabled && !targetId) {
       const created = await service.createConversation();
+      if(epoch!==storageEpoch.current)return;
       if (!created.success) {
         dispatch({ type: "SET_ERROR", error: created.error.message });
         return false;
@@ -180,6 +193,7 @@ const selectConversation = useCallback(async (id: string) => {
     dispatch({ type: "SET_STREAMING", content: "" });
     if(!targetId)temporarySession.current??=crypto.randomUUID();
     const result = await service.sendMessage({ ...(targetId ? { conversationId: targetId } : {temporarySessionId:temporarySession.current}), content });
+    if(epoch!==storageEpoch.current)return false;
     if (result.success) {
       dispatch({ type: "SEND_SUCCESS", optimisticId: optimistic.id, messages: result.data.messages });
       dispatch({ type: "STOP_STREAMING" });
@@ -249,6 +263,7 @@ const retryMessage = useCallback(async (conversationId: string) => {
   const accessPending = useRef<ReturnType<typeof service.getAccessStatus> | null>(null);
   useEffect(() => {
     let active = true;
+    const refresh=()=>{
     // Coalesce effect replay only; completed authorization is never cached.
     if (!accessPending.current) {
       const read = service.getAccessStatus();
@@ -257,14 +272,20 @@ const retryMessage = useCallback(async (conversationId: string) => {
     }
     void accessPending.current.then((result) => {
       if (!active) return;
+      if(result.success&&result.data.historyStore){
+        if(historyStoreRef.current&&historyStoreRef.current!==result.data.historyStore){storageEpoch.current++;abortRef.current?.abort();activeConversationIdRef.current=null;temporarySession.current=undefined;}
+        historyStoreRef.current=result.data.historyStore;
+      }
       dispatch(result.success
-        ? { type: "SET_ACCESS_STATUS", status: result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification", historyEnabled: result.data.buddyHistoryEnabled ?? true, responderState: result.data.responderState }
+        ? { type: "SET_ACCESS_STATUS", status: result.data.canAccessAi ? "allowed" : result.data.accessRequirement === "trusted_contact" ? "trusted_contact" : "verification", historyEnabled: result.data.buddyHistoryEnabled ?? true, historyStore:result.data.historyStore,responderState: result.data.responderState }
         : { type: "SET_ACCESS_STATUS", status: "error", error: result.error.message });
     });
-    return () => { active = false; };
+    };
+    refresh();window.addEventListener('focus',refresh);
+    return () => { active = false;window.removeEventListener('focus',refresh); };
   }, [service]);
 
-  useEffect(() => { if (state.accessStatus === "allowed") void loadConversations(); }, [state.accessStatus, loadConversations]);
+  useEffect(() => { if (state.accessStatus === "allowed") void loadConversations(); }, [state.accessStatus,state.historyStore,loadConversations]);
 
   const getTemporarySessionId=useCallback(()=>temporarySession.current??=crypto.randomUUID(),[]);
   const applyTalkMessage=useCallback((message:BuddyMessage,conversationId:string|null)=>{activeConversationIdRef.current=conversationId;dispatch({type:'TALK_MESSAGE',message,conversationId});if(message.role==='buddy')void loadConversations();},[loadConversations]);

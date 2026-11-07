@@ -5,7 +5,7 @@ from app.buddy.process import Process
 from app.core.exceptions import ModelUnavailableError
 
 def test_outer_budget_covers_all_attempts_and_normal_generation_is_not_extended():
-    assert PREPARATION_SECONDS > sum(COMPONENT_SECONDS.values())*5+sum(RETRY_DELAYS)*3+180
+    assert PREPARATION_SECONDS > (COMPONENT_SECONDS["cbt"]+max(COMPONENT_SECONDS["nano"],COMPONENT_SECONDS["moss"])+COMPONENT_SECONDS["whisper"])*5+sum(RETRY_DELAYS)*3+180
 
 @pytest.mark.parametrize('value',[None,{}, {'component':'secret-path','state':'loading','attempt':1}, {'component':'cbt','state':'loading','attempt':True}, {'component':'cbt','state':'loading','attempt':6}])
 def test_invalid_progress_is_rejected(value):assert safe_progress(value) is None
@@ -61,3 +61,26 @@ def test_parallel_progress_frames_remain_complete_ndjson(monkeypatch):
     with ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(lambda i:text_worker.emit({'event':'preparation','sequence':i}),range(40)))
     frames=[json.loads(line) for line in b''.join(chunks).splitlines()]
     assert len(frames)==40 and {frame['sequence'] for frame in frames}==set(range(40))
+
+
+def test_journal_progress_cannot_replace_buddy_loading_status():
+ import threading
+ from app.model.text_transport import TextRuntime
+ r=TextRuntime.__new__(TextRuntime);r.progress_lock=threading.Lock();r.preparation={'component':'emotion','state':'loading','attempt':1,'maxAttempts':5};r.preparation_kind='journal';r.preparation_id=None
+ assert r.preparation_status()=={'preparation':None}
+ assert r.preparation_status('journal')['preparation']['component']=='emotion'
+
+
+def test_journal_progress_endpoint_retains_internal_auth(monkeypatch):
+ from types import SimpleNamespace
+ from fastapi import FastAPI
+ from fastapi.testclient import TestClient
+ from app.api.routes.core import router
+ monkeypatch.setattr('app.core.security.get_settings',lambda:SimpleNamespace(ai_service_token='x'*32))
+ calls=[];app=FastAPI();app.include_router(router)
+ app.state.model_runtime=SimpleNamespace(analyze=lambda:None,preparation_status=lambda profile:calls.append(profile) or {'preparation':None})
+ with TestClient(app) as client:
+  assert client.get('/v2/journal-preparation').status_code==401
+  assert not calls
+  assert client.get('/v2/journal-preparation',headers={'Authorization':'Bearer '+'x'*32}).status_code==200
+ assert calls==['journal']

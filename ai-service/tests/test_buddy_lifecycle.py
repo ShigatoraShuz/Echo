@@ -8,7 +8,7 @@ def runtime():
  r=BuddyRuntime.__new__(BuddyRuntime)
  r.core=SimpleNamespace(lock=threading.RLock(),release=lambda:None)
  r.owner=None;r.workers={};r.cpu_classifier=object();r._classifier=lambda:r.cpu_classifier
- r.ready=False;r.status={};r.deadline=0
+ r.ready=False;r.status={};r.deadline=0;r.voice_mode='fast'
  r.progress_lock=threading.RLock();r.loading_generation=0;r.whisper_preparation=None;r.component_status={}
  return r
 
@@ -183,3 +183,28 @@ def test_speech_worker_loss_does_not_evict_healthy_page_owned_cbt(monkeypatch):
  cbt=r.workers['cbt'];monkeypatch.setattr('app.buddy.runtime.time.sleep',lambda _:setattr(r,'closed',True))
  r._watch()
  assert r.workers=={'cbt':cbt} and set(closed)=={'nano','whisper'} and r.status['code']=='BUDDY_WORKER_LOST'
+
+
+def test_isolated_safety_capacity_wait_preserves_existing_cbt():
+ from app.core.exceptions import TalkBusyError
+ r=runtime();cbt=SimpleNamespace(process=SimpleNamespace(poll=lambda:None),close=lambda:pytest.fail('capacity wait must preserve CBT'))
+ r.workers['cbt']=cbt
+ def waiting():raise TalkBusyError('GPU capacity waiting')
+ r._classifier=waiting
+ with pytest.raises(TalkBusyError):r.start('talk')
+ assert r.workers['cbt'] is cbt and r.owner is None and r.status['code']=='TALK_BUSY'
+
+
+
+def test_expressive_talk_uses_moss_and_fast_switch_keeps_cbt():
+ r=runtime();closed=[]
+ def worker(kind,payload,cancelled=None,**kwargs):
+  r.workers.setdefault(kind,SimpleNamespace(process=SimpleNamespace(pid=1,poll=lambda:None),close=lambda:closed.append(kind)))
+  return {'freeGpuBytes':4*1024**3}
+ r._worker=worker
+ r.start('talk',voice_mode='expressive');cbt=r.workers['cbt']
+ assert set(r.workers)=={'cbt','whisper','moss'} and r.healthy()
+ r.stop('talk');assert r.workers=={'cbt':cbt}
+ r.start('talk',voice_mode='fast')
+ assert set(r.workers)=={'cbt','whisper','nano'} and r.workers['cbt'] is cbt
+ assert 'moss' in closed

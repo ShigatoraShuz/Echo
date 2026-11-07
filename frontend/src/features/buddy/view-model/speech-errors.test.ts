@@ -7,3 +7,8 @@ it('does not echo arbitrary errors or rejected drafts',()=>{
  expect(speechErrorMessage('private draft E:/secret')).not.toContain('private draft');
  expect(speechErrorMessage(undefined)).toContain('approved answer is retained');
 });
+it('preserves a bounded Expressive native exit code without exposing arbitrary details',()=>{
+ expect(speechErrorMessage('BUDDY_MOSS_NATIVE_EXIT_C0000374')).toContain('C0000374');
+ expect(speechErrorMessage('BUDDY_MOSS_NATIVE_EXIT_C0000374 private draft')).not.toContain('private draft');
+ expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).toContain('BUDDY_MOSS_ASSET_MISSING');
+});

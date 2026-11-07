@@ -2,12 +2,17 @@ import { modelPreparationSchema, facialExpressionResultSchema } from "@echo/cont
 import { z } from "zod";
 import { journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema } from "@echo/contracts";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
+import {randomUUID} from 'node:crypto';
 
-/** Only preparation gets the full five-attempt envelope; inference stays bounded. */
+/** Transport includes cold-loading retries; workers separately bound ordinary inference. */
 export function coreRequestTimeout(path:string,body:unknown){
  const task=(body as {task?:unknown}|null)?.task;
- if(path==='/v2/journal-runtime'&&(body as {action?:string})?.action==='prepare')return 1_000_000;
- return path==='/v1/talk'&&['warm','warm_chat','warm_nano','warm_whisper'].includes(String(task))?6_600_000:path==='/v1/talk'?600_000:300_000;
+ if(path==='/v1/talk'&&task==='pulse')return 5000;
+ if(path==='/v2/journal-runtime'&&(body as {action?:string})?.action==='prepare')return 2_034_000;
+ if(path==='/v2/analyze'||path==='/v2/chat')return 6_600_000;
+ if(path==='/v2/classify')return 1_317_000;
+ if(path==='/v3/screening')return 3_417_000;
+ return path==='/v1/talk'&&['warm','warm_chat','warm_nano','warm_whisper','prepare','chat','support_check'].includes(String(task))?6_600_000:path==='/v1/talk'?600_000:300_000;
 }
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 const responseSchema = z.object({
@@ -64,6 +69,8 @@ export class CoreClient {
     }
   }
   private async request(path: string, body: unknown, signal?: AbortSignal) {
+    const started=performance.now();
+    const correlationId=randomUUID();
     try {
       const encoded = JSON.stringify(body);
       const limit =
@@ -91,14 +98,14 @@ export class CoreClient {
         if (response.status === 503) {
           const value = (await this.readResponse(response).catch(() => null)) as { detail?: { code?: string } } | null;
           const code = value?.detail?.code;
-          if (typeof code === "string" && /^(BUDDY|FACE|NATIVE)_[A-Z_]{1,70}$/.test(code))
+          if (typeof code === "string" && (/^(BUDDY|FACE|NATIVE)_[A-Z_]{1,70}$/.test(code)||/^BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8}$/.test(code)))
             throw new ExternalServiceError(
               code,
               code === "BUDDY_CBT_ENV_ACCESS_DENIED"
                 ? "Windows denied access to Thesis2_VENV. Restore access before starting Buddy."
                 : code === "BUDDY_RESPONSE_WITHHELD"
                   ? "Buddy could not approve a complete reply. Please try again."
-                  : code.startsWith('NATIVE_') ? 'Journal model loading failed: '+code
+                  : code.startsWith('NATIVE_') ? (path==='/v1/talk'?'Buddy safety screening failed: ':'Journal model loading failed: ')+code
                   : "Buddy model readiness or inference failed: " + code,
             );
           if (value?.detail?.code === "TALK_BUSY")
@@ -113,6 +120,13 @@ export class CoreClient {
         path === "/v1/talk" ? 40 * 1024 * 1024 : path === "/v2/speech" ? 32 * 1024 * 1024 : 1024 * 1024,
       );
     } catch (error) {
+      const operation=path==='/v1/talk'?String((body as {task?:unknown})?.task??'unknown'):'transport';
+      const code=(error as {code?:string})?.code;
+      console.warn(JSON.stringify({service:'private-ai',operation:['pulse','warm','warm_chat','warm_nano','warm_whisper','speak','transcribe','chat','support_check','prepare','close','unload'].includes(operation)?operation:'transport',
+        correlationId,sessionId:typeof (body as {sessionId?:unknown})?.sessionId==='string'&&/^[a-f0-9-]{36}$/.test((body as {sessionId:string}).sessionId)?(body as {sessionId:string}).sessionId:undefined,
+        elapsedMs:Math.round(performance.now()-started),deadlineMs:coreRequestTimeout(path,body),
+        cancellationSource:signal?.aborted?'caller':(error as {name?:string})?.name==='TimeoutError'?'deadline':'transport',
+        code:typeof code==='string'&&/^[A-Z0-9_]{1,80}$/.test(code)?code:'AI_TRANSPORT_FAILED'}));
       if (error instanceof ExternalServiceError) throw error;
       if(path==='/v1/talk'||path==='/v2/speech') {
         if(signal?.aborted)throw new ExternalServiceError('BUDDY_CANCELLED','Speech was cancelled.');
@@ -177,6 +191,25 @@ export class CoreClient {
     })();
     return this.preparationPending;
   }
+  private journalPreparationPending?:Promise<import('@echo/contracts').ModelPreparation|undefined>;
+  private journalPreparationCache:{until:number;value?:import('@echo/contracts').ModelPreparation}={until:0};
+  async journalPreparationStatus(){
+    if(Date.now()<this.journalPreparationCache.until)return this.journalPreparationCache.value;
+    if(this.journalPreparationPending)return this.journalPreparationPending;
+    this.journalPreparationPending=(async()=>{
+      try{
+        const response=await fetch(this.url.replace(/\/$/,'')+'/v2/journal-preparation',{
+          redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+this.token},signal:AbortSignal.timeout(2000),
+        });
+        if(!response.ok)throw Error();
+        const result=z.object({preparation:modelPreparationSchema.nullable()}).strict().parse(await this.readResponse(response,8192));
+        this.journalPreparationCache={until:Date.now()+500,value:result.preparation??undefined};
+        return this.journalPreparationCache.value;
+      }catch{this.journalPreparationCache={until:Date.now()+500};return undefined;}
+      finally{this.journalPreparationPending=undefined;}
+    })();
+    return this.journalPreparationPending;
+  }
   private busyCache = { until: 0, value: false };
   private busyPending?: Promise<boolean>;
   async talkBusy(force = false): Promise<boolean> {
@@ -191,7 +224,8 @@ export class CoreClient {
           signal: AbortSignal.timeout(3000),
         });
         if (!r.ok) throw new Error("Runtime unavailable");
-        const value = Boolean((await r.json()).talkActive);
+        const status=await r.json() as {talkBusy?:boolean;talkActive?:boolean};
+        const value = status.talkBusy ?? Boolean(status.talkActive);
         this.busyCache = { until: Date.now() + 2000, value };
         return value;
       } catch {
@@ -205,19 +239,24 @@ export class CoreClient {
   async face(image: Buffer) {
     return facialExpressionResultSchema.parse(await this.request("/v1/face", { image: image.toString("base64") }));
   }
+  async runtimeActivity():Promise<{journalBusy:boolean;talkReady:boolean}>{
+    const response=await fetch(this.url.replace(/\/$/,'')+'/v2/runtime',{redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+this.token},signal:AbortSignal.timeout(3000)});
+    if(!response.ok)throw new Error('Runtime activity unavailable');
+    const status=await response.json() as {journalBusy?:boolean;talkReady?:boolean};return {journalBusy:status.journalBusy===true,talkReady:status.talkReady!==false};
+  }
   async screening(text: string) {
     return await this.request("/v3/screening", { text });
   }
-  async classify(text: string, owner?:string) {
+  async classify(text: string, owner?:string, signal?:AbortSignal) {
     return z
       .object({ suicidal_language_flag: z.boolean() })
-      .parse(await this.request("/v2/classify", { text, language: "unknown", ...(owner?{owner}:{}) }));
+      .parse(await this.request("/v2/classify", { text, language: "unknown", ...(owner?{owner}:{}) },signal));
   }
-  async analyze(text: string, owner?:string) {
+  async analyze(text: string, owner?:string,signal?:AbortSignal) {
     try {
       return z
         .union([journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema])
-        .parse(await this.request("/v2/analyze", { text, language: "unknown", ...(owner?{owner}:{}) }));
+        .parse(await this.request("/v2/analyze", { text, language: "unknown", ...(owner?{owner}:{}) },signal));
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
@@ -233,7 +272,7 @@ export class CoreClient {
       throw new ExternalServiceError("AI_UNAVAILABLE", "Buddy is temporarily unavailable. Please try again later.");
     }
   }
-  async journalRuntime(action:'prepare'|'owners'|'unload',owners:string[],faceOwners:string[]=[]){return this.request('/v2/journal-runtime',{action,owners,faceOwners});}
+  async journalRuntime(action:'prepare'|'owners'|'unload',owners:string[],faceOwners:string[]=[],signal?:AbortSignal){return this.request('/v2/journal-runtime',{action,owners,faceOwners},signal);}
   async ready(): Promise<boolean> {
     try {
       return (

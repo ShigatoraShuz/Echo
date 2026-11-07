@@ -13,6 +13,7 @@ from app.buddy.text_audio import validate, assemble
 KIND = sys.argv[1] if __name__ == "__main__" else ""
 ENGINE = None
 MODEL_IDENTITY = None
+PROGRESS = None
 
 def cbt(request):
     global ENGINE, MODEL_IDENTITY
@@ -39,31 +40,58 @@ def cbt(request):
                 if file.stat().st_size != entry["bytes"] or digest(file) != entry["sha256"]:
                     raise ValueError("CBT base integrity failed")
         from app.buddy.config import verify_policy
-        from app.buddy.llama_backend import make_engine
+        from app.buddy.hf_engine import make_engine
         verify_policy()
-        from app.buddy.config import cbt_backend
-        # Explicit operator selection; a failed GGUF load never falls back silently.
-        ENGINE = v3.LocalCBT(base, adapter) if cbt_backend() == "native" else make_engine(v3, base, adapter)
+        ENGINE = make_engine(v3, base, adapter)
         MODEL_IDENTITY = {"providerName": "buddy-mixed-epochs-2", "modelVersion": ADAPTER_SHA,
                           "inferenceVersion": v3.VERSION, "base": "SeaLLMs-v3-7B-Chat",
                           "template": ENGINE.template_state, "formatterVersion": digest(HERE / "formatter-source.lock.json"),
                           **getattr(ENGINE, "gguf_identity", {"engine": "hf-peft-native-v1"})}
     if request.get("check"):
         return MODEL_IDENTITY
+    if 'phqText' in request:
+        if not isinstance(request['phqText'],str) or not request['phqText'].strip() or len(request['phqText'])>20000:
+            raise ValueError('Invalid PHQ text')
+        if 'phqCheck' in request and type(request['phqCheck']) is not bool:raise ValueError('Invalid PHQ phase')
+        from app.model.screening import infer,infer_pass
+        ENGINE.model.set_adapter('phq8');ENGINE.model.eval()
+        try:
+            if 'phqCheck' in request:
+                return infer_pass(ENGINE.model,ENGINE.phq_tokenizer,request['phqText'],check=request['phqCheck'])
+            return infer(ENGINE.model,ENGINE.phq_tokenizer,request['phqText'])
+        except (ValueError,TypeError):raise RuntimeError('NATIVE_PHQ_OUTPUT_INVALID') from None
+        finally:
+            ENGINE.model.set_adapter('cbt')
+            import torch
+            torch.cuda.empty_cache()
+    ENGINE.model.set_adapter('cbt');ENGINE.model.eval()
     from app.buddy.gpu_memory import require_headroom
     import torch
     require_headroom(torch)
     started = time.perf_counter()
-    result = ENGINE.reply(request["messages"])
+    try:
+        result = ENGINE.reply(request["messages"])
+    except ValueError as error:
+        if 'exceeds token budget' in str(error):raise RuntimeError('BUDDY_CBT_CONTEXT_LIMIT') from None
+        raise
+    torch.cuda.empty_cache()
     require_headroom(torch)
     # Do not deliver raw drafts, rejected attempts, prompts, or local paths.
     if result.get("needs_review") or not result.get("reply"):
         return {"reply": None, "withheld": True, "issues": result.get("issues", []),
                 "model": MODEL_IDENTITY, "seconds": time.perf_counter() - started}
     quality = {key: result[key] for key in ("attempts", "rewrite_attempted", "dropped_history_turns",
-               "auto_format_preserved_content", "inference_version") if key in result}
+               "auto_format_preserved_content", "inference_version", "prompt_tokens", "generated_tokens", "stop") if key in result}
     return {"reply": result["reply"], "withheld": False, "model": MODEL_IDENTITY,
             "quality": quality, "seconds": time.perf_counter() - started}
+
+def moss(request):
+    global ENGINE, MODEL_IDENTITY
+    if ENGINE is None:
+        from app.buddy.native_moss import NativeMoss
+        ENGINE = NativeMoss(progress=PROGRESS)
+        MODEL_IDENTITY = ENGINE.identity
+    return ENGINE.call(request)
 
 def nano(request):
     global ENGINE, MODEL_IDENTITY
@@ -100,7 +128,7 @@ def nano(request):
         tokenizer = model._load_text_tokenizer(text_tokenizer_path=str(root / "models/nano"))
         ENGINE = (service, model, codec, codes, tokenizer, nq)
         MODEL_IDENTITY = {"providerName": "MOSS-TTS-Nano", "modelVersion": digest(HERE / "assets.lock.json"),
-            "inferenceVersion": "echo-buddy-nano-v2", "voiceReferenceSHA256": VOICE_SHA,
+            "inferenceVersion": "echo-buddy-nano-v3-bounded-segments", "voiceReferenceSHA256": VOICE_SHA,
             "generation": {"seed": 42, "maxNewFrames": 4096, "audioTemperature": .8,
                            "audioTopP": .95, "audioTopK": 25, "audioRepetitionPenalty": 1.2},
             "runtime": {"torch": torch.__version__, "transformers": transformers.__version__,
@@ -110,6 +138,11 @@ def nano(request):
     if request.get("check"):
         return {"model": MODEL_IDENTITY, "freeGpuBytes": require_headroom(torch)["freeBytes"]}
     started = time.perf_counter()
+    if request.get('prepareTexts') is not None:
+        from app.buddy.nano_segments import bounded_sentences
+        parts=request['prepareTexts']
+        if not isinstance(parts,list) or len(parts)>500 or any(not isinstance(t,str) for t in parts) or sum(map(len,parts))>20000:raise ValueError('Invalid speech segmentation')
+        return {'parts':bounded_sentences(parts,lambda t:len(ENGINE[4].encode(t,add_special_tokens=False)))}
     texts = request["texts"]
     if not 1 <= len(texts) <= 3 or any(not isinstance(t, str) or not t.strip() for t in texts):
         raise ValueError("Invalid sentence batch")
@@ -127,6 +160,7 @@ def nano(request):
         audio = (np.clip(processed, -1, 1) * 32767).astype("<i2").tobytes()
         segments.append({"text": text, "audio": base64.b64encode(audio).decode(),
                          "sampleRate": 48000, "channels": 2})
+    torch.cuda.empty_cache()
     return {"segments": segments, "model": MODEL_IDENTITY,
             "seconds": time.perf_counter() - started, "freeGpuBytes": require_headroom(torch)["freeBytes"]}
 
@@ -176,6 +210,7 @@ def residency():
         result["device"] = str(ENGINE.model.device)
         result["computeType"] = str(ENGINE.model.compute_type)
         return result
+    if KIND == "moss":return {**result,"engine":"OpenMOSS-llama.cpp","device":"cuda","model":MODEL_IDENTITY}
     import torch
     if KIND == "cbt" and hasattr(ENGINE, "llama_server"):
         from app.buddy.gpu_memory import global_memory
@@ -204,6 +239,7 @@ def residency():
 def loading_error_code(error, kind, checking=False):
     """No exception message/path is returned unless it is already a safe code."""
     code = str(error)
+    if code == "NATIVE_PHQ_OUTPUT_INVALID":return code
     if code.startswith("BUDDY_") and code.replace("_", "").isalnum() and len(code) < 80:
         return code
     suffix = "PREFLIGHT_OR_INFERENCE_FAILED"
@@ -221,6 +257,7 @@ def loading_error_code(error, kind, checking=False):
 
 
 def main():
+    global PROGRESS
     # Windows job ownership already releases this worker on parent death.
     # Keep initial native imports on the input thread, as in the Nano tester:
     # a blocked reader thread can stall native NumPy/DLL initialization.
@@ -231,9 +268,13 @@ def main():
         if len(line) > 3 * 1024 * 1024 or not line.endswith(b"\n"):
             return
         packet = json.loads(line)
+        def progress(stage):
+            sys.__stdout__.buffer.write(json.dumps({'id':packet['id'],'event':'progress','stage':stage}).encode()+b'\n')
+            sys.__stdout__.buffer.flush()
+        PROGRESS=progress if KIND=='moss' else None
         try:
             with contextlib.redirect_stdout(sys.stderr):
-                result = residency() if packet["request"].get("stats") else {"cbt": cbt, "nano": nano, "whisper": whisper}[KIND](packet["request"])
+                result = residency() if packet["request"].get("stats") else {"cbt": cbt, "nano": nano, "moss": moss, "whisper": whisper}[KIND](packet["request"])
             reply = {"id": packet["id"], "result": result}
         except Exception as error:
             reply = {"id": packet["id"], "error": loading_error_code(error, KIND, packet["request"].get("check") is True)}

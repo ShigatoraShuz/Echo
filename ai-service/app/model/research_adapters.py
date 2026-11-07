@@ -109,11 +109,17 @@ def token_windows(tokenizer, text, spec, preprocessing):
     windows = []
     for start in range(0, max(1, len(ids)), step):
         end = min(start + usable, len(ids))
-        windows.append(
-            tokenizer.prepare_for_model(
-                ids[start:end], add_special_tokens=True, return_attention_mask=True
-            )
-        )
+        prepare=getattr(tokenizer,'prepare_for_model',None)
+        if callable(prepare):
+            window=prepare(ids[start:end],add_special_tokens=True,return_attention_mask=True)
+        else:
+            # Transformers 5 removed prepare_for_model from the fast RoBERTa API.
+            # These validated single-sequence classifiers use <s> tokens </s>.
+            if tokenizer.__class__.__name__ not in ('RobertaTokenizer','RobertaTokenizerFast','XLMRobertaTokenizer','XLMRobertaTokenizerFast') or tokenizer.num_special_tokens_to_add(pair=False)!=2 or tokenizer.cls_token_id is None or tokenizer.sep_token_id is None:
+                raise ManifestError('TOKENIZER_ARCHITECTURE_MISMATCH')
+            prepared=[tokenizer.cls_token_id,*ids[start:end],tokenizer.sep_token_id]
+            window={'input_ids':prepared,'attention_mask':[1]*len(prepared)}
+        windows.append(window)
         if len(windows) > preprocessing.max_windows:
             if preprocessing.truncation == "reject":
                 raise ManifestError("INPUT_TOKEN_LIMIT")
@@ -177,7 +183,7 @@ class XlmRobertaDistressAdapter(ResearchClassifierAdapter):
             str(root), local_files_only=True, trust_remote_code=False
         )
         config = XLMRobertaConfig.from_pretrained(str(root), local_files_only=True)
-        validate_tokenizer(self.tokenizer, config, self.spec, ("XLMRobertaTokenizerFast",))
+        validate_tokenizer(self.tokenizer, config, self.spec, ("XLMRobertaTokenizerFast","XLMRobertaTokenizer"))
         with torch.device("meta"):
             shape_model = XLMRobertaForSequenceClassification(config)
         verify_tensors(
@@ -213,7 +219,7 @@ class E4EmotionAdapter(ResearchClassifierAdapter):
         self.tokenizer = AutoTokenizer.from_pretrained(
             str(root), local_files_only=True, trust_remote_code=False
         )
-        validate_tokenizer(self.tokenizer, config, self.spec, ("RobertaTokenizerFast",))
+        validate_tokenizer(self.tokenizer, config, self.spec, ("RobertaTokenizerFast","RobertaTokenizer"))
         with torch.device("meta"):
             shape_encoder = RobertaModel(config, add_pooling_layer=self.spec.encoder_pooler)
             shape_heads = torch.nn.ModuleDict(

@@ -1,3 +1,7 @@
+> Latest validation update (2026-11-06): the user authorized testing under aggregate 28 GB RAM / 60% CPU limits. See [resource-limited results and remaining failures](../validation/RESOURCE_LIMITED_TESTS_2026-11-06.md), which supersedes the earlier source-only testing restriction. Full backend, type checks and lint passed; Python has three unresolved legacy framework-compatibility failures. Real-model, browser and hardware acceptance are reported separately. No new push.
+>
+> Current selection: startup-pinned shared Transformers/PEFT SeaLLMs with exact CBT/PHQ adapters; CUDA Nano Fast Talk; optional OpenMOSS llama.cpp MOSS v1.5 Expressive Talk. This supersedes older no-startup-load/page-exit-base-unload and active-CBT-GGUF descriptions below.
+
 # Echo current-system handover — 2026-11-05
 
 This is the current handover for the `echo-tailscale-remote` source checkpoint. It supersedes the October 31 model-integration handover for current runtime selection and voice behavior. Historical documents remain evidence of their original snapshots, not current configuration.
@@ -33,7 +37,7 @@ Local JSON mode generates one ephemeral private credential shared by the coordin
 | Transcription | Persistent faster-whisper in its configured speech environment, CPU INT8 requested; microphone captures are not persisted |
 | Safety/distress | Existing XLM-R classifier/calibration, separate from emotion analysis |
 | Text emotions | E4-C/RoBERTa Plutchik-eight emotion model; not the XLM-R safety model |
-| Journal PHQ estimate | Existing HF/PEFT/bitsandbytes native loader and adapted/adapter-disabled agreement passes; not migrated to llama.cpp. Missing/unsupported scores remain null, never fabricated zeroes |
+| Journal PHQ estimate | Isolated HF/PEFT/bitsandbytes worker with adapted/adapter-disabled agreement passes; not migrated to llama.cpp. Missing/unsupported scores remain null, never fabricated zeroes |
 | Face | Existing local face_model package through persistent isolated face worker and consent/page ownership |
 | Data | AI jobs/results and Buddy history remain local account-scoped JSON. Supabase remains login/account/access/consent and existing journal source storage. No automatic hosted history import or local-AI upload |
 
@@ -76,9 +80,29 @@ Detailed reports: ../validation/LOCAL_SPEECH_TRANSPORT_2026-11-05.md, ../validat
 3. Real scheduler stress: journal work during Talk, safe-stage yielding, maximum context/long replies, memory headroom, restart recovery and stable worker identities across repeated ordinary turns.
 4. PHQ llama.cpp migration is not complete. Preserve both adapted and unadapted verification passes; never reuse the CBT-merged model for PHQ or its base check. The original saved PHQ failure lacked the exact exception; do not retrospectively label all old errors OOM.
 5. Async JSON repository/indexing, comprehensive deletion fencing/reconciliation and account-export composition remain incomplete acceptance areas. Preserve existing valid records and account boundaries; do not import/delete hosted history or upload local AI records.
-6. Hard per-attempt cancellation/preemption and final-owner unloading during busy native loads need further work. Five retries and grace periods are not proof that hung native calls are interruptible.
+6. Component workers now isolate killable native loads. Continue testing saved-job safe-stage cancellation, parent startup/OS/driver failures and real final-owner timing; do not equate a ten-second grace with instantaneous VRAM release.
 7. Broader product/auth/export/deletion and full-suite acceptance is unfinished. Earlier reports note baseline synthetic tokenizer/model mismatch failures; reproduce against the unchanged baseline before attributing failures or changing environments.
 
 ## Publication boundaries
 
 The checkpoint includes source, tests, dependency/runtime lock definitions, font license and required bundled font. It excludes weights/GGUFs/codecs/voice WAVs, Python environments, local JSON conversations/results, runtime credentials, recordings, ignored diagnostic logs and local rollback archives. No database policy change, environment modification, main merge or deployment is part of publishing this checkpoint. See ../github-publication-audit-2026-11-05.md for audit scope and limits.
+
+
+## Local follow-on after published checkpoint
+
+C4 face-worker preparation now has cancellable, generation-fenced loading and in-child pinned package verification; 100 affected Python and 17 backend tests plus an installed-model blank-image/reload check passed. See ../validation/FACE_CANCELLABLE_PREPARATION_2026-11-05.md. These follow-on changes are local until explicitly committed/published. The backend now dispatches cooperative preparation cancellation outside its lease queue when final-owner grace expires; native component loading now runs in killable owned workers; existing saved-job safe-stage behavior and physical/browser acceptance remain unfinished. See ../validation/PAGE_LEASE_CANCELLATION_2026-11-05.md for 103 Python and 77 backend tests and the isolated real HTTP disconnect check. Restart the coordinated app to activate the local source changes.
+
+
+## Latest local native-loader follow-on
+
+Safety, emotion, PHQ and Buddy CPU safety now use owned isolated workers with bounded loading and independent inference limits. Final validation: 136 Python, 78 backend and 29 frontend tests; real repeated Journal IPC preserved safety/emotion while recovering PHQ alone. See ../validation/NATIVE_WORKER_ISOLATION_2026-11-05.md for measurements, strict PHQ output rejection and remaining browser/stress/storage work. These changes remain local after a6f44d8; no new push. The main app was stopped at the final check; start the normal launcher to activate the source changes.
+
+
+## Urgent editor and gated shared-base follow-on
+
+Save Reflection now keeps writing/tags/emotions/photos after save or queued analysis. Only explicit New/Write Another resets the editor; 28 focused frontend tests passed. See ../validation/REFLECTION_RETENTION_2026-11-05.md.
+
+An offline unmerged base + exact CBT/PHQ LoRA bundle and private shared-worker integration now exist. One real base PID served approved CBT, PHQ, then approved CBT with Nano/codec on GPU and Whisper on CPU INT8. PHQ migration is NOT activated: Q4 and diagnostic Q8 both produced unsupported full coverage on a fixture where current HF returned coverage 0. Keep the current profile; do not bypass qualification during normal startup. See ../validation/SHARED_SEALLMS_2026-11-05.md for pins, timings, explicit setup/rollback and remaining acceptance. This supersedes earlier wording that PHQ migration has no implementation, but does not establish migration completion. Other unfinished storage/browser/hardware work remains unfinished. No new push.
+
+
+Shared HF selection follow-through (2026-11-06): current Buddy now uses one Transformers/PEFT NF4 SeaLLMs base with exact mixed_epochs_2 CBT and PHQ adapters. This supersedes earlier statements that current CBT remains llama.cpp. The failed shared llama.cpp candidate remains inactive. Real initial switching matched PHQ coverage 0 and approved two CBT replies on one PID, with Nano headroom above 2 GiB. See ../validation/SHARED_HF_2026-11-06.md for checkpoint, configuration, slower CBT timing, final capped validation and remaining browser/hardware acceptance. No push or environment change.

@@ -74,6 +74,8 @@ def test_scheduler_releases_only_optional_buddy_workers():
 
 def test_prepare_modes_preserve_prepared_text():
     runtime = stub(); runtime.owner = "session"
+    runtime.workers={'nano':object()}
+    runtime._worker=lambda kind,payload,cancelled=None:{'parts':payload['prepareTexts']}
     for mode in ("sentences_2_then_3", "buffered"):
         result = runtime.dispatch("session", {"task": "prepare", "text": "First. Second. Third. Fourth. Fifth. Sixth.",
                                               "language": "English", "speechMode": mode})
@@ -91,7 +93,7 @@ def test_no_production_payload_file_writes():
 def test_v3_delivery_strips_rejected_drafts(monkeypatch):
     from app.buddy import worker, gpu_memory
     monkeypatch.setattr(gpu_memory,"require_headroom",lambda *a,**kw:{"freeBytes":8*1024**3})
-    engine = SimpleNamespace(reply=lambda messages: {"needs_review": True, "reply": None,
+    engine = SimpleNamespace(model=SimpleNamespace(set_adapter=lambda name: None, eval=lambda: None), reply=lambda messages: {"needs_review": True, "reply": None,
         "_raw_reply": "Rejected private draft", "issues": ["incomplete"]})
     monkeypatch.setattr(worker, "ENGINE", engine)
     monkeypatch.setattr(worker, "MODEL_IDENTITY", {"modelVersion": ADAPTER_SHA})
@@ -283,13 +285,12 @@ def test_buddy_environment_defaults_are_local_to_the_checkout(monkeypatch):
     assert config.paths()["cbt"] == Path("D:/custom/python.exe")
 
 
-def test_cbt_backend_is_explicit_and_rejects_invalid_selection(monkeypatch):
-    from app.buddy.config import cbt_backend, BUDDY_ENV_KEYS
-    monkeypatch.delenv("BUDDY_CBT_BACKEND", raising=False)
-    assert cbt_backend() == "llama_cpp"
-    monkeypatch.setenv("BUDDY_CBT_BACKEND", "native")
-    assert cbt_backend() == "native"
-    assert "BUDDY_CBT_BACKEND" in BUDDY_ENV_KEYS
-    monkeypatch.setenv("BUDDY_CBT_BACKEND", "fallback")
-    with pytest.raises(ValueError, match="BUDDY_CBT_BACKEND_INVALID"):
-        cbt_backend()
+def test_shared_model_root_is_forwarded_and_used_for_adapter_defaults(monkeypatch, tmp_path):
+    from app.buddy import config
+    for name in config.BUDDY_ENV_KEYS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("MODELS_ROOT", str(tmp_path))
+    assert "MODELS_ROOT" in config.BUDDY_ENV_KEYS
+    assert config.models_root() == tmp_path.resolve()
+    assert config.paths()["adapter"] == (tmp_path / "buddy/adapter").resolve()
+    assert config.paths()["root"] == (tmp_path / "buddy").resolve()

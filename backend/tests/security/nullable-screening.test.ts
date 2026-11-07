@@ -53,3 +53,17 @@ it("keeps v3 nullable estimates separate through encrypted persistence", async (
   expect(sealed.supportSeverity).toBeNull();
   expect(openAnalysisResult({ ciphertext: sealed.encryptedPayload }, encryption)).toEqual(result);
 });
+
+it("keeps shared runtime identity separate from the PHQ policy and excludes private fields", () => {
+  const result = {
+    status: "available", experimental: true, inferenceVersion: "journal-adapter-agreement-v2:test",
+    items, coverage: 0, subtotal: null, total: null,
+    runtimeEngine: { name: "shared-seallms-llama-cpp", version: "a".repeat(40),
+      baseSHA256: "b".repeat(64), adapterSHA256: "c".repeat(64), quantization: "Q4_K_M" },
+  };
+  expect(journalScreeningSchema.parse(result).runtimeEngine).toEqual(result.runtimeEngine);
+  expect(journalScreeningSchema.safeParse({ ...result,
+    runtimeEngine: { ...result.runtimeEngine, path: "private" } }).success).toBe(false);
+  expect(journalScreeningSchema.safeParse({ ...result,
+    runtimeEngine: { ...result.runtimeEngine, adapterSHA256: "wrong" } }).success).toBe(false);
+});

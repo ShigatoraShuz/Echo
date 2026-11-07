@@ -3,6 +3,7 @@ import { speechErrorMessage } from "./speech-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import { env } from "@/config/environment";
+import {voiceOperationSchema} from '@echo/contracts';
 export function useBuddyVoiceControls() {
   const recorder = useRef<MediaRecorder | null>(null),
     tracks = useRef<MediaStream | null>(null),
@@ -56,20 +57,31 @@ export function useBuddyVoiceControls() {
   }, []);
   async function request(path: string, body: BodyInit, type: string) {
     const epoch = generation.current;
-    const token = await supabaseAuthTokenProvider.getAccessToken();
+    let token = await supabaseAuthTokenProvider.getAccessToken();
     if (epoch !== generation.current) throw new DOMException("Cancelled", "AbortError");
-    abort.current = new AbortController();
-    const response = await fetch(env.apiBaseUrl + "/buddy/voice/" + path, {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token, "Content-Type": type },
-      body,
-      signal: AbortSignal.any([abort.current.signal, AbortSignal.timeout(6600000)]),
-    });
-    if (!response.ok) {
-      const failure = await response.json().catch(() => null);
-      throw Error(speechErrorMessage(failure?.error?.code));
-    }
-    return response;
+    const controller=new AbortController();abort.current=controller;
+    let jobId:string|undefined;
+    const cancelJob=()=>{if(jobId)void fetch(env.apiBaseUrl+'/buddy/voice/jobs/'+jobId,{method:'DELETE',headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(10000),keepalive:true}).catch(()=>{});};
+    controller.signal.addEventListener('abort',cancelJob,{once:true});
+    const call=async(suffix:string,method='GET',payload?:BodyInit,contentType='application/json')=>{
+      token=await supabaseAuthTokenProvider.getAccessToken();
+      if(epoch!==generation.current||controller.signal.aborted)throw new DOMException('Cancelled','AbortError');
+      const response=await fetch(env.apiBaseUrl+'/buddy/voice/'+suffix,{method,headers:{Authorization:'Bearer '+token,'Content-Type':contentType},body:payload,cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(suffix.endsWith('/result')||method==='POST'&&contentType!=='application/json'?60000:15000)])});
+      if(!response.ok){const failure=await response.json().catch(()=>null);throw Error(speechErrorMessage(failure?.error?.code));}return response;
+    };
+    const pause=()=>new Promise<void>((resolve,reject)=>{const onAbort=()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'));};const timer=setTimeout(()=>{controller.signal.removeEventListener('abort',onAbort);resolve();},1000);controller.signal.addEventListener('abort',onAbort,{once:true});if(controller.signal.aborted)onAbort();});
+    const wait=async(target:'prepared'|'complete',budget:number)=>{const end=Date.now()+budget;let transient=0;while(Date.now()<end){
+      try{const value=voiceOperationSchema.parse((await (await call('jobs/'+jobId)).json()).data);transient=0;if(value.state==='failed')throw Error(speechErrorMessage(value.code));if(value.state===target)return;}
+      catch(error){if(controller.signal.aborted||!(error instanceof TypeError||(error instanceof DOMException&&error.name==='TimeoutError'))||++transient>3)throw error;}
+      await pause();
+    }throw Error('Voice preparation or processing timed out. The approved reply is retained.');};
+    try{
+      const created=voiceOperationSchema.parse((await (await call('jobs','POST',JSON.stringify({kind:path==='speak'?'speak':'transcribe'}))).json()).data);jobId=created.id;
+      await wait('prepared',6600000);
+      await call(path+'?operationId='+jobId,'POST',body,type);
+      await wait('complete',600000);
+      return await call('jobs/'+jobId+'/result');
+    }finally{controller.signal.removeEventListener('abort',cancelJob);cancelJob();}
   }
   const startListening = useCallback(
     async (callback: (text: string) => void) => {

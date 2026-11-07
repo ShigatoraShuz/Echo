@@ -7,7 +7,7 @@ it('shares bounded temporary context and only speaks approved replies for their 
   const talk = vi.fn(async (payload: any) => {
     if (payload.task === 'prepare') return { groups: [[payload.text]] };
     if (payload.task === 'speak') return {
-      segments: [{ audio: Buffer.alloc(4).toString('base64') }],
+      segments: [{ audio: Buffer.alloc(4).toString('base64'), sampleRate: 48000, channels: 2 }],
       model: { providerName: 'local-nano' },
     };
     return { ok: true };

@@ -18,8 +18,8 @@ export async function verifyLocalFlow(core: any) {
     const root = fileURLToPath(new URL('../../../runtime-cache/local-json-flow/', import.meta.url));
     await mkdir(root, { recursive: true });
     const dir = await mkdtemp(root + 'run-');
-    let store = new LocalAnalysisStore(dir);
-    const buddy = new LocalBuddyStore(dir);
+    let store = new LocalAnalysisStore(dir);await store.ready;
+    const buddy = new LocalBuddyStore(dir);await Promise.all([store.ready,buddy.ready]);
     const writes: string[] = [];
     const ident = (x: string) => { assert.match(x, /^[a-z_]+$/); return x; };
     const client: any = { schema(schema: string) { ident(schema); return { async rpc(name: string, args: Record<string, unknown>) { ident(name); if (name.startsWith('submit_')) {
@@ -76,7 +76,7 @@ export async function verifyLocalFlow(core: any) {
             const retried=await fetch(base+'/journals/'+first.journal_id+'/screening/retry',{method:'POST',headers});assert.equal(retried.status,200,await retried.text());
             const after=JSON.parse(store.get(user,first.id)!.result_ciphertext!);assert.deepEqual(after.categoryScores,before.categoryScores);assert.deepEqual(after.emotionDistribution,before.emotionDistribution);assert.equal(after.journalScreening.status,'available');
             assert.equal(Number((await db.query('select count(*) n from ai_analysis.analysis_results')).rows[0].n),0);assert.equal(Number((await db.query('select count(*) n from ai_analysis.analysis_requests')).rows[0].n),0);
-            store.close();store=new LocalAnalysisStore(dir);assert.equal(store.completed(user).length,3);console.info('PASS actual nullable PHQ-8 through Express, disposable encrypted journal saves, JSON persistence, screening-only retry and reload; zero database analysis records');return;
+            await store.close();store=new LocalAnalysisStore(dir);await store.ready;assert.equal(store.completed(user).length,3);console.info('PASS actual nullable PHQ-8 through Express, disposable encrypted journal saves, JSON persistence, screening-only retry and reload; zero database analysis records');return;
         }
         const response = await fetch(base + '/buddy/messages', { method: 'POST', headers, body: JSON.stringify({ content: 'I feel stressed about homework. Can we choose one small step?' }) });
         const conversation = await response.json();
@@ -93,13 +93,13 @@ export async function verifyLocalFlow(core: any) {
         assert.equal(Number((await db.query('select count(*) n from ai_analysis.analysis_results')).rows[0].n), 0);
         assert.equal(Number((await db.query('select count(*) n from ai_analysis.analysis_requests')).rows[0].n), 0);
         assert.equal(Number((await db.query('select count(*) n from buddy_service.buddy_messages')).rows[0].n), 0);
-        store.close();
-        store = new LocalAnalysisStore(dir);
+        await store.close();
+        store = new LocalAnalysisStore(dir);await store.ready;
         assert.equal(store.completed(user).length, 3);
         console.info('PASS Express + disposable SQL journal saves + actual English/Filipino/Taglish models + readable JSON + Buddy reopen; no cloud analysis/Buddy records');
     }
     finally {
-        store.close();
+        await store.close();
         server.close();
         await db.close();
     }

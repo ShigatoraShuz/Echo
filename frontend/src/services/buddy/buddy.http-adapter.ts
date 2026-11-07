@@ -110,9 +110,10 @@ export function createBuddyHttpAdapter(): BuddyService {
     async getAccessStatus(signal) {
       try {
         const response = await client.get<ApiEnvelope<Pick<VerificationSnapshot, "canAccessAi" | "accessRequirement"> &
-          { buddyHistoryEnabled: boolean; responderState?: "DEMO_FALLBACK" }>>("/buddy/access", { signal });
+          { buddyHistoryEnabled: boolean; historyStore?:'local_json'|'supabase'; responderState?: "DEMO_FALLBACK" }>>("/buddy/access", { signal });
         return { success: true, data: { canAccessAi: response.data.canAccessAi, accessRequirement: response.data.accessRequirement,
           buddyHistoryEnabled: response.data.buddyHistoryEnabled ?? true,
+          historyStore:response.data.historyStore,
           ...(response.data.responderState ? { responderState: response.data.responderState } : {}) } };
       } catch (error) {
         return { success: false, error: toBuddyError(error) };

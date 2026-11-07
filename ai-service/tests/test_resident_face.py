@@ -6,11 +6,11 @@ from app.core.exceptions import ModelUnavailableError
 
 def test_real_resident_protocol_reuses_pid_and_excludes_credentials(monkeypatch,tmp_path):
  runtime=ResidentFaceRuntime(tmp_path);children=[];pins={'selected_model.joblib':'a'*64}
- monkeypatch.setattr(runtime,'verify',lambda:pins)
+ monkeypatch.setattr('app.face_eval_memory.approved_pins',lambda:pins)
  monkeypatch.setenv('AI_SERVICE_TOKEN','private-sentinel')
  def spawn(args,**kwargs):
   assert 'private-sentinel' not in str(args) and 'AI_SERVICE_TOKEN' not in kwargs['env'];assert kwargs['env']['CUDA_VISIBLE_DEVICES']=='-1'
-  code="import sys,json,base64\nprint(json.dumps({'ready':True}),flush=True)\nfor line in sys.stdin:\n p=json.loads(line); assert base64.b64decode(p['audioImage'])==b'synthetic-image'; print(json.dumps({'id':p['id'],'result':{'schemaVersion':'echo-face-expression-v1','status':'unavailable','reason':'no_usable_face','modelFingerprint':'a'*64}}),flush=True)\n"
+  code="import sys,json,base64\nprint(json.dumps({'ready':True,'modelFingerprint':'a'*64}),flush=True)\nfor line in sys.stdin:\n p=json.loads(line); assert base64.b64decode(p['audioImage'])==b'synthetic-image'; print(json.dumps({'id':p['id'],'result':{'schemaVersion':'echo-face-expression-v1','status':'unavailable','reason':'no_usable_face','modelFingerprint':'a'*64}}),flush=True)\n"
   child=subprocess.Popen([sys.executable,'-I','-B','-u','-c',code],**kwargs);children.append(child);return child
  monkeypatch.setattr('app.model.face_transport.spawn_owned',spawn)
  try:

@@ -14,11 +14,11 @@ const token =
   "e30." +
   Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url") +
   ".synthetic";
-async function fixture(saving = false) {
+async function fixture(saving = false, voiceMode: "fast" | "expressive" = "fast") {
   const base = resolve("../runtime-cache/talk-tests");
   mkdirSync(base, { recursive: true });
   const dir = mkdtempSync(join(base, "session-"));
-  const store = new LocalBuddyStore(dir);
+  const store = new LocalBuddyStore(dir);await store.ready;
   const core = {
     talk: vi.fn(async (p: any, signal?: AbortSignal): Promise<any> => {
       if (signal?.aborted) throw Error("cancel");
@@ -64,7 +64,7 @@ async function fixture(saving = false) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address() as any;
-  const session = await hub.create(user, token, { temporarySessionId: randomUUID() });
+  const session = await hub.create(user, token, { temporarySessionId: randomUUID(), voiceMode });
   const ws = new WebSocket(`ws://127.0.0.1:${address.port}/api/v1/buddy/voice/stream`, {
     origin: "http://localhost:3000",
   });
@@ -86,6 +86,7 @@ async function fixture(saving = false) {
     ws.close();
     await hub.shutdown();
     await new Promise<void>((r) => server.close(() => r()));
+    await store.close();
     rmSync(dir, { recursive: true, force: true });
   };
   return { core, service, store, dir, hub, ws, events, access, session, send, wait, close };
@@ -460,4 +461,19 @@ it('a valid keepalive refreshes the idle clock without another warm-up',async()=
   const warms=f.core.talk.mock.calls.filter(([p])=>p.task==='warm').length;
   f.send({type:'ping'});await f.wait('pong');expect(active.lastActivity).toBeGreaterThan(Date.now()-2000);expect(f.core.talk.mock.calls.filter(([p])=>p.task==='warm')).toHaveLength(warms);
  }finally{await f.close();}
+});
+
+it("keeps expressive voice selection through readiness and approved speech", async () => {
+  const f = await fixture(false, "expressive");
+  try {
+    f.send({ type: "authenticate", ticket: f.session.ticket });
+    await f.wait("ready");
+    expect(f.core.talk.mock.calls.some(([p]) => p.task === "warm" && p.voiceMode === "expressive")).toBe(true);
+    const turnId = randomUUID();
+    f.send({ type: "begin", generation: 1, turnId });
+    const frame = Buffer.alloc(1032); frame.writeUInt32LE(1, 0); f.ws.send(frame);
+    f.send({ type: "finish", generation: 1, turnId });
+    await f.wait("approved_reply"); await f.wait("audio");
+    expect(f.core.talk.mock.calls.filter(([p]) => p.task === "speak").every(([p]) => p.voiceMode === "expressive")).toBe(true);
+  } finally { await f.close(); }
 });

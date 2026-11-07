@@ -13,6 +13,7 @@ import { runWithRequestContext } from "../../shared/request-context.js";
 import { ConflictError, NotFoundError, AuthenticationError } from "../../shared/errors/app-error.js";
 
 type Session = {
+  voiceMode: "fast" | "expressive";
   speechMode: "sentences_2_then_3" | "buffered";
   language: "English" | "Filipino" | "Taglish";
   speechReply?: { text: string; id: string };
@@ -20,6 +21,9 @@ type Session = {
   finishTail: Promise<void>;
   pendingTurns: number;
   pulseBusy: boolean;
+  pulseFailedAt?: number;
+  journalPaused?: boolean;
+  activityChecking?: boolean;
   historyEnabled: boolean;
   id: string;
   user: string;
@@ -119,6 +123,16 @@ export class RealtimeTalkHub {
   ) {
     this.timer = setInterval(() => {
       const s = this.active;
+      if(s&&!s.closed&&s.ready&&!s.finalizing&&!s.inflight.size&&!s.activityChecking){
+        s.activityChecking=true;
+        const activity=this.core.runtimeActivity?this.core.runtimeActivity():Promise.resolve({journalBusy:false,talkReady:true});
+        void activity.then(status=>{
+          if(s.closed||!s.ready||s.finalizing||s.inflight.size)return;
+          const busy=status.journalBusy||this.service.localJournalProcessing?.(s.user);
+          if(busy&&!s.journalPaused){s.journalPaused=true;this.send(s,{type:'state',state:'preparing',reason:'journal_stage'});}
+          else if(!busy&&s.journalPaused){s.journalPaused=false;if(!status.talkReady){s.ready=false;this.send(s,{type:'error',code:'TALK_RECOVERY_REQUIRED',message:'Restoring speech models after journal processing.'});}else this.send(s,{type:'recovered'});}
+        }).catch(()=>{}).finally(()=>{s.activityChecking=false;});
+      }
       if (
         s &&
         !s.closed &&
@@ -126,7 +140,7 @@ export class RealtimeTalkHub {
           (!s.ws && Date.now() > s.ticketUntil) ||
           (s.ready && !s.finalizing && Date.now() - s.lastActivity > 60000))
       )
-        void this.close(s, "paused");
+        void this.close(s, Date.now()>s.expires?'auth_required':'paused');
     }, 1000);
     this.timer.unref();
   }
@@ -134,7 +148,7 @@ export class RealtimeTalkHub {
     try {
       const exp = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).exp;
       if (!Number.isFinite(exp)) throw Error();
-      return Math.min(Date.now() + 30 * 60000, exp * 1000);
+      return exp * 1000;
     } catch {
       throw new AuthenticationError("INVALID_ACCESS_TOKEN", "A current session is required.");
     }
@@ -151,6 +165,7 @@ export class RealtimeTalkHub {
     if (this.active && !this.active.closed) throw new ConflictError("TALK_BUSY", "Another Talk session is active.");
     const s: Session = {
       speechMode: args.speechMode,
+      voiceMode: args.voiceMode,
       language: args.language,
       speechFailed: false,
       finishTail: Promise.resolve(),
@@ -204,7 +219,7 @@ export class RealtimeTalkHub {
   async refresh(user: string, id: string, token: string) {
     const s = this.owned(user, id);
     await this.service.validateTalk(user);
-    s.expires = Math.min(s.created + 30 * 60000, this.expiry(token));
+    s.expires = this.expiry(token);
     s.token = token;
     return { expiresAt: new Date(s.expires).toISOString() };
   }
@@ -292,8 +307,16 @@ export class RealtimeTalkHub {
                 const controller = s.abort;
                 void this.core
                   .talk({ task: "pulse", sessionId: s.id }, controller.signal)
+                  .then(()=>{if(!s.closed&&s.abort===controller)s.pulseFailedAt=undefined;})
                   .catch(() => {
-                    if (s.abort === controller && !controller.signal.aborted) return this.close(s, "unavailable");
+                    if(s.closed||s.abort!==controller||controller.signal.aborted)return;
+                    // Browser pings prove the socket is alive. A busy AI lane is
+                    // not a reason to destroy the approved reply or this session.
+                    s.pulseFailedAt??=Date.now();
+                    if(Date.now()-s.pulseFailedAt>60000){
+                      s.ready=false;
+                      this.send(s,{type:'error',code:'TALK_RECOVERY_REQUIRED',message:'The model connection needs recovery. Press Interrupt to recover Talk; approved text is retained.'});
+                    }
                   })
                   .finally(() => {
                     s.pulseBusy = false;
@@ -324,7 +347,7 @@ export class RealtimeTalkHub {
               if (s.finalSequence !== undefined && s.acked === s.finalSequence) await this.markDelivery(s, "played");
               return;
             }
-            if (!s.ready) throw Error();
+            if (!s.ready && event.type!=='cancel') throw Error();
             if (event.type === "retry_speech") {
               if (event.generation === s.generation && event.turnId === s.turnId)
                 void this.retrySpeech(s).catch(() => this.close(s, "unavailable"));
@@ -339,7 +362,7 @@ export class RealtimeTalkHub {
                 this.send(s, { type: "state", state: "recovering" });
                 void this.context(s, async () => {
                   await this.authorize(s);
-                  await this.core.talk({ task: "warm", sessionId: s.id }, controller.signal);
+                  await this.core.talk({ task: "warm", sessionId: s.id, voiceMode: s.voiceMode }, controller.signal);
                   if (!s.closed && s.abort === controller && !controller.signal.aborted) {
                     s.ready = true;
                     this.send(s, { type: "recovered" });
@@ -377,7 +400,8 @@ export class RealtimeTalkHub {
               if (s.pendingTurns >= 2) throw Error("Too many pending turns");
               s.finalizing = true;
               s.lastActivity = Date.now();
-              s.partialAbort.abort();
+              // Let the bounded partial finish. Aborting it tears down the
+              // persistent Whisper worker just before final transcription.
               const generation = s.generation,
                 turnId = s.turnId!,
                 controller = s.abort,
@@ -429,13 +453,16 @@ export class RealtimeTalkHub {
     if (s.conversationId) await this.service.ensureOwnedConversation(s.user, s.conversationId);
   }
   private async prepare(s: Session) {
+    const controller=s.abort;
+    const current=()=>!s.closed&&s.abort===controller&&!controller.signal.aborted;
     try {
       await this.context(s, async () => {
         await this.authorize(s);
+        if(!current())return;
         await this.service.ensureBuddyPrepared();
-        if(s.closed||s.abort.signal.aborted)return;
-        const warm = await this.core.talk({ task: "warm", sessionId: s.id }, s.abort.signal);
-        if (s.closed) return;
+        if(!current())return;
+        const warm = await this.core.talk({ task: "warm", sessionId: s.id, voiceMode: s.voiceMode }, controller.signal);
+        if (!current()) return;
         s.ready = true;
         s.lastActivity = Date.now();
         this.send(s, {
@@ -450,6 +477,7 @@ export class RealtimeTalkHub {
         });
       });
     } catch (error) {
+      if(!current())return;
       this.send(s, {
         type: "error",
         code: (error as { code?: string }).code ?? "BUDDY_PREFLIGHT_FAILED",
@@ -474,12 +502,14 @@ export class RealtimeTalkHub {
       s.partialAt = s.bytes;
       s.partialBusy = true;
       const current = s.generation;
+      const partialController=s.partialAbort;
       const snapshot = Buffer.concat(s.frames).subarray(-8 * 16000 * 2);
       void this.context(s, async () => {
         await this.authorize(s);
+        if(s.closed||s.generation!==current||partialController.signal.aborted)return {text:''};
         return this.core.talk(
           { task: "transcribe", sessionId: s.id, language: s.language, audio: snapshot.toString("base64") },
-          s.partialAbort.signal,
+          partialController.signal,
         );
       })
         .then((value) => {
@@ -527,6 +557,7 @@ export class RealtimeTalkHub {
           s.temporarySessionId,
           turnId,
         );
+        if(!current())return;
         s.conversationId = accepted.conversationId;
         if (transcription.model)
           await this.service.talkProvenance(s.user, s.conversationId, turnId, "stt", transcription.model);
@@ -555,14 +586,14 @@ export class RealtimeTalkHub {
             timings: { transcriptionMs },
           },
         );
-        s.conversationId = completion.conversationId;
         if (!current()) {
-          await this.service.talkDelivery(s.user, s.conversationId, completion.message.id, {
+          await this.service.talkDelivery(s.user, completion.conversationId, completion.message.id, {
             state: "interrupted",
             playedMs: 0,
           });
           return;
         }
+        s.conversationId = completion.conversationId;
         s.replyId = completion.message.id;
         this.send(s, {
           type: "approved_reply",
@@ -579,18 +610,21 @@ export class RealtimeTalkHub {
         const cause=(error as {code?:string}).code;
         this.send(s, {
           type: "error",
-          causeCode:typeof cause==='string'&&/^[A-Z_]{1,80}$/.test(cause)?cause:undefined,
+          causeCode:typeof cause==='string'&&/^(?:[A-Z_]{1,80}|BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8})$/.test(cause)?cause:undefined,
           stage:s.replyId?'speech':'turn',retryable:true,correlationId:randomUUID(),
           code: s.replyId ? "SPEECH_UNAVAILABLE" : "TURN_UNAVAILABLE",
           message: s.replyId
             ? "The approved text reply is available, but speech could not finish."
-            : "This turn could not finish. Text already accepted remains saved; restart Talk to retry.",
+            : "This turn could not finish. Accepted text remains saved; recovering Talk for a new turn.",
         });
         if (s.replyId) {
           s.speechFailed = true;
           controller.abort();
           this.send(s, { type: "state", state: "speech_failed" });
-        } else this.send(s, { type: "state", state: "unavailable" });
+        } else {
+          controller.abort();
+          this.send(s, { type: "state", state: "recovering" });
+        }
       }
     } finally {
       audio.fill(0);
@@ -618,10 +652,12 @@ export class RealtimeTalkHub {
             text: reply,
             language: s.language,
             speechMode: s.speechMode,
+            voiceMode: s.voiceMode,
           },
           controller.signal,
         ),
       );
+    if(!current())return;
     if (prepared.groups.flat().join("") !== prepared.preparedText) throw Error("Speech coverage failed");
     s.sent = 0;
     s.acked = 0;
@@ -639,6 +675,7 @@ export class RealtimeTalkHub {
         await this.core.talk(
           {
             task: "speak",
+            voiceMode: s.voiceMode,
             sessionId: s.id,
             texts,
             language: s.language,
@@ -667,6 +704,7 @@ export class RealtimeTalkHub {
       await this.authorize(s);
       if (!current()) return;
       await this.service.talkProvenance(s.user, s.conversationId, turnId, "tts", spoken.model);
+      if(!current())return;
       for (const segment of spoken.segments) {
         const pcm = Buffer.from(segment.audio, "base64");
         if (!pcm.length || pcm.length % 4 || pcm.length > 45 * 48000 * 4 || pcm.toString("base64") !== segment.audio)
@@ -714,6 +752,7 @@ export class RealtimeTalkHub {
         totalSynthesisMs,
         synthesisAndDeliveryMs: performance.now() - started,
       });
+      if(!current())return;
       s.finalSequence = s.sent;
       this.send(s, { type: "audio_end", sequence: s.sent, synthesisAndDeliveryMs: performance.now() - started });
       if (s.acked === s.sent) await this.markDelivery(s, "played");
@@ -734,13 +773,14 @@ export class RealtimeTalkHub {
     this.send(s, { type: "speech_restart", previousGeneration });
     try {
       await this.context(s, () => this.deliverSpeech(s, reply.text, controller));
-    } catch {
+    } catch (error) {
       if (!s.closed && !controller.signal.aborted) {
         s.speechFailed = true;
         controller.abort();
         this.send(s, {
           type: "error",
           code: "SPEECH_UNAVAILABLE",
+          causeCode:typeof (error as {code?:string}).code==='string'&&/^[A-Z0-9_]{1,80}$/.test((error as {code:string}).code)?(error as {code:string}).code:undefined,
           message: "The approved answer is retained. Retry speech or stop Talk.",
         });
       }

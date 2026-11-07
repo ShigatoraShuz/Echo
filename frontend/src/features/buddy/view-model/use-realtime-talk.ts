@@ -37,6 +37,7 @@ type LocalSession = {
   source?: MediaStreamAudioSourceNode;
   epoch: number;
   renew?: ReturnType<typeof setInterval>;
+  refreshing?: boolean;
   plays: Set<AudioBufferSourceNode>;
   nextPlay: number;
   voiceActive: boolean;
@@ -124,10 +125,14 @@ export function useRealtimeTalk(options: Options) {
   const suspended=useRef(false);
   const pendingStream=useRef<MediaStream|null>(null);
   const pendingContext=useRef<AudioContext|null>(null);
+  const sensitivityRef=useRef<'normal'|'sensitive'>('normal');
+  const [sensitivity,setSensitivityState]=useState<'normal'|'sensitive'>('normal');
+  const setSensitivity=useCallback((value:'normal'|'sensitive')=>{sensitivityRef.current=value;setSensitivityState(value);},[]);
   const [state, setState] = useState("idle"),
     [error, setError] = useState(""),
     [transcript, setTranscript] = useState(""),
     [active, setActive] = useState(false),
+    [voiceMode, setVoiceMode] = useState<"fast" | "expressive">("fast"),
     [speechMode, setSpeechMode] = useState<TalkSpeechMode>("sentences_2_then_3"),
     [language, setLanguage] = useState<TalkLanguage>("English"),
     [experimentalLanguages, setExperimentalLanguages] = useState(false),
@@ -234,7 +239,8 @@ export function useRealtimeTalk(options: Options) {
           if (!s.voiceActive) {
             s.ring.push(values);
             if (s.ring.length > 18) s.ring.shift();
-            s.speechFrames = energy >= 0.012 ? s.speechFrames + 1 : 0;
+            const threshold=sensitivityRef.current==='sensitive'?.008:.012;
+            s.speechFrames = energy >= threshold ? s.speechFrames + 1 : 0;
             if (s.speechFrames < 15) return; // 480 ms minimum audible utterance.
             s.generation++;
             s.turnId = crypto.randomUUID();
@@ -433,6 +439,7 @@ export function useRealtimeTalk(options: Options) {
           ...(callbacks.current.conversationId ? { conversationId: callbacks.current.conversationId } : {}),
           temporarySessionId: callbacks.current.getTemporarySessionId(),
           speechMode,
+          voiceMode,
           language,
           experimentalLanguages,
         },
@@ -518,6 +525,7 @@ export function useRealtimeTalk(options: Options) {
           if (event.type === "recovered") {
             s.modelReady=true;
             if(s.suspended){setState('paused');return;}
+            void microphone(s).catch(error=>{if(isCurrent(s))fail(error instanceof Error?error.message:'Microphone unavailable.');});
             pauseCapture(s, false);
             setState("listening");
             return;
@@ -609,6 +617,14 @@ export function useRealtimeTalk(options: Options) {
             return;
           }
           if (event.type === "error") {
+            if(event.code==='DELIVERY_UNAVAILABLE'){setError(typeof event.message==='string'?event.message:'Playback metadata could not be saved.');return;}
+            if(event.code==='TURN_UNAVAILABLE'||event.code==='TALK_RECOVERY_REQUIRED'){
+              clearPlayback(s);pauseCapture(s,true);s.modelReady=false;
+              setError(typeof event.message==='string'?event.message:'Recovering Talk. Approved text is retained.');
+              setState('recovering');
+              send(s,{type:'cancel',generation:s.generation});
+              return;
+            }
             if (event.code === "SPEECH_UNAVAILABLE") {
               clearPlayback(s);
               pauseCapture(s, true);
@@ -630,20 +646,26 @@ export function useRealtimeTalk(options: Options) {
           fail("The audio connection stalled. Restart Talk or use Chat.");
           return;
         }
-        if (s.expires - Date.now() < 90000)
+        if (s.expires - Date.now() < 90000 && !s.refreshing){
+          s.refreshing=true;
           void api("/buddy/voice/sessions/" + s.id + "/refresh", "POST", {}, abort.signal)
             .then((value) => {
+              if(!isCurrent(s))return;
               s.expires = Date.parse(value.expiresAt);
             })
             .catch(() => {
-              if (isCurrent(s)) fail("Session renewal failed. Sign in again to continue.");
-            });
+              if(isCurrent(s)){
+                if(Date.now()>=s.expires)fail('Talk authorization expired. Sign in again to continue.');
+                else setError('Session refresh is delayed; retrying while the current authorization remains valid.');
+              }
+            }).finally(()=>{s.refreshing=false;});
+        }
       }, 15000);
     } catch (e) {
       if (ctx && session.current?.ctx !== ctx && ctx.state !== "closed") await ctx.close();
       if (current === epoch.current) fail(e instanceof Error ? e.message : "Talk could not start.");
     }
-  }, [stop, fail, isCurrent, microphone, play, send, speechMode, language, experimentalLanguages]);
+  }, [stop, fail, isCurrent, microphone, play, send, speechMode, voiceMode, language, experimentalLanguages]);
   useEffect(() => () => stop(), [stop]);
   useEffect(() => {
     const s = session.current;
@@ -681,6 +703,10 @@ export function useRealtimeTalk(options: Options) {
     interrupt,
     speechMode,
     setSpeechMode,
+    voiceMode,
+    setVoiceMode,
+    sensitivity,
+    setSensitivity,
     language,
     setLanguage,
     experimentalLanguages,

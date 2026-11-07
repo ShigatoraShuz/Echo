@@ -8,6 +8,7 @@ export const talkSessionInputSchema = z
     conversationId: z.string().uuid().optional(),
     temporarySessionId: z.string().uuid(),
     speechMode: talkSpeechModeSchema.default("sentences_2_then_3"),
+    voiceMode: z.enum(["fast", "expressive"]).default("fast"),
     language: talkLanguageSchema.default("English"),
     experimentalLanguages: z.boolean().default(false),
   })
@@ -20,7 +21,7 @@ export const talkClientEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("authenticate"), ticket: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ type: z.literal("begin"), ...turn }).strict(),
   z.object({ type: z.literal("finish"), ...turn }).strict(),
-  z.object({ type: z.literal("cancel"), generation: turn.generation }).strict(),
+  z.object({ type: z.literal("cancel"), generation: z.number().int().min(0).max(100000) }).strict(),
   z.object({ type: z.literal("retry_speech"), ...turn }).strict(),
   z
     .object({
@@ -52,6 +53,8 @@ export const talkDeliverySchema = z
 export type TalkDelivery = z.infer<typeof talkDeliverySchema>;
 export type TalkSpeechMode = z.infer<typeof talkSpeechModeSchema>;
 export type TalkLanguage = z.infer<typeof talkLanguageSchema>;
+export const voiceOperationSchema=z.object({id:z.string().uuid(),state:z.enum(['preparing','prepared','working','complete','failed']),code:z.string().regex(/^[A-Z0-9_]{1,80}$/).optional()});
+export type VoiceOperation=z.infer<typeof voiceOperationSchema>;
 
 export const talkPlaybackStateSchema = z.enum([
   "idle",
@@ -84,9 +87,11 @@ export const talkModelReadinessSchema = z.object({
   workers: z
     .object({
       cbt: z.number().int().positive(),
-      nano: z.number().int().positive(),
+      nano: z.number().int().positive().optional(),
+      moss: z.number().int().positive().optional(),
       whisper: z.number().int().positive(),
     })
+    .refine(workers=>Boolean(workers.nano)!==Boolean(workers.moss),{message:'Exactly one speech engine must be ready.'})
     .optional(),
 });
 export type TalkPlaybackState = z.infer<typeof talkPlaybackStateSchema>;

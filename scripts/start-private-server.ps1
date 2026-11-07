@@ -22,7 +22,7 @@ $taskEnvironment = @{
     ECHO_BUDDY_ENABLED = $(if ($EnableBuddy -or $taskConfig.enableBuddy) { 'true' } else { 'false' })
     MODELS_ROOT = [IO.Path]::GetFullPath($taskModels)
 }
-foreach ($taskKey in @('BUDDY_CBT_PYTHON','BUDDY_CBT_ADAPTER','BUDDY_NANO_ROOT','BUDDY_NANO_PYTHON','BUDDY_WHISPER_PYTHON','BUDDY_WHISPER_DIR','FACE_PYTHON','FACE_MODEL_DIR','BUDDY_CBT_BACKEND')) {
+foreach ($taskKey in @('BUDDY_CBT_PYTHON','BUDDY_CBT_ADAPTER','BUDDY_NANO_ROOT','BUDDY_NANO_PYTHON','BUDDY_WHISPER_PYTHON','BUDDY_WHISPER_DIR','FACE_PYTHON','FACE_MODEL_DIR','BUDDY_MOSS_PYTHON','BUDDY_MOSS_NATIVE_ROOT')) {
     if ($taskConfig.$taskKey) { $taskEnvironment[$taskKey] = [string]$taskConfig.$taskKey }
 }
 $taskPrevious = @{}

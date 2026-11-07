@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "manifestSHA256": "a0c986d94a6768b8819b2235b65eeaec8684e21291bd1e64e380230273726209",
+  "modelRevision": "cdd3b911b1585e3f2dbc7775ef10f9926f58850a",
+  "codecRevision": "3cd226ba2947efa357ef453bcad111b6eafba782",
+  "forkRevision": "b785003ba497794ecfa337c3e47f01af79489888",
+  "sourceArchiveSHA256": "42a5df3085b36f3f9845538b314f213b1d5aace591d05e89ff589ed27a27dea4",
+  "syntheticInferenceValidated": true,
+  "listeningReview": "unverified"
+}

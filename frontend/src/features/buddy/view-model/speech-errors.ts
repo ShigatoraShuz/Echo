@@ -7,6 +7,8 @@ export function speechErrorMessage(code: unknown): string {
   if (code === 'AI_TRANSPORT_CONNECTION_FAILED') return 'Cannot connect to the local speech service. Check that Echo is running.';
   if (code === 'BUDDY_CANCELLED') return 'Speech was cancelled.';
   if (code === 'AI_TRANSPORT_TIMEOUT' || /^BUDDY_(CBT|NANO|WHISPER)_(LOAD|ENV)_TIMEOUT$/.test(code)) return 'Local model preparation or speech timed out. Your approved answer is retained; retry speech.';
+  if (/^BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8}$/.test(code)) return 'Expressive speech stopped with native code ' + code.slice(-8) + '. Your approved answer is retained; retry speech after recovery.';
+  if (/^BUDDY_MOSS_[A-Z_]{1,60}$/.test(code)) return 'Expressive speech preparation or synthesis failed (' + code + '). Your approved answer is retained; retry speech.';
   if (/^BUDDY_NANO_[A-Z_]{1,60}$/.test(code)) return 'Nano speech preparation or synthesis failed (' + code + '). Your approved answer is retained; retry speech.';
   return 'Local speech is unavailable. Your approved answer is retained; retry speech.';
 }

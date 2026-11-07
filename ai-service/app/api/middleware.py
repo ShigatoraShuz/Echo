@@ -53,7 +53,7 @@ def request_limiter(request):
         require_internal_token(request.headers.get("authorization"))
     except HTTPException:
         return _limiter
-    if request.method == "GET" and request.url.path in ("/v2/preparation", "/v2/runtime"):
+    if request.method == "GET" and request.url.path in ("/v2/preparation", "/v2/runtime", "/v2/journal-preparation"):
         return _status_limiter
     return _inference_limiter
 

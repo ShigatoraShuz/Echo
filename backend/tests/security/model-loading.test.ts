@@ -4,11 +4,11 @@ import {modelPreparationSchema,modelPageLeaseSchema} from '@echo/contracts';
 import {ExperienceService} from '../../src/features/experience/experience.service.js';
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 const progress={component:'cbt',state:'loading',attempt:2,maxAttempts:5,elapsedSeconds:12,correlationId:'a'.repeat(32)};
-it('extends only fixed preparation operations without extending generation',()=>{
- for(const task of ['warm','warm_chat','warm_nano','warm_whisper'])expect(coreRequestTimeout('/v1/talk',{task})).toBe(6600000);
- for(const task of ['chat','speak','transcribe','support_check','prepare'])expect(coreRequestTimeout('/v1/talk',{task})).toBe(600000);
- expect(coreRequestTimeout('/v2/chat',{task:'warm'})).toBe(300000);
- expect(coreRequestTimeout('/v2/analyze',{})).toBe(300000);
+it('allows cold-loading transport envelopes without extending Talk generation',()=>{
+ for(const task of ['warm','warm_chat','warm_nano','warm_whisper','prepare','chat','support_check'])expect(coreRequestTimeout('/v1/talk',{task})).toBe(6600000);
+ for(const task of ['speak','transcribe'])expect(coreRequestTimeout('/v1/talk',{task})).toBe(600000);
+ expect(coreRequestTimeout('/v2/chat',{task:'warm'})).toBe(6600000);
+ expect(coreRequestTimeout('/v2/analyze',{})).toBe(6600000);
 });
 it('bounded protected progress fetch is deduplicated independently of inference',async()=>{
  let finish!:(r:Response)=>void;const fetcher=vi.fn((_input:string|URL|Request,_init?:RequestInit)=>new Promise<Response>(r=>finish=r));vi.stubGlobal('fetch',fetcher);
@@ -62,7 +62,7 @@ it('failed preparation is reported as a real failure and Send does not silently 
 });
 it('prewritten support routing remains available while ordinary models are loading',async()=>{
  vi.stubEnv('ECHO_BUDDY_ENABLED','true');const core:any={talk:vi.fn(),chat:vi.fn()};
- const service:any=new ExperienceService({} as any,{} as any,{} as any,undefined,undefined,core,{} as any);service.historyEnabled=async()=>false;service.runtimeState={state:'preparing'};
+ const service:any=new ExperienceService({} as any,{} as any,{} as any,undefined,undefined,core,{generation:()=>0} as any);service.historyEnabled=async()=>false;service.runtimeState={state:'preparing'};
  const result=await service.sendBuddyMessage('owner','I cannot keep myself safe');expect(result.messages[1].content).toMatch(/Crisis support/);expect(core.chat).not.toHaveBeenCalled();expect(core.talk).not.toHaveBeenCalled();await service.closeModelLeases();
 });
 
@@ -70,4 +70,20 @@ it('preserves sanitized native loading codes across the private analysis boundar
  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({detail:{code:'NATIVE_EMOTION_IMPORT_FAILED'}}),{status:503})));
  const core=new CoreClient('http://127.0.0.1:8002','x'.repeat(32));
  await expect(core.classify('Synthetic fixture')).rejects.toMatchObject({code:'NATIVE_EMOTION_IMPORT_FAILED',message:'Journal model loading failed: NATIVE_EMOTION_IMPORT_FAILED'});
+});
+
+it('allows bounded native cold-loading envelopes while preserving ordinary Talk generation windows',()=>{
+ expect(coreRequestTimeout('/v2/classify',{})).toBe(1317000);
+ expect(coreRequestTimeout('/v3/screening',{})).toBe(3417000);
+ expect(coreRequestTimeout('/v2/journal-runtime',{action:'prepare'})).toBe(2034000);
+ expect(coreRequestTimeout('/v2/journal-runtime',{action:'unload'})).toBe(300000);
+ for(const component of ['safety','emotion','phq'])expect(modelPreparationSchema.parse({...progress,component,code:'NATIVE_EMOTION_LOAD_TIMEOUT'}).component).toBe(component);
+});
+
+it('keeps Journal loading status separate from Buddy status and deduplicates its fetch',async()=>{
+ const fetcher=vi.fn(async(url:string)=>Response.json({preparation:{...progress,component:url.endsWith('journal-preparation')?'emotion':'cbt'}}));vi.stubGlobal('fetch',fetcher);
+ const core=new CoreClient('http://127.0.0.1:8002','x'.repeat(32));
+ const [a,b]=await Promise.all([core.journalPreparationStatus(),core.journalPreparationStatus()]);
+ expect(a?.component).toBe('emotion');expect(b?.component).toBe('emotion');expect(fetcher).toHaveBeenCalledTimes(1);
+ expect((await core.preparationStatus())?.component).toBe('cbt');expect(fetcher).toHaveBeenCalledTimes(2);
 });

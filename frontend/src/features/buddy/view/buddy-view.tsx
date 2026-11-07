@@ -64,31 +64,38 @@ export function BuddyView() {
   useEffect(()=>{
     if(vm.accessStatus!=='allowed')return;
     let disposed=false;let leaseId:string|undefined;
-    let poll:ReturnType<typeof setInterval>|undefined;
+    let poll:ReturnType<typeof setTimeout>|undefined;
     let heartbeat:ReturnType<typeof setInterval>|undefined;
     let polling=false;let renewing=false;
     const leave=()=>{
       if(disposed)return;disposed=true;
-      if(poll)clearInterval(poll);if(heartbeat)clearInterval(heartbeat);
+      if(poll)clearTimeout(poll);if(heartbeat)clearInterval(heartbeat);
       stopRealtime();cancelVoice();
       if(leaseId)void releaseBuddyLease(leaseId).catch(()=>{});
     };
     window.addEventListener('pagehide',leave);
+    let interval=1000;
+    const refresh=()=>{
+      if(disposed||polling||!leaseId)return;
+      if(poll)clearTimeout(poll);polling=true;
+      void getBuddyLease(leaseId).then(value=>{if(disposed)return;
+        setRuntimeStatus(value.state);setRuntimePreparation(value.preparation??null);
+        interval=value.state==='preparing'||value.preparation?.loadingComponents?.length||['checking','loading','warming','retrying'].includes(value.preparation?.state??'')?1000:(process.env.NEXT_PUBLIC_ECHO_OPTIMIZATIONS==='true'?15000:1000);
+      }).catch(()=>{if(!disposed)setRuntimeStatus('failed');interval=15000;}).finally(()=>{polling=false;if(!disposed)poll=setTimeout(refresh,interval);});
+    };
+    const focus=()=>refresh();window.addEventListener('focus',focus);
     setRuntimeStatus('preparing');setRuntimePreparation(null);
     void acquireBuddyLease(crypto.randomUUID()).then(async lease=>{
       if(disposed){await releaseBuddyLease(lease.id).catch(()=>{});return;}
       leaseId=lease.id;setRuntimeStatus(lease.state);setRuntimePreparation(lease.preparation??null);
-      poll=setInterval(()=>{if(polling||!leaseId)return;polling=true;
-        void getBuddyLease(leaseId).then(value=>{if(!disposed){setRuntimeStatus(value.state);setRuntimePreparation(value.preparation??null);}})
-          .catch(()=>{if(!disposed)setRuntimeStatus('failed');}).finally(()=>{polling=false;});
-      },1000);
+      refresh();
       heartbeat=setInterval(()=>{if(renewing||!leaseId)return;renewing=true;
         void heartbeatBuddyLease(leaseId).then(value=>{if(!disposed)setRuntimeStatus(value.state);})
           .catch(()=>{if(!disposed)setRuntimeStatus('failed');}).finally(()=>{renewing=false;});
       },15000);
     }).catch(()=>{if(!disposed)setRuntimeStatus('failed');});
-    return ()=>{window.removeEventListener('pagehide',leave);leave();};
-  },[vm.accessStatus,stopRealtime,cancelVoice]);
+    return ()=>{window.removeEventListener('pagehide',leave);window.removeEventListener('focus',focus);leave();};
+  },[vm.accessStatus,vm.historyStore,stopRealtime,cancelVoice]);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
@@ -604,6 +611,20 @@ export function BuddyView() {
                   </button>
                 )}
                 <label className="block text-xs">
+                  Talk voice
+                  <select value={realtime.voiceMode} disabled={realtime.active}
+                    onChange={(e) => realtime.setVoiceMode(e.target.value as "fast" | "expressive")}>
+                    <option value="fast">Fast · MOSS Nano</option>
+                    <option value="expressive">More expressive tone in Talk (slower) · MOSS v1.5</option>
+                  </select>
+                </label>
+                <label className="block text-xs">
+                  Microphone sensitivity
+                  <select value={realtime.sensitivity} disabled={realtime.active} onChange={e=>realtime.setSensitivity(e.target.value as 'normal'|'sensitive')}>
+                    <option value="normal">Normal</option><option value="sensitive">Sensitive (quiet speech)</option>
+                  </select>
+                </label>
+                <label className="block text-xs">
                   Speech delivery
                   <select
                     value={realtime.speechMode}
@@ -792,8 +813,9 @@ export function BuddyView() {
             {showRuntimeDetails&&<div id="buddy-model-details" className="mt-2 rounded-xl border border-[var(--landing-border)] p-3 text-xs text-[var(--landing-muted)]">
               <p>Chat models: {runtimeStatus.replaceAll('_',' ')}.</p>
               {runtimePreparation&&<>
-                <p>{({safety:'Safety screening',cbt:'Buddy response model',nano:'Speech model and voice',whisper:'Speech recognition'})[runtimePreparation.component]}: {runtimePreparation.state}. Attempt {runtimePreparation.attempt} of {runtimePreparation.maxAttempts}.</p>
-                {Boolean(runtimePreparation.loadingComponents?.length)&&<p>Preparing: {runtimePreparation.loadingComponents?.map(name=>({safety:'Safety screening',cbt:'Buddy response model',nano:'Speech model and voice',whisper:'Speech recognition'})[name]).join(', ')}.</p>}
+                <p>{({safety:'Safety screening',emotion:'Text emotion',phq:'Journal PHQ estimate',cbt:'Buddy response model',nano:'Speech model and voice',moss:'Expressive speech model and voice',whisper:'Speech recognition'})[runtimePreparation.component]}: {runtimePreparation.state}. Attempt {runtimePreparation.attempt} of {runtimePreparation.maxAttempts}.</p>
+                {Boolean(runtimePreparation.loadingComponents?.length)&&<p>Preparing: {runtimePreparation.loadingComponents?.map(name=>({safety:'Safety screening',emotion:'Text emotion',phq:'Journal PHQ estimate',cbt:'Buddy response model',nano:'Speech model and voice',moss:'Expressive speech model and voice',whisper:'Speech recognition'})[name]).join(', ')}.</p>}
+                {runtimePreparation.stage&&<p>Speech preparation: {runtimePreparation.stage.replaceAll('_',' ')}.</p>}
                 {runtimePreparation.elapsedSeconds!==undefined&&<p>Elapsed: {Math.floor(runtimePreparation.elapsedSeconds)} seconds.</p>}
                 {runtimePreparation.state==='retrying'&&<p>Retrying in {Math.ceil(runtimePreparation.retryInSeconds??0)} seconds.</p>}
                 {runtimePreparation.code&&<p>Error: {runtimePreparation.code}. {runtimePreparation.retryable===false?'Check the configured environment and model files before trying again.':''}</p>}
