@@ -1,5 +1,6 @@
 "use client";
 
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Leaf,
@@ -102,6 +103,7 @@ export function JournalAnalysisDock({
         />
       </header>
       <div className="journal-report-body">
+        <AiSupportNotice className="mb-4" />
         {finalizing && <p role="status" className="mb-4 text-sm text-muted-foreground">Reflection saved. Finishing its optional attachments…</p>}
         {saving ? (
           <div className="journal-report-idle" role="status" aria-live="polite">

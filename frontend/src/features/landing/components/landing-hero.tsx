@@ -1,5 +1,6 @@
 "use client";
 
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { MotionConfig, motion, type Variants } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -147,6 +148,9 @@ export function LandingHero({ content: { eyebrow, title, subtitle, actions }, cl
                 </span>
               );
             })}
+          </motion.div>
+          <motion.div className="mt-6 w-full max-w-3xl" variants={itemVariants}>
+            <AiSupportNotice prominent />
           </motion.div>
         </motion.div>
       </ArcGalleryHero>

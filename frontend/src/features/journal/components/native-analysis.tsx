@@ -1,4 +1,5 @@
 "use client";
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import {LocalFaceResult} from "./local-face-result";
 import { Brain, Activity, ClipboardList, ChevronDown, LockKeyhole } from "lucide-react";
 import { analysisSummary } from "../model/analysis-summary";
@@ -63,6 +64,7 @@ export function NativeAnalysis({
         </div>
         <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">{summary.status === "partial" ? "Partial analysis" : "Complete analysis"}</span>
       </header>
+      <AiSupportNotice />
       {entryId && <LocalFaceResult entryId={entryId}/>}
       <div className="min-w-0 rounded-2xl border border-border bg-background/50 p-4 sm:p-5">
         <h3 className="flex items-center gap-2 font-semibold"><Brain className="h-4 w-4 text-primary" aria-hidden="true" />Emotion patterns</h3>

@@ -1,4 +1,5 @@
 "use client";
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -512,6 +513,7 @@ export function BuddyView() {
           </Link>
         </header>
 
+        <AiSupportNotice className="mx-3 my-2 shrink-0 sm:mx-4" />
         <BuddyAnalysisHandoff onChoose={setDraft} />
 
         <div

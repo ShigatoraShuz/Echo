@@ -1,5 +1,6 @@
 "use client";
 
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
@@ -155,6 +156,8 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <AnalysisInsightsDashboard insights={data.analysisInsights} />
         <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
       </div>
+
+      <AiSupportNotice className="ml-auto max-w-xl" />
 
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">

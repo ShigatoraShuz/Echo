@@ -1,4 +1,5 @@
 "use client";
+import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { realAnalysisInsights } from "@/features/journal/model/real-analysis-insights";
 const AnalysisHistory = dynamic(() => import("./analysis-history").then(m => m.AnalysisHistory), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 import { AnalysisRequestStatus } from "@/features/journal/components/analysis-request-status";
@@ -500,6 +501,7 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
             </details>
           </div>
         </div>
+        <AiSupportNotice className="relative ml-auto mt-3 max-w-xl" />
       </header>
   );
   const dashboard = (
