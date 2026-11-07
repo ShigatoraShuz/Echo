@@ -1,5 +1,5 @@
 "use client";
-import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
+import styles from "./buddy-studio.module.css";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -305,7 +305,7 @@ export function BuddyView() {
         <button
           type="button"
           onClick={startConversation}
-          className="mx-3 mt-3 flex min-h-11 items-center gap-3 rounded-xl bg-[var(--landing-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-primary)]"
+          className="mx-3 mt-1 flex min-h-11 items-center gap-3 rounded-xl bg-[var(--landing-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-primary)]"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           New conversation
@@ -331,7 +331,7 @@ export function BuddyView() {
             .filter((group) => group.items.length > 0)
             .map((group) => (
               <section key={group.title} aria-label={group.title} className="mb-5">
-                <h2 className="px-2 pb-2 text-xs font-semibold text-[var(--landing-primary)]">{group.title}</h2>
+                <h2 className="px-3 pb-3 text-[10px] font-bold uppercase tracking-[.16em] text-[var(--landing-muted)]">{group.title}</h2>
                 <div className="space-y-1">
                   {group.items.map((conversation) => (
                     <div key={conversation.id} className="rounded-xl">
@@ -339,8 +339,8 @@ export function BuddyView() {
                         className={
                           "flex items-center rounded-xl transition-colors " +
                           (vm.activeConversationId === conversation.id
-                            ? "bg-[var(--landing-sage-soft)]"
-                            : "hover:bg-white/75")
+                            ? "border border-primary/15 bg-white/90 shadow-sm"
+                            : "border border-transparent hover:bg-white/75")
                         }
                       >
                         <button
@@ -462,20 +462,21 @@ export function BuddyView() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.25rem)] min-h-[360px] min-w-0 overflow-hidden rounded-[1.2rem] border border-[var(--landing-primary-10)] bg-[#fffdf8] shadow-[0_18px_48px_rgba(30,53,34,0.07)] lg:h-full lg:min-h-0">
+    <div className={`${styles.studio} flex h-[calc(100dvh-5.25rem)] min-h-[360px] min-w-0 overflow-hidden rounded-[1.2rem] border border-[var(--landing-primary-10)] bg-[#fffdf8] shadow-[0_18px_48px_rgba(30,53,34,0.07)] lg:h-full lg:min-h-0`}>
       <aside
         aria-label="Buddy conversations"
-        className="hidden min-h-0 w-60 shrink-0 flex-col border-r border-[var(--landing-primary-10)] bg-[#f3f5ee] lg:flex xl:w-72"
+        className={`${styles.sidebar} hidden min-h-0 w-60 shrink-0 flex-col border-r border-[var(--landing-primary-10)] lg:flex xl:w-72`}
       >
-        <div className="border-b border-[var(--landing-primary-10)] px-5 py-5">
-          <p className="font-[family-name:var(--font-echo-display)] text-2xl text-[var(--landing-ink)]">Buddy</p>
-          <p className="mt-1 text-xs text-[var(--landing-muted)]">A quiet place to reflect.</p>
+        <div className={styles.brand}>
+          <span className={styles.brandIcon}><Sparkles size={20} aria-hidden="true" /></span>
+          <div><p className={styles.brandName}>Buddy<span className={styles.aiTag}>AI</span></p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">Your space to unfold.</p></div>
         </div>
         {renderHistoryPanel(false)}
       </aside>
 
-      <section aria-label="Buddy chat" className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 shrink-0 items-center gap-1 border-b border-[var(--landing-primary-10)] px-2 sm:px-4">
+      <section aria-label="Buddy chat" className={`${styles.conversation} flex min-h-0 min-w-0 flex-1 flex-col`}>
+        <header className={styles.header}>
           <button
             type="button"
             onClick={() => setHistoryOpen(true)}
@@ -484,16 +485,38 @@ export function BuddyView() {
           >
             <History className="h-5 w-5" aria-hidden="true" />
           </button>
-          <div className="min-w-0 flex-1 px-1 sm:px-2">
-            <h1 className="truncate text-sm font-semibold text-[var(--landing-ink)] sm:text-base">
+          <div className={styles.titleBlock}>
+            <h1 className={styles.title}>
               {activeConversation?.title ?? (vm.activeConversationId ? "Conversation" : "New conversation")}
             </h1>
             <p className="text-[11px] text-[var(--landing-muted)]">
               {vm.responderState === "DEMO_FALLBACK"
                 ? "DEMO_FALLBACK · prewritten guided support; no LLM or therapy"
-                : "Buddy · reflective support"}
+                : "Private conversation · at your pace"}
             </p>
           </div>
+            <div
+              role="group"
+              aria-label="Buddy conversation mode"
+              className={styles.mode}
+            >
+              {(["chat", "talk"] as const).map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={`min-h-11 rounded-full px-4 text-xs font-semibold ${mode === value ? "bg-[var(--landing-primary)] text-white" : "text-[var(--landing-primary)]"}`}
+                  aria-pressed={mode === value}
+                  onClick={() => {
+                    realtime.stop();
+                    voice.cancel();
+                    speakNext.current = false;
+                    setMode(value);
+                  }}
+                >
+                  {value === "chat" ? "Chat" : "Talk"}
+                </button>
+              ))}
+            </div>
           <button
             type="button"
             onClick={startConversation}
@@ -513,7 +536,6 @@ export function BuddyView() {
           </Link>
         </header>
 
-        <AiSupportNotice className="mx-3 my-2 shrink-0 sm:mx-4" />
         <BuddyAnalysisHandoff onChoose={setDraft} />
 
         <div
@@ -522,9 +544,9 @@ export function BuddyView() {
           tabIndex={0}
           aria-label="Conversation messages"
           aria-busy={vm.isLoadingMessages || vm.isSending}
-          className="echo-panel-scroll min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 py-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-primary)] sm:px-6 lg:px-8"
+          className={`${styles.messages} echo-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-primary)] sm:px-8`}
         >
-          <div className="mx-auto max-w-3xl space-y-5">
+          <div className={`${styles.thread} space-y-5`}>
             {vm.isLoadingMessages && vm.messages.length === 0 && (
               <p role="status" className="py-16 text-center text-sm text-[var(--landing-muted)]">
                 Opening your private conversation...
@@ -547,30 +569,8 @@ export function BuddyView() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-[var(--landing-primary-10)] bg-[#fffdf8] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-6 lg:px-8">
+        <div className={`${styles.composerArea} shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 lg:px-8`}>
           <div className="mx-auto max-w-3xl">
-            <div
-              role="group"
-              aria-label="Buddy conversation mode"
-              className="mb-2 inline-flex gap-1 rounded-full border border-[var(--landing-primary-20)] bg-white p-1"
-            >
-              {(["chat", "talk"] as const).map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={`min-h-11 rounded-full px-5 text-sm font-semibold ${mode === value ? "bg-[var(--landing-primary)] text-white" : "text-[var(--landing-primary)]"}`}
-                  aria-pressed={mode === value}
-                  onClick={() => {
-                    realtime.stop();
-                    voice.cancel();
-                    speakNext.current = false;
-                    setMode(value);
-                  }}
-                >
-                  {value === "chat" ? "Chat" : "Talk"}
-                </button>
-              ))}
-            </div>
             <p className="mb-2 text-xs text-[var(--landing-muted)]">
               {mode === "talk"
                 ? realtime.enabled
@@ -723,7 +723,7 @@ export function BuddyView() {
                 Transcript: {voice.interimTranscript}
               </p>
             )}
-            <div className="rounded-[1.35rem] border border-[var(--landing-primary-20)] bg-white px-3 py-2 shadow-[0_8px_24px_rgba(30,53,34,0.06)] focus-within:border-[var(--landing-primary)] focus-within:ring-2 focus-within:ring-[var(--landing-primary-10)]">
+            <div className={styles.composer}>
               <textarea
                 ref={composerRef}
                 rows={1}
@@ -812,6 +812,7 @@ export function BuddyView() {
                 </button>
               </div>
             </div>
+            <p className={styles.careNote}><LockKeyhole size={12} aria-hidden="true" /><span>ECHO’s AI tools support reflection and do not replace a qualified therapist or mental health professional.</span></p>
             {showRuntimeDetails&&<div id="buddy-model-details" className="mt-2 rounded-xl border border-[var(--landing-border)] p-3 text-xs text-[var(--landing-muted)]">
               <p>Chat models: {runtimeStatus.replaceAll('_',' ')}.</p>
               {runtimePreparation&&<>

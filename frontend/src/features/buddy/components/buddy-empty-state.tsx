@@ -1,5 +1,6 @@
 "use client";
-import { MessageSquarePlus, Sparkles } from "lucide-react";
+import { MessageSquarePlus, Sparkles, Leaf, Wind, BookOpen, ArrowUpRight } from "lucide-react";
+import styles from "../view/buddy-studio.module.css";
 import { PROMPT_CHIPS } from "../model/buddy.constants";
 
 interface BuddyEmptyStateProps {
@@ -9,28 +10,32 @@ interface BuddyEmptyStateProps {
 
 export function BuddyEmptyState({ onPromptSelect, onNewConversation }: BuddyEmptyStateProps) {
   return (
-    <div className="mx-auto flex max-w-xl flex-col items-center justify-center px-3 py-10 text-center sm:py-14">
-      <span className="grid h-20 w-20 place-items-center rounded-[2rem] border border-primary/15 bg-secondary/60 text-primary shadow-[0_0_0_12px_hsl(var(--secondary)/0.3)]">
-        <MessageSquarePlus className="h-7 w-7" aria-hidden="true" />
-      </span>
-      <h2 className="mt-7 font-[family-name:var(--font-echo-display)] text-3xl font-medium text-foreground">Start with one sentence.</h2>
-      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        Buddy is here to listen. Name what feels present, and take it one breath at a time.
+    <div className={styles.welcome}>
+      <div className={styles.bloom} aria-hidden="true">
+        <span className={styles.petal} /><span className={styles.petal} /><span className={styles.petal} />
+        <span className={styles.bloomCore}><Leaf size={34} strokeWidth={1.25} /></span>
+        <Sparkles className={styles.bloomSpark} size={18} />
+      </div>
+      <p className={styles.eyebrow}>A moment, just for you</p>
+      <h2 className={styles.welcomeTitle}>Let your thoughts unfold.</h2>
+      <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
+        Start with one sentence, a small question, or whatever is on your mind. There is no perfect way to begin.
       </p>
       {onPromptSelect && (
-        <div className="mt-6">
+        <div className="mt-7 w-full">
           <p className="mb-3 flex items-center justify-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
             <Sparkles className="h-3.5 w-3.5" /> Gentle ways to begin
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {PROMPT_CHIPS.map((prompt) => (
+          <div className={styles.promptGrid}>
+            {PROMPT_CHIPS.map((prompt, index) => (
               <button
                 key={prompt}
                 type="button"
                 onClick={() => onPromptSelect(prompt)}
-                className="min-h-12 rounded-2xl border border-primary/15 bg-card px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-secondary/60 focus-visible:outline-primary"
+                className={styles.promptCard} style={{ animationDelay: `${120 + index * 65}ms` }}
               >
-                {prompt}
+                <span className={styles.promptIcon}>{index === 1 ? <Wind size={17} /> : index === 2 ? <BookOpen size={17} /> : index === 3 ? <Leaf size={17} /> : <Sparkles size={17} />}</span>
+                <span>{prompt}</span><ArrowUpRight size={14} className={styles.promptArrow} aria-hidden="true" />
               </button>
             ))}
           </div>
