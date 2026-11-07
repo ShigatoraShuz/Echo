@@ -48,7 +48,7 @@ describe("private account lifecycle boundary", () => {
     let finish!: (value: { data: { session: typeof session }; error: null }) => void;
     h.getSession.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
     mount();
-    expect(screen.getByRole("status")).toHaveTextContent("Checking your private session");
+    expect(screen.getByRole("status")).toHaveTextContent(/^Checking your private session…$/);
     expect(screen.queryByText("Private journal for A")).toBeNull();
     await act(async () => finish({ data: { session }, error: null }));
     expect(screen.getByText("Private journal for A")).toBeVisible();

@@ -14,6 +14,7 @@ import socket
 import time
 import urllib.request
 from pathlib import Path
+from importlib.metadata import version as package_version
 
 from app.core.config import Settings
 from app.model.manifest import ManifestError, ModelManifest, confined_file, read_manifest
@@ -228,10 +229,11 @@ class Manager:
             "output_schema": f"echo-{task}-v1",
             "device": "cpu",
             "compute_dtype": "bfloat16" if spec else "float16",
+            # Record the runtime that actually checks this new engineering export.
+            # Existing manifests retain their own compatibility requirements.
             "frameworks": {
-                "torch": ">=2.10,<2.11",
-                "transformers": ">=4.57.6,<4.58",
-                "safetensors": ">=0.8,<0.9",
+                name: f"=={package_version(name)}"
+                for name in ("torch", "transformers", "safetensors")
             },
             "sha256": {n: self.digest(directory / n, fresh=True) for n in files},
             "provenance": {

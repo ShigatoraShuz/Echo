@@ -69,8 +69,11 @@ export const settingsService: SettingsService = {
   getProfileSummary() {
     return unwrap(client.get<ApiEnvelope<Pick<ProfileSettings, "displayName" | "avatarPath">>>("/settings/profile", { navigationCache: true }));
   },
-  updateProfile(updates) {
-    return unwrap(client.patch<ApiEnvelope<ProfileSettings>, Partial<ProfileSettings>>("/settings/profile", updates));
+  async updateProfile({ displayName, timezone, themeVariant, themeMode }) {
+    const snapshot = await unwrap(client.patch<ApiEnvelope<SettingsSnapshot>, Partial<ProfileSettings>>(
+      "/settings/profile", { displayName, timezone, themeVariant, themeMode },
+    ));
+    return snapshot.profile;
   },
   async uploadAvatar(file) {
     invalidateNavigationReads();
@@ -94,9 +97,11 @@ export const settingsService: SettingsService = {
     invalidateNavigationReads();
     return body.data;
   },
-  async updatePrivacy(updates) {
-    const privacy = await unwrap(
-      client.patch<ApiEnvelope<PrivacySettings>, Partial<PrivacySettings>>("/settings/privacy", updates),
+  async updatePrivacy({ journalAiAnalysisEnabled, buddyHistoryEnabled, facialAnalysisEnabled, crisisSupportVisible, lockScreenPrivate }) {
+    const snapshot = await unwrap(
+      client.patch<ApiEnvelope<SettingsSnapshot>, Partial<PrivacySettings>>("/settings/privacy", {
+        journalAiAnalysisEnabled, buddyHistoryEnabled, facialAnalysisEnabled, crisisSupportVisible, lockScreenPrivate,
+      }),
     );
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("echo:privacy-changed"));
@@ -106,20 +111,21 @@ export const settingsService: SettingsService = {
         /* This tab still receives the privacy event. */
       }
     }
-    return privacy;
+    return snapshot.privacy;
   },
-  updateNotifications(updates) {
+  async updateNotifications(updates) {
     const { quietHoursAvailable: _availability, ...choices } = updates;
     if (!_availability) {
       delete choices.quietHoursStart;
       delete choices.quietHoursEnd;
     }
-    return unwrap(
-      client.patch<ApiEnvelope<NotificationSettings>, Partial<NotificationSettings>>(
+    const snapshot = await unwrap(
+      client.patch<ApiEnvelope<SettingsSnapshot>, Partial<NotificationSettings>>(
         "/settings/notifications",
         choices,
       ),
     );
+    return snapshot.notifications;
   },
   createContact(input) {
     return unwrap(client.post<ApiEnvelope<TrustedContact>, TrustedContactInput>("/settings/trusted-contacts", input));

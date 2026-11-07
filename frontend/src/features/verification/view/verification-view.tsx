@@ -128,7 +128,7 @@ function StatusView({
     : pending
       ? "We will notify you when an administrator completes the review. Your submitted identity details and documents are locked while review is in progress."
       : snapshot.reviewNote ??
-        "Review the administratorâ€™s decision, update the requested information, and submit again when ready.";
+        "Review the administrator’s decision, update the requested information, and submit again when ready.";
 
   return (
     <SettingsSection
@@ -195,7 +195,7 @@ export function VerificationView() {
   if (vm.loading) {
     return (
       <SettingsShell>
-        <SettingsHeader title="Account verification" description="Loading your protected verification statusâ€¦" />
+        <SettingsHeader title="Account verification" description="Loading your protected verification status…" />
         <div className="h-72 animate-pulse rounded-[1.6rem] bg-card/70" />
       </SettingsShell>
     );
@@ -318,11 +318,11 @@ export function VerificationView() {
                     {vm.isMinor ? (
                       <label className="flex items-start gap-3 text-sm leading-6">
                         <input type="checkbox" required className="mt-1 h-4 w-4 accent-[var(--landing-primary)]" checked={vm.form.guardianConsent} onChange={(event) => vm.setForm({ ...vm.form, guardianConsent: event.target.checked })} />
-                        <span>The named parent or legal guardian confirms consent for this verification request and the accountâ€™s use of Buddy and AI-supported features after approval.</span>
+                        <span>The named parent or legal guardian confirms consent for this verification request and the account’s use of Buddy and AI-supported features after approval.</span>
                       </label>
                     ) : null}
                   </div>
-                  <div className="flex justify-between"><EchoButton type="button" variant="outline" onClick={() => vm.setStep(0)}><ArrowLeft className="h-4 w-4" /> Back</EchoButton><EchoButton type="submit" isLoading={vm.busy} loadingText="Protecting detailsâ€¦">Save and continue <ArrowRight className="h-4 w-4" /></EchoButton></div>
+                  <div className="flex justify-between"><EchoButton type="button" variant="outline" onClick={() => vm.setStep(0)}><ArrowLeft className="h-4 w-4" /> Back</EchoButton><EchoButton type="submit" isLoading={vm.busy} loadingText="Protecting details…">Save and continue <ArrowRight className="h-4 w-4" /></EchoButton></div>
                 </form>
               ) : null}
 
@@ -340,7 +340,7 @@ export function VerificationView() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block font-semibold">{documentLabels[kind]}</span>
-                          <span className="mt-1 block text-xs text-muted-foreground">{uploaded ? `Uploaded Â· ${formatBytes(uploaded.sizeBytes)}` : vm.uploading === kind ? "Uploading securelyâ€¦" : "Choose a file"}</span>
+                          <span className="mt-1 block text-xs text-muted-foreground">{uploaded ? `Uploaded · ${formatBytes(uploaded.sizeBytes)}` : vm.uploading === kind ? "Uploading securely…" : "Choose a file"}</span>
                         </span>
                         <span className="rounded-full border border-primary/20 px-4 py-2 text-xs font-bold text-primary">{uploaded ? "Replace" : "Upload"}</span>
                         <input className="sr-only" type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" disabled={vm.uploading !== null} onChange={(event) => void vm.upload(kind, event.target.files?.[0])} />
@@ -372,7 +372,7 @@ export function VerificationView() {
                     <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                     <p className="text-sm leading-6 text-muted-foreground">Submitting locks the application while it waits for an authorized administrator. Approval is not automatic, and access to Buddy and AI-supported analysis remains locked until the decision is recorded.</p>
                   </div>
-                  <div className="flex justify-between"><EchoButton type="button" variant="outline" onClick={() => vm.setStep(2)}><ArrowLeft className="h-4 w-4" /> Back</EchoButton><EchoButton type="button" isLoading={vm.busy} loadingText="Submittingâ€¦" onClick={() => void vm.submit()}>Submit for admin review <Check className="h-4 w-4" /></EchoButton></div>
+                  <div className="flex justify-between"><EchoButton type="button" variant="outline" onClick={() => vm.setStep(2)}><ArrowLeft className="h-4 w-4" /> Back</EchoButton><EchoButton type="button" isLoading={vm.busy} loadingText="Submitting…" onClick={() => void vm.submit()}>Submit for admin review <Check className="h-4 w-4" /></EchoButton></div>
                 </div>
               ) : null}
             </div>

@@ -199,7 +199,7 @@ export function PrivateSessionBoundary({ userId, children }: { userId: string; c
           </button>
         </div>
       ) : (
-        <p role="status" className="px-6 py-8 text-sm text-muted-foreground">Checking your private sessionÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
+        <p role="status" className="px-6 py-8 text-sm text-muted-foreground">Checking your private session…</p>
       )}
     </div>
   );

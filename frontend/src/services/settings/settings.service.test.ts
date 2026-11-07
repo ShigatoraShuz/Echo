@@ -69,6 +69,30 @@ describe("settingsService", () => {
     expect(api.get).toHaveBeenCalledWith("/settings/profile", { navigationCache: true });
   });
 
+  it("saves only editable profile fields and returns the profile, not the snapshot", async () => {
+    api.patch.mockResolvedValueOnce({ success: true, data: snapshot });
+    await expect(settingsService.updateProfile({ ...snapshot.profile, avatarPath: "read-only-avatar" }))
+      .resolves.toEqual(snapshot.profile);
+    expect(api.patch).toHaveBeenCalledWith("/settings/profile", snapshot.profile);
+  });
+
+  it("saves privacy choices without read-only flags and returns the saved choices", async () => {
+    const privacy = { ...snapshot.privacy, buddyHistoryEnabled: true, buddyHistoryAvailable: true, journalAiAnalysisEnabled: true };
+    api.patch.mockResolvedValueOnce({ success: true, data: { ...snapshot, privacy } });
+    await expect(settingsService.updatePrivacy(privacy)).resolves.toEqual(privacy);
+    expect(api.patch).toHaveBeenCalledWith("/settings/privacy", {
+      journalAiAnalysisEnabled: true, buddyHistoryEnabled: true, facialAnalysisEnabled: false,
+      crisisSupportVisible: true, lockScreenPrivate: true,
+    });
+  });
+
+  it("returns notification choices and omits unsupported quiet-hours fields", async () => {
+    api.patch.mockResolvedValueOnce({ success: true, data: snapshot });
+    await expect(settingsService.updateNotifications({ ...snapshot.notifications, quietHoursAvailable: false,
+      quietHoursStart: "22:00", quietHoursEnd: "07:00" })).resolves.toEqual(snapshot.notifications);
+    expect(api.patch).toHaveBeenCalledWith("/settings/notifications", snapshot.notifications);
+  });
+
   it("encodes trusted-contact identifiers before updating", async () => {
     api.patch.mockResolvedValueOnce({ success: true, data: snapshot });
     const contact = {

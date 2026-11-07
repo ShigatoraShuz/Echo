@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+from importlib.metadata import version as package_version
 
 from app.core.config import Settings
 from app.model.registry import TASKS, ModelRegistry
@@ -80,6 +81,7 @@ def tiny_roberta(root):
     )
     tokenizer.save_model(str(root))
     hf = RobertaTokenizerFast(
+        tokenizer_object=tokenizer._tokenizer,
         vocab_file=str(root / "vocab.json"),
         merges_file=str(root / "merges.txt"),
         model_max_length=64,
@@ -107,7 +109,7 @@ def tiny_roberta(root):
         export_format="hf_safetensors",
         labels=labels,
         preprocessing={"normalization": "identity", "max_tokens": 64, "max_windows": 8},
-        frameworks={"torch": ">=2.6,<3", "transformers": ">=4.50,<5"},
+        frameworks={name: f"=={package_version(name)}" for name in ("torch", "transformers")},
         provenance={
             "source": "Seeded RANDOM WEIGHTS; fictional tokenizer corpus; no trained research model"
         },

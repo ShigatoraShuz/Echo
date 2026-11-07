@@ -44,7 +44,7 @@ function createStore() {
       riskBand: "mild",
       summary: "Post-meeting frustration with self-compassion attempt.",
       perspective:
-        "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time â€” not as criticism, but as preparation.",
+        "Noticing the need to reset after a hard conversation shows self-awareness. The walk was a healthy choice. Consider what you might say differently next time — not as criticism, but as preparation.",
       createdAt: "2026-07-11",
       updatedAt: "2026-07-11",
     },

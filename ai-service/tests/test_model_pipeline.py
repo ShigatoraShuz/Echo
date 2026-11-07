@@ -246,10 +246,17 @@ def test_internal_routes_auth_partial_success_and_buddy_unavailable(tmp_path):
         runtime.close()
 
 
-def test_real_roberta_loader_tiny_engineering_artifact():
-    root = Path(__file__).resolve().parents[2] / "backend/models/.engineering/tiny-v1"
-    if not root.exists():
-        pytest.skip("Optional tiny random-weight artifact not installed")
+@pytest.fixture
+def tiny_roberta_artifact(tmp_path_factory, monkeypatch):
+    from app.model import cli
+    root = tmp_path_factory.mktemp("tiny-roberta") / "model"
+    monkeypatch.setattr(cli, "engineering_destination", lambda path: path.mkdir())
+    cli.tiny_roberta(root)
+    return root
+
+
+def test_real_roberta_loader_tiny_engineering_artifact(tiny_roberta_artifact):
+    root = tiny_roberta_artifact
     config = settings(
         root,
         echo_active_models={"peak": "echo-random-roberta-engineering@tiny-v1"},
@@ -270,18 +277,14 @@ def test_real_roberta_loader_tiny_engineering_artifact():
         runtime.close()
 
 
-def test_random_weight_hf_export_cannot_be_enabled_as_a_research_checkpoint():
-    root = Path(__file__).resolve().parents[2] / "backend/models/.engineering/tiny-v1"
-    if not root.exists():
-        pytest.skip("Optional tiny random-weight artifact not installed")
+def test_random_weight_hf_export_cannot_be_enabled_as_a_research_checkpoint(tiny_roberta_artifact):
+    root = tiny_roberta_artifact
     with pytest.raises(ManifestError, match="SYNTHETIC_ARTIFACT_REFUSED"):
         read_manifest(root / "manifest.json", synthetic=False)
 
 
-def test_distress_roberta_executes_real_cpu_adapter_with_five_fixture_labels(tmp_path):
-    source = Path(__file__).resolve().parents[2] / "backend/models/.engineering/tiny-v1"
-    if not source.exists():
-        pytest.skip("Optional tiny random-weight artifact not installed")
+def test_distress_roberta_executes_real_cpu_adapter_with_five_fixture_labels(tmp_path, tiny_roberta_artifact):
+    source = tiny_roberta_artifact
     manifest = json.loads((source / "manifest.json").read_text())
     for name in manifest["files"] + manifest["tokenizer_files"]:
         shutil.copy2(source / name, tmp_path / name)
@@ -309,10 +312,8 @@ def test_distress_roberta_executes_real_cpu_adapter_with_five_fixture_labels(tmp
         runtime.close()
 
 
-def test_incomplete_real_weights_never_become_random_initialized_predictions(tmp_path):
-    source = Path(__file__).resolve().parents[2] / "backend/models/.engineering/tiny-v1"
-    if not source.exists():
-        pytest.skip("Optional tiny random-weight artifact not installed")
+def test_incomplete_real_weights_never_become_random_initialized_predictions(tmp_path, tiny_roberta_artifact):
+    source = tiny_roberta_artifact
     import torch
     from safetensors.torch import save_file
 

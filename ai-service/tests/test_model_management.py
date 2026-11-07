@@ -67,6 +67,9 @@ def test_drop_import_activate_and_rollback_keep_originals(tmp_path, stopped_port
     second = dropped(tmp_path, "CBT_Second")
     rows = manager.scan(import_new=True)
     assert all(row["status"] == "engineering_only" for row in rows)
+    from importlib.metadata import version
+    frameworks = json.loads((first / "manifest.json").read_text())["frameworks"]
+    assert frameworks == {name: f"=={version(name)}" for name in ("torch", "transformers", "safetensors")}
     originals = {p: p.read_bytes() for directory in (first, second) for p in directory.iterdir()}
     a = manager.activate("cbt", "CBT_First")
     b = manager.activate("cbt", "CBT_Second")

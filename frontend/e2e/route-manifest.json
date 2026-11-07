@@ -207,6 +207,15 @@
     "failure": "Preserve text and selected photos"
   },
   {
+    "path": "/journal/resume",
+    "role": "user",
+    "fixture": "journal",
+    "action": "Resume the owned draft, edit, and save",
+    "expected": "Latest owned draft and photos restore without overwriting another draft",
+    "empty": "Show write or resume action",
+    "failure": "Preserve text and selected photos"
+  },
+  {
     "path": "/journal/drafts",
     "role": "user",
     "fixture": "journal",

@@ -121,7 +121,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
   return (
     <div aria-busy={isLoading} className="echo-dashboard-welcome dashboard-premium space-y-4">
-      {isLoading && <p role="status" className="sr-only">Updating your dashboardâ€¦</p>}
+      {isLoading && <p role="status" className="sr-only">Updating your dashboard…</p>}
       <WellnessCheckin preview={preview} />
 
       <div className="dashboard-top-grid grid gap-4 lg:grid-cols-2 xl:grid-cols-12">
@@ -141,7 +141,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
             <p className="mt-1 text-xs text-[var(--landing-muted)]">
               {journalEntries.length} total reflection{journalEntries.length === 1 ? "" : "s"}{" "}
-              <span aria-hidden="true">Â·</span> {userProfile.streakDays}-day gentle streak
+              <span aria-hidden="true">·</span> {userProfile.streakDays}-day gentle streak
             </p>
           </div>
 

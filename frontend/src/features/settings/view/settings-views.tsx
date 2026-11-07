@@ -1016,7 +1016,7 @@ export function NotificationSettingsView() {
                     <button type="button" disabled={pushBusy || !canUseDevicePush()}
                       onClick={() => { void choosePush(true); }}
                       className="mt-3 rounded-full border border-border px-4 py-2 font-medium disabled:opacity-50">
-                      {pushBusy ? "Registeringâ€¦" : "Register this device"}
+                      {pushBusy ? "Registering…" : "Register this device"}
                     </button>
                   )}
                 </div>
@@ -1347,7 +1347,7 @@ export function SecuritySettingsView() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Change Password</p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {email ?? "Loadingâ€¦"}
+                  {email ?? "Loading…"}
                 </p>
               </div>
             </div>
