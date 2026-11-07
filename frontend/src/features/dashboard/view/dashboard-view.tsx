@@ -1,6 +1,5 @@
 "use client";
 
-import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
@@ -156,8 +155,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <AnalysisInsightsDashboard insights={data.analysisInsights} />
         <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
       </div>
-
-      <AiSupportNotice className="ml-auto max-w-xl" />
 
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">
@@ -357,10 +354,15 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         </DashboardCard>
       </div>
 
-      <p className="flex items-center gap-2 px-1 text-[11px] text-muted-foreground">
+      <footer className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 px-1 text-[11px] leading-5 text-muted-foreground">
+        <p className="flex items-center gap-2">
         <LockKeyhole className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-        Your private reflections are for support, not diagnosis.
-      </p>
+          Your private reflections are for support, not diagnosis.
+        </p>
+        <p className="max-w-md sm:ml-auto sm:text-right">
+          ECHO's AI tools support reflection and do not replace a qualified therapist or mental health professional.
+        </p>
+      </footer>
     </div>
   );
 }
