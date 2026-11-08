@@ -3,6 +3,8 @@ import styles from "./buddy-studio.module.css";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
+  Search,
+  ChevronDown,
   Circle,
   CheckCircle2,
   LoaderCircle,
@@ -43,6 +45,8 @@ import type { BuddyConversation } from "../model/buddy.model";
 import { PROMPT_CHIPS } from "../model/buddy.constants";
 
 export function BuddyView() {
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [showAllRecent, setShowAllRecent] = useState(false);
   const vm = useBuddyViewModel();
   const reducedMotion = usePrefersReducedMotion();
   const voice = useBuddyVoiceControls();
@@ -296,8 +300,10 @@ export function BuddyView() {
     if (saved) setRenameTarget(null);
   }
 
-  const pinnedConversations = pinsAvailable ? vm.conversations.filter((conversation) => conversation.pinnedAt) : [];
-  const recentConversations = vm.conversations.filter((conversation) => !conversation.pinnedAt || !pinsAvailable);
+  const filteredConversations = vm.conversations.filter(conversation =>
+    `${conversation.title} ${conversation.lastMessage ?? ""}`.toLocaleLowerCase().includes(historyQuery.trim().toLocaleLowerCase()));
+  const pinnedConversations = pinsAvailable ? filteredConversations.filter(conversation => conversation.pinnedAt) : [];
+  const recentConversations = filteredConversations.filter(conversation => !conversation.pinnedAt || !pinsAvailable);
 
   function renderHistoryPanel(mobile: boolean) {
     return (
@@ -305,11 +311,16 @@ export function BuddyView() {
         <button
           type="button"
           onClick={startConversation}
-          className="mx-3 mt-1 flex min-h-11 items-center gap-3 rounded-xl bg-[var(--landing-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--landing-primary)]"
+          className={styles.newChat}
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           New conversation
         </button>
+        <label className={styles.historySearch}>
+          <Search size={15} aria-hidden="true" />
+          <input type="search" aria-label="Filter recent chats" placeholder="Filter recent chats…" value={historyQuery}
+            onChange={event => { setHistoryQuery(event.target.value); setShowAllRecent(false); }} />
+        </label>
         <nav
           aria-label={mobile ? "Mobile conversation history" : "Conversation history"}
           className="echo-panel-scroll min-h-0 flex-1 overflow-y-auto px-3 py-5"
@@ -326,7 +337,7 @@ export function BuddyView() {
           )}
           {[
             { title: "Pinned chats", items: pinnedConversations },
-            { title: "Recent chats", items: recentConversations },
+            { title: "Recent chats", items: showAllRecent || historyQuery.trim() ? recentConversations : recentConversations.slice(0, 8) },
           ]
             .filter((group) => group.items.length > 0)
             .map((group) => (
@@ -335,14 +346,7 @@ export function BuddyView() {
                 <div className="space-y-1">
                   {group.items.map((conversation) => (
                     <div key={conversation.id} className="rounded-xl">
-                      <div
-                        className={
-                          "flex items-center rounded-xl transition-colors " +
-                          (vm.activeConversationId === conversation.id
-                            ? "border border-primary/15 bg-white/90 shadow-sm"
-                            : "border border-transparent hover:bg-white/75")
-                        }
-                      >
+                      <div className={styles.historyRow} data-active={vm.activeConversationId === conversation.id}>
                         <button
                           type="button"
                           onClick={() => openConversation(conversation.id)}
@@ -352,8 +356,8 @@ export function BuddyView() {
                           <span className="block truncate text-sm font-semibold text-[var(--landing-ink)]">
                             {conversation.title}
                           </span>
-                          <span className="block truncate text-xs text-[var(--landing-muted)]">
-                            {conversation.lastMessage || "No messages yet"}
+                          <span className={styles.historyMeta}>
+                            {conversation.lastMessageAt || (conversation.createdAt && Number.isFinite(Date.parse(conversation.createdAt)) ? new Date(conversation.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Saved conversation")}
                           </span>
                         </button>
                         <button
@@ -363,7 +367,7 @@ export function BuddyView() {
                           }
                           aria-label={"Actions for " + conversation.title}
                           aria-expanded={actionsId === conversation.id}
-                          className="mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[var(--landing-primary)] outline-none hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]"
+                          className={styles.rowActions}
                         >
                           <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -397,8 +401,18 @@ export function BuddyView() {
                     </div>
                   ))}
                 </div>
+                {group.title === "Recent chats" && recentConversations.length > 8 && !historyQuery.trim() && (
+                  <button type="button" className={styles.showMore} aria-expanded={showAllRecent}
+                    onClick={() => setShowAllRecent(value => !value)}>
+                    {showAllRecent ? "Show fewer chats" : `Show ${recentConversations.length - 8} more chats`}
+                    <ChevronDown size={14} style={{ transform: showAllRecent ? "rotate(180deg)" : undefined }} aria-hidden="true" />
+                  </button>
+                )}
               </section>
             ))}
+          {historyQuery.trim() && filteredConversations.length === 0 && !vm.isLoadingList ? (
+            <p className="px-3 text-xs leading-6 text-[var(--landing-muted)]">No recent chats match. Try another word or search all history below.</p>
+          ) : null}
           {vm.pagination.totalPages > 1 && (
             <div className="flex items-center justify-between gap-2 px-1 text-xs text-[var(--landing-muted)]">
               <button

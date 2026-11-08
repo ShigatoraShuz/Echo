@@ -7,49 +7,46 @@ interface BuddyEmptyStateProps {
   onPromptSelect?: (prompt: string) => void;
   onNewConversation?: () => void;
 }
+const promptLabels = ["Untangle", "Find your calm", "Look inward", "Move forward"];
+const promptIcons = [Sparkles, Wind, BookOpen, Leaf];
 
 export function BuddyEmptyState({ onPromptSelect, onNewConversation }: BuddyEmptyStateProps) {
   return (
     <div className={styles.welcome}>
-      <div className={styles.bloom} aria-hidden="true">
-        <span className={styles.petal} /><span className={styles.petal} /><span className={styles.petal} />
-        <span className={styles.bloomCore}><Leaf size={34} strokeWidth={1.25} /></span>
-        <Sparkles className={styles.bloomSpark} size={18} />
+      <div className={styles.welcomeHero}>
+        <div className={styles.welcomeCopy}>
+          <p className={styles.eyebrow}><span /> Your private reflection studio</p>
+          <h2 className={styles.welcomeTitle}>Room to think.<em>Space to bloom.</em></h2>
+          <p className={styles.welcomeDescription}>Bring the thoughts you haven’t quite found words for. We can explore them, one small step at a time.</p>
+          <span className={styles.paceNote}><Leaf size={13} aria-hidden="true" /> Your pace. Your words. Your space.</span>
+        </div>
+        <div className={styles.bloom} aria-hidden="true">
+          <span className={styles.bloomHalo} />
+          <span className={styles.petal} /><span className={styles.petal} /><span className={styles.petal} /><span className={styles.petal} /><span className={styles.petal} />
+          <span className={styles.bloomCore}><Leaf size={42} strokeWidth={1.1} /></span>
+          <Sparkles className={styles.bloomSpark} size={22} />
+          <span className={styles.bloomCaption}>A LITTLE ROOM TO GROW</span>
+        </div>
       </div>
-      <p className={styles.eyebrow}>A moment, just for you</p>
-      <h2 className={styles.welcomeTitle}>Let your thoughts unfold.</h2>
-      <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-        Start with one sentence, a small question, or whatever is on your mind. There is no perfect way to begin.
-      </p>
       {onPromptSelect && (
-        <div className="mt-7 w-full">
-          <p className="mb-3 flex items-center justify-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
-            <Sparkles className="h-3.5 w-3.5" /> Gentle ways to begin
-          </p>
+        <div className={styles.starters}>
+          <div className={styles.startersHeading}><p>Where would you like to begin?</p><span>Choose a starting point</span></div>
           <div className={styles.promptGrid}>
-            {PROMPT_CHIPS.map((prompt, index) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => onPromptSelect(prompt)}
-                className={styles.promptCard} style={{ animationDelay: `${120 + index * 65}ms` }}
-              >
-                <span className={styles.promptIcon}>{index === 1 ? <Wind size={17} /> : index === 2 ? <BookOpen size={17} /> : index === 3 ? <Leaf size={17} /> : <Sparkles size={17} />}</span>
-                <span>{prompt}</span><ArrowUpRight size={14} className={styles.promptArrow} aria-hidden="true" />
-              </button>
-            ))}
+            {PROMPT_CHIPS.map((prompt, index) => {
+              const Icon = promptIcons[index];
+              return (
+                <button key={prompt} type="button" aria-label={prompt} onClick={() => onPromptSelect(prompt)}
+                  className={styles.promptCard} style={{ animationDelay: `${160 + index * 75}ms` }}>
+                  <span className={styles.promptCardTop}><span className={styles.promptIcon}><Icon size={18} aria-hidden="true" /></span><ArrowUpRight size={15} className={styles.promptArrow} aria-hidden="true" /></span>
+                  <span className={styles.promptLabel}>{promptLabels[index]}</span>
+                  <span className={styles.promptDescription}>{prompt}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
-      {onNewConversation && (
-        <button
-          type="button"
-          onClick={onNewConversation}
-          className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
-        >
-          <MessageSquarePlus className="h-4 w-4" /> New conversation
-        </button>
-      )}
+      {onNewConversation && <button type="button" onClick={onNewConversation} className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90"><MessageSquarePlus className="h-4 w-4" aria-hidden="true" />New conversation</button>}
     </div>
   );
 }
