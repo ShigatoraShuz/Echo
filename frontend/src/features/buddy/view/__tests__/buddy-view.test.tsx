@@ -288,3 +288,37 @@ it("opens the public Buddy shell without exposing messages or the composer durin
   expect(screen.queryByText("Hello")).not.toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: "Message Buddy" })).not.toBeInTheDocument();
 });
+
+describe("clean recent chats", () => {
+  function recentMock() {
+    const mock = setupMock();
+    mock.conversations = Array.from({ length: 10 }, (_, index) => ({ id: `recent-${index}`, title: `Reflection ${index + 1}`, lastMessage: `Private preview ${index}`, lastMessageAt: "Nov 8", messageCount: 2, mood: "neutral", createdAt: "2026-11-08T00:00:00Z", pinnedAt: null } as BuddyConversation));
+    return mock;
+  }
+  it("keeps the initial list compact without deleting chats and expands all loaded recent chats", async () => {
+    const mock = recentMock();
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    render(<BuddyView />);
+    expect(screen.getByText("Reflection 8")).toBeVisible();
+    expect(screen.queryByText("Reflection 9")).not.toBeInTheDocument();
+    expect(screen.queryByText("Private preview 0")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show 2 more chats" }));
+    expect(screen.getByText("Reflection 10")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show fewer chats" }));
+    expect(screen.queryByText("Reflection 9")).not.toBeInTheDocument();
+    expect(mock.deleteConversation).not.toHaveBeenCalled();
+  });
+  it("filters the loaded history instantly, including hidden chats, without requesting another page", async () => {
+    const mock = recentMock();
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    render(<BuddyView />);
+    const input = screen.getByRole("searchbox", { name: "Filter recent chats" });
+    await userEvent.setup().type(input, "Reflection 10");
+    expect(screen.getByText("Reflection 10")).toBeVisible();
+    expect(screen.queryByText("Reflection 1")).not.toBeInTheDocument();
+    expect(mock.loadConversations).not.toHaveBeenCalled();
+    await userEvent.setup().clear(input);
+    expect(screen.getByText("Reflection 1")).toBeVisible();
+    expect(screen.queryByText("Reflection 10")).not.toBeInTheDocument();
+  });
+});

@@ -52,7 +52,7 @@
 .showMore { display:flex; align-items:center; justify-content:space-between; gap:8px; width:calc(100% - 16px); min-height:36px; margin:7px 8px 0; padding:0 5px; font-size:11px; color:var(--landing-muted); }
 .showMore svg { transition:transform .2s; }
 .sidebar a:hover { background:#dce8c80c; }
-.sidebar .rowActions:hover { background:#dce8c814; }
+.sidebar .rowActions:hover, .sidebar button:not(.newChat):hover { background:#dce8c814; }
 .welcomeHero { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:center; gap:15px; width:100%; min-height:345px; padding:39px 42px; border:1px solid #d7dfc9; border-radius:30px; background:radial-gradient(ellipse at 90% 30%,#e4edcdcc,transparent 60%),linear-gradient(125deg,#faf9f0,#eff3e5); box-shadow:inset 0 1px 0 #fff,0 14px 38px #4f623b05; overflow:hidden; }
 .welcomeCopy { position:relative; }
 .eyebrow > span { width:5px; height:5px; border-radius:50%; background:#94a76b; box-shadow:0 0 0 4px #94a76b12; }
