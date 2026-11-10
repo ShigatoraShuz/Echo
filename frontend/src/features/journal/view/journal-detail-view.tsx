@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Trash2, Tag, Info, ImagePlus } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Tag, Info, ImagePlus, Pencil, Check, X } from "lucide-react";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 import { JournalAnalysisDock } from "../components/journal-analysis-dock";
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
@@ -29,6 +29,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
     error,
     notFound,
     deleteEntry,
+    saveEdit, isSavingEdit, editError,
     exportEntry,
     openDeleteDialog: setShowDeleteDialog,
     retry,
@@ -36,6 +37,11 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
     photoUploadError,
     uploadingPhotos,
   } = useJournalDetailViewModel(id);
+
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  useEffect(() => { setEditing(false); }, [id]);
 
   const handleAddPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -105,7 +111,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> All entries
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {editing ? <>
+            <EchoButton variant="outline" className="rounded-full" disabled={isSavingEdit} onClick={() => setEditing(false)}><X size={16} aria-hidden="true" /> Cancel edit</EchoButton>
+            <EchoButton className="rounded-full" isLoading={isSavingEdit} disabled={!editBody.trim() || !editTitle.trim() || editTitle.length > 200 || editBody.length > 10000}
+              onClick={async () => { if (await saveEdit(editTitle, editBody)) setEditing(false); }}><Check size={16} aria-hidden="true" /> Save changes</EchoButton>
+          </> : <EchoButton variant="outline" className="rounded-full bg-card/75" onClick={() => { setEditTitle(entry.title); setEditBody(entry.body); setEditing(true); }}><Pencil size={16} aria-hidden="true" /> Edit entry</EchoButton>}
           <EchoButton
             variant="outline"
             onClick={exportEntry}
@@ -133,6 +144,10 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         </p>
       )}
 
+      {editing && <div className="mb-4 rounded-2xl border border-primary/15 bg-secondary/40 px-5 py-4 text-sm leading-6 text-muted-foreground">
+        Saving changes clears the previous AI and facial analysis for this reflection. A fresh text analysis starts when analysis is enabled. Your photos stay attached.
+        {editError && <p role="alert" className="mt-2 text-danger">{editError}</p>}
+      </div>}
       <div className="journal-studio-grid">
         <div className="journal-studio-writing">
           <article
@@ -152,9 +167,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
                 <p className="text-[11px] font-semibold uppercase tracking-[.22em] text-primary/75">
                   A page from your journal
                 </p>
-                <h1 className="journal-ink-arrive mt-3 break-words text-[clamp(2.25rem,5vw,4rem)] leading-[1.07] tracking-[-.035em] text-foreground [font-family:var(--font-echo-display)]">
+                {editing ? <label className="block text-xs font-semibold uppercase tracking-wider text-primary">Title
+                <input aria-label="Edit journal title" value={editTitle} onChange={event => setEditTitle(event.target.value)} maxLength={200} disabled={isSavingEdit} className="mt-3 w-full rounded-2xl border border-primary/20 bg-background p-4 font-serif text-3xl font-normal normal-case tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
+              </label> : (              <h1 className="journal-ink-arrive mt-3 break-words text-[clamp(2.25rem,5vw,4rem)] leading-[1.07] tracking-[-.035em] text-foreground [font-family:var(--font-echo-display)]">
                   {entry.title}
-                </h1>
+                </h1>)}
+
               </header>
 
               {hasPhotos && (
@@ -165,9 +183,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
               )}
 
               <div className="mt-9 max-w-[68ch] border-t border-[#e6e0d3] pt-8 sm:mt-12 sm:pt-10">
-                <p className="journal-ink-arrive whitespace-pre-wrap break-words text-[1.08rem] leading-[1.9] text-foreground/90 sm:text-[1.2rem] [font-family:var(--font-echo-display)]">
+                {editing ? <label className="block text-xs font-semibold uppercase tracking-wider text-primary">Your reflection
+                  <textarea aria-label="Edit journal reflection" value={editBody} onChange={event => setEditBody(event.target.value)} maxLength={10000} disabled={isSavingEdit} rows={14} className="mt-3 min-h-80 w-full resize-y rounded-2xl border border-primary/20 bg-background p-5 font-serif text-lg font-normal normal-case leading-8 tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
+                </label> : (                <p className="journal-ink-arrive whitespace-pre-wrap break-words text-[1.08rem] leading-[1.9] text-foreground/90 sm:text-[1.2rem] [font-family:var(--font-echo-display)]">
                   {entry.body}
-                </p>
+                </p>)}
+
               </div>
 
               {hasLabels && (
@@ -195,6 +216,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
           </article>
         </div>
         <JournalAnalysisDock
+          key={`${id}:${entry.updatedAt}`}
           journalId={id}
           enabled={entry.analysisConsent}
           analysis={analysis}

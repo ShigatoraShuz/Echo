@@ -19,6 +19,7 @@ interface DetailState {
 
 type DetailAction =
   | { type: "CLEAR" }
+  | { type: "EDIT_SUCCESS"; entry: JournalEntry }
   | { type: "ANALYSIS_ERROR"; error: string }
   | { type: "ANALYSIS_AVAILABILITY"; value: JournalAnalysisAvailability | null }
   | { type: "ENTRY_LOAD_START"; background: boolean }
@@ -36,6 +37,7 @@ type DetailAction =
 
 function reducer(state: DetailState, action: DetailAction): DetailState {
   switch (action.type) {
+    case "EDIT_SUCCESS": return { ...state, entry: { ...action.entry, images: state.entry?.images }, analysis: null, analysisAvailability: null, error: null };
     case "CLEAR": return { ...initialState, isLoading: false };
     case "ANALYSIS_ERROR": return { ...state, error: action.error, analysis: null, analysisAvailability: null };
     case "ANALYSIS_AVAILABILITY": return { ...state, analysisAvailability: action.value };
@@ -87,6 +89,9 @@ export function useJournalDetailViewModel(id: string) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [photoUploadError, setPhotoUploadError] = useState("");
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+  const editInFlight = useRef(false);
   const service = getJournalService();
   const lastLoadedAt = useRef(0);
   const active = useRef(true);
@@ -97,7 +102,7 @@ export function useJournalDetailViewModel(id: string) {
 
   const loadEntry = useCallback(
     async (entryId: string, background = false) => {
-      if (!active.current) return;
+      if (!active.current || editInFlight.current) return;
       const epoch = ++loadEpoch.current;
       dispatch({ type: "ENTRY_LOAD_START", background });
       if (entryReadService.current !== service) { entryReads.current.clear(); entryReadService.current = service; }
@@ -164,6 +169,28 @@ export function useJournalDetailViewModel(id: string) {
       window.clearInterval(interval);
     };
   }, [id, loadEntry, invalidateLoads]);
+
+  const saveEdit = useCallback(async (title: string, body: string) => {
+    if (!state.entry || editInFlight.current) return false;
+    editInFlight.current = true; setIsSavingEdit(true); setEditError("");
+    const epoch = ++loadEpoch.current;
+    entryReads.current.clear();
+    try {
+      const result = await service.updateEntry(id, { title, body, expectedUpdatedAt: state.entry.updatedAt });
+      if (!active.current || epoch !== loadEpoch.current) return false;
+      if (!result.success) { setEditError(result.error.message); return false; }
+      dispatch({ type: "EDIT_SUCCESS", entry: result.data });
+      window.dispatchEvent(new Event("echo:journal-changed"));
+      editInFlight.current = false;
+      void loadEntry(id, true);
+      return true;
+    } catch {
+      if (active.current) setEditError("Your edit could not be confirmed. Your writing is still here; please retry.");
+      return false;
+    } finally {
+      editInFlight.current = false; setIsSavingEdit(false);
+    }
+  }, [id, state.entry, service, loadEntry]);
 
   const deleteEntry = useCallback(async () => {
     dispatch({ type: "DELETE_START" });
@@ -241,6 +268,7 @@ export function useJournalDetailViewModel(id: string) {
     error: state.error,
     notFound: state.notFound,
     deleteEntry,
+    saveEdit, isSavingEdit, editError,
     exportEntry,
     openDeleteDialog: showDeleteDialog,
     retry,

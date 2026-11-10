@@ -33,7 +33,7 @@ const analysisInsightsQuerySchema = z
       context.addIssue({ code: "custom", path: ["to"], message: "custom ranges cannot exceed 366 days" });
   });
 
-const journalUpdateSchema = journalSubmissionObjectSchema.partial();
+const journalUpdateSchema = journalSubmissionObjectSchema.partial().extend({ expectedUpdatedAt: z.string().datetime({ offset: true }).optional() });
 
 const journalDraftSchema = z.strictObject({
   draftIntent:z.enum(['create','update']).default('create'),

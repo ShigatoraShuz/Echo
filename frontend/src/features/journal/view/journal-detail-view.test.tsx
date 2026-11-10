@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 vi.mock("../view-model/use-journal-detail-view-model", () => ({ useJournalDetailViewModel: vi.fn() }));
 vi.mock("../components/journal-analysis-panel", () => ({ JournalAnalysisPanel: () => null }));
 
-const photoState = { addPhotos: vi.fn(), photoUploadError: "", uploadingPhotos: false };
+const photoState = { saveEdit: vi.fn(), isSavingEdit: false, editError: "", addPhotos: vi.fn(), photoUploadError: "", uploadingPhotos: false };
 
 describe("JournalDetailView", () => {
   it.each([
@@ -79,4 +79,21 @@ describe("JournalDetailView", () => {
     await user.upload(screen.getByLabelText("Add photos to reflection"), new File(["image"], "moment.png", { type: "image/png" }));
     await waitFor(() => expect(addPhotos).toHaveBeenCalledWith([expect.any(File)]));
   });
+});
+
+it("edits title and reflection inline, preserves writing on failure, and supports cancel", async () => {
+  const saveEdit = vi.fn().mockResolvedValue(false);
+  vi.mocked(useJournalDetailViewModel).mockReturnValue({ ...photoState, saveEdit,
+    entry: { id: "entry-1", title: "Original", body: "A typo", excerpt: "A typo", emotions: [], tags: [], privacyStatus: "private", analysisConsent: false, riskScore: null, riskBand: null, summary: "", perspective: null, createdAt: "2026-11-10T00:00:00Z", updatedAt: "2026-11-10T00:00:00Z" },
+    analysis: null, analysisAvailability: null, isLoading: false, isDeleting: false, isExporting: false, showDeleteDialog: false, error: null, notFound: false, deleteEntry: vi.fn(), exportEntry: vi.fn(), openDeleteDialog: vi.fn(), retry: vi.fn(),
+  });
+  const user = userEvent.setup(); render(<JournalDetailView id="entry-1" />);
+  await user.click(screen.getByRole("button", {name:"Edit entry"}));
+  await user.clear(screen.getByRole("textbox", {name:"Edit journal reflection"}));
+  await user.type(screen.getByRole("textbox", {name:"Edit journal reflection"}), "Corrected reflection");
+  await user.click(screen.getByRole("button", {name:"Save changes"}));
+  expect(saveEdit).toHaveBeenCalledWith("Original", "Corrected reflection");
+  expect(screen.getByRole("textbox", {name:"Edit journal reflection"})).toHaveValue("Corrected reflection");
+  await user.click(screen.getByRole("button", {name:"Cancel edit"}));
+  expect(screen.getByText("A typo")).toBeVisible();
 });

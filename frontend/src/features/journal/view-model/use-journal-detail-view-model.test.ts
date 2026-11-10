@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useJournalDetailViewModel } from "./use-journal-detail-view-model";
 
-const service = vi.hoisted(() => ({ getEntry: vi.fn(), getAnalysis: vi.fn(), getAnalysisAvailability: vi.fn(), uploadImage: vi.fn() }));
+const service = vi.hoisted(() => ({ updateEntry: vi.fn(), getEntry: vi.fn(), getAnalysis: vi.fn(), getAnalysisAvailability: vi.fn(), uploadImage: vi.fn() }));
 vi.mock("@/services/journal/journal-service.factory", () => ({ getJournalService: () => service }));
 
 const entry = (id: string, consent = true) => ({ success: true, data: { id, analysisConsent: consent } });
@@ -127,4 +127,21 @@ describe("Journal analysis availability and request isolation", () => {
     expect(result.current.photoUploadError).toBe("");
   });
 
+});
+
+it("clears old analysis on edit and loads progress for the new revision", async () => {
+  const original = { ...entry("one").data, title: "Old", body: "Old text", updatedAt: "2026-11-10T00:00:00Z", images: [{id:"photo", url:"/photo"}] };
+  service.getEntry.mockResolvedValue({ success:true, data:original });
+  service.getAnalysis.mockResolvedValue({ success:true, data:{entryId:"one", summary:"Old analysis"} });
+  const {result} = renderHook(() => useJournalDetailViewModel("one"));
+  await waitFor(() => expect(result.current.analysis?.summary).toBe("Old analysis"));
+  const updated = {...original, body:"Edited text", updatedAt:"2026-11-10T00:01:00Z"};
+  service.updateEntry.mockResolvedValue({success:true, data:updated});
+  service.getEntry.mockResolvedValue({success:true, data:updated});
+  service.getAnalysis.mockResolvedValue({success:true, data:null});
+  service.getAnalysisAvailability.mockResolvedValue({success:true, data:{...pending, jobId:"new-job", status:"queued"}});
+  await act(async () => { expect(await result.current.saveEdit("Old", "Edited text")).toBe(true); });
+  expect(service.updateEntry).toHaveBeenCalledWith("one", {title:"Old", body:"Edited text", expectedUpdatedAt:original.updatedAt});
+  await waitFor(() => expect(result.current.analysisAvailability?.jobId).toBe("new-job"));
+  expect(result.current.analysis).toBeNull(); expect(result.current.entry?.images).toEqual(original.images);
 });

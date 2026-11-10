@@ -285,10 +285,21 @@ export class JournalService {
   }
   async submitFace(user:string,journal:string,image:Buffer){
     if(!this.localResults){
-      await this.get(user,journal);
+      const revision=await this.get(user,journal);
       const result=await this.evaluateFace(user,image);
-      await this.get(user,journal);await this.assertAnalysisGates(user);
-      const {error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result',{p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify(result),this.encryption),p_available:result.status==='available'});
+      const current=await this.get(user,journal);await this.assertAnalysisGates(user);
+      if(current.updated_at!==revision.updated_at)throw new ConflictError('JOURNAL_EDIT_CONFLICT','The reflection changed during face analysis. Please capture again.');
+      const args={p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify(result),this.encryption),p_available:result.status==='available'};
+      let {error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result_for_revision',{...args,p_expected_updated_at:revision.updated_at});
+      // Preserve the existing face workflow on installations without journal-edit support.
+      // Once the migration is present, every face save uses its atomic revision fence.
+      if(error?.code==='PGRST202'){
+        const probe=await this.database.schema('journal_service').rpc('edit_journal',{
+          p_user_id:user,p_journal_id:'00000000-0000-0000-0000-000000000000',p_expected_updated_at:revision.updated_at,
+          p_entry:{},p_analysis_requested:false,p_processing_mode:'disabled',p_initial_status:'saved',
+        });
+        if(probe.error?.code==='PGRST202')({error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result',args));
+      }
       if(error)throw new ExternalServiceError('FACE_SAVE_FAILED','Face result could not be saved. Please retry.');
       return;
     }
@@ -1137,44 +1148,52 @@ export class JournalService {
     }
   }
 
-  async update(userId: string, journalId: string, input: Partial<JournalInput>): Promise<JournalResponse> {
+  async update(userId: string, journalId: string, input: Partial<JournalInput> & { expectedUpdatedAt?: string }): Promise<JournalResponse> {
     const current = await this.get(userId, journalId);
     const next: JournalInput = {
-      title: input.title ?? current.title,
-      body: input.body ?? current.body,
-
-      emotions: input.emotions ?? current.emotions,
-      tags: input.tags ?? current.tags,
+      title: input.title ?? current.title, body: input.body ?? current.body,
+      emotions: input.emotions ?? current.emotions, tags: input.tags ?? current.tags,
       privacyStatus: input.privacyStatus ?? (current.privacy_status as JournalInput["privacyStatus"]),
       analysisConsent: input.analysisConsent ?? current.analysis_consent,
-      facialAnalysisRequested: input.facialAnalysisRequested ?? false,
-      facialCapture: input.facialCapture,
+      facialAnalysisRequested: false,
     };
+    if (input.expectedUpdatedAt && Date.parse(input.expectedUpdatedAt) !== Date.parse(current.updated_at))
+      throw new ConflictError("JOURNAL_EDIT_CONFLICT", "This reflection changed in another tab. Reload it before editing again.");
+    const changed = next.title !== current.title || next.body !== current.body || next.analysisConsent !== current.analysis_consent
+      || next.privacyStatus !== current.privacy_status || JSON.stringify(next.tags) !== JSON.stringify(current.tags) || JSON.stringify(next.emotions) !== JSON.stringify(current.emotions);
+    if (!changed) return current;
+    const analyze = next.analysisConsent && await this.hasGlobalAnalysisConsent(userId);
+    if (analyze) await this.assertAnalysisGates(userId);
     const encrypted = this.encryptJournal(next);
-    const { data, error } = await this.database
-      .schema("journal_service")
-      .from("journals")
-      .update({
-        title: "[encrypted]",
-        content_ciphertext: bytea(encrypted.ciphertext),
-        encryption_iv: bytea(encrypted.iv),
-        encryption_auth_tag: bytea(encrypted.authenticationTag),
-        encryption_key_version: encrypted.keyVersion,
+    const initial = analyze ? await this.initialAnalysisStatus() : "saved";
+    const { data, error } = await this.database.schema("journal_service").rpc("edit_journal", {
+      p_user_id: userId, p_journal_id: journalId, p_expected_updated_at: input.expectedUpdatedAt ?? current.updated_at,
+      p_entry: { content_ciphertext: bytea(encrypted.ciphertext), encryption_iv: bytea(encrypted.iv),
+        encryption_auth_tag: bytea(encrypted.authenticationTag), encryption_key_version: encrypted.keyVersion,
         word_count: next.body.trim() ? next.body.trim().split(/\s+/).length : 0,
-
-        emotions: next.emotions,
-        tags: next.tags,
-        privacy_status: next.privacyStatus,
-        analysis_consent: this.localResults ? false : next.analysisConsent,
-      })
-      .eq("id", journalId)
-      .eq("user_id", userId)
-      .select("*")
-      .maybeSingle();
-    if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The journal could not be updated.");
-    if (!data) throw new NotFoundError("The journal entry was not found.");
-    if(this.localResults && (input.analysisConsent===false || (input.body!==undefined && input.body!==current.body))){this.cancelLocalWork(userId,journalId);await this.localResults.remove(userId,journalId);}
-    return this.toJournalResponse(data as JournalRow, await this.latestAnalysis(journalId, userId));
+        emotions: next.emotions, tags: next.tags, privacy_status: next.privacyStatus },
+      p_analysis_requested: analyze && !this.localResults, p_processing_mode: this.localResults ? "disabled" : this.runtime.mode,
+      p_initial_status: initial,
+    });
+    if (error || !data?.entry) {
+      if (error?.message?.includes("JOURNAL_EDIT_CONFLICT")) throw new ConflictError("JOURNAL_EDIT_CONFLICT", "This reflection changed in another tab. Reload it before editing again.");
+      if (error?.message?.includes("JOURNAL_NOT_FOUND")) throw new NotFoundError("The journal entry was not found.");
+      if (error?.message?.includes("AI_QUOTA_EXCEEDED")) throw new AppError({statusCode:429,code:"AI_QUOTA_EXCEEDED",message:"Analysis capacity is full. Your edit was not saved; please retry later."});
+      if (error?.message?.includes("ANALYSIS_GATE_FAILED")) throw new AnalysisGateError("Analysis access changed. Review your settings and retry.");
+      throw new ExternalServiceError("DATABASE_UNAVAILABLE", "We could not confirm the edit was saved. Keep your writing and reload the saved reflection before retrying.");
+    }
+    this.cancelLocalWork(userId,journalId);
+    if (this.localResults) {
+      await this.localResults.remove(userId,journalId);
+      if (analyze) {
+        const identity=this.idempotency!.identify(`edit:${journalId}:${data.entry.updated_at}`,next);
+        const job=await this.localResults.create(userId,journalId,identity.keyHmac,identity.requestHash,"not_requested");
+        this.enqueueLocal(job);
+      }
+    } else if (analyze && this.runtime.mode === "development_stub" && data.status === "queued") {
+      this.runner.enqueue(() => this.processDevelopmentJob(userId,journalId,data.jobId,next.body,"standard_low_distress"));
+    }
+    return this.toJournalResponse(data.entry as JournalRow, null);
   }
 
   async remove(userId: string, journalId: string): Promise<void> {

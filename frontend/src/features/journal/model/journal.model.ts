@@ -76,6 +76,7 @@ export interface CreateJournalInput {
 }
 
 export interface UpdateJournalInput {
+  expectedUpdatedAt?: string;
   title?: string;
   body?: string;
   mood?: JournalMood;
