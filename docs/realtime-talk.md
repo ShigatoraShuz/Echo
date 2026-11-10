@@ -1,3 +1,5 @@
+> Historical implementation record. The MMS Talk fallback and its downloader were retired on November 10, 2026. Current speech uses MOSS Nano by default and optional MOSS v1.5 through the protected Buddy transport. See [current voice integration](buddy-nano-integration.md).
+
 > Current Nano/V3 Buddy integration: see [Buddy Nano setup](buddy-nano-integration.md) and [validation status](buddy-nano-validation.md). The older v1/MMS/Silero description below documents main's previous experimental path, not the new active Buddy transport.
 
 # Real-time local Buddy Talk

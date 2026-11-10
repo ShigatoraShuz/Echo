@@ -30,5 +30,7 @@ def make_engine(v3,base,adapter):
  engine.eos=v3.stop_ids(engine.tokenizer);engine.StoppingCriteria=StoppingCriteria;engine.StoppingCriteriaList=StoppingCriteriaList
  engine.phq_tokenizer=AutoTokenizer.from_pretrained(root/'phq8-seallms/adapter',local_files_only=True,trust_remote_code=False)
  engine.gguf_identity={'engine':'transformers-peft-shared-nf4-v1','quantization':'NF4','contextTokens':4096}
+ # Release inactive loading buffers; keep all model parameters and adapters resident.
+ torch.cuda.empty_cache()
  require_headroom(torch)
  return engine

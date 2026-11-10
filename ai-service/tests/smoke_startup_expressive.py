@@ -19,7 +19,7 @@ def main():
    except Exception:pass
  threading.Thread(target=watch,daemon=True).start()
  try:
-  settings=Settings(app_env='test',host='127.0.0.1',models_root=str(Path('models').resolve()),ai_service_token='synthetic-test-token-not-used-for-http',core_models_enabled=True,core_transport='text_memory',echo_buddy_enabled=True)
+  settings=Settings(app_env='test',host='127.0.0.1',models_root=os.environ.get('MODELS_ROOT',str(Path('models').resolve())),ai_service_token='synthetic-test-token-not-used-for-http',core_models_enabled=True,core_transport='text_memory',echo_buddy_enabled=True)
   runtime=TextRuntime(settings);assert runtime.metrics()['baseReady'] is False
   start=time.perf_counter()
   def load():
@@ -29,7 +29,7 @@ def main():
   while thread.is_alive():runtime.preparation_status();polls+=1;thread.join(.1)
   if errors:raise errors[0]
   metadata=runtime.metrics();pid=metadata['sharedBasePid'];assert metadata['baseReady']
-  record('startup_preload',seconds=time.perf_counter()-start,statusPolls=polls)
+  record('startup_preload',seconds=time.perf_counter()-start,statusPolls=polls,freeGpuBytes=global_memory(torch)['freeBytes'])
   session=str(uuid.uuid4());runtime.talk.speech(session,{'task':'unload','preserveStartup':True})
   assert runtime.metrics()['sharedBasePid']==pid;record('page_release_preserves_base')
   start=time.perf_counter();runtime.talk.start(session,voice_mode='expressive');record('expressive_warm',seconds=time.perf_counter()-start)
@@ -60,7 +60,7 @@ def main():
   assert min(samples)>=2*1024**3
   success=True
  except Exception as error:
-  code=str(error);record('failure',type=type(error).__name__,code=code if code.startswith(('BUDDY_','NATIVE_')) and code.replace('_','').isalnum() else 'STARTUP_SPEECH_CHECK_FAILED')
+  code=str(error);record('failure',type=type(error).__name__,code=code if code.startswith(('BUDDY_','NATIVE_')) and code.replace('_','').isalnum() else 'GPU_CAPACITY_WAIT' if code=='GPU capacity waiting' else 'STARTUP_SPEECH_CHECK_FAILED')
  finally:
   if runtime:runtime.release()
   done.set()

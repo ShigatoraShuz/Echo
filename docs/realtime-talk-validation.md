@@ -1,3 +1,5 @@
+> Historical implementation record. The MMS Talk fallback and its downloader were retired on November 10, 2026. Current speech uses MOSS Nano by default and optional MOSS v1.5 through the protected Buddy transport. See [current voice integration](buddy-nano-integration.md).
+
 # Real-time Talk validation report
 
 Date: 2026-10-31 (Asia/Taipei). Implementation is connected in the ECHO project. **Release status: experimental; not approved against the ten-second first-audio gate.** Real microphone, listening quality, and connected-account UI verification remain unverified. Start and rollback instructions: [real-time Talk](realtime-talk.md).

@@ -12,3 +12,7 @@ it('preserves a bounded Expressive native exit code without exposing arbitrary d
  expect(speechErrorMessage('BUDDY_MOSS_NATIVE_EXIT_C0000374 private draft')).not.toContain('private draft');
  expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).toContain('BUDDY_MOSS_ASSET_MISSING');
 });
+
+it('explains that missing expressive assets need the main Nano voice', () => {
+ expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).toContain('Choose Fast · MOSS Nano');
+});

@@ -120,9 +120,8 @@ class CoreRuntime:
         self.buddy = BuddyRuntime(self)
         if enabled():
             self.talk = self.buddy
-        elif not text_only:
-            from app.model.talk import TalkRuntime
-            self.talk=TalkRuntime(self)
+        else:
+            self.talk = None
 
     def preload(self):
         if not self.hf_enabled:

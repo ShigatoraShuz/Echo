@@ -194,7 +194,9 @@ async def talk(payload: TalkInput, request: Request):
     from app.core.config import get_settings
     if not get_settings().realtime_talk_enabled:
         raise HTTPException(503,'Experimental Talk is disabled')
-    engine=runtime(request).talk
+    engine=getattr(runtime(request), "talk", None)
+    if engine is None:
+        raise HTTPException(503, "Buddy is disabled")
     if payload.task=='chat' and (not payload.messages or payload.messages[-1].role!='user' or sum(len(x.content) for x in payload.messages)>20000):
         raise HTTPException(422,'Invalid conversation')
     if payload.task == 'speak' and (not payload.texts or any(not t.strip() or len(t)>12000 for t in payload.texts) or sum(map(len,payload.texts))>12000):

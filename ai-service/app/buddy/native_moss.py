@@ -1,10 +1,10 @@
 """Pinned MOSS v1.5 native CLI adapter: text stdin and WAV stdout only."""
-import base64,hashlib,io,json,os,re,subprocess,threading,time
+import base64,io,json,os,re,subprocess,threading,time
 from pathlib import Path
 import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
-from app.buddy.config import HERE,VOICE_SHA,digest
+from app.buddy.config import HERE,VOICE_SHA,digest,paths
 from app.buddy.job import spawn_owned,terminate_owned
 from app.buddy.text_audio import validate,assemble
 
@@ -36,7 +36,7 @@ class NativeMoss:
   for path in (self.binary,self.model,self.encoder,self.decoder):
    if not path.is_file():raise RuntimeError('BUDDY_MOSS_ASSET_MISSING')
   progress('reference_validation')
-  original=HERE.parents[2]/'models/buddy/voices/buddy/sample.wav'
+  original=paths()['root']/'voices/buddy/sample.wav'
   if digest(original)!=VOICE_SHA:raise RuntimeError('BUDDY_VOICE_IDENTITY_FAILED')
   wave,rate=sf.read(original,dtype='float32',always_2d=True);validate(wave,rate)
   self.reference=self.root/'buddy-reference-24k.wav'
@@ -47,11 +47,10 @@ class NativeMoss:
   if rate!=24000 or actual.ndim!=1 or len(actual)!=len(expected) or not np.allclose(actual,expected,atol=1/32768+1e-6):raise RuntimeError('BUDDY_MOSS_REFERENCE_INVALID')
   self.identity={'runtimeManifestSHA256':lock['manifestSHA256'],'artifactSHA256':next(x['sha256'] for x in self.manifest['files'] if x['path']=='artifacts/moss-v15-q4_k_m.gguf'),'codecRevision':self.manifest['codecRevision'],'runtimeRevision':self.manifest['forkRevision'],'derivedReferenceSHA256':digest(self.reference),'providerName':'MOSS-TTS-v1.5','modelVersion':self.manifest['modelRevision'],'inferenceVersion':'openmoss-native-memory-io-v1','engine':'OpenMOSS-llama.cpp','quantization':'Q4_K_M','voiceReferenceSHA256':VOICE_SHA,'nativeSampleRate':24000,'nativeChannels':1,'sampleRate':48000,'channels':2}
  def synthesize(self,text,language="English"):
-  import torch
-  from app.buddy.gpu_memory import require_headroom
+  from app.buddy.gpu_memory import native_headroom
   # Native encoder, backbone and decoder run sequentially inside one process.
   required=max(self.model.stat().st_size,self.encoder.stat().st_size,self.decoder.stat().st_size)+1024**3
-  require_headroom(torch,additional_bytes=required)
+  native_headroom(additional_bytes=required)
   arguments=[str(self.binary),'-m',str(self.model),'--audio-encoder-model',str(self.encoder),'--audio-decoder-model',str(self.decoder),'--reference-audio',str(self.reference),'--language',{'English':'en','Filipino':'tl','Taglish':''}[language],'--text-file','-','--wav-out','-','--max-new-tokens','512','-ngl','-1','--seed','42']
   env={key:os.environ[key] for key in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','CUDA_VISIBLE_DEVICES') if key in os.environ}
   process=spawn_owned(arguments,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,cwd=str(self.binary.parent),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),resource_limits={'memory_bytes':28_000_000_000,'cpu_percent':60})
@@ -82,16 +81,15 @@ class NativeMoss:
    if rate!=48000:wave=resample_poly(wave,48000,rate,axis=0)
    if wave.shape[1]==1:wave=np.repeat(wave,2,axis=1)
    wave=validate(wave,48000);_,wave=assemble([wave],48000)
-   require_headroom(torch)
+   native_headroom()
    return base64.b64encode((np.clip(wave,-1,1)*32767).astype('<i2').tobytes()).decode()
   finally:
    terminate_owned(process)
    for stream in (process.stdout,process.stderr):stream.close()
  def call(self,request):
-  import torch
-  from app.buddy.gpu_memory import require_headroom
-  if request.get('check'):return {'model':self.identity,'requiredGpuBytes':max(self.model.stat().st_size,self.encoder.stat().st_size,self.decoder.stat().st_size)+1024**3,'freeGpuBytes':require_headroom(torch)['freeBytes']}
+  from app.buddy.gpu_memory import native_headroom
+  if request.get('check'):return {'model':self.identity,'requiredGpuBytes':max(self.model.stat().st_size,self.encoder.stat().st_size,self.decoder.stat().st_size)+1024**3,'freeGpuBytes':native_headroom()['freeBytes']}
   texts=request['texts']
   if not 1<=len(texts)<=3 or any(not isinstance(t,str) or not t.strip() or len(t)>12000 for t in texts):raise ValueError('Invalid native sentences')
   start=time.perf_counter();segments=[{'text':t,'audio':self.synthesize(t,request.get("language","English")),'sampleRate':48000,'channels':2} for t in texts]
-  return {'segments':segments,'model':self.identity,'seconds':time.perf_counter()-start,'freeGpuBytes':require_headroom(torch)['freeBytes']}
+  return {'segments':segments,'model':self.identity,'seconds':time.perf_counter()-start,'freeGpuBytes':native_headroom()['freeBytes']}

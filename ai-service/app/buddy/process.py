@@ -24,7 +24,7 @@ def check_environment(python, kind, env, cancelled=None, deadline=None):
     imports = {
         "cbt": "import ctypes,torch,transformers",
         "nano": "import ctypes,torch,torchaudio,transformers,soundfile",
-        "moss": "import ctypes,numpy,soundfile,scipy,torch",
+        "moss": "import ctypes,numpy,soundfile,scipy",
         "whisper": "import ctypes,faster_whisper,numpy",
     }[kind]
     check = spawn_owned([str(python), "-I", "-B", "-c", imports],

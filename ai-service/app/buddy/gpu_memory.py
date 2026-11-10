@@ -7,7 +7,7 @@ from app.core.exceptions import ModelUnavailableError
 class Memory(ctypes.Structure):
     _fields_ = [("total",ctypes.c_ulonglong),("free",ctypes.c_ulonglong),("used",ctypes.c_ulonglong)]
 
-def _read_nvml(identity, index):
+def _read_nvml(identity, index, *, single=False):
     if os.name == "nt":
         path = os.path.join(os.environ.get("SYSTEMROOT", "C:/Windows"), "System32", "nvml.dll")
         library = ctypes.CDLL(path)
@@ -18,6 +18,13 @@ def _read_nvml(identity, index):
     if library.nvmlInit_v2() != 0:
         raise OSError("NVML initialization failed")
     try:
+        if single:
+            count = ctypes.c_uint()
+            function = library.nvmlDeviceGetCount_v2
+            function.argtypes = [ctypes.POINTER(ctypes.c_uint)]
+            function.restype = ctypes.c_uint
+            if function(ctypes.byref(count)) or count.value != 1:
+                raise OSError("Native speech requires one physical GPU")
         handle = ctypes.c_void_p()
         if identity:
             function = library.nvmlDeviceGetHandleByUUID
@@ -69,3 +76,19 @@ def require_headroom(torch, additional_bytes=0):
         raise ModelUnavailableError("BUDDY_INSUFFICIENT_GPU_HEADROOM")
     return memory
 
+
+
+def native_headroom(additional_bytes=0):
+    """A native-only wrapper must not allocate a spare PyTorch CUDA context."""
+    selected = os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0].strip()
+    if selected != "0" and not selected.startswith("GPU-"):
+        raise ModelUnavailableError("BUDDY_GPU_MEMORY_UNAVAILABLE")
+    try:
+        memory = _read_nvml(selected if selected.startswith("GPU-") else None, 0, single=True)
+        if not 0 <= memory["freeBytes"] <= memory["totalBytes"] or memory["totalBytes"] <= 0:
+            raise ValueError("Invalid GPU memory")
+    except (OSError, ValueError, AttributeError):
+        raise ModelUnavailableError("BUDDY_GPU_MEMORY_UNAVAILABLE") from None
+    if memory["freeBytes"] - additional_bytes < 2 * 1024**3:
+        raise ModelUnavailableError("BUDDY_INSUFFICIENT_GPU_HEADROOM")
+    return memory

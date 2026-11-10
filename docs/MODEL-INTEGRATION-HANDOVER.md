@@ -1,3 +1,5 @@
+> Historical inventory. The obsolete MMS Talk worker and its `requirements-realtime-speech.lock` were retired on November 10, 2026. Use the current [Buddy integration](buddy-nano-integration.md) for active speech environments.
+
 # ECHO model integration and environment handover
 
 Current runtime handover: [2026-11-05 system checkpoint](handover/CURRENT_SYSTEM_2026-11-05.md). This October 31 document is historical; its model/voice selection is superseded.
