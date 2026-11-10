@@ -12,6 +12,11 @@ export function trustedOrigins(configured?: string): string[] {
     origin.hostname = origin.hostname === "localhost" ? "127.0.0.1" : "localhost";
     result.push(origin.origin);
   }
+  // The private server is also opened on its host PC. Keep local access exact
+  // and development-only; never broaden arbitrary HTTPS deployments or production.
+  if (process.env.NODE_ENV !== "production" && origin.protocol === "https:" && origin.hostname.endsWith(".ts.net")) {
+    result.push("http://127.0.0.1:3000", "http://localhost:3000");
+  }
   return result;
 }
 
