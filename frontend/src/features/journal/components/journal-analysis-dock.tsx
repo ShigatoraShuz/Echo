@@ -19,6 +19,7 @@ import type { JournalAnalysis } from "../model/journal.model";
 import { AnalysisStatusExperience } from "./analysis-status-experience";
 import dynamic from "next/dynamic";
 const JournalAnalysisPanel = dynamic(() => import("./journal-analysis-panel").then(m => m.JournalAnalysisPanel), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
+import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import { LocalFaceResult } from "./local-face-result";
 
 const tabs = ["Overview", "Emotions", "PHQ-8", "Face"] as const;
@@ -225,6 +226,7 @@ export function JournalAnalysisDock({
                       {analysis.summary}
                     </p>
                   )}
+                  <JournalCbtRecommendation result={native} />
                   <p className="mt-5 text-xs leading-6 text-muted-foreground">
                     Model signals support reflection. They are not diagnoses or
                     measures of your safety. PHQ-8 estimates are experimental

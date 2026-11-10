@@ -67,13 +67,17 @@ describe("opt-in native encrypted callbacks", () => {
     await expect(service.finalResult("job", "local-worker", "lease", "callback-key-long", native)).rejects.toThrow("disconnected");
     expect(rpc).not.toHaveBeenCalled();
   });
-  it("passes only a sealed result to the lease/ownership transaction", async () => {
+  it.each([false, true])("passes only a sealed result to the lease/ownership transaction (CBT: %s)", async withCbt => {
     const encryption = createEncryptionService(Buffer.alloc(32, 5).toString("base64"), 1);
     const rpc = vi.fn().mockImplementation(async name => ({ data: name === "lookup_worker_receipt" ? null : "result-id", error: null }));
     const journals = { encryptAnalysisResult: (value: unknown) => sealAnalysisResult(value, encryption) } as JournalService;
     const database = { schema: () => ({ rpc }) } as unknown as SupabaseClient;
     const service = new LocalWorkerService(database, journals, "synthetic-worker-secret-32-characters", "local-worker", true);
-    const result = { ...native, isSimulated: false };
+    const result = { ...native, isSimulated: false, ...(withCbt ? {
+      schemaVersion: "echo-journal-analysis-v3",
+      journalScreening: { status: "unavailable", experimental: true, inferenceVersion: "journal-nullable-v1", items: null, coverage: 0, subtotal: null, total: null },
+      cbtRecommendation: { status: "available", text: "A private suggestion specific to this reflection.", model: { providerName: "buddy", modelVersion: "adapter", inferenceVersion: "reviewed" } },
+    } : {}) };
     await expect(service.finalResult("job", "local-worker", "lease", "callback-key-long", result)).resolves.toEqual({ resultId: "result-id", status: "completed" });
     const [name, args] = rpc.mock.calls[1];
     expect(name).toBe("complete_worker_callback");

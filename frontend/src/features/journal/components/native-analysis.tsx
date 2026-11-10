@@ -1,5 +1,6 @@
 "use client";
 import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
+import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import {LocalFaceResult} from "./local-face-result";
 import { Brain, Activity, ClipboardList, ChevronDown, LockKeyhole } from "lucide-react";
 import { analysisSummary } from "../model/analysis-summary";
@@ -206,6 +207,7 @@ export function NativeAnalysis({
           </ul>
         </section>
       ) : null}
+      <JournalCbtRecommendation result={result} />
       {insights?.recommendation ? (
         <div>
           <h3 className="font-semibold">{insights.recommendation.title}</h3>

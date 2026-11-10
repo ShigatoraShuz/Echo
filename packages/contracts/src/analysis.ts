@@ -396,16 +396,23 @@ export const journalDistressEstimateSchema = z.object({
     ctx.addIssue({ code: "custom", message: "Model inference requires provenance" });
 });
 
+export const journalCbtRecommendationSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("available"), text: z.string().trim().min(1).max(4000), model: provenanceSchema }).strict(),
+  z.object({ status: z.literal("unavailable") }).strict(),
+  z.object({ status: z.literal("support_required") }).strict(),
+]);
+
 export const journalAnalysisV3ResultSchema = z
   .object({
     ...journalAnalysisV2ResultSchema.shape,
     schemaVersion: z.literal("echo-journal-analysis-v3"),
     journalScreening: journalScreeningSchema,
     distressEstimate: journalDistressEstimateSchema.optional(),
+    cbtRecommendation: journalCbtRecommendationSchema.optional(),
   })
   .strict()
   .superRefine((v, c) => {
-    const { journalScreening, distressEstimate, ...native } = v;
+    const { journalScreening, distressEstimate, cbtRecommendation, ...native } = v;
     const checked = journalAnalysisV2ResultSchema.safeParse({ ...native, schemaVersion: "echo-journal-analysis-v2" });
     if (!checked.success)
       for (const issue of checked.error.issues)
