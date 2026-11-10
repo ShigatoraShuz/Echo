@@ -104,6 +104,7 @@ it("streams only approved speech, persists text locally and marks interruption",
     f.send({ type: "finish", generation: 1, turnId });
     const reply = await f.wait("approved_reply");
     await f.wait("audio");
+    expect(f.core.talk.mock.calls.find(([p])=>p.task==='chat')?.[0].deliveryMode).toBe('voice');
     f.send({ type: "cancel", generation: 1 });
     await f.wait("delivery");
     const c = f.store.get(user, reply.conversationId);

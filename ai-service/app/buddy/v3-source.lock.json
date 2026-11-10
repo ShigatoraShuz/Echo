@@ -2,9 +2,10 @@
   "policy": "echo_cbt_mixed_standalone_complete_steps_v3_20261101",
   "origin": "ECHO_CBT_Mixed_Standalone_Complete_Steps_V3 as copied into the current Nano Buddy",
   "files": {
-    "echo_cbt_standalone.py": "dc7bdb90b30346c3a6c4e81c78cc88cb2b4efb38bf3a07c21759ede7a75c60fb",
+    "echo_cbt_standalone.py": "e21dd696309169734dd0076ef225cc5fa7213d71cb39dd03c49614b4cdad1056",
     "formatting.py": "0580c61db474021f539d0faaec88badc087e7bca08f1eb44687640e935ef6835",
     "style_config.json": "348cf396235f60d7e86fb1392cc7179f7bcfc463d83d5330174d744960fc9ad9",
     "reference/cbt-settings.json": "57d30307e1b78e65fa8959848c52637467d2be296470a46f52d670d8803663f9"
-  }
+  },
+  "localAdaptation": "Optional spoken delivery profile; original chat policy, safety and output approval retained."
 }

@@ -12,8 +12,8 @@ class TalkProxy:
     def require(self, session):
         return self.runtime.pulse(session)
 
-    def chat(self, session, messages, cancelled=None):
-        return self.runtime._call("buddy", session, {"task": "chat", "messages": messages}, cancelled=cancelled)
+    def chat(self, session, messages, cancelled=None, delivery_mode="chat"):
+        return self.runtime._call("buddy", session, {"task": "chat", "messages": messages, **({"deliveryMode":delivery_mode} if delivery_mode=="voice" else {})}, cancelled=cancelled)
 
     def speech(self, session, payload, cancelled=None):
         return self.runtime._call("buddy", session, payload, cancelled=cancelled)

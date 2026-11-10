@@ -247,13 +247,23 @@ def validate_history(history: list[dict[str, str]]) -> list[dict[str,str]]:
     return cleaned
 
 
-def system_prompt(latest: str, *, retry=False) -> str:
+DETAIL_REQUEST = re.compile(r"\b(explain|detail(?:ed|s)?|elaborate|tell me more|paliwanag|ipaliwanag|detalyado)\b", re.I)
+
+
+def response_role(latest: str, delivery_mode='chat') -> str:
+    if delivery_mode not in ('chat','voice'):raise ValueError('Invalid delivery mode')
+    request=role(latest)
+    if delivery_mode=='voice' and request=='ordinary' and re.search(r'\b(steps?|step-by-step|hakbang|numbered list|bullet points)\b',latest,re.I):return 'steps'
+    return 'brief' if delivery_mode=='voice' and request=='ordinary' and not DETAIL_REQUEST.search(latest) else request
+
+
+def system_prompt(latest: str, *, retry=False, delivery_mode='chat') -> str:
     p=policy()['generationPolicy']
     selected = p['REWRITE_SYSTEM'] if retry else p['V41_SYSTEM']
     lang = language(latest)
     if lang=='filipino':selected += p['FILIPINO_STYLE_GUIDE']
     elif lang=='taglish':selected += p['TAGLISH_STYLE_GUIDE']
-    request=role(latest)
+    request=response_role(latest,delivery_mode)
     extra=''
     if request=='steps':
         extra=('\n\nEXPLICIT STEP-BY-STEP USER REQUEST: The user asked for instructions, '
@@ -271,6 +281,11 @@ def system_prompt(latest: str, *, retry=False) -> str:
                 'Acknowledge the strain, give a manageable next step, and when meaning '
                 'remains unclear ask one gentle question about what "give up" means '
                 'or whether they feel safe. Never ignore clear signs of danger.')
+    if delivery_mode=='voice' and response_role(latest,delivery_mode)=='brief':
+        extra+=('\n\nSPOKEN CONVERSATION: Respond naturally in one or two short, complete sentences. '
+                'Reflect the specific concern and offer one manageable idea if useful. '
+                'Avoid filler and long introductions. At most one gentle question. '
+                'Keep all safety boundaries. Do not cut off an unfinished thought.')
     return selected + '\n\n' + STYLE_APPENDIX + extra
 
 
@@ -413,26 +428,31 @@ class LocalCBT:
                 selected.pop(0);dropped+=1
         return {k:v.to(self.device) for k,v in inputs.items()},dropped
 
-    def _attempt(self,history,*,retry=False,allow_drops=True):
+    def _attempt(self,history,*,retry=False,allow_drops=True,delivery_mode="chat"):
         torch=self.torch
         latest=history[-1]['content']
-        typ=role(latest)
+        typ=response_role(latest,delivery_mode)
         lang=language(latest)
-        prompt=system_prompt(latest,retry=retry)
+        prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode)
         max_new=policy()['runtime']['rewriteMaxNewTokens'] if retry else policy()['runtime']['maxNewTokens']
         inp,dropped=self._input(history,prompt,max_new,allow_drops=allow_drops)
         n_prompt=int(inp['input_ids'].shape[1])
         target=style()['word_targets'][typ if typ in ('brief','professional','steps') else lang]
+        requested_steps=None
+        if delivery_mode=='voice' and typ=='steps':
+            match=re.search(r'\b([2-6]|two|three|four|five|six)(?:\s+\w+){0,2}\s+steps?\b',latest,re.I)
+            if match:requested_steps={'two':2,'three':3,'four':4,'five':5,'six':6}.get(match[1].lower(),int(match[1]) if match[1].isdigit() else None)
         owner=self
         class CompleteSentenceStop(owner.StoppingCriteria):
             def __init__(self):
                 self.triggered=False
             def __call__(self, input_ids, scores, **kwargs):
                 extra=int(input_ids.shape[1])-n_prompt
-                if extra < max(35,target//2) or extra % 4 != 0:return False
+                if extra < max(35,target//2) or ((delivery_mode!="voice" or typ!="brief") and extra % 4 != 0):return False
                 text=owner.tokenizer.decode(input_ids[0,n_prompt:],skip_special_tokens=True)
                 if word_count(text)<target:return False
                 if not sentence_boundary(text,typ):return False
+                if requested_steps and len(re.findall(r'(?<!\S)\d{1,2}[.)]\s+\S',text))<requested_steps:return False
                 self.triggered=True
                 return True
         stopper=CompleteSentenceStop()
@@ -462,6 +482,7 @@ class LocalCBT:
         ended_eos=bool(len(new_ids) and int(new_ids[-1].item()) in self.eos)
         hard_cap=len(new_ids)>=max_new and not ended_eos and not stopper.triggered
         quality=quality_issues(response,latest,typ,hard_cap)
+        if requested_steps and len(re.findall(r'(?<!\S)\d{1,2}[.)]\s+\S',response))!=requested_steps:quality.append('requested_step_count_mismatch')
         return {'_raw_reply':response,
                 'word_count':word_count(response),'role':typ,'language_heuristic':lang,
                 'attempt':'rewrite' if retry else 'initial',
@@ -501,12 +522,13 @@ class LocalCBT:
         attempt['raw_response_sha256']=hashlib.sha256(original.encode('utf-8')).hexdigest()
         return attempt
 
-    def reply(self,history):
+    def reply(self,history,*,delivery_mode="chat"):
         turns=validate_history(history)
+        response_role(turns[-1]["content"],delivery_mode)
         disposition=safety_disposition(turns)
         if disposition in ('explicit_urgent','ambiguous_unqualified'):
             return safety_withhold(disposition)
-        first=self._attempt(turns,retry=False)
+        first=self._attempt(turns,retry=False,**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
         if not first['needs_review']:
             try:
                 ready=self._approved_for_output(first)
@@ -518,7 +540,7 @@ class LocalCBT:
             return ready
         try:
             # Context-preserving second attempt; rejected raw draft not provided.
-            second=self._attempt(turns,retry=True,allow_drops=False)
+            second=self._attempt(turns,retry=True,allow_drops=False,**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
             if not second['needs_review']:
                 try:
                     ready=self._approved_for_output(second)

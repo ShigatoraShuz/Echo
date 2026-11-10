@@ -498,7 +498,7 @@ export class RealtimeTalkHub {
     if (s.bytes > 60 * 16000 * 2) throw Error();
     s.frames.push(pcm);
     s.lastActivity = Date.now();
-    if (!s.partialBusy && s.bytes - s.partialAt >= 16000 * 2 * 2) {
+    if (!s.partialBusy && s.bytes - s.partialAt >= 16000 * 2 * 4) {
       s.partialAt = s.bytes;
       s.partialBusy = true;
       const current = s.generation;
@@ -648,6 +648,7 @@ export class RealtimeTalkHub {
         await this.core.talk(
           {
             task: "prepare",
+            deliveryMode: "voice",
             sessionId: s.id,
             text: reply,
             language: s.language,

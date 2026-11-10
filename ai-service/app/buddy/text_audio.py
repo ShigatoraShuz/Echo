@@ -18,7 +18,7 @@ def integer(n,tl=False):
         prefix=count+linker+' libo'
     else:prefix=integer(q)+' thousand'
     return prefix+((' at ' if tl else ' ')+integer(r,tl) if r else '')
-def prepare(text,language):
+def prepare(text,language,*,spoken=False):
     if language not in ('English','Filipino','Taglish'):raise ValueError('Choose a supported language.')
     if not isinstance(text,str) or not text.strip():raise ValueError('Enter text first.')
     if len(text)>20000:raise ValueError('Limit input to 20,000 characters; nothing was shortened.')
@@ -27,6 +27,13 @@ def prepare(text,language):
     text=re.sub(r'\[([^\]]+)\]\([^)]*\)',r'\1',text)
     for marker in ('```','**','__','`'):text=text.replace(marker,'')
     text=text.translate(str.maketrans({'’':"'",'‘':"'",'“':'"','”':'"','–':'-','—':', '}))
+    if spoken:
+        # Generated duration ranges are unambiguous speech, not signed values or dates.
+        def duration_range(match):
+            low,high=int(match[1]),int(match[2])
+            if low>high:return match[0]  # Leave invalid ranges for the strict validator.
+            return f"{match[1]} {'hanggang' if language=='Filipino' else 'to'} {match[2]} {match[3]}"
+        text=re.sub(r'(?<![\w.])(\d{1,3})\s*-\s*(\d{1,3})\s+(seconds?|minutes?|hours?|days?|weeks?|segundo|minuto|oras|araw|linggo)\b',duration_range,text,flags=re.I)
     if re.search(r'[$€£₱%]|[+−-]\s*\d|\d\s*[/,:-]\s*\d|[A-Za-z]\d|\d[A-Za-z]|\d+\.\d+\.\d+',text):raise ValueError('Write dates, times, signed values, currency, percentages and identifiers in words.')
     def number(m):
         whole,dot,fraction=m[0].partition('.')

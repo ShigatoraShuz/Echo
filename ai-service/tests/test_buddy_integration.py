@@ -294,3 +294,38 @@ def test_shared_model_root_is_forwarded_and_used_for_adapter_defaults(monkeypatc
     assert config.models_root() == tmp_path.resolve()
     assert config.paths()["adapter"] == (tmp_path / "buddy/adapter").resolve()
     assert config.paths()["root"] == (tmp_path / "buddy").resolve()
+
+
+def test_voice_profile_reaches_same_resident_cbt_with_full_history():
+    runtime=stub();runtime.owner='session';runtime.ready=True
+    seen=[]
+    def worker(kind,payload,cancelled):
+        seen.append((kind,payload))
+        return {'reply':'Approved complete response.','model':{'modelVersion':ADAPTER_SHA},'seconds':.1}
+    runtime._worker=worker
+    history=[{'role':'user','content':'First'},{'role':'assistant','content':'Prior.'},{'role':'user','content':'Next'}]
+    runtime.dispatch('session',{'task':'chat','messages':history,'deliveryMode':'voice'})
+    assert seen==[('cbt',{'messages':history,'deliveryMode':'voice'})]
+    runtime.chat('session',history)
+    assert seen[-1]==('cbt',{'messages':history,'deliveryMode':'chat'})
+
+
+def test_spoken_tiny_intro_keeps_full_text_and_default_sentence_schedule():
+    from app.buddy.sentences import spoken_sentences
+    text='Sure! Here is one manageable next step. Then take your time.'
+    assert spoken_sentences(text)==['Sure! Here is one manageable next step. ', 'Then take your time.']
+    assert ''.join(spoken_sentences(text))==text
+    assert sentences(text)[0]=='Sure! '
+    assert spoken_sentences('Hello!')==['Hello!']
+    long='Sure! '+('A longer sentence '*25)+'.'
+    assert spoken_sentences(long)==sentences(long)
+
+
+def test_spoken_duration_ranges_preserve_numbers_without_relaxing_ambiguous_values():
+    from app.buddy.text_audio import prepare
+    assert prepare('Try 15–20 minutes.','English',spoken=True)=='Try fifteen to twenty minutes.'
+    assert prepare('Subukan ang 5–10 minuto.','Filipino',spoken=True)=='Subukan ang lima hanggang sampu minuto.'
+    for text in ('Try 15–20 minutes.','Use -20 minutes.','Pay $20.','Meet at 12:30.','2026-11-11','Try 20–15 minutes.'):
+        if text!='Try 15–20 minutes.':
+            with pytest.raises(ValueError):prepare(text,'English',spoken=True)
+        with pytest.raises(ValueError):prepare(text,'English')

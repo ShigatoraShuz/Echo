@@ -30,6 +30,14 @@ def make_engine(v3,base,adapter):
  engine.eos=v3.stop_ids(engine.tokenizer);engine.StoppingCriteria=StoppingCriteria;engine.StoppingCriteriaList=StoppingCriteriaList
  engine.phq_tokenizer=AutoTokenizer.from_pretrained(root/'phq8-seallms/adapter',local_files_only=True,trust_remote_code=False)
  engine.gguf_identity={'engine':'transformers-peft-shared-nf4-v1','quantization':'NF4','contextTokens':4096}
+ # Prime prefill/decode kernels before reporting model readiness. No user data,
+ # sampled advice or history is involved; the exact model and RNG policy stay intact.
+ warm=engine.tokenizer('A short synthetic readiness check. '*40,return_tensors='pt')
+ warm={k:v.to(engine.device) for k,v in warm.items()}
+ with torch.inference_mode():
+  model.generate(**warm,max_new_tokens=2,do_sample=False,use_cache=True,
+   pad_token_id=engine.tokenizer.pad_token_id,eos_token_id=engine.eos)
+ del warm
  # Release inactive loading buffers; keep all model parameters and adapters resident.
  torch.cuda.empty_cache()
  require_headroom(torch)

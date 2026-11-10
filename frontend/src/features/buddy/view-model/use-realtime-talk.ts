@@ -241,7 +241,7 @@ export function useRealtimeTalk(options: Options) {
             if (s.ring.length > 18) s.ring.shift();
             const threshold=sensitivityRef.current==='sensitive'?.008:.012;
             s.speechFrames = energy >= threshold ? s.speechFrames + 1 : 0;
-            if (s.speechFrames < 15) return; // 480 ms minimum audible utterance.
+            if (s.speechFrames < 6) return; // 192 ms; retain pre-roll for short conversational replies.
             s.generation++;
             s.turnId = crypto.randomUUID();
             s.sequence = 0;
@@ -262,7 +262,7 @@ export function useRealtimeTalk(options: Options) {
           }
           frame(s, values);
           s.silence = energy < 0.009 ? s.silence + 1 : 0;
-          if (s.silence >= 32 || s.frameCount >= 1875) {
+          if (s.silence >= 24 || s.frameCount >= 1875) {
             s.submittedAt = performance.now();
             pauseCapture(s, true);
             send(s, { type: "finish", turnId: s.turnId, generation: s.generation });

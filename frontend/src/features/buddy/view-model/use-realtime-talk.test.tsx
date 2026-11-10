@@ -140,3 +140,19 @@ it('sends the selected expressive voice with Start Talk',async()=>{
  expect(creation).toBeDefined();expect(JSON.parse(String(creation![1]?.body)).voiceMode).toBe('expressive');
  hook.unmount();
 });
+
+it('captures short conversational speech and ends after 768 ms silence, retaining shorter pauses',async()=>{
+ const microphone=stream();media(vi.fn().mockResolvedValue(microphone.value));
+ const hook=renderHook(()=>useRealtimeTalk(options));await act(async()=>hook.result.current.start());
+ await act(async()=>sockets[0].ready());await waitFor(()=>expect(hook.result.current.state).toBe('listening'));
+ const worklet=vi.mocked(AudioWorkletNode).mock.results[0].value;
+ const sendFrame=(value:number)=>worklet.port.onmessage?.(new MessageEvent('message',{data:new Float32Array(512).fill(value)}));
+ const events=()=>sockets[0].send.mock.calls.filter(([value])=>typeof value==='string').map(([value])=>JSON.parse(value));
+ act(()=>{for(let i=0;i<5;i++)sendFrame(.1);});expect(events().some(e=>e.type==='begin')).toBe(false);
+ act(()=>sendFrame(.1));expect(events().filter(e=>e.type==='begin')).toHaveLength(1);
+ act(()=>{for(let i=0;i<23;i++)sendFrame(0);});expect(events().some(e=>e.type==='finish')).toBe(false);
+ act(()=>sendFrame(.1));
+ act(()=>{for(let i=0;i<23;i++)sendFrame(0);});expect(events().some(e=>e.type==='finish')).toBe(false);
+ act(()=>sendFrame(0));expect(events().filter(e=>e.type==='finish')).toHaveLength(1);
+ expect(microphone.track.enabled).toBe(false);hook.unmount();
+});

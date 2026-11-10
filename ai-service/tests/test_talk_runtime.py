@@ -103,3 +103,24 @@ def test_disabled_buddy_does_not_start_a_legacy_voice(monkeypatch):
         asyncio.run(routes.talk(payload, None))
     assert error.value.status_code == 503
     assert error.value.detail == "Buddy is disabled"
+
+
+def test_api_forwards_spoken_profile_and_rejects_unknown_profile(monkeypatch):
+    import asyncio
+    from pydantic import ValidationError
+    from app.api.routes import core as routes
+    from app.core import config
+    seen=[]
+    class Request:
+        async def is_disconnected(self):return False
+    def chat(session,messages,cancelled,**kwargs):
+        seen.append((messages,kwargs))
+        return {'reply':'Complete approved reply.'}
+    monkeypatch.setattr(config,'get_settings',lambda:SimpleNamespace(realtime_talk_enabled=True))
+    monkeypatch.setattr(routes,'runtime',lambda request:SimpleNamespace(talk=SimpleNamespace(chat=chat)))
+    fields={'sessionId':'00000000-0000-0000-0000-000000000000','task':'chat','messages':[{'role':'user','content':'Synthetic'}]}
+    assert asyncio.run(routes.talk(routes.TalkInput(**fields,deliveryMode='voice'),Request()))['reply']
+    assert seen[-1][1]=={'delivery_mode':'voice'}
+    asyncio.run(routes.talk(routes.TalkInput(**fields),Request()))
+    assert seen[-1][1]=={}
+    with pytest.raises(ValidationError):routes.TalkInput(**fields,deliveryMode='unknown')

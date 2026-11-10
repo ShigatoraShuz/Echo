@@ -200,7 +200,7 @@ class BuddyRuntime:
             self.cpu_classifier = ClassifierProxy()
         return self.cpu_classifier
 
-    def generate(self, messages, cancelled=None):
+    def generate(self, messages, cancelled=None, delivery_mode="chat"):
         with self.core.lock:
             # Same frozen classifier/calibration as main, before any Buddy generation.
             classification = self._classifier().classify(messages[-1]["content"])
@@ -208,7 +208,7 @@ class BuddyRuntime:
                 return {"reply": None, "supportRequired": True, "model": self.core.provenance("xlmr")}
             self.core.release() if self.core.instance is not None and not getattr(self.core,"hf_enabled",False) else None
             if getattr(self.core,"hf_enabled",False):self.core.ensure_buddy_capacity()
-            value = self._worker("cbt", {"messages": messages}, cancelled)
+            value = self._worker("cbt", {"messages": messages, "deliveryMode": delivery_mode}, cancelled)
             if cancelled and cancelled.is_set():
                 raise TalkCancelledError("Cancelled")
             if value.get("withheld") or not value.get("reply"):
@@ -285,13 +285,13 @@ class BuddyRuntime:
                 self.status = {"ready": False, "code": code if code.startswith(("BUDDY_","NATIVE_")) else "BUDDY_PREFLIGHT_FAILED"}
                 raise ModelUnavailableError(self.status["code"]) from None
 
-    def chat(self, session, messages, cancelled=None):
+    def chat(self, session, messages, cancelled=None, delivery_mode="chat"):
         self.require(session)
         with self.core.lock:
             self.require(session)
             if not self.ready:
                 self.start(session, cancelled, speech=False)
-            result = self.generate(messages, cancelled)
+            result = self.generate(messages, cancelled, **({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
             self.require(session)
             return result
 
@@ -362,16 +362,17 @@ class BuddyRuntime:
                 raise ModelUnavailableError("BUDDY_WORKER_LOST")
             return {"active": True}
         if task == "chat":
-            return self.chat(session, payload["messages"], cancelled)
+            return self.chat(session, payload["messages"], cancelled, **({"delivery_mode":"voice"} if payload.get("deliveryMode")=="voice" else {}))
         if task == "support_check":
             with self.core.lock:
                 return self._classifier().classify(payload["text"])
         if task == "prepare":
             from app.buddy.text_audio import prepare
-            from app.buddy.sentences import sentences, batches
+            from app.buddy.sentences import sentences, batches, spoken_sentences
             from app.buddy.segmenting import speech_segments
-            text = prepare(payload["text"], payload.get("language", "English"))
-            parts = sentences(text) if payload.get("speechMode") == "sentences_2_then_3" else speech_segments(text)
+            text = prepare(payload["text"], payload.get("language", "English"), spoken=payload.get("deliveryMode")=="voice")
+            split = spoken_sentences if payload.get("deliveryMode")=="voice" else sentences
+            parts = split(text) if payload.get("speechMode") == "sentences_2_then_3" else speech_segments(text)
             if payload.get('voiceMode','fast')=='fast':
                 with self.core.lock:
                     if 'nano' not in self.workers:self._prepare('nano',cancelled)

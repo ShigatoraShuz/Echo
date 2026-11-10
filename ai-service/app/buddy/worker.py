@@ -70,7 +70,7 @@ def cbt(request):
     require_headroom(torch)
     started = time.perf_counter()
     try:
-        result = ENGINE.reply(request["messages"])
+        result = ENGINE.reply(request["messages"], **({"delivery_mode":"voice"} if request.get("deliveryMode")=="voice" else {}))
     except ValueError as error:
         if 'exceeds token budget' in str(error):raise RuntimeError('BUDDY_CBT_CONTEXT_LIMIT') from None
         raise
@@ -82,6 +82,7 @@ def cbt(request):
                 "model": MODEL_IDENTITY, "seconds": time.perf_counter() - started}
     quality = {key: result[key] for key in ("attempts", "rewrite_attempted", "dropped_history_turns",
                "auto_format_preserved_content", "inference_version", "prompt_tokens", "generated_tokens", "stop") if key in result}
+    quality["deliveryProfile"] = "spoken-v1" if request.get("deliveryMode")=="voice" else "chat-v3"
     return {"reply": result["reply"], "withheld": False, "model": MODEL_IDENTITY,
             "quality": quality, "seconds": time.perf_counter() - started}
 

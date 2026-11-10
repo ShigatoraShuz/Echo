@@ -35,6 +35,24 @@ class TestV3Policy(unittest.TestCase):
   self.assertEqual(e.role(USER1),'ordinary')
   self.assertEqual(e.role('Thanks'),'brief')
   self.assertEqual(e.role('What CBT protocol can I use for my client?'),'professional')
+ def test_spoken_profile_preserves_explicit_depth_and_safety(self):
+  ordinary='I feel overwhelmed by schoolwork today.'
+  self.assertEqual(e.response_role(ordinary,'voice'),'brief')
+  self.assertEqual(e.response_role(ordinary),'ordinary')
+  self.assertIn('SPOKEN CONVERSATION',e.system_prompt(ordinary,delivery_mode='voice'))
+  self.assertNotIn('SPOKEN CONVERSATION',e.system_prompt(ordinary))
+  for text in (USER2,'Explain in detail how to manage school stress.', 'Ipaliwanag ang pagharap sa stress.', 'What CBT protocol can I use for my client?'):
+   self.assertEqual(e.response_role(text,'voice'),e.role(text))
+   self.assertEqual(e.system_prompt(text,delivery_mode='voice'),e.system_prompt(text))
+  for text in ('I want to kill myself','I wanna give up'):
+   model=e.LocalCBT.__new__(e.LocalCBT)
+   model._attempt=lambda *a,**k:self.fail('Unsafe request reached generation')
+   result=model.reply([{'role':'user','content':text}],delivery_mode='voice')
+   self.assertIsNone(result['reply'])
+  for text in ('Can you give me three practical steps to start my school assignment?', 'Give me 3 small steps.', 'Bigyan mo ako ng mga hakbang.'):
+   self.assertEqual(e.response_role(text,'voice'),'steps')
+   self.assertIn('SHORT readable numbered list',e.system_prompt(text,delivery_mode='voice'))
+  with self.assertRaises(ValueError):e.response_role(ordinary,'invalid')
  def test_original_policy_retained(self):
   p=e.policy()['generationPolicy']
   self.assertTrue(e.system_prompt(USER2).startswith(p['V41_SYSTEM']))

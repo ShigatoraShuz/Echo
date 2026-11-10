@@ -446,7 +446,7 @@ export class ExperienceService {
     let generated:any;
     const context=prepareBuddyContext(messages);
     messages=context.messages;
-    if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages},signal);urgent=generated.supportRequired;}
+    if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages,deliveryMode:'voice'},signal);urgent=generated.supportRequired;}
     if(signal.aborted)throw new Error('Cancelled');
     const reply=urgent?buddyReply(messages.at(-1)!.content,true):generated?.reply;
     if(typeof reply!=='string'||!reply.trim()||reply.length>12000)throw new Error('No approved response');

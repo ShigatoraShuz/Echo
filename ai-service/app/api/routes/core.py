@@ -182,6 +182,7 @@ class TalkInput(BaseModel):
     texts: list[str] = Field(default_factory=list,max_length=3)
     speechMode: Literal['sentences_2_then_3','buffered'] = 'sentences_2_then_3'
     voiceMode: Literal['fast','expressive'] = 'fast'
+    deliveryMode: Literal['chat','voice'] = 'chat'
     preserveStartup: bool = False
     language: Literal['English','Filipino','Taglish','eng','tgl'] = 'English'
     messages: list[Turn] = Field(default_factory=list,max_length=20)
@@ -210,8 +211,8 @@ async def talk(payload: TalkInput, request: Request):
         if payload.task=='support_check':
             engine.require(payload.sessionId)
             with engine.core.lock:return engine.cpu_classifier.classify(payload.text)
-        if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled)
-        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode,'voiceMode':payload.voiceMode,'preserveStartup':payload.preserveStartup},cancelled)
+        if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled,**({'delivery_mode':'voice'} if payload.deliveryMode=='voice' else {}))
+        return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode,'voiceMode':payload.voiceMode,'deliveryMode':payload.deliveryMode,'preserveStartup':payload.preserveStartup},cancelled)
     task=asyncio.create_task(asyncio.to_thread(execute))
     try:
         while not task.done():

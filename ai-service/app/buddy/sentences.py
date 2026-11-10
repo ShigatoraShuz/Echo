@@ -16,3 +16,11 @@ def sentences(text):
 def batches(parts):
     for part in parts[:2]:yield [part]
     for index in range(2,len(parts),3):yield parts[index:index+3]
+
+
+def spoken_sentences(text):
+    """Keep a tiny lead-in with its context so TTS does not overgenerate on 'Sure!'."""
+    parts=sentences(text)
+    if len(parts)>1 and len(parts[0].strip())<24 and len(parts[0]+parts[1])<=320:
+        parts=[parts[0]+parts[1],*parts[2:]]
+    return parts
