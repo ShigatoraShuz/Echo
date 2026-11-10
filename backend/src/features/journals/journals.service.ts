@@ -1379,6 +1379,7 @@ export class JournalService {
       .select("id,journal_id,status,facial_status,created_at")
       .eq("journal_id", journalId)
       .eq("user_id", userId)
+      .is("deleted_at", null)
       .maybeSingle();
     if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Analysis is temporarily unavailable.");
     if (!request) return null;

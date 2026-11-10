@@ -33,7 +33,15 @@ const analysisInsightsQuerySchema = z
       context.addIssue({ code: "custom", path: ["to"], message: "custom ranges cannot exceed 366 days" });
   });
 
-const journalUpdateSchema = journalSubmissionObjectSchema.partial().extend({ expectedUpdatedAt: z.string().datetime({ offset: true }).optional() });
+// PATCH omissions preserve saved preferences; creation defaults must not turn analysis off.
+const journalUpdateSchema = journalSubmissionObjectSchema.partial().extend({
+  emotions: journalSubmissionObjectSchema.shape.emotions.removeDefault().optional(),
+  tags: journalSubmissionObjectSchema.shape.tags.removeDefault().optional(),
+  privacyStatus: journalSubmissionObjectSchema.shape.privacyStatus.removeDefault().optional(),
+  analysisConsent: journalSubmissionObjectSchema.shape.analysisConsent.removeDefault().optional(),
+  facialAnalysisRequested: journalSubmissionObjectSchema.shape.facialAnalysisRequested.removeDefault().optional(),
+  expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
+});
 
 const journalDraftSchema = z.strictObject({
   draftIntent:z.enum(['create','update']).default('create'),

@@ -115,3 +115,19 @@ describe("journal analysis submission routes", () => {
     expect(dashboardInsights).not.toHaveBeenCalled();
   });
 });
+
+
+describe("journal edit preserves omitted preferences", () => {
+  it.each([undefined, false, true])("does not manufacture consent when editing (%s)", async analysisConsent => {
+    const update = vi.fn().mockResolvedValue({ id: "saved" });
+    const app = express(); app.use(express.json());
+    app.use(createJournalsRouter({ update } as unknown as JournalService, verifier, verification as never));
+    app.use(errorMiddleware);
+    const response = await request(app).patch("/journals/00000000-0000-4000-8000-000000000002")
+      .set("Authorization", "Bearer token").send({ title: "Edited title", body: "Edited body", ...(analysisConsent === undefined ? {} : { analysisConsent }) });
+    expect(response.status).toBe(200);
+    const forwarded = update.mock.calls[0][2];
+    expect(forwarded.analysisConsent).toBe(analysisConsent);
+    for (const key of ["emotions", "tags", "privacyStatus", "facialAnalysisRequested"]) expect(forwarded[key]).toBeUndefined();
+  });
+});

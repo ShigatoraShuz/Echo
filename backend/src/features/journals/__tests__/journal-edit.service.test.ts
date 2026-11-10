@@ -67,3 +67,21 @@ describe("face revision migration compatibility",()=>{
     expect(rpc).toHaveBeenCalledOnce();
   });
 });
+
+
+it("reads only the active revision when archived analysis requests exist", async () => {
+  const filters: Record<string, unknown> = {};
+  const query = {
+    select: () => query,
+    eq: (name: string, value: unknown) => { filters[name] = value; return query; },
+    is: (name: string, value: unknown) => { filters[name] = value; return query; },
+    maybeSingle: async () => Object.hasOwn(filters, "deleted_at")
+      ? { data: null, error: null }
+      : { data: null, error: { message: "Archived and current requests are multiple rows" } },
+  };
+  const service = new JournalService({ schema: () => ({ from: () => query }) } as unknown as SupabaseClient,
+    createEncryptionService(Buffer.alloc(32,4).toString("base64"),1), createDisabledAnalysisProvider());
+  vi.spyOn(service, "get").mockResolvedValue({} as never);
+  expect(await service.getLatestAnalysis("owner", "journal")).toBeNull();
+  expect(filters).toEqual({ user_id: "owner", journal_id: "journal", deleted_at: null });
+});

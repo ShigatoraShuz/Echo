@@ -41,11 +41,14 @@ begin
  insert into ai_analysis.journal_face_results(journal_id,user_id,result_ciphertext) values(journal,owner,'echo:encrypted:v1:synthetic');
  payload:=jsonb_build_object('content_ciphertext','edited-cipher','encryption_iv','iv2','encryption_auth_tag','tag2','encryption_key_version',1,'word_count',3,'emotions','[]'::jsonb,'tags','[]'::jsonb,'privacy_status','private');
  value:=journal_service.edit_journal(owner,journal,stamp,payload,true,'development_stub','queued');
+ perform pg_temp.assert_true((value->'entry'->>'updated_at')::timestamptz>stamp,'edit advances revision fence');
+ perform pg_temp.expect_error(format('select journal_service.edit_journal(%L,%L,%L,%L,true,%L,%L)',owner,journal,stamp,payload,'development_stub','queued'),'JOURNAL_EDIT_CONFLICT');
  perform pg_temp.assert_true((value->>'jobId')::uuid<>oldjob,'new analysis job');
  perform pg_temp.assert_true((select status='failed' and deleted_at is not null and lease_token_hash is null from ai_analysis.analysis_requests where id=oldjob),'old worker fenced');
  perform pg_temp.assert_true(not exists(select 1 from ai_analysis.journal_face_results where journal_id=journal),'old face result removed');
  perform pg_temp.assert_true((select count(*)=1 from public.analysis_status_projection where journal_id=journal),'only new progress remains');
  perform pg_temp.assert_true((select content_ciphertext='edited-cipher' from journal_service.journals where id=journal),'edited text saved');
+ stamp:=(value->'entry'->>'updated_at')::timestamptz;
  update ai_analysis.quota_policy set per_user_daily=1 where singleton;
  perform pg_temp.expect_error(format('select journal_service.edit_journal(%L,%L,%L,%L::jsonb,true,%L,%L)',owner,journal,stamp,payload||jsonb_build_object('content_ciphertext','quota-rejected-edit'),'development_stub','queued'),'AI_QUOTA_EXCEEDED');
  perform pg_temp.assert_true((select content_ciphertext='edited-cipher' from journal_service.journals where id=journal),'queue admission failure rolls back text');
