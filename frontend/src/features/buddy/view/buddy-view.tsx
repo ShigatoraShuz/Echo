@@ -1,4 +1,5 @@
 "use client";
+import { startModelLease } from "@/shared/lib/model-lease-session";
 import styles from "./buddy-studio.module.css";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -62,44 +63,25 @@ export function BuddyView() {
   const speakNext = useRef(false);
   const [draft, setDraft] = useState("");
   const [runtimeStatus,setRuntimeStatus]=useState('unloaded');
+  const runtimeRecovery=useRef<ReturnType<typeof startModelLease>|null>(null);
   const [runtimePreparation,setRuntimePreparation]=useState<ModelPreparation|null>(null);
   const [showRuntimeDetails,setShowRuntimeDetails]=useState(false);
   const preparingComponent=runtimePreparation&&(Boolean(runtimePreparation.loadingComponents?.length)||['checking','loading','warming','retrying'].includes(runtimePreparation.state));
   const runtimeDisplayStatus=preparingComponent?'preparing':runtimeStatus;
   useEffect(()=>{
     if(vm.accessStatus!=='allowed')return;
-    let disposed=false;let leaseId:string|undefined;
-    let poll:ReturnType<typeof setTimeout>|undefined;
-    let heartbeat:ReturnType<typeof setInterval>|undefined;
-    let polling=false;let renewing=false;
-    const leave=()=>{
-      if(disposed)return;disposed=true;
-      if(poll)clearTimeout(poll);if(heartbeat)clearInterval(heartbeat);
-      stopRealtime();cancelVoice();
-      if(leaseId)void releaseBuddyLease(leaseId).catch(()=>{});
-    };
-    window.addEventListener('pagehide',leave);
-    let interval=1000;
-    const refresh=()=>{
-      if(disposed||polling||!leaseId)return;
-      if(poll)clearTimeout(poll);polling=true;
-      void getBuddyLease(leaseId).then(value=>{if(disposed)return;
-        setRuntimeStatus(value.state);setRuntimePreparation(value.preparation??null);
-        interval=value.state==='preparing'||value.preparation?.loadingComponents?.length||['checking','loading','warming','retrying'].includes(value.preparation?.state??'')?1000:(process.env.NEXT_PUBLIC_ECHO_OPTIMIZATIONS==='true'?15000:1000);
-      }).catch(()=>{if(!disposed)setRuntimeStatus('failed');interval=15000;}).finally(()=>{polling=false;if(!disposed)poll=setTimeout(refresh,interval);});
-    };
-    const focus=()=>refresh();window.addEventListener('focus',focus);
+    const client = crypto.randomUUID();
     setRuntimeStatus('preparing');setRuntimePreparation(null);
-    void acquireBuddyLease(crypto.randomUUID()).then(async lease=>{
-      if(disposed){await releaseBuddyLease(lease.id).catch(()=>{});return;}
-      leaseId=lease.id;setRuntimeStatus(lease.state);setRuntimePreparation(lease.preparation??null);
-      refresh();
-      heartbeat=setInterval(()=>{if(renewing||!leaseId)return;renewing=true;
-        void heartbeatBuddyLease(leaseId).then(value=>{if(!disposed)setRuntimeStatus(value.state);})
-          .catch(()=>{if(!disposed)setRuntimeStatus('failed');}).finally(()=>{renewing=false;});
-      },15000);
-    }).catch(()=>{if(!disposed)setRuntimeStatus('failed');});
-    return ()=>{window.removeEventListener('pagehide',leave);window.removeEventListener('focus',focus);leave();};
+    const session = startModelLease({
+      acquire: () => acquireBuddyLease(client), status: getBuddyLease, heartbeat: heartbeatBuddyLease, release: releaseBuddyLease,
+      change: lease => {setRuntimeStatus(lease.state);setRuntimePreparation(lease.preparation??null);},
+      error: () => setRuntimeStatus('failed'),
+      delay: lease => lease.state==='preparing'||lease.preparation?.loadingComponents?.length||['checking','loading','warming','retrying'].includes(lease.preparation?.state??'')?1000:15000,
+    });
+    runtimeRecovery.current=session;
+    const leave=()=>{session.stop();stopRealtime();cancelVoice();if(runtimeRecovery.current===session)runtimeRecovery.current=null;};
+    window.addEventListener('pagehide',leave);window.addEventListener('focus',session.retry);
+    return ()=>{window.removeEventListener('pagehide',leave);window.removeEventListener('focus',session.retry);leave();};
   },[vm.accessStatus,vm.historyStore,stopRealtime,cancelVoice]);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
@@ -811,6 +793,7 @@ export function BuddyView() {
                   Reflective support, not emergency care
                 </span>
                 <button type="button" aria-label="Model loading details" aria-expanded={showRuntimeDetails} aria-controls="buddy-model-details" onClick={()=>setShowRuntimeDetails(value=>!value)} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-[var(--landing-primary)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                  {runtimeStatus==='failed'&&<button type="button" aria-label="Retry Buddy models" className="text-xs font-semibold text-primary underline" onClick={()=>runtimeRecovery.current?.retry()}>Retry</button>}
                   <span role="status" aria-label={`Buddy models: ${runtimeDisplayStatus}`} title={`Buddy models: ${runtimeDisplayStatus}`}>
                     {runtimeStatus==='failed'||runtimePreparation?.state==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'||preparingComponent?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
                   </span>

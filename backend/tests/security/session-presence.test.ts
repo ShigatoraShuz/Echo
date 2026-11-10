@@ -12,8 +12,10 @@ it('last-tab grace expires across restart and old sessions cannot register again
  const restored=new SessionPresenceStore(root,()=>31000);expect(restored.isClosed('u','s')).toBe(true);expect(restored.update('u','s','b','register')).toEqual({closed:true});
  expect(restored.update('u','new','b','register')).toEqual({closed:false});
 }));
-it('lost close events expire after 90 seconds plus grace',()=>scenario((s,t)=>{
- s.update('u','s','a','register');t(119999);expect(s.isClosed('u','s')).toBe(false);t(1);expect(s.isClosed('u','s')).toBe(true);
+it('unconfirmed heartbeat loss allows reconnection but still has a bounded expiry',()=>scenario((s,t)=>{
+ s.update('u','s','a','register');t(121000);expect(s.isClosed('u','s')).toBe(false);
+ expect(s.update('u','s','a','heartbeat')).toEqual({closed:false});
+ t(90000+30*60*1000);expect(s.isClosed('u','s')).toBe(true);
 }));
 it('logout closes only its shared session and persists no raw identities or tokens',()=>scenario((s,t,root)=>{
  s.update('private-user','private-session','a','register');s.update('private-user','other-session','b','register');s.update('private-user','private-session','a','logout');

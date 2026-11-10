@@ -515,10 +515,15 @@ class CoreRuntime:
             # Optional generation failure must not discard completed journal analysis.
             return {"status": "unavailable"}
 
-    def analyze(self, text, language="unknown", classification=None, emotion=None, screening_result=None):
+    supports_analysis_stages = True
+
+    def analyze(self, text, language="unknown", classification=None, emotion=None, screening_result=None, on_stage=None):
         classification = classification or self.classify(text, language)
         emotion = emotion if emotion is not None else self.emotions(text)
         category = classification["distress_category"]
+        if on_stage:
+            on_stage("classifying_distress")
+            on_stage("estimating_screening")
         features = {
             "Anxious": "paced_breathing",
             "Depressed": "behavioral_activation",
@@ -532,6 +537,7 @@ class CoreRuntime:
             raise
         except Exception:
             screening={'status':'unavailable' if getattr(self,'screening_unavailable',None) else 'failed','experimental':True,'inferenceVersion':'journal-nullable-v1','items':None,'coverage':0,'subtotal':None,'total':None}
+        if on_stage: on_stage("generating_recommendation")
         return {
             "schemaVersion": "echo-journal-analysis-v3",
             "journalScreening":screening,

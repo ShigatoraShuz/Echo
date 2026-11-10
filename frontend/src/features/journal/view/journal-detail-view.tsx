@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useJournalEditGuard } from "./use-journal-edit-guard";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Trash2, Tag, Info, ImagePlus, Pencil, Check, X } from "lucide-react";
@@ -8,6 +9,7 @@ import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view
 import { JournalAnalysisDock } from "../components/journal-analysis-dock";
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
+import { EchoDialog } from "@/shared/components/ui/echo-dialog";
 import { EchoButton } from "@/shared/components/ui/echo-button";
 import { EchoLoadingState } from "@/shared/components/feedback/echo-loading-state";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
@@ -42,6 +44,10 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   useEffect(() => { setEditing(false); }, [id]);
+  const editGuard = useJournalEditGuard(id, entry?.updatedAt,
+    editing && Boolean(entry) && (editTitle !== entry?.title || editBody !== entry?.body), editTitle, editBody,
+    draft => { setEditTitle(draft.title); setEditBody(draft.body); setEditing(true); });
+
 
   const handleAddPhotos = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -113,9 +119,9 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           {editing ? <>
-            <EchoButton variant="outline" className="rounded-full" disabled={isSavingEdit} onClick={() => setEditing(false)}><X size={16} aria-hidden="true" /> Cancel edit</EchoButton>
+            <EchoButton variant="outline" className="rounded-full" disabled={isSavingEdit} onClick={() => { editGuard.forget(); setEditing(false); }}><X size={16} aria-hidden="true" /> Cancel edit</EchoButton>
             <EchoButton className="rounded-full" isLoading={isSavingEdit} disabled={!editBody.trim() || !editTitle.trim() || editTitle.length > 200 || editBody.length > 10000}
-              onClick={async () => { if (await saveEdit(editTitle, editBody)) setEditing(false); }}><Check size={16} aria-hidden="true" /> Save changes</EchoButton>
+              onClick={async () => { if (await saveEdit(editTitle, editBody)) { editGuard.forget(); setEditing(false); } }}><Check size={16} aria-hidden="true" /> Save changes</EchoButton>
           </> : <EchoButton variant="outline" className="rounded-full bg-card/75" onClick={() => { setEditTitle(entry.title); setEditBody(entry.body); setEditing(true); }}><Pencil size={16} aria-hidden="true" /> Edit entry</EchoButton>}
           <EchoButton
             variant="outline"
@@ -225,6 +231,12 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         />
       </div>
 
+      <EchoDialog open={Boolean(editGuard.pendingHref)} onClose={editGuard.cancelNavigation} title="Keep your changes?" description="Your journal has unsaved edits. Keep writing, or discard these edits before leaving." size="small">
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          <EchoButton variant="outline" onClick={editGuard.cancelNavigation}>Keep editing</EchoButton>
+          <EchoButton onClick={() => { const next = editGuard.discardNavigation(); if(next) { setEditing(false); if(next.startsWith("/"))router.push(next);else window.location.assign(next); } }}>Discard and leave</EchoButton>
+        </div>
+      </EchoDialog>
       <JournalDeleteDialog
         isOpen={showDeleteDialog}
         isDeleting={isDeleting}

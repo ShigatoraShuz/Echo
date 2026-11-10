@@ -136,3 +136,11 @@ it('confirmed logout cancels active preparation without the ten-second grace',as
  const lease=store.acquire('u','s','tab');await Promise.resolve();closed=true;store.release('u','s',lease.id);await store.settled();
  expect(signal.aborted).toBe(true);expect(unload).toHaveBeenCalledTimes(1);await store.close();
 });
+
+it('retries a failed preparation after cooldown without spawning overlapping attempts',async()=>{
+ let now=0;const prepare=vi.fn().mockRejectedValueOnce(Error('temporary')).mockResolvedValue(undefined);const store=new Leases(prepare,async()=>{},()=>now);
+ try{const lease=store.acquire('u','s','a');await store.settled();expect(store.status('u','s',lease.id).state).toBe('failed');
+ store.sweep(true);await store.settled();expect(prepare).toHaveBeenCalledTimes(1);
+ now=30001;store.heartbeat('u','s',lease.id);store.sweep(true);await store.settled();expect(store.status('u','s',lease.id).state).toBe('ready');expect(prepare).toHaveBeenCalledTimes(2);
+ }finally{await store.close();}
+});

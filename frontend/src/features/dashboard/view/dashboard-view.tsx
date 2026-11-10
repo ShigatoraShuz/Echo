@@ -360,7 +360,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           Your private reflections are for support, not diagnosis.
         </p>
         <p className="max-w-md sm:ml-auto sm:text-right">
-          ECHO's AI tools support reflection and do not replace a qualified therapist or mental health professional.
+          ECHO&apos;s AI tools support reflection and do not replace a qualified therapist or mental health professional.
         </p>
       </footer>
     </div>

@@ -28,7 +28,7 @@ const progressSchema = z
   })
   .strict();
 const safetySchema = z.object({ actionRequired: z.boolean() }).strict();
-const failureSchema = z.object({ code: z.enum(["PROCESSING_FAILED", "MODEL_UNAVAILABLE", "TIMEOUT"]) }).strict();
+const failureSchema = z.object({ code: z.enum(["PROCESSING_FAILED", "MODEL_UNAVAILABLE", "TIMEOUT", "CAPACITY_WAIT"]) }).strict();
 
 export function workerDatabaseError(error: { message?: string }): never {
   const message = error.message ?? "";
@@ -116,7 +116,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const { data, error } = await this.database
       .schema("ai_analysis")
       .from("analysis_requests")
-      .select("id,status,attempt_count")
+      .select("id,status,attempt_count,capacity_wait_count")
       .in("status", ["waiting_for_provider", "retrying"])
       .in("processing_mode", ["disabled", "local_worker"])
       .is("deleted_at", null);
@@ -127,7 +127,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
         .rpc("requeue_job", {
           p_job_id: job.id,
           p_mode: "local_worker",
-          p_transition_key: `${job.status}:${job.attempt_count}:local-worker-v1`,
+          p_transition_key: `${job.status}:${job.attempt_count}:${job.capacity_wait_count ?? 0}:local-worker-v1`,
         });
       if (outcome.error) workerDatabaseError(outcome.error);
     }
@@ -158,7 +158,7 @@ export class LocalWorkerService implements LocalWorkerProtocol {
   }
   private identity(key: string | undefined, payload: unknown) {
     if (!key || key.length < 16 || key.length > 200)
-      throw new ValidationError({ callbackKey: ["A callback idempotency key of 16–200 characters is required."] });
+      throw new ValidationError({ callbackKey: ["A callback idempotency key of 16â€“200 characters is required."] });
     return {
       keyHmac: createHmac("sha256", this.workerSecret).update(key).digest("hex"),
       payloadHash: hash(canonicalCallback(payload)),

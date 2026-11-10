@@ -52,3 +52,14 @@ def test_missing_screening_assets_have_a_sanitized_stage_code():
     runtime=CoreRuntime.__new__(CoreRuntime);runtime.screening_unavailable="MODEL_INTEGRITY_FAILED"
     with pytest.raises(ModelUnavailableError,match="NATIVE_PHQ_ASSET_UNAVAILABLE"):
         runtime.screening("synthetic text")
+
+
+def test_progress_events_precede_the_actual_screening_and_cbt_work():
+    value=TextRuntime.__new__(TextRuntime);value.buddy_enabled=True
+    events=[]
+    def call(operation,*args,**metadata):
+        events.append(operation)
+        return {"ok":True}
+    value._call=call
+    value.analyze("synthetic",classification={"safe":True},on_stage=lambda state:events.append(state))
+    assert events==["emotions","classifying_distress","estimating_screening","screening","generating_recommendation","analyze"]

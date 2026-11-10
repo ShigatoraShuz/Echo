@@ -41,9 +41,9 @@ const stageLabels: Record<string, string> = {
   safety_checking: "Safety check",
   safety_action_required: "Support is ready",
   analyzing_emotions: "Understanding emotions",
-  classifying_distress: "Estimating distress",
+  classifying_distress: "Reviewing journal category",
   estimating_screening: "Reviewing available insights",
-  generating_recommendation: "Preparing your reflection",
+  generating_recommendation: "Preparing Buddy suggestions",
   aggregating_week: "Updating your dashboard",
   retrying: "Trying again safely",
   completed: "Analysis processing finished",
@@ -53,7 +53,7 @@ const stageLabels: Record<string, string> = {
 const checkPresentation: Record<AnalysisCheckId, { label: string; icon: LucideIcon }> = {
   safety_crisis: { label: "Safety and crisis-sign check", icon: HeartHandshake },
   emotion: { label: "Emotion analysis", icon: Brain },
-  distress: { label: "Journal distress", icon: Activity },
+  distress: { label: "Journal category", icon: Activity },
   phq8: { label: "PHQ-8 symptom estimate", icon: ClipboardList },
   facial: { label: "Facial expression analysis", icon: ScanFace },
 };

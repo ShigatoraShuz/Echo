@@ -509,8 +509,8 @@ export type SanctuaryPerspective = z.infer<typeof sanctuaryPerspectiveSchema>;
 const textCheckDetails: Record<Exclude<AnalysisCheckId, "facial">, string> = {
   safety_crisis: "Safety check complete",
   emotion: "Emotion patterns ready",
-  distress: "Distress signal ready",
-  phq8: "Symptom range ready",
+  distress: "Journal category ready",
+  phq8: "Journal estimate processed",
 };
 
 function facialCheck(status: FacialAnalysisStatus): AnalysisCheckProgress {
@@ -583,8 +583,8 @@ export function analysisChecksFor(
           : index === 1
             ? "Reading emotional patterns"
             : index === 2
-              ? "Estimating distress"
-              : "Estimating a symptom range";
+              ? "Classifying journal category"
+              : "Reviewing journal evidence";
       return { id, state: "running", detail };
     }
     return { id, state: "pending", detail: "Waiting" };

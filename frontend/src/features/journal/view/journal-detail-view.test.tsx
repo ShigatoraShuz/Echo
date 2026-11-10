@@ -91,6 +91,10 @@ it("edits title and reflection inline, preserves writing on failure, and support
   await user.click(screen.getByRole("button", {name:"Edit entry"}));
   await user.clear(screen.getByRole("textbox", {name:"Edit journal reflection"}));
   await user.type(screen.getByRole("textbox", {name:"Edit journal reflection"}), "Corrected reflection");
+  await user.click(screen.getByRole("link", {name:"All entries"}));
+  expect(await screen.findByRole("dialog", {name:"Keep your changes?"})).toBeVisible();
+  await user.click(screen.getByRole("button", {name:"Keep editing"}));
+  expect(screen.getByRole("textbox", {name:"Edit journal reflection"})).toHaveValue("Corrected reflection");
   await user.click(screen.getByRole("button", {name:"Save changes"}));
   expect(saveEdit).toHaveBeenCalledWith("Original", "Corrected reflection");
   expect(screen.getByRole("textbox", {name:"Edit journal reflection"})).toHaveValue("Corrected reflection");

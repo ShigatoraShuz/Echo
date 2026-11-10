@@ -338,12 +338,17 @@ class TextRuntime:
     def classify(self, text, language="unknown", owner=None):
         return self._call("classify", text, language, **({"journal_owner": owner} if owner else {}))
 
-    def analyze(self, text, language="unknown", classification=None, owner=None):
+    supports_analysis_stages = True
+
+    def analyze(self, text, language="unknown", classification=None, owner=None, on_stage=None):
         guard = {"journal_owner": owner} if owner else {}
-        if not self.buddy_enabled and owner is None:
+        if not self.buddy_enabled and owner is None and on_stage is None:
             return self._call("analyze", text, language, classification)
         classification = classification or self.classify(text, language, owner)
         emotion = self._call("emotions", text, **guard)
+        if on_stage:
+            on_stage("classifying_distress")
+            on_stage("estimating_screening")
         try:
             if getattr(self, 'shared_enabled', False):
                 from app.model.screening import assemble_passes
@@ -366,6 +371,7 @@ class TextRuntime:
             screening = {"status": "unavailable" if unavailable else "failed", "experimental": True,
                 "inferenceVersion": "journal-nullable-v1", "items": None, "coverage": 0,
                 "subtotal": None, "total": None}
+        if on_stage: on_stage("generating_recommendation")
         return self._call("analyze", text, language, classification, emotion, screening, **guard)
 
     def journal_runtime(self, action, owners, face_owners=None, cancelled=None):

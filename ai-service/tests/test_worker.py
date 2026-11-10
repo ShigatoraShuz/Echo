@@ -102,3 +102,22 @@ def test_gpu_queue_rejects_excess_work_without_loading_a_model():
     runtime.slots.acquire()
     with pytest.raises(ModelUnavailableError, match="queue is full"):
         runtime.call("xlmr", lambda model: None)
+
+
+def test_capacity_wait_is_not_reported_as_processing_failure():
+    from app.core.exceptions import TalkBusyError
+    async def run():
+        events=[]
+        def handler(request):
+            import json
+            events.append((request.url.path,json.loads(request.content)))
+            return httpx.Response(200,json={"data":{}})
+        class Runtime:
+            def classify(self,*args):raise TalkBusyError("capacity")
+        worker=Worker(Runtime(),SimpleNamespace(backend_url="http://test.invalid/",ai_worker_token="synthetic"))
+        await worker.client.aclose();worker.client=httpx.AsyncClient(base_url="http://test.invalid/",transport=httpx.MockTransport(handler))
+        try:assert await worker.process({"jobId":"synthetic","leaseToken":"synthetic","status":"queued","input":{"journalText":"synthetic"}})=="capacity_wait"
+        finally:await worker.client.aclose()
+        assert any(body.get("payload")=={"code":"CAPACITY_WAIT"} for _,body in events)
+        assert not any(body.get("payload")=={"code":"PROCESSING_FAILED"} for _,body in events)
+    asyncio.run(run())

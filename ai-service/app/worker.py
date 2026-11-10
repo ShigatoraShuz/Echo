@@ -6,6 +6,7 @@ import re
 import uuid
 
 import httpx
+from app.core.exceptions import TalkBusyError
 
 
 class Worker:
@@ -87,16 +88,22 @@ class Worker:
                 await self.callback(job, "safety-result", {"actionRequired": flagged})
                 if flagged:
                     return
-            result = await self.stage(
-                job, heartbeat, lambda: self.runtime.analyze(text, language, classification)
-            )
-            for status in [
-                "classifying_distress",
-                "estimating_screening",
-                "generating_recommendation",
-            ]:
-                await self.callback(job, "progress", {"status": status})
+            staged = getattr(self.runtime, "supports_analysis_stages", False)
+            loop = asyncio.get_running_loop()
+            def progress(status):
+                asyncio.run_coroutine_threadsafe(
+                    self.callback(job, "progress", {"status": status}), loop
+                ).result(timeout=30)
+            result = await self.stage(job, heartbeat, lambda: self.runtime.analyze(
+                text, language, classification, **({"on_stage": progress} if staged else {})
+            ))
+            if not staged:
+                for status in ["classifying_distress", "estimating_screening", "generating_recommendation"]:
+                    await self.callback(job, "progress", {"status": status})
             await self.callback(job, "final-result", result)
+        except TalkBusyError:
+            await self.callback(job, "failure", {"code": "CAPACITY_WAIT"})
+            return "capacity_wait"
         except Exception:  # noqa: BLE001 -- report a bounded job failure without leaking journal text
             with contextlib.suppress(Exception):
                 await self.callback(job, "failure", {"code": "PROCESSING_FAILED"})
@@ -120,7 +127,9 @@ class Worker:
                     )
                     job = await self.post("jobs/claim", {"workerId": self.worker_id})
                     if job:
-                        await self.process(job)
+                        outcome = await self.process(job)
+                        if outcome == "capacity_wait":
+                            await asyncio.sleep(5)
                     else:
                         await asyncio.sleep(5)
                 except (httpx.HTTPError, KeyError):

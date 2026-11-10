@@ -93,13 +93,13 @@ async function api(path: string, method: string, body?: unknown, signal?: AbortS
     const code = failure?.error?.code;
     if(typeof code==='string'&&(code.startsWith('AI_TRANSPORT_')||code.startsWith('BUDDY_NANO_')))
       throw Error(speechErrorMessage(code));
-    throw Error(
+    throw Object.assign(Error(
       res.status === 409
         ? "Talk is busy on this installation. Try again shortly."
         : res.status === 401
           ? "Sign in again to continue Talk."
           : "Local Talk is unavailable. Text chat is still available.",
-    );
+    ), { status: res.status });
   }
   return (await res.json()).data;
 }
