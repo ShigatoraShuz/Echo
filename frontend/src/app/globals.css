@@ -620,19 +620,17 @@
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   html {
     min-height: 100%;
     background: hsl(var(--background));
-    scrollbar-width: none;
-    -ms-overflow-style: none;
   }
 
   body {
     min-height: 100%;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
     background:
       radial-gradient(circle at top left, hsl(var(--secondary) / 0.5), transparent 32rem), hsl(var(--background));
     color: hsl(var(--foreground));
@@ -642,8 +640,7 @@
     text-rendering: optimizeLegibility;
   }
 
-  html::-webkit-scrollbar,
-  body::-webkit-scrollbar {
+  *::-webkit-scrollbar {
     display: none;
   }
 
@@ -946,7 +943,7 @@
   .echo-workspace-shell .echo-workspace-page { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 }
 
-.echo-panel-scroll { scrollbar-width: thin; scrollbar-color: hsl(var(--primary) / .3) transparent; overscroll-behavior: contain; }
+.echo-panel-scroll { overscroll-behavior: contain; }
 .echo-workspace-enter { animation: echo-card-enter 420ms cubic-bezier(.22, 1, .36, 1) both; }
 .echo-reading-swap { animation: echo-card-enter 260ms cubic-bezier(.22, 1, .36, 1) both; }
 .echo-workspace-tile { transition: transform 180ms cubic-bezier(.22, 1, .36, 1), background-color 180ms ease, border-color 180ms ease; }
@@ -2194,7 +2191,7 @@
 .journal-inline-analysis>div>div:first-child{display:none}.journal-inline-analysis h2{font-size:25px}.journal-inline-analysis [role=progressbar]{height:7px}
 .journal-inline-analysis li{animation:journal-row-arrive .65s ease-out both}
 .journal-studio-writing>article{border-radius:30px!important;box-shadow:0 20px 65px hsl(var(--primary)/.07)}
-@media(min-width:1024px){.journal-studio-grid{grid-template-columns:minmax(0,1.25fr) minmax(360px,.9fr);height:calc(100dvh - 180px);min-height:500px;align-items:stretch}.journal-studio-writing{height:100%;overflow:auto;scrollbar-width:thin;padding:0 2px 4px}.journal-studio-report{height:100%}.journal-report-body{overflow:auto;scrollbar-width:thin}.journal-studio-writing>div:last-child{position:sticky;bottom:0;margin-top:12px;background:hsl(var(--card)/.97);backdrop-filter:blur(12px)}.journal-studio-writing textarea{min-height:240px!important}}
+@media(min-width:1024px){.journal-studio-grid{grid-template-columns:minmax(0,1.25fr) minmax(360px,.9fr);height:calc(100dvh - 180px);min-height:500px;align-items:stretch}.journal-studio-writing{height:100%;overflow:auto;padding:0 2px 4px}.journal-studio-report{height:100%}.journal-report-body{overflow:auto}.journal-studio-writing>div:last-child{position:sticky;bottom:0;margin-top:12px;background:hsl(var(--card)/.97);backdrop-filter:blur(12px)}.journal-studio-writing textarea{min-height:240px!important}}
 @keyframes journal-surface-arrive{from{opacity:0;transform:translateY(35px) scale(.97);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
 @keyframes journal-row-arrive{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes journal-silk{to{transform:translateX(120%)}}
@@ -3597,7 +3594,6 @@
 .support-checkin-dialog > .mt-5 {
   overflow: auto;
   max-height: calc(90dvh - 125px);
-  scrollbar-width: thin;
 }
 .support-checkin-dialog h2 {
   font-family: var(--font-echo-display);
