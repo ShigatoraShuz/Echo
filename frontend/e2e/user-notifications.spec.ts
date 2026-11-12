@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { reachesSupportStreak } from "../../backend/src/features/notifications/daily-distress.service";
 import AxeBuilder from "@axe-core/playwright";
 import { appointmentNotificationTypes } from "@echo/contracts";
 
@@ -90,4 +91,56 @@ test("failure/retry, focus trap, keyboard tabs, navigation and backdrop dismissa
   await expect(page).toHaveURL(/\/settings\/verification$/); await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: /Notifications, 27 unread/ }).click();
   await page.mouse.click(20,300); await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+
+test("thesis demo: optional check-in and three-day Buddy or journal suggestion", async ({ page }, testInfo) => {
+  const days = ["2026-11-10", "2026-11-11", "2026-11-12"];
+  const reports = days.map((day, index) => ({ entryAt: `${day}T06:00:00Z`, emotion: ["sadness", "fear", "anger"][index] }));
+  const ratings = new Map<string, "high">();
+  let day = days[0];
+  let notice: { id: string; type: string; title: string; message: string; createdAt: string; readAt: string | null; resourceType: null; resourceId: null } | undefined;
+  await page.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (url.hostname !== "127.0.0.1") return route.abort();
+    if (url.pathname !== "/__fixtures/rpc") return route.continue();
+    const { method, args } = route.request().postDataJSON();
+    if (method === "dailyDistressRead") return route.fulfill({ json: { rating: ratings.get(day) ?? null } });
+    if (method === "dailyDistressSave" && args[0] === "high") {
+      ratings.set(day, "high");
+      return route.fulfill({ json: { rating: "high" } });
+    }
+    if (method === "userNotifications") {
+      if (!notice && reachesSupportStreak(day, "Asia/Manila", ratings, reports)) {
+        notice = {
+          id: "11111111-1111-4111-8111-111111111111", type: "daily_distress_suggestion",
+          title: "Make room for how you feel", message: "The past few days may have felt heavy. If you’d like space to express what you’re feeling, try writing a reflection or chatting with Buddy.",
+          createdAt: `${day}T08:00:00Z`, readAt: null, resourceType: null, resourceId: null,
+        };
+      }
+      const unreadCount = notice && !notice.readAt ? 1 : 0;
+      return route.fulfill({ json: { notifications: notice && (args[0] !== "unread" || unreadCount) ? [notice] : [], unreadCount } });
+    }
+    if (method === "userNotificationRead" && notice) {
+      notice.readAt = `${day}T09:00:00Z`;
+      return route.fulfill({ json: { notification: notice } });
+    }
+    return route.fulfill({ status: 400, json: { code: "UNEXPECTED_FIXTURE_CALL" } });
+  });
+  for (day of days) {
+    await page.goto("/__qa/user-notifications?checkin=1");
+    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await page.getByRole("radio", { name: "high" }).check();
+    await page.getByRole("button", { name: "Save check-in" }).click();
+    await expect(page.getByText("Today’s check-in is saved.")).toBeVisible();
+    if (day !== days[2]) await expect(page.getByRole("button", { name: "Notifications", exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Notifications, 1 unread" }).click();
+  await expect(page.getByText("Make room for how you feel")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Chat with Buddy" })).toHaveAttribute("href", "/buddy");
+  await expect(page.getByRole("link", { name: "Write a reflection" })).toHaveAttribute("href", "/journal/new");
+  await page.screenshot({ path: testInfo.outputPath("daily-distress-thesis-demo.png") });
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Notifications", exact: true })).toBeVisible();
 });

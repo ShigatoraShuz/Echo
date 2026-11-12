@@ -41,7 +41,16 @@ async function unwrap<T>(promise: Promise<ApiEnvelope<T>>): Promise<T> {
   return envelope.data;
 }
 
+export type DailyDistressRating = "low" | "moderate" | "high";
+type DailyDistressCheckin = { rating: DailyDistressRating | null };
+
 export const notificationsService = {
+  getDailyDistress() {
+    return unwrap(client.get<ApiEnvelope<DailyDistressCheckin>>("/daily-distress-checkin"));
+  },
+  saveDailyDistress(rating: DailyDistressRating) {
+    return unwrap(client.put<ApiEnvelope<DailyDistressCheckin>>("/daily-distress-checkin", { rating }));
+  },
   list(status: NotificationStatusFilter = "all", limit = 20, options: { category?: NotificationCategory; before?: string } = {}) {
     const params = new URLSearchParams({ status, limit: String(limit) });
     if (options.category) params.set("category", options.category);

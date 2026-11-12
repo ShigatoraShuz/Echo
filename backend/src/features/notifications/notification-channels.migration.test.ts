@@ -46,6 +46,13 @@ it("queues only opted-in channels, claims once, and carries the masking preferen
     await db.query("update user_service.notification_preferences set email_enabled=false,push_enabled=false where user_id=$1", [user]);
     await db.query("insert into notification_service.notifications(user_id,notification_type) values($1,'grounding_reminder')", [user]);
     expect((await db.query("select * from notification_service.notification_logs")).rows).toHaveLength(2);
+    await db.exec(readFileSync(resolve(process.cwd(), "../supabase/migrations/20261112065307_daily_distress_checkins.sql"), "utf8"));
+    await db.query("update user_service.notification_preferences set email_enabled=true,push_enabled=true where user_id=$1", [user]);
+    await db.query("insert into notification_service.notifications(user_id,notification_type) values($1,'daily_distress_suggestion')", [user]);
+    expect((await db.query("select * from notification_service.notification_logs")).rows).toHaveLength(2);
+    await db.query("insert into notification_service.notifications(user_id,notification_type) values($1,'journal_reminder')", [user]);
+    expect((await db.query("select * from notification_service.notification_logs")).rows).toHaveLength(4);
+    expect((await db.query("select has_table_privilege('authenticated','user_service.daily_distress_checkins','SELECT') as can_read")).rows).toEqual([{ can_read: false }]);
     await db.exec(readFileSync(resolve(process.cwd(), "../supabase/migrations/20261018131000_push_endpoint_single_owner.sql"), "utf8"));
     const secondUser = "22222222-2222-4222-8222-222222222222";
     await db.query("insert into auth.users(id) values($1)", [secondUser]);

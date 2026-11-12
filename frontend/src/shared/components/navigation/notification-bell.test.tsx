@@ -254,3 +254,18 @@ describe("NotificationBell", () => {
     expect(screen.getByText("1 unread notification")).toBeVisible();
   });
 });
+
+
+it("offers Buddy and Journal in a daily check-in suggestion and lets the user dismiss it", async () => {
+  const user = userEvent.setup();
+  const item = { ...unreadNotification, type: "daily_distress_suggestion", title: "Make room for how you feel", resourceType: null, resourceId: null };
+  vi.mocked(notificationsService.list).mockResolvedValue({ notifications: [item], unreadCount: 1 });
+  vi.mocked(notificationsService.markRead).mockResolvedValue({ notification: { ...item, readAt: "2026-11-12T00:00:00Z" } });
+  render(<NotificationBell />);
+  await user.click(await screen.findByRole("button", { name: /notifications, 1 unread/i }));
+  expect(screen.getByRole("link", { name: "Chat with Buddy" })).toHaveAttribute("href", "/buddy");
+  expect(screen.getByRole("link", { name: "Write a reflection" })).toHaveAttribute("href", "/journal/new");
+  await user.click(screen.getByRole("button", { name: "Dismiss" }));
+  expect(notificationsService.markRead).toHaveBeenCalledWith(item.id);
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument());
+});

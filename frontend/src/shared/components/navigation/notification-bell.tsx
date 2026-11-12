@@ -179,6 +179,16 @@ export function NotificationBell() {
           {loading ? <div role="status" className="space-y-3"><span className="sr-only">Loading notifications</span>{[1,2,3].map(row => <div key={row} className="h-24 rounded-2xl bg-secondary/55 motion-safe:animate-pulse" />)}</div> : visibleItems.length ? <ul className="space-y-2">{visibleItems.map(item => {
             const href = notificationHref(item);
             const content = <><span className="mt-1 shrink-0 text-primary">{isAppointmentNotification(item.type) ? <CalendarDays size={18} aria-hidden="true" /> : <Bell size={18} aria-hidden="true" />}</span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold text-foreground">{item.type === "analysis_completed" && item.resourceLabel ? `Analysis ready: “${item.resourceLabel}”` : item.title}</p>{!item.readAt ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" role="img" aria-label="Unread" /> : null}</div><p className="mt-2 text-xs leading-6 text-muted-foreground">{item.message}</p><time dateTime={item.createdAt} className="mt-2 block text-[11px] text-muted-foreground">{formatDate(item.createdAt)}</time></div>{href ? <ExternalLink size={14} className="mt-1 shrink-0 text-primary" aria-hidden="true" /> : null}</>;
+            if (item.type === "daily_distress_suggestion") return (
+              <li key={item.id} className={`user-notification-item p-4 ${!item.readAt ? "is-unread" : ""}`}>
+                <div className="flex gap-3">{content}</div>
+                <div className="mt-3 flex flex-wrap gap-3 pl-7 text-xs font-semibold text-primary">
+                  <Link href="/buddy" prefetch={false} onClick={() => { setOpen(false); void markRead(item); }}>Chat with Buddy</Link>
+                  <Link href="/journal/new" prefetch={false} onClick={() => { setOpen(false); void markRead(item); }}>Write a reflection</Link>
+                  {!item.readAt && <button type="button" disabled={saving} onClick={() => void markRead(item)}>Dismiss</button>}
+                </div>
+              </li>
+            );
             return <li key={item.id} className={"user-notification-item " + (!item.readAt ? "is-unread" : "")}>{href ? <Link href={href} prefetch={false} onClick={() => { setOpen(false); void markRead(item); }}>{content}</Link> : <button type="button" disabled={saving} onClick={() => void markRead(item)}>{content}</button>}</li>;
           })}</ul> : !error ? <div className="user-notification-empty"><Bell size={28} className="mx-auto mb-3 text-primary/65" aria-hidden="true" /><h3>{emptyTitle}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{tab === "Appointments" ? "Appointment proposals and schedule changes will appear here." : tab === "Inbox" ? "New unread updates will appear here." : "Account, journal, support and other updates will appear here."}</p></div> : null}
           {!loading && cursor ? <button type="button" disabled={moreLoading || saving} onClick={() => void load(tabRef.current, true)} className="user-notification-more">{moreLoading ? <LoaderCircle size={16} className="motion-safe:animate-spin" /> : <ChevronDown size={16} />}Load more updates</button> : null}

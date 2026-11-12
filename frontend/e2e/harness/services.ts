@@ -19,6 +19,8 @@ export const verifyReviewerMfa = (...args: unknown[]) => rpc("verifyMfa", args);
 export const settingsService = { get: () => rpc("settings", []), getProfileSummary: () => rpc("profileSummary", []), updateProfile: (...args: unknown[]) => rpc("updateProfile", args), updateNotifications: (...args: unknown[]) => rpc("updateNotifications", args) };
 
 export const notificationsService = {
+  getDailyDistress: () => rpc("dailyDistressRead", []),
+  saveDailyDistress: (rating: string) => rpc("dailyDistressSave", [rating]),
   list: (...args: unknown[]) => userNotificationsFixture() ? rpc("userNotifications", args) : Promise.resolve({ notifications: [], unreadCount: 0 }),
   markRead: (...args: unknown[]) => userNotificationsFixture() ? rpc("userNotificationRead", args) : Promise.resolve({ notification: null }),
   markAllRead: () => userNotificationsFixture() ? rpc("userNotificationsReadAll", []) : Promise.resolve({ notifications: [] }),

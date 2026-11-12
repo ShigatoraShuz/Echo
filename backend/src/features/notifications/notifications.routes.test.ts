@@ -1,6 +1,7 @@
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../../app.js";
+import type { DailyDistressService } from "./daily-distress.service.js";
 import type { NotificationService } from "./notifications.service.js";
 import type { PushSubscriptionsService } from "./push-subscriptions.service.js";
 
@@ -28,16 +29,22 @@ function createHarness() {
     save: vi.fn().mockResolvedValue({ registered: true }),
     remove: vi.fn().mockResolvedValue({ registered: false }),
   };
+  const dailyDistress = {
+    get: vi.fn().mockResolvedValue({ rating: null }),
+    save: vi.fn().mockResolvedValue({ rating: "high" }),
+    suggest: vi.fn().mockResolvedValue(undefined),
+  };
   const app = createApp({
     v1: {
       notifications: {
         service: notifications as unknown as NotificationService,
         verifier,
+        dailyDistress: dailyDistress as unknown as DailyDistressService,
         pushSubscriptions: pushSubscriptions as unknown as PushSubscriptionsService,
       },
     },
   });
-  return { app, notifications, pushSubscriptions };
+  return { app, notifications, pushSubscriptions, dailyDistress };
 }
 
 describe("notification routes", () => {
@@ -113,4 +120,16 @@ describe("notification routes", () => {
       .set("Authorization", "Bearer valid-token").send({ endpoint: "http://localhost" })).status).toBe(400);
     expect(pushSubscriptions.save).not.toHaveBeenCalled();
   });
+});
+
+
+it("saves today's check-in for the authenticated account and evaluates the notification feed", async () => {
+  const { app, dailyDistress } = createHarness();
+  const path = "/api/v1/daily-distress-checkin";
+  expect((await request(app).put(path).send({ rating: "high" })).status).toBe(401);
+  expect((await request(app).put(path).set("Authorization", "Bearer valid-token").send({ rating: "high", day: "2026-11-10" })).status).toBe(400);
+  expect((await request(app).put(path).set("Authorization", "Bearer valid-token").send({ rating: "high" })).body.data).toEqual({ rating: "high" });
+  expect(dailyDistress.save).toHaveBeenCalledExactlyOnceWith("user-1", "high");
+  await request(app).get("/api/v1/notifications").set("Authorization", "Bearer valid-token").expect(200);
+  expect(dailyDistress.suggest).toHaveBeenCalledExactlyOnceWith("user-1");
 });

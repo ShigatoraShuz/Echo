@@ -8,6 +8,7 @@ import { requireUuidParam } from "../../shared/utils/uuid-param.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 import { endpointLimiter } from "../../shared/middleware/security-policy.js";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
+import { dailyDistressRating, type DailyDistressService } from "./daily-distress.service.js";
 import type { NotificationService } from "./notifications.service.js";
 import type { PushSubscriptionsService } from "./push-subscriptions.service.js";
 
@@ -29,7 +30,7 @@ function userId(request: { auth?: { id: string } }): string {
 }
 
 export function createNotificationsRouter(service: NotificationService, verifier: AccessTokenVerifier,
-  pushSubscriptions?: PushSubscriptionsService): Router {
+  pushSubscriptions?: PushSubscriptionsService, dailyDistress?: DailyDistressService): Router {
   const router = Router();
   const authenticate = createAuthMiddleware(verifier);
 
@@ -43,8 +44,23 @@ export function createNotificationsRouter(service: NotificationService, verifier
         })),
       });
     }
-    sendSuccess(response, await service.list(userId(request), parsed.data));
+    const actor = userId(request);
+    if (!parsed.data.before && parsed.data.category !== "appointments") {
+      await dailyDistress?.suggest(actor).catch(() => console.warn("Daily distress suggestion could not be checked."));
+    }
+    sendSuccess(response, await service.list(actor, parsed.data));
   });
+
+  if (dailyDistress) {
+    router.get("/daily-distress-checkin", authenticate, endpointLimiter(60), async (request, response) => {
+      sendSuccess(response, await dailyDistress.get(userId(request)));
+    });
+    router.put("/daily-distress-checkin", authenticate, endpointLimiter(20), async (request, response) => {
+      const parsed = z.strictObject({ rating: dailyDistressRating }).safeParse(request.body);
+      if (!parsed.success) throw new ValidationError({ rating: ["Choose low, moderate or high."] });
+      sendSuccess(response, await dailyDistress.save(userId(request), parsed.data.rating));
+    });
+  }
 
   router.patch("/notifications/read-all", authenticate, async (request, response) => {
     sendSuccess(response, await service.markAllRead(userId(request)));

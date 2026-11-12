@@ -1403,6 +1403,54 @@ export class JournalService {
       : null;
   }
 
+  private completedAnalysisQuery(userId: string, count = false) {
+    return this.database.schema("ai_analysis").from("analysis_results")
+      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(user_id,status,deleted_at,facial_status,journal_id)", count ? { count: "exact" } : undefined)
+      .eq("user_id", userId).eq("analysis_requests.user_id", userId)
+      .eq("analysis_requests.status", "completed").is("analysis_requests.deleted_at", null)
+      .eq("is_simulated", false).not("result_payload", "is", null);
+  }
+
+  async dailySupportEmotions(userId: string, from: string, to: string) {
+    if (!await this.hasGlobalAnalysisConsent(userId)) return [];
+    const emotion = (result: JournalAnalysisResult) => result.schemaVersion === "echo-model-pipeline-v2"
+      ? result.stages.peak.result?.topFive[0]?.label ?? null : result.dominantEmotion;
+    const { data: entries, error: journalError, count: journalCount } = await this.reader.schema("journal_service")
+      .from("journals").select("id,created_at", { count: "exact" }).eq("user_id", userId).is("deleted_at", null)
+      .gte("created_at", from).lte("created_at", to).limit(1000);
+    if (journalError) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Recent reflections could not be checked.");
+    if (journalCount !== entries.length || !entries.length) return [];
+    const dates = new Map<string, string>(entries.map(entry => [entry.id, entry.created_at]));
+    if (this.localResults) {
+      return this.localResults.completed(userId).flatMap(row => {
+        const entryAt = dates.get(row.journal_id);
+        if (!entryAt) return [];
+        const result = this.readAnalysisResult({ ciphertext: row.result_ciphertext });
+        return result.isSimulated ? [] : [{ entryAt, emotion: emotion(result) }];
+      });
+    }
+    const results: { entryAt: string; emotion: string | null }[] = [];
+    for (let offset = 0; offset < entries.length; offset += 100) {
+      const { data, error, count } = await this.completedAnalysisQuery(userId, true)
+        .in("analysis_requests.journal_id", entries.slice(offset, offset + 100).map(entry => entry.id))
+        .order("created_at", { ascending: false }).limit(1000);
+      if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "Recent journal analysis could not be checked.");
+      if (count !== data.length) return [];
+      const seen = new Set<string>();
+      for (const row of data) {
+        const request = Array.isArray(row.analysis_requests) ? row.analysis_requests[0] : row.analysis_requests;
+        const journalId = request?.journal_id;
+        const entryAt = dates.get(journalId);
+        if (!entryAt || seen.has(journalId)) continue;
+        const result = this.readAnalysisResult(row.result_payload);
+        if (result.isSimulated) continue;
+        seen.add(journalId);
+        results.push({ entryAt, emotion: emotion(result) });
+      }
+    }
+    return results;
+  }
+
   async dashboardInsights(userId: string, input: AnalysisInsightsRangeInput = { range: "30d" }, includeLatestOutsidePeriod = false) {
     if(this.localResults)return this.localDashboard(userId,input);
     const now = new Date();
@@ -1412,11 +1460,7 @@ export class JournalService {
       : new Date(now.getTime() - (days - 1) * 86_400_000);
     if (input.range !== "custom") from.setUTCHours(0, 0, 0, 0);
     const to = input.range === "custom" && input.to ? new Date(`${input.to}T23:59:59.999Z`) : now;
-    const resultQuery = (count = false) => this.database.schema("ai_analysis").from("analysis_results")
-      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(user_id,status,deleted_at,facial_status,journal_id)", count ? { count: "exact" } : undefined)
-      .eq("user_id", userId).eq("analysis_requests.user_id", userId)
-      .eq("analysis_requests.status", "completed").is("analysis_requests.deleted_at", null)
-      .eq("is_simulated", false).not("result_payload", "is", null);
+    const resultQuery = (count = false) => this.completedAnalysisQuery(userId, count);
     const [history, latestHistory, latestJob, facialHistory] = await Promise.all([
       resultQuery(true).gte("created_at", from.toISOString()).lte("created_at", to.toISOString())
         .order("created_at", { ascending: false }).limit(1000),

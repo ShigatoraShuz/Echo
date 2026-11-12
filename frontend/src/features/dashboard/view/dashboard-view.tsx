@@ -22,6 +22,7 @@ import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { JournalCbtRecommendation } from "@/features/journal/components/journal-cbt-recommendation";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
+import { DailyDistressCheckin } from "../components/daily-distress-checkin";
 import { WellnessCheckin } from "../components/wellness-checkin";
 import { analysisSummary } from "@/features/journal/model/analysis-summary";
 import { OverallAnalysis } from "../components/overall-analysis";
@@ -162,6 +163,8 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
       (data.analysisInsights.latest.cbtRecommendation || data.analysisInsights.latest.supportReviewRequired) ? (
         <JournalCbtRecommendation result={data.analysisInsights.latest} heading="Latest reflection recommendation" />
       ) : null}
+
+      {!preview && <DailyDistressCheckin />}
 
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">

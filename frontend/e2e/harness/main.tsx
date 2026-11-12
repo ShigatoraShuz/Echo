@@ -2,6 +2,7 @@ import { ProfessionalCredentialReview } from "@/features/professionals/component
 import { ThemeProvider } from "@/shared/theme/theme-provider";
 import { ProfessionalSettingsView } from "@/features/professionals/view/professional-settings-view";
 import { Profiler } from "react";
+import { DailyDistressCheckin } from "@/features/dashboard/components/daily-distress-checkin";
 import { NotificationBell } from "@/shared/components/navigation/notification-bell";
 import { ProfessionalMessagesView } from "@/features/professionals/view/professional-messages-view";
 import { createRoot } from "react-dom/client";
@@ -20,7 +21,7 @@ import { ProfessionalPreview } from "@/features/professionals/dev/professional-p
 
 function Harness() {
   const path = usePathname();
-  if (path === "/__qa/user-notifications" || path === "/settings/verification") return <ThemeProvider><div className="min-h-screen bg-background text-foreground"><header className="flex items-center justify-between border-b border-border bg-card px-6 py-4"><a href="/__qa/user-notifications" className="font-serif text-2xl text-primary">Echo</a><NotificationBell /></header><main className="mx-auto max-w-5xl p-8"><p className="text-xs font-semibold uppercase tracking-widest text-primary">Fictional browser fixture</p><h1 className="mt-4 font-serif text-4xl">A little space for you.</h1><p className="mt-4 max-w-lg text-muted-foreground">Your private reflections, helpful tools and support - at your pace.</p></main></div></ThemeProvider>;
+  if (path === "/__qa/user-notifications" || path === "/settings/verification") return <ThemeProvider><div className="min-h-screen bg-background text-foreground"><header className="flex items-center justify-between border-b border-border bg-card px-6 py-4"><a href="/__qa/user-notifications" className="font-serif text-2xl text-primary">Echo</a><NotificationBell /></header><main className="mx-auto max-w-5xl p-8"><p className="text-xs font-semibold uppercase tracking-widest text-primary">Fictional browser fixture</p><h1 className="mt-4 font-serif text-4xl">A little space for you.</h1><p className="mt-4 max-w-lg text-muted-foreground">Your private reflections, helpful tools and support - at your pace.</p>{new URLSearchParams(window.location.search).has("checkin") && <div className="mt-8"><DailyDistressCheckin /></div>}</main></div></ThemeProvider>;
   if (path === "/professional-support/messages") return <ThemeProvider><ProfessionalMessagesView /></ThemeProvider>;
   if (path === "/professional/login") return <ProfessionalLoginView />;
   if (path === "/__qa/professional-review") return <ProfessionalCredentialReview organizationId="org-one" organizationName="Fictional organization" active onChanged={() => undefined} />;

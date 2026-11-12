@@ -21,6 +21,7 @@ import { VerificationService } from "./features/verification/verification.servic
 import { createHttpDocumentScanner, quarantineScanner } from "./infrastructure/security/document-scanner.js";
 import { createWindowsDefenderScanner } from "./infrastructure/security/windows-defender-scanner.js";
 import { OnboardingService } from "./features/onboarding/onboarding.service.js";
+import { DailyDistressService } from "./features/notifications/daily-distress.service.js";
 import { NotificationService } from "./features/notifications/notifications.service.js";
 import { PushSubscriptionsService } from "./features/notifications/push-subscriptions.service.js";
 import { RegistrationService } from "./features/registration/registration.service.js";
@@ -125,6 +126,8 @@ const verificationService = new VerificationService(
       : quarantineScanner,
 );
 const onboardingService = new OnboardingService(supabaseAdmin, () => createRequestUserClient(environment));
+const dailyDistress = new DailyDistressService(supabaseAdmin, encryptionService,
+  (userId, from, to) => journalService.dailySupportEmotions(userId, from, to));
 const notificationService = new NotificationService(
   () => createRequestUserClient(environment),
   (userId, journalIds) => journalService.getJournalTitles(userId, journalIds),
@@ -187,6 +190,7 @@ const app = createApp({
       service: notificationService,
       verifier,
       pushSubscriptions,
+      dailyDistress,
     },
     calendar: { service: calendarService, verifier },
     professionals: { service: professionalService, verifier, verificationService },
