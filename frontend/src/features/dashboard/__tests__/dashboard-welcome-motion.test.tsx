@@ -1,16 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+import { journalAnalysisV3ResultSchema, type DashboardInsights } from "@echo/contracts";
+import native from "../../../../../packages/contracts/fixtures/core-v2.json";
 import { DashboardView } from "../view/dashboard-view";
 
-const loadingState = vi.hoisted(() => ({ loading: false, hasData: true }));
-beforeEach(() => { loadingState.loading = false; loadingState.hasData = true; });
+const loadingState = vi.hoisted(() => ({ loading: false, hasData: true, insights: undefined as DashboardInsights | undefined }));
+beforeEach(() => { loadingState.loading = false; loadingState.hasData = true; loadingState.insights = undefined; });
 vi.mock("../view-model/use-dashboard-view-model", () => ({
   useDashboardViewModel: () => ({
     data: loadingState.hasData ? {
       userProfile: { name: "Lloyd", streakDays: 2 },
       journalEntries: [],
       weeklyDigest: [],
+      analysisInsights: loadingState.insights,
     } : null,
     isLoading: loadingState.loading,
     error: null,
@@ -59,4 +62,19 @@ it("keeps the current dashboard visible during a background model-result refresh
   const view = render(<DashboardView />);
   expect(view.container.querySelector(".echo-immediate-card")).toHaveTextContent("PHQ-8 check-in");
   expect(screen.getByRole("status")).toHaveTextContent("Updating your dashboard");
+});
+
+
+it("shows the latest saved Buddy recommendation on the dashboard", () => {
+  loadingState.insights = {
+    latest: journalAnalysisV3ResultSchema.parse({
+      ...native, schemaVersion: "echo-journal-analysis-v3", isSimulated: false, supportReviewRequired: false,
+      journalScreening: { status: "unavailable", experimental: true, inferenceVersion: "test", items: null, coverage: 0, subtotal: null, total: null },
+      cbtRecommendation: { status: "available", text: "Take a short pause before your next task.",
+        model: { providerName: "buddy", modelVersion: "test", inferenceVersion: "test" } },
+    }),
+    recommendation: null, emotionTrend: [], distressTrend: [],
+  };
+  render(<DashboardView />);
+  expect(screen.getByRole("region", { name: "Latest reflection recommendation" })).toHaveTextContent("Take a short pause before your next task.");
 });

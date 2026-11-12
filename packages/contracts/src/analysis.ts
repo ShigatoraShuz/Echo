@@ -454,6 +454,11 @@ export const dashboardInsightsSchema = z.object({
     )
     .optional(),
   facialResults: z.array(z.object({journalId:z.string().uuid(),result:z.lazy(()=>facialExpressionResultSchema)})).optional(),
+  savedReports: z.array(z.object({
+    resultId: z.string().uuid(),
+    journalId: z.string().uuid(),
+    analyzedAt: z.string().datetime({ offset: true }),
+  })).optional(),
   latestResultId: z.string().uuid().nullable().optional(),
   latest: journalAnalysisResultSchema.nullable(),
   recommendation: z

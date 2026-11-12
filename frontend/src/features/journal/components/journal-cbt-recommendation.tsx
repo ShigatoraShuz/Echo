@@ -6,13 +6,13 @@ type NativeResult = Extract<
   { schemaVersion: "echo-journal-analysis-v2" | "echo-journal-analysis-v3" }
 >;
 
-export function JournalCbtRecommendation({ result }: { result: NativeResult }) {
+export function JournalCbtRecommendation({ result, heading = "Suggested next steps" }: { result: NativeResult; heading?: string }) {
   if (result.schemaVersion !== "echo-journal-analysis-v3") return null;
   const recommendation = result.cbtRecommendation;
   const supportRequired = result.supportReviewRequired;
   return (
     <section
-      aria-label="Suggested next steps"
+      aria-label={heading}
       className="mt-5 overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-secondary/70 via-background to-secondary/20 p-5 shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2"
     >
       <div className="mb-3 flex items-center gap-3">
@@ -21,7 +21,7 @@ export function JournalCbtRecommendation({ result }: { result: NativeResult }) {
         </span>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.18em] text-primary">A gentle way forward</p>
-          <h4 className="font-[family-name:var(--font-echo-display)] text-xl">Suggested next steps</h4>
+          <h4 className="font-[family-name:var(--font-echo-display)] text-xl">{heading}</h4>
         </div>
       </div>
       {recommendation?.status === "available" && !supportRequired ? (

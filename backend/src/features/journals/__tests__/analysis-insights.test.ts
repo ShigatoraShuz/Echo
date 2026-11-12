@@ -53,7 +53,7 @@ describe("authorized persisted analysis trends", () => {
 function harness(failure = false, count?: number) {
   const encryption = createEncryptionService(Buffer.alloc(32, 3).toString("base64"), 1);
   const payload = { ciphertext: sealAnalysisResult(result, encryption).encryptedPayload };
-  const request = (owner: string, status = "completed", deleted: string | null = null) => ({ user_id: owner, status, deleted_at: deleted, facial_status: "not_requested" });
+  const request = (owner: string, status = "completed", deleted: string | null = null) => ({ user_id: owner, status, deleted_at: deleted, facial_status: "not_requested", journal_id: "00000000-0000-4000-8000-000000000001" });
   const rows = [
     { id: "old-real", user_id: "owner", is_simulated: false, created_at: "2000-01-01T00:00:00Z", result_payload: payload, analysis_requests: request("owner") },
     { id: "other-user", user_id: "other", is_simulated: false, created_at: "2099-01-01T00:00:00Z", result_payload: { ciphertext: "must-not-decrypt" }, analysis_requests: request("other") },
@@ -119,6 +119,7 @@ describe("Dashboard history query boundaries", () => {
     const data = await service.dashboardInsights("owner", { range: "custom", from: "1999-12-31", to: "2000-01-02" });
     expect(data.latestResultId).toBe("old-real"); expect(data.period.analyzedReflectionCount).toBe(1);
     expect(data.emotionTrend[0].date).toBe("2000-01-01");
+    expect(data.savedReports).toEqual([{ resultId: "old-real", journalId: "00000000-0000-4000-8000-000000000001", analyzedAt: "2000-01-01T00:00:00Z" }]);
   });
   it("reports a bounded history window instead of hiding missing older records", async () => {
     const data = await harness(false, 1001).service.dashboardInsights("owner", { range: "custom", from: "1999-12-31", to: "2000-01-02" });

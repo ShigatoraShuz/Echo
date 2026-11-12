@@ -208,3 +208,17 @@ describe("compact native screening and face results", () => {
     expect(container.querySelector("video,canvas")).toBeNull();
   });
 });
+
+
+it("shows the saved Buddy recommendation alongside the model results", () => {
+  showNative = true;
+  nativeOverride = journalAnalysisV3ResultSchema.parse({
+    ...native, schemaVersion: "echo-journal-analysis-v3", supportReviewRequired: false,
+    journalScreening: { status: "unavailable", experimental: true, inferenceVersion: "test", items: null, coverage: 0, subtotal: null, total: null },
+    cbtRecommendation: { status: "available", text: "Take a short pause before your next task.",
+      model: { providerName: "buddy", modelVersion: "test", inferenceVersion: "test" } },
+  });
+  render(<EmotionInsightsView />);
+  expect(screen.getByRole("region", { name: "Latest reflection recommendation" })).toHaveTextContent("Take a short pause before your next task.");
+  expect(screen.getByRole("heading", { name: "Journal-derived symptom estimate" })).toBeInTheDocument();
+});

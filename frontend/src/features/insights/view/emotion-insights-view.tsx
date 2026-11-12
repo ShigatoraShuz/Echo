@@ -1,4 +1,6 @@
 "use client";
+
+import { JournalCbtRecommendation } from "@/features/journal/components/journal-cbt-recommendation";
 import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { realAnalysisInsights } from "@/features/journal/model/real-analysis-insights";
 const AnalysisHistory = dynamic(() => import("./analysis-history").then(m => m.AnalysisHistory), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
@@ -656,7 +658,10 @@ export function EmotionInsightsView({ preview = false }: { preview?: boolean }) 
                   </p>
                 </div>
               )}
-              {insights.recommendation ? (
+              {!preview && latest.schemaVersion === "echo-journal-analysis-v3" && !latest.isSimulated &&
+                (latest.cbtRecommendation || latest.supportReviewRequired) ? (
+                <JournalCbtRecommendation result={latest} heading="Latest reflection recommendation" />
+              ) : insights.recommendation ? (
                 <div className="mt-3 border-t border-border/70 pt-3">
                   <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-primary">Reviewed next step</p>
                   <p className="mt-1 text-sm font-bold text-foreground">{insights.recommendation.title}</p>

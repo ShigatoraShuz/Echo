@@ -34,3 +34,15 @@ it("never displays a total for partial or unavailable screening and passes acces
   expect(screen.queryByText(/Model total/)).not.toBeInTheDocument();
   expect(await axe(container)).toHaveNoViolations();
 });
+
+
+it("links separate reports saved on the same day", () => {
+  const reports = [1, 2].map(id => ({
+    resultId: `00000000-0000-4000-8000-00000000000${id}`,
+    journalId: `00000000-0000-4000-8000-00000000001${id}`,
+    analyzedAt: `2026-10-31T0${id}:00:00Z`,
+  }));
+  render(<AnalysisHistory insights={{ ...overview, savedReports: reports }} />);
+  expect(screen.getAllByRole("link", { name: "Open journal report" }).map(link => link.getAttribute("href")))
+    .toEqual(reports.map(report => `/journal/${report.journalId}`));
+});

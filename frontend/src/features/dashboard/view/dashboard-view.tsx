@@ -19,6 +19,7 @@ import { EchoMotionSurface } from "@/shared/components/ui/echo-motion-surface";
 import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activity-graph";
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { dashboardPreviewService } from "../model/dashboard-preview.service";
+import { JournalCbtRecommendation } from "@/features/journal/components/journal-cbt-recommendation";
 import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
 import { WellnessCheckin } from "../components/wellness-checkin";
@@ -155,6 +156,12 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <AnalysisInsightsDashboard insights={data.analysisInsights} />
         <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
       </div>
+
+      {!preview && data.analysisInsights?.latest?.schemaVersion === "echo-journal-analysis-v3" &&
+      !data.analysisInsights.latest.isSimulated &&
+      (data.analysisInsights.latest.cbtRecommendation || data.analysisInsights.latest.supportReviewRequired) ? (
+        <JournalCbtRecommendation result={data.analysisInsights.latest} heading="Latest reflection recommendation" />
+      ) : null}
 
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">

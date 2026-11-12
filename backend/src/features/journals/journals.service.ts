@@ -448,12 +448,15 @@ export class JournalService {
       const ids=new Set((data??[]).map(x=>x.id));visible=rows.filter(x=>ids.has(x.journal_id));
       for(const row of rows)if(!ids.has(row.journal_id))await this.localResults!.remove(userId,row.journal_id);
     }
-    const latest=visible.at(-1);
-    return {latestResultId:latest?.id??null,latest:latest?this.readAnalysisResult({ciphertext:latest.result_ciphertext}):null,
-      recommendation:latest?this.localRecommendation(latest):null,
-      emotionTrend:[...new Map(visible.map(x=>[x.created_at.slice(0,10),x])).values()].flatMap(row=>{const result=this.readAnalysisResult({ciphertext:row.result_ciphertext});if(result.schemaVersion === "echo-model-pipeline-v2")return [];return [{date:row.created_at.slice(0,10),values:Object.fromEntries(result.emotionDistribution.map(x=>[x.emotion,x.value])),isSimulated:result.isSimulated,schemaVersion:result.schemaVersion}];}),
-      journalScreeningTrend:visible.flatMap(row=>{const r=this.readAnalysisResult({ciphertext:row.result_ciphertext});return r.schemaVersion==='echo-journal-analysis-v3'?[{date:row.created_at.slice(0,10),status:r.journalScreening.status,coverage:r.journalScreening.coverage,subtotal:r.journalScreening.subtotal,total:r.journalScreening.total}]:[];}),
-      distressTrend:[],facialStatus:latest?.facial_status??'not_requested',period:{range:input.range,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10),analyzedReflectionCount:visible.length}};
+    const records = visible.map(row => ({ row, result: this.readAnalysisResult({ciphertext:row.result_ciphertext}) }))
+      .filter(({ result }) => !result.isSimulated);
+    const latest = records.at(-1);
+    return {latestResultId:latest?.row.id??null,latest:latest?.result??null,
+      latestAnalyzedAt: latest?.row.created_at ?? null,
+      recommendation:latest?this.localRecommendation(latest.row):null,
+      savedReports: records.slice().reverse().map(({ row }) => ({ resultId: row.id, journalId: row.journal_id, analyzedAt: row.created_at })),
+      ...analysisTrends(records.map(({ row, result }) => ({ id: row.id, createdAt: row.created_at, result }))),
+      facialStatus:latest?.row.facial_status??'not_requested',period:{range:input.range,from:from.toISOString().slice(0,10),to:to.toISOString().slice(0,10),analyzedReflectionCount:records.length}};
   }
 
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
@@ -1410,7 +1413,7 @@ export class JournalService {
     if (input.range !== "custom") from.setUTCHours(0, 0, 0, 0);
     const to = input.range === "custom" && input.to ? new Date(`${input.to}T23:59:59.999Z`) : now;
     const resultQuery = (count = false) => this.database.schema("ai_analysis").from("analysis_results")
-      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(user_id,status,deleted_at,facial_status)", count ? { count: "exact" } : undefined)
+      .select("id,result_payload,is_simulated,created_at,analysis_requests!inner(user_id,status,deleted_at,facial_status,journal_id)", count ? { count: "exact" } : undefined)
       .eq("user_id", userId).eq("analysis_requests.user_id", userId)
       .eq("analysis_requests.status", "completed").is("analysis_requests.deleted_at", null)
       .eq("is_simulated", false).not("result_payload", "is", null);
@@ -1460,6 +1463,13 @@ export class JournalService {
       facialResults:facialHistory.filter(row=>includeLatestOutsidePeriod||!row.result.generatedAt||(Date.parse(row.result.generatedAt)>=from.getTime()&&Date.parse(row.result.generatedAt)<=to.getTime())),
       latest,
       latestResultId: latestRow ? asString(latestRow.id) : null,
+      ...(!includeLatestOutsidePeriod && { savedReports: records.slice().reverse().flatMap(({ row }) => {
+        const request = Array.isArray(row.analysis_requests) ? row.analysis_requests[0] : row.analysis_requests;
+        const journalId = request?.journal_id;
+        return typeof journalId === "string" ? [{
+          resultId: asString(row.id), journalId, analyzedAt: asString(row.created_at),
+        }] : [];
+      }) }),
       recommendation,
       latestAnalyzedAt: latestRow ? asString(latestRow.created_at) : null,
       latestRequest: latestJob.data ? { status: latestJob.data.status, updatedAt: projection?.data?.updated_at ?? latestJob.data.created_at } : null,

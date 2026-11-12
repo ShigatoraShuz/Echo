@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {SavedFaceResults} from "@/features/journal/components/saved-face-results";
 import { useId, useState } from "react";
 import type { DashboardInsights } from "@echo/contracts";
@@ -51,6 +52,29 @@ export function AnalysisHistory({ insights }: { insights: DashboardInsights }) {
   const screening = insights.journalScreeningTrend ?? [];
   return <div className="space-y-3"><SavedFaceResults insights={insights}/>
     {insights.period?.historyTruncated ? <p role="status" className="rounded-xl border border-border bg-card p-3 text-sm">Showing the latest 1,000 saved outputs from this period. Choose a shorter date range to review earlier history.</p> : null}
+    {insights.savedReports?.length ? (
+      <EchoCard className="[background:hsl(var(--card))]" title="Saved journal reports">
+        <ul className="space-y-2 text-sm">
+          {insights.savedReports.map(report => (
+            <li key={report.resultId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3">
+              <time dateTime={report.analyzedAt}>{new Date(report.analyzedAt).toLocaleString()}</time>
+              <Link prefetch={false} href={`/journal/${report.journalId}`} className="font-semibold text-primary underline">Open journal report</Link>
+            </li>
+          ))}
+        </ul>
+      </EchoCard>
+    ) : null}
+    {insights.distressTrend.some(point => !point.isSimulated) ? (
+      <EchoCard className="[background:hsl(var(--card))]" title="Historical distress bands">
+        <ul className="space-y-2 text-sm">
+          {insights.distressTrend.filter(point => !point.isSimulated).map((point, index) => (
+            <li key={`${point.date}:${index}`} className="flex justify-between gap-2">
+              <time dateTime={point.date}>{point.date}</time><span className="capitalize">{point.band}</span>
+            </li>
+          ))}
+        </ul>
+      </EchoCard>
+    ) : null}
     <EchoCard className="[background:hsl(var(--card))]" title="Emotion history" description="Dated, persisted model outputs in the selected period. Missing days and values are not filled in.">
       {groups.size ? <div className="grid min-w-0 gap-3 lg:grid-cols-2">{[...groups].map(([identity, points]) => <EmotionHistory key={identity} identity={identity} points={points} />)}</div>
         : <p className="text-sm text-muted-foreground">No analysis data yet for this period.</p>}
