@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { EchoWalkthrough } from "@/features/onboarding/components/echo-walkthrough";
 import { ArrowRight, Camera, CheckCircle2, Smartphone, Loader2, Sparkles } from "lucide-react";
 import { EchoCard, PageHeader } from "@/shared/components/layout";
 import { EchoImage } from "@/shared/components/ui";
@@ -11,6 +12,7 @@ import { ONBOARDING_STEPS, StepProgress } from "@/features/onboarding";
 
 export default function SetupOnboardingPage() {
   const router = useRouter();
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [facialAnalysisEnabled, setFacialAnalysisEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,7 +40,7 @@ export default function SetupOnboardingPage() {
     // 2. Mark onboarding completed in database
     const completeResult = await service.completeOnboarding();
     if (completeResult.success) {
-      router.push("/dashboard");
+      setShowWalkthrough(true);
     } else {
       setError(completeResult.error.message || "Could not complete onboarding. Please try again.");
       setIsSubmitting(false);
@@ -47,6 +49,7 @@ export default function SetupOnboardingPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
+      {showWalkthrough && <EchoWalkthrough onFinish={() => router.replace("/dashboard")} />}
       <PageHeader
         label="Onboarding · Step 3 of 3"
         title="Finish setup & enter ECHO"

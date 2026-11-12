@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { EchoWalkthrough } from "@/features/onboarding/components/echo-walkthrough";
 import {
   ArrowLeft,
   ArrowRight,
@@ -43,6 +44,7 @@ const onboardingSteps = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const service = getOnboardingService();
   const [step, setStep] = useState(0);
   const [preferredName, setPreferredName] = useState("");
@@ -96,8 +98,13 @@ export default function OnboardingPage() {
   async function finish() {
     setBusy(true);
     const result = await service.completeOnboarding();
-    setBusy(false);
-    if (!result.success) return setError(result.error.message);
+    if (!result.success) {
+      setBusy(false);
+      return setError(result.error.message);
+    }
+    setShowWalkthrough(true);
+  }
+  function openDashboard() {
     router.replace("/dashboard");
     router.refresh();
   }
@@ -108,6 +115,7 @@ export default function OnboardingPage() {
   }
   return (
     <main className="grid w-full place-items-center">
+      {showWalkthrough && <EchoWalkthrough onFinish={openDashboard} />}
       <section
         aria-labelledby="onboarding-title"
         className="echo-onboarding-card flex max-h-[94dvh] max-w-4xl flex-col overflow-hidden"
