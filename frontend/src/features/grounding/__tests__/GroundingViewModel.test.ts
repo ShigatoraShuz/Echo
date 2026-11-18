@@ -13,10 +13,12 @@ vi.mock("@/services/grounding/grounding-service.factory", () => ({
 
 function createMockService() {
   return {
-    saveSession: vi.fn().mockResolvedValue({
+    saveSession: vi.fn().mockImplementation(async (input) => ({
       success: true,
-      data: { id: "gs-1", type: "box-breathing", duration: 120, pace: "slow", completedAt: "2026-07-12T00:00:00Z", progress: 100, state: "completed" },
-    }),
+      data: { id: input.sessionId, type: input.type, duration: input.duration, pace: input.pace,
+        startedAt: input.completedAt, completedAt: input.completedAt,
+        progress: input.completed === false ? 0 : 100, state: input.completed === false ? "running" : "completed" },
+    })),
     getHistory: vi.fn().mockResolvedValue({ success: true, data: [] }),
   };
 }
@@ -37,16 +39,16 @@ describe("useGroundingViewModel", () => {
     expect(result.current.isRunning).toBe(false);
   });
 
-  it("toggles the running state", () => {
+  it("toggles the running state", async () => {
     const mockService = createMockService();
     vi.mocked(getGroundingService).mockReturnValue(mockService);
 
     const { result } = renderHook(() => useGroundingViewModel());
-    act(() => {
+    await act(async () => {
       result.current.toggleRunning();
     });
     expect(result.current.isRunning).toBe(true);
-    act(() => {
+    await act(async () => {
       result.current.toggleRunning();
     });
     expect(result.current.isRunning).toBe(false);
@@ -92,6 +94,22 @@ describe("useGroundingViewModel", () => {
     expect(result.current.isRunning).toBe(false);
   });
 
+  it("saves immediately on start and keeps that record when stopped early or resumed", async () => {
+    const service = createMockService();
+    vi.mocked(getGroundingService).mockReturnValue(service);
+    const { result } = renderHook(() => useGroundingViewModel());
+    await act(async () => { result.current.startPractice("box-breathing", 3); });
+    expect(service.saveSession).toHaveBeenCalledOnce();
+    expect(service.saveSession).toHaveBeenCalledWith(expect.objectContaining({ completed: false, type: "box-breathing" }));
+    expect(result.current.history).toHaveLength(1);
+    expect(result.current.completedSessions).toBe(0);
+    act(() => result.current.toggleRunning());
+    act(() => result.current.toggleRunning());
+    expect(service.saveSession).toHaveBeenCalledOnce();
+    act(() => result.current.reset());
+    expect(result.current.history).toHaveLength(1);
+  });
+
   it("starts a selected practice and saves it once when elapsed", async () => {
     vi.useFakeTimers();
     try {
@@ -100,16 +118,17 @@ describe("useGroundingViewModel", () => {
       const { result } = renderHook(() => useGroundingViewModel());
       await act(async () => { await Promise.resolve(); });
 
-      act(() => result.current.startPractice("body-scan", 2));
+      act(() => result.current.startPractice("box-breathing", 2));
       expect(result.current.isRunning).toBe(true);
-      expect(result.current.technique).toBe("body-scan");
+      expect(result.current.technique).toBe("box-breathing");
 
       await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(result.current.history).toHaveLength(1);
       expect(result.current.remainingSeconds).toBe(0);
       expect(result.current.isRunning).toBe(false);
-      expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(mockService.saveSession).toHaveBeenCalledTimes(2);
       expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
-      expect(mockService.saveSession).toHaveBeenCalledWith(expect.objectContaining({ type: "body-scan", duration: 120 }));
+      expect(mockService.saveSession).toHaveBeenCalledWith(expect.objectContaining({ type: "box-breathing", duration: 120 }));
     } finally {
       vi.useRealTimers();
     }
@@ -123,7 +142,7 @@ describe("useGroundingViewModel", () => {
       vi.mocked(getGroundingService).mockReturnValue(mockService);
       const { result } = renderHook(() => useGroundingViewModel());
       await act(async () => { await Promise.resolve(); });
-      act(() => result.current.startPractice("body-scan", 2));
+      act(() => result.current.startPractice("box-breathing", 2));
 
       vi.setSystemTime(new Date("2026-10-17T08:03:00Z"));
       await act(async () => {
@@ -131,9 +150,10 @@ describe("useGroundingViewModel", () => {
         await Promise.resolve();
       });
 
+      expect(result.current.history).toHaveLength(1);
       expect(result.current.remainingSeconds).toBe(0);
       expect(result.current.isRunning).toBe(false);
-      expect(mockService.saveSession).toHaveBeenCalledTimes(1);
+      expect(mockService.saveSession).toHaveBeenCalledTimes(2);
       expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
     } finally {
       vi.useRealTimers();
@@ -153,7 +173,7 @@ describe("useGroundingViewModel", () => {
     expect(result.current.historyError).toBeNull();
   });
 
-  it("explains an uncertain completed-session save without retrying the POST", async () => {
+  it("explains an uncertain start save without retrying the POST", async () => {
     vi.useFakeTimers();
     try {
       const mockService = createMockService();
@@ -161,12 +181,12 @@ describe("useGroundingViewModel", () => {
       vi.mocked(getGroundingService).mockReturnValue(mockService);
       const { result } = renderHook(() => useGroundingViewModel());
       await act(async () => { await Promise.resolve(); });
-      act(() => result.current.startPractice("body-scan", 2));
-      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      act(() => result.current.startPractice("box-breathing", 2));
+      await act(async () => { await Promise.resolve(); });
       expect(result.current.saveError).toBe(true);
       expect(result.current.status).toContain("retry safely");
       expect(mockService.saveSession).toHaveBeenCalledTimes(1);
-      expect(support.complete).toHaveBeenCalledExactlyOnceWith("grounding", "grounding-visit");
+      expect(support.complete).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -180,8 +200,8 @@ describe("useGroundingViewModel", () => {
       vi.mocked(getGroundingService).mockReturnValue(mockService);
       const { result } = renderHook(() => useGroundingViewModel());
       await act(async () => { await Promise.resolve(); });
-      act(() => result.current.startPractice("body-scan", 2));
-      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      act(() => result.current.startPractice("box-breathing", 2));
+      await act(async () => { await Promise.resolve(); });
       expect(result.current.saveError).toBe(true);
 
       await act(async () => { result.current.retrySave(); await Promise.resolve(); });

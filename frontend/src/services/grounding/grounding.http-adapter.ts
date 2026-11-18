@@ -11,7 +11,9 @@ interface ApiEnvelope<T> {
 
 interface GroundingCompletionResponse {
   id: string;
-  completedAt: string;
+  completedAt: string | null;
+  startedAt?: string;
+  completed?: boolean;
   completedSessions: number;
 }
 
@@ -26,7 +28,9 @@ interface GroundingHistoryItem {
   type: ExerciseType;
   duration: number;
   pace: "gentle" | "slower" | "steady";
-  completedAt: string;
+  completedAt: string | null;
+  startedAt?: string;
+  completed?: boolean;
 }
 
 const FRONTEND_PACES: Record<GroundingHistoryItem["pace"], PaceType> = {
@@ -46,9 +50,10 @@ export function createGroundingHttpAdapter(): GroundingService {
       try {
         const response = await client.post<
           ApiEnvelope<GroundingCompletionResponse>,
-          { sessionId?: string; technique: string; durationSeconds: number; pace: "gentle" | "slower" | "steady" }
+          { completed?: boolean; sessionId?: string; technique: string; durationSeconds: number; pace: "gentle" | "slower" | "steady" }
         >("/grounding/sessions", {
           ...(session.sessionId ? { sessionId: session.sessionId } : {}),
+          ...(session.completed === false ? { completed: false } : {}),
           technique: session.type,
           durationSeconds: session.duration,
           pace: BACKEND_PACES[session.pace],
@@ -61,8 +66,9 @@ export function createGroundingHttpAdapter(): GroundingService {
             duration: session.duration,
             pace: session.pace,
             completedAt: response.data.completedAt,
-            progress: 100,
-            state: "completed",
+            startedAt: response.data.startedAt,
+            progress: response.data.completedAt ? 100 : 0,
+            state: response.data.completedAt ? "completed" : "running",
           },
         };
       } catch {
@@ -78,8 +84,9 @@ export function createGroundingHttpAdapter(): GroundingService {
           data: response.data.slice(0, limit).map((item) => ({
             ...item,
             pace: FRONTEND_PACES[item.pace] ?? "slow",
-            progress: 100,
-            state: "completed" as const,
+            completedAt: item.completedAt,
+            progress: item.completed === false ? 0 : 100,
+            state: item.completed === false ? "running" as const : "completed" as const,
           })),
         };
       } catch {

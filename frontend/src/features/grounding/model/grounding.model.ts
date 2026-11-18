@@ -17,7 +17,8 @@ export interface GroundingSession {
   type: ExerciseType;
   duration: number;
   pace: PaceType;
-  completedAt: string;
+  startedAt?: string;
+  completedAt: string | null;
   progress: number;
   state: TimerState;
 }

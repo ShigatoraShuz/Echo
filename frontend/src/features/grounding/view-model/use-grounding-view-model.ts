@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import { getGroundingService } from "@/services/grounding/grounding-service.factory";
 import type { ExerciseType, GroundingSession, PaceType } from "../model/grounding.model";
 
-export type GroundingTechnique = Exclude<ExerciseType, "breathing-circle">;
+export type GroundingTechnique = "box-breathing" | "sensory-5-4-3-2-1";
 export type GroundingPace = "gentle" | "slower" | "steady";
 
 interface GroundingState {
@@ -36,18 +36,6 @@ type GroundingAction =
   | { type: "SAVE_SUCCESS"; session: GroundingSession }
   | { type: "SAVE_ERROR"; message: string };
 
-const TECHNIQUE_TO_EXERCISE: Record<GroundingTechnique, ExerciseType> = {
-  "sensory-5-4-3-2-1": "sensory-5-4-3-2-1",
-  "window-reset": "window-reset",
-  "box-breathing": "box-breathing",
-  "progressive-muscle-relaxation": "progressive-muscle-relaxation",
-  "positive-self-talk": "positive-self-talk",
-  "body-scan": "body-scan",
-  "guided-visualization": "guided-visualization",
-  "gratitude-reflection": "gratitude-reflection",
-  "4-7-8-breathing": "4-7-8-breathing",
-};
-
 const PACE_TO_PACE: Record<GroundingPace, PaceType> = {
   gentle: "slow",
   slower: "medium",
@@ -78,10 +66,17 @@ function reducer(state: GroundingState, action: GroundingAction): GroundingState
     case "RESET": return { ...state, isRunning: false, remainingSeconds: action.remainingSeconds, saveError: false, status: null };
     case "TICK": return { ...state, remainingSeconds: Math.max(0, action.remainingSeconds), isRunning: action.remainingSeconds > 0 };
     case "HISTORY_LOADING": return { ...state, history: null, historyError: null };
-    case "HISTORY_SUCCESS": return { ...state, history: action.history, historyError: null, completedSessions: action.history.length };
+    case "HISTORY_SUCCESS": {
+      const history = [...action.history, ...(state.history ?? []).filter((item) => !action.history.some((saved) => saved.id === item.id))];
+      return { ...state, history, historyError: null, completedSessions: history.filter((item) => item.state === "completed").length };
+    }
     case "HISTORY_ERROR": return { ...state, history: state.history ?? [], historyError: action.message };
-    case "SAVE_START": return { ...state, isSaving: true, saveError: false, status: "Saving your completed practice…" };
-    case "SAVE_SUCCESS": return { ...state, isSaving: false, saveError: false, completedSessions: (state.completedSessions ?? 0) + 1, history: [action.session, ...(state.history ?? [])], status: "Practice complete. Take a moment before moving on." };
+    case "SAVE_START": return { ...state, isSaving: true, saveError: false, status: "Saving your practice…" };
+    case "SAVE_SUCCESS": {
+      const history = [action.session, ...(state.history ?? []).filter((item) => item.id !== action.session.id)];
+      return { ...state, isSaving: false, saveError: false, history, completedSessions: history.filter((item) => item.state === "completed").length,
+        status: action.session.state === "completed" ? "Practice complete. Take a moment before moving on." : "Practice started. Today counts toward your wellbeing." };
+    }
     case "SAVE_ERROR": return { ...state, isSaving: false, saveError: true, status: `${action.message} You can retry safely or check your history; the save may have completed.` };
     default: return state;
   }
@@ -93,8 +88,8 @@ export function useGroundingViewModel() {
   const completedRef = useRef(false);
   const supportVisit = useRef<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const completionRef = useRef<{ sessionId: string; type: ExerciseType; duration: number; pace: PaceType; completedAt: string } | null>(null);
-  const saveInFlightRef = useRef(false);
+  const completionRef = useRef<{ sessionId: string; type: ExerciseType; duration: number; pace: PaceType; completedAt: string; completed?: boolean } | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const deadlineRef = useRef(0);
   const historyRequestRef = useRef(0);
 
@@ -131,19 +126,20 @@ export function useGroundingViewModel() {
     };
   }, [state.isRunning]);
 
-  const submitCompletion = useCallback(async (completion: NonNullable<typeof completionRef.current>) => {
-    if (saveInFlightRef.current) return;
-    saveInFlightRef.current = true;
+  const submitCompletion = useCallback((completion: NonNullable<typeof completionRef.current>) => {
     dispatch({ type: "SAVE_START" });
-    try {
-      const result = await service.saveSession(completion);
-      if (result.success) dispatch({ type: "SAVE_SUCCESS", session: result.data });
-      else dispatch({ type: "SAVE_ERROR", message: result.error.message });
-    } catch {
-      dispatch({ type: "SAVE_ERROR", message: "The grounding session could not be saved." });
-    } finally {
-      saveInFlightRef.current = false;
-    }
+    const save = saveQueueRef.current.then(async () => {
+      dispatch({ type: "SAVE_START" });
+      try {
+        const result = await service.saveSession(completion);
+        if (result.success) dispatch({ type: "SAVE_SUCCESS", session: result.data });
+        else dispatch({ type: "SAVE_ERROR", message: result.error.message });
+      } catch {
+        dispatch({ type: "SAVE_ERROR", message: "The grounding session could not be saved." });
+      }
+    });
+    saveQueueRef.current = save;
+    return save;
   }, [service]);
 
   useEffect(() => {
@@ -152,10 +148,11 @@ export function useGroundingViewModel() {
     completeSupportVisit("grounding", supportVisit.current);
     const completion = {
       sessionId: sessionIdRef.current ??= crypto.randomUUID(),
-      type: TECHNIQUE_TO_EXERCISE[state.technique],
+      type: state.technique,
       duration: state.durationMinutes * 60,
       pace: PACE_TO_PACE[state.pace],
       completedAt: new Date().toISOString(),
+      completed: true,
     };
     completionRef.current = completion;
     void submitCompletion(completion);
@@ -173,20 +170,29 @@ export function useGroundingViewModel() {
       if (remainingSeconds === 0) return;
     } else {
       supportVisit.current ??= supportVisitToken("grounding");
-      sessionIdRef.current ??= crypto.randomUUID();
+      if (!sessionIdRef.current) {
+        sessionIdRef.current = crypto.randomUUID();
+        const started = { sessionId: sessionIdRef.current, type: state.technique, duration: state.durationMinutes * 60,
+          pace: PACE_TO_PACE[state.pace], completedAt: new Date().toISOString(), completed: false };
+        completionRef.current = started;
+        void submitCompletion(started);
+      }
       deadlineRef.current = Date.now() + state.remainingSeconds * 1_000;
     }
     dispatch({ type: "TOGGLE_RUNNING" });
-  }, [state.remainingSeconds, state.isSaving, state.isRunning]);
+  }, [state.remainingSeconds, state.isSaving, state.isRunning, state.technique, state.durationMinutes, state.pace, submitCompletion]);
 
   const startPractice = useCallback((technique: GroundingTechnique, durationMinutes: number) => {
     completedRef.current = false;
     supportVisit.current = supportVisitToken("grounding");
     sessionIdRef.current = crypto.randomUUID();
-    completionRef.current = null;
+    const started = { sessionId: sessionIdRef.current, type: technique, duration: durationMinutes * 60,
+      pace: PACE_TO_PACE[state.pace], completedAt: new Date().toISOString(), completed: false };
+    completionRef.current = started;
+    void submitCompletion(started);
     deadlineRef.current = Date.now() + durationMinutes * 60_000;
     dispatch({ type: "START_PRACTICE", technique, durationMinutes });
-  }, []);
+  }, [state.pace, submitCompletion]);
 
   const reset = useCallback(() => {
     completedRef.current = false;

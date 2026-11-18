@@ -61,6 +61,19 @@ describe("grounding HTTP adapter", () => {
     expect(requestInit.headers).toEqual(expect.objectContaining({ Authorization: "Bearer access-token" }));
   });
 
+  it("persists starts and reloads them without claiming completion", async () => {
+    const startedAt = "2026-11-18T08:00:00Z";
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: { id: "start", startedAt, completedAt: null, completedSessions: 0 } }), { status: 201, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: [{ id: "start", type: "box-breathing", duration: 120, pace: "gentle", startedAt, completedAt: null, completed: false }] }), { status: 200, headers: { "content-type": "application/json" } })));
+    const { createGroundingHttpAdapter } = await import("./grounding.http-adapter");
+    const service = createGroundingHttpAdapter();
+    const started = await service.saveSession({ type: "box-breathing", duration: 120, pace: "slow", completedAt: startedAt, completed: false });
+    expect(started).toMatchObject({ success: true, data: { startedAt, state: "running", progress: 0 } });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toMatchObject({ completed: false });
+    expect(await service.getHistory()).toMatchObject({ success: true, data: [{ startedAt, state: "running", progress: 0 }] });
+  });
+
   it("loads real grounding history through the authenticated endpoint", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ success: true, data: [
       { id: "session-1", type: "box-breathing", duration: 120, pace: "gentle", completedAt: "2026-08-17T10:00:00.000Z" },

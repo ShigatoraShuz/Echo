@@ -615,7 +615,8 @@ export class ExperienceService {
     return { emotionWheel, moodTrend: [], summary: emotionWheel.length ? "Emotion signals from your latest saved model analysis." : "No saved model emotion results yet." };
   }
 
-  async completeGrounding(userId: string, input: { sessionId?: string; technique: string; durationSeconds: number; pace: string }) {
+  async completeGrounding(userId: string, input: { sessionId?: string; completed?: boolean; technique: string; durationSeconds: number; pace: string }) {
+    const completed = input.completed !== false;
     const sessionId = input.sessionId ?? randomUUID();
     const inserted = await this.database
       .schema("grounding_service")
@@ -625,18 +626,18 @@ export class ExperienceService {
         user_id: userId,
         exercise_type: input.technique,
         duration_seconds: input.durationSeconds,
-        completed: true,
+        completed,
         reflection: input.pace,
-        completed_at: new Date().toISOString(),
+        completed_at: completed ? new Date().toISOString() : null,
       })
-      .select("id, completed_at")
+      .select("id, completed_at, started_at")
       .single();
     let data = inserted.data;
     if (inserted.error?.code === "23505") {
       const existing = await this.reader
         .schema("grounding_service")
         .from("grounding_sessions")
-        .select("id, user_id, exercise_type, duration_seconds, reflection, completed, completed_at")
+        .select("id, user_id, exercise_type, duration_seconds, reflection, completed, completed_at, started_at")
         .eq("id", sessionId)
         .eq("user_id", userId)
         .maybeSingle();
@@ -644,11 +645,20 @@ export class ExperienceService {
         module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "load existing completed session",
       }, "The grounding session could not be confirmed.");
       if (!existing.data || existing.data.exercise_type !== input.technique ||
-        existing.data.duration_seconds !== input.durationSeconds || existing.data.reflection !== input.pace ||
-        existing.data.completed !== true) {
+        (existing.data.completed && completed && (existing.data.duration_seconds !== input.durationSeconds || existing.data.reflection !== input.pace))) {
         throw new ConflictError("GROUNDING_SESSION_CONFLICT", "This practice key is already used for a different session.");
       }
       data = existing.data;
+      if (completed && !existing.data.completed) {
+        const updated = await this.database.schema("grounding_service").from("grounding_sessions")
+          .update({ completed: true, completed_at: new Date().toISOString(), duration_seconds: input.durationSeconds, reflection: input.pace })
+          .eq("id", sessionId).eq("user_id", userId).eq("completed", false)
+          .select("id, completed_at, started_at").single();
+        throwIfDatabaseError(updated.error, {
+          module: "experience.grounding", schema: "grounding_service", table: "grounding_sessions", operation: "complete started practice",
+        }, "The practice completion could not be saved.");
+        data = updated.data;
+      }
     } else throwIfDatabaseError(
       inserted.error,
       {
@@ -678,17 +688,18 @@ export class ExperienceService {
       },
       "Grounding history could not be loaded.",
     );
-    return { id: data.id, completedAt: data.completed_at, completedSessions: count ?? 1 };
+    return { id: data.id, completedAt: data.completed_at, completedSessions: count ?? 0,
+      ...(data.started_at ? { startedAt: data.started_at } : {}),
+    };
   }
 
   async groundingHistory(userId: string) {
     const { data, error } = await this.reader
       .schema("grounding_service")
       .from("grounding_sessions")
-      .select("id, exercise_type, duration_seconds, reflection, completed_at")
+      .select("id, exercise_type, duration_seconds, reflection, completed, completed_at, started_at")
       .eq("user_id", userId)
-      .eq("completed", true)
-      .order("completed_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .limit(250);
     throwIfDatabaseError(
       error,
@@ -706,6 +717,8 @@ export class ExperienceService {
       duration: row.duration_seconds,
       pace: row.reflection,
       completedAt: row.completed_at,
+      startedAt: row.started_at,
+      completed: row.completed,
     }));
   }
 

@@ -19,6 +19,7 @@ const buddyHistoryQuerySchema = z.object({
 });
 
 const groundingSchema = z.strictObject({
+  completed: z.boolean().optional(),
   sessionId: z.uuid().optional(),
   technique: z.string().trim().min(1).max(80),
   durationSeconds: z.number().int().min(10).max(3_600),
