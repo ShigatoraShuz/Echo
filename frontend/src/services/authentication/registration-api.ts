@@ -31,7 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new Error("Could not connect to ECHO. Check your connection and try again.");
   }
-  const body = (await response.json().catch(() => null)) as { data?: T; error?: { code?: string; message?: string } } | null;
+  const body = (await response.json().catch(() => null)) as { data?: T; error?: { code?: string; message?: string; details?: { birthday?: string[]; origin?: string[] } } } | null;
   if (response.status === 429) {
     throw new Error("Too many signup requests. Please wait before trying again.");
   }
@@ -41,7 +41,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error("Registration is temporarily unavailable. Please try again later.");
   }
-  if (!response.ok) throw new Error(body?.error?.message ?? "Registration could not continue.");
+  if (!response.ok) {
+    const detail = body?.error?.details?.birthday?.[0] ?? body?.error?.details?.origin?.[0];
+    throw new Error(detail ?? body?.error?.message ?? "Registration could not continue.");
+  }
   return body?.data as T;
 }
 export const registrationApi = {

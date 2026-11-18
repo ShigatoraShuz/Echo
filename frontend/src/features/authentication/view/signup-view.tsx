@@ -68,7 +68,9 @@ export function SignupView({ title, description }: SignupViewProps) {
   }
   const continueEligibility = () =>
     run(async () => {
-      const result = await registrationApi.eligibility(birthday);
+      const localized = birthday.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const normalizedBirthday = localized ? `${localized[3]}-${localized[1]}-${localized[2]}` : birthday;
+      const result = await registrationApi.eligibility(normalizedBirthday);
       if (!result.eligible) {
         setError("ECHO accounts are available only to people aged 18 or older.");
         return;
