@@ -1,4 +1,4 @@
-param([switch]$EnableBuddy, [switch]$DevelopmentUI)
+param([switch]$EnableBuddy, [switch]$DevelopmentUI, [switch]$LocalActivity)
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
 $taskTailscale = Join-Path $env:ProgramFiles 'Tailscale/tailscale.exe'
@@ -18,7 +18,7 @@ if (!(Test-Path -LiteralPath (Join-Path $taskModels 'manifest.json'))) { throw '
 $taskEnvironment = @{
     ECHO_REMOTE_API_BASE_URL = "https://$taskHostName/api/v1"
     ECHO_FRONTEND_MODE = $(if ($DevelopmentUI) { 'development' } else { 'production' })
-    ECHO_AI_LOCAL_JSON = 'false'
+    ECHO_AI_LOCAL_JSON = $(if ($LocalActivity) { 'true' } else { 'false' })
     ECHO_PRIVATE_FACE_ENABLED = 'true'
     ECHO_BUDDY_ENABLED = $(if ($EnableBuddy -or $taskConfig.enableBuddy -ne $false) { 'true' } else { 'false' })
     MODELS_ROOT = [IO.Path]::GetFullPath($taskModels)

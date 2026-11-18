@@ -2,6 +2,7 @@
 import { AnalysisWordingControls } from "../components/analysis-wording-controls";
 import {PhilippineMobileInput} from "@/shared/components/ui/philippine-mobile-input";
 
+import { StartCleanControls } from "../components/start-clean-controls";
 import { LocalDataControls } from "../components/local-data-controls";
 import { BackgroundMusicControls } from "@/shared/components/navigation/background-music-controls";
 import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
@@ -1927,6 +1928,8 @@ export function ExportSettingsView() {
             </div>
           </SettingsSection>
         )}
+
+        <StartCleanControls />
 
         <SettingsSection
           title="Account Deletion"

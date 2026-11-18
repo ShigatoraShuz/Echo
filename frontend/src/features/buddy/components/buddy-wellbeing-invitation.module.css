@@ -1,0 +1,52 @@
+.card {
+  position: fixed;
+  right: 24px;
+  bottom: 84px;
+  z-index: 40;
+  width: min(390px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--landing-primary-15);
+  border-radius: 24px;
+  background: var(--landing-cream);
+  box-shadow: 0 18px 55px rgba(23, 56, 44, 0.15);
+  animation: arrive 0.24s ease-out both;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--landing-primary);
+  background: var(--landing-sage-soft);
+  flex-shrink: 0;
+}
+.eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--landing-muted);
+  font-weight: 700;
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 767px) {
+  .card {
+    right: 16px;
+    bottom: 90px;
+    padding: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}

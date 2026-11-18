@@ -108,5 +108,7 @@ try {
     await checkCoreTransport(env.AI_SERVICE_URL, env.AI_SERVICE_TOKEN);
     console.log('Private AI transport ready. Buddy base preparation runs in the background when enabled; Chat and speech readiness are reported separately. Profile: '+env.AI_CORE_PROFILE+'. Storage: '+env.LOCAL_DATA_DIR);
     launch(process.execPath, [path.join(root, 'scripts/run-local-dev.mjs'), 'all'], root, env);
+    if (configured.ECHO_NOTIFICATIONS_ENABLED !== 'false')
+      launch(process.execPath, [require.resolve('tsx/cli'), '--env-file=.env', 'src/workers/in-app-reminders.ts'], path.join(root, 'backend'), env);
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; stop(); }

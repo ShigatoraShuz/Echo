@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Leaf, Mail, ShieldCheck } from "lucide-react";
 
+import { EmailVerificationHelp } from "../components/email-verification-help";
 import { AuthFormField } from "../components/auth-form-field";
 import { AuthStatusMessage } from "../components/auth-status-message";
 import { PasswordField } from "../components/password-field";
@@ -112,6 +113,10 @@ export function LoginView({ title, description, destination }: LoginViewProps) {
               autoComplete="email"
               required
             />
+
+            {(error?.code === "EMAIL_NOT_CONFIRMED" || routeError === "email_verification_required") && (
+              <EmailVerificationHelp key={email.trim().toLowerCase()} email={email} />
+            )}
 
             <PasswordField
               label="Password"

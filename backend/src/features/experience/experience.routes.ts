@@ -1,3 +1,4 @@
+import { requireRecentAuthentication } from "../../shared/middleware/assurance.middleware.js";
 import type {JournalService} from '../journals/journals.service.js';
 import {NotFoundError,ValidationError} from '../../shared/errors/app-error.js';
 import { z } from "zod";
@@ -50,6 +51,18 @@ export function createExperienceRouter(
   router.delete('/buddy/voice/jobs/:id',authenticate,async(req,res)=>{await service.cancelVoiceOperation(req.auth!.id,z.string().uuid().parse(req.params.id));res.json({success:true,data:{cancelled:true}});});
   router.post('/buddy/voice/transcribe' ,authenticate,requireVerifiedAi,aiWriteLimiter,raw({type:'application/octet-stream',limit:'10mb'}),async(req,res)=>{if(!Buffer.isBuffer(req.body)||!req.body.length){res.status(422).json({error:{message:'Audio required'}});return;}res.setHeader('Cache-Control','no-store');if(req.query.operationId){const id=z.string().uuid().parse(req.query.operationId);try{res.status(202).json({success:true,data:await service.submitVoiceOperation(req.auth!.id,id,'transcribe',{task:'transcribe',audio:req.body.toString('base64'),audioFormat:'encoded'})});}finally{req.body.fill(0);}return;}const abort=new AbortController();res.on('close',()=>abort.abort());res.json({success:true,data:await service.transcribeVoice(req.auth!.id,req.body,abort.signal)});});
   router.post('/buddy/voice/speak',authenticate,requireVerifiedAi,aiWriteLimiter,async(req,res)=>{const input=z.object({text:z.string().min(1).max(12000).optional(),conversationId:z.string().uuid().optional(),messageId:z.string().uuid().optional()}).strict().parse(req.body);const text=await service.resolveSpokenReply(req.auth!.id,input);res.setHeader('Cache-Control','no-store');if(req.query.operationId){res.status(202).json({success:true,data:await service.submitVoiceOperation(req.auth!.id,z.string().uuid().parse(req.query.operationId),'speak',{task:'speak',text})});return;}const abort=new AbortController();res.on('close',()=>abort.abort());const result=await service.speakVoice(req.auth!.id,text,abort.signal);if(!result.audio)throw new Error('Missing generated audio');res.type('audio/wav').send(Buffer.from(result.audio,'base64'));});
+  router.post("/settings/activity-reset", authenticate, requireRecentAuthentication, endpointLimiter(3), async (req,res) => {
+    const parsed = z.strictObject({ confirmation: z.literal("START CLEAN"), requestId: z.uuid() }).safeParse(req.body);
+    if(!parsed.success)throw new ValidationError({confirmation:["Confirm START CLEAN with a valid reset request."]});
+    const input=parsed.data;
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data: await service.resetActivity(req.auth!.id, input.requestId) });
+  });
+  router.post("/buddy/wellbeing-invitation", authenticate, requireVerifiedAi, endpointLimiter(12), async (req,res) => {
+    if(!z.strictObject({}).safeParse(req.body).success)throw new ValidationError({body:["Buddy invitations do not accept journal text."]});
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data: await service.buddyInvitation(req.auth!.id) });
+  });
   router.get("/dashboard", authenticate, controller.dashboard);
   router.get("/wellness", authenticate, controller.wellnessStatus);
   router.post("/wellness/phq8", authenticate, aiWriteLimiter, controller.saveAssessment);

@@ -12,6 +12,7 @@ export function notificationAnchor(rect: Pick<DOMRect, "bottom" | "right">, widt
 }
 export function notificationHref(item: NotificationItem): string | null {
   switch (item.resourceType) {
+    case "buddy": return "/buddy";
     case "identity_verification": return "/settings/verification";
     case "journal": return item.resourceId ? `/journal/${encodeURIComponent(item.resourceId)}` : "/journal";
     case "grounding": return "/tools/grounding";

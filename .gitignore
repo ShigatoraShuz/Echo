@@ -129,3 +129,4 @@ frontend/assets/e2d821df-*.png
 runtime-cache/llama-cpp/
 /runtime-cache/
 /frontend/.next-private/
+/backend/models/moss-native/
