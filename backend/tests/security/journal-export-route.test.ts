@@ -5,6 +5,7 @@ import {errorMiddleware} from '../../src/shared/middleware/error.middleware.js';
 import {NotFoundError} from '../../src/shared/errors/app-error.js';
 it('exports only an owned saved journal and requires authentication',async()=>{
  const service={get:vi.fn(async(user:string,id:string)=>{if(user!=='owner')throw new NotFoundError('Not found');return {id,title:'Saved journal',body:'Kumusta — saved text',created_at:'2026-11-04'};})};
+ Object.assign(service,{getExportData:async(user:string,id:string)=>({entry:await service.get(user,id),analysis:null,face:null})});
  const verifier={getUser:async(token:string)=>({id:token,emailVerified:true})};
  const app=express();app.use(createJournalsRouter(service as any,verifier,{} as any));app.use(errorMiddleware);
  const path='/journals/40000000-0000-4000-8000-000000000001/export?format=pdf';

@@ -1,4 +1,6 @@
 "use client";
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
+
 
 import Link from "next/link";
 import {SavedFaceResults} from "@/features/journal/components/saved-face-results";
@@ -44,6 +46,7 @@ function EmotionHistory({ points, identity }: { points: EmotionPoint[]; identity
 }
 
 export function AnalysisHistory({ insights }: { insights: DashboardInsights }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const groups = new Map<string, EmotionPoint[]>();
   for (const point of [...insights.emotionTrend].filter(p => !p.isSimulated).sort((a, b) => a.date.localeCompare(b.date))) {
     const key = point.modelIdentity ?? point.schemaVersion ?? "Historical analysis";
@@ -81,7 +84,7 @@ export function AnalysisHistory({ insights }: { insights: DashboardInsights }) {
     </EchoCard>
     <EchoCard className="[background:hsl(var(--card))]" title="Journal category history" description="Dataset categories are not clinical severity or a numerical risk score.">
       {insights.categoryTrend?.length ? <ul className="grid gap-2 sm:grid-cols-2">{insights.categoryTrend.map((p, i) => <li key={`${p.date}:${i}`} className="min-w-0 rounded-xl border border-border p-3">
-        <time dateTime={p.date} className="text-xs text-muted-foreground">{p.date}</time><p className="mt-1 font-semibold">{p.label}</p><details className="mt-2"><summary className="min-h-10 cursor-pointer py-2 text-xs font-semibold text-primary">Model source</summary><p className="break-words text-xs text-muted-foreground">{p.modelIdentity}</p></details>
+        <time dateTime={p.date} className="text-xs text-muted-foreground">{p.date}</time><p className="mt-1 font-semibold">{analysisLabel(p.label)}</p><details className="mt-2"><summary className="min-h-10 cursor-pointer py-2 text-xs font-semibold text-primary">Model source</summary><p className="break-words text-xs text-muted-foreground">{p.modelIdentity}</p></details>
       </li>)}</ul> : <p className="text-sm text-muted-foreground">No category data yet for this period.</p>}
     </EchoCard>
     {screening.length ? <EchoCard className="[background:hsl(var(--card))]" title="Experimental journal estimates" description="Separate from questionnaire scores. Partial subtotals are not complete PHQ-8 totals.">

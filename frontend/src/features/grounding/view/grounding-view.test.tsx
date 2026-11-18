@@ -52,30 +52,28 @@ describe("GroundingView", () => {
     expect(vm.toggleRunning).toHaveBeenCalledTimes(1);
   });
 
-  it("filters and sorts real practices and opens the short suggestion", async () => {
-    const user = userEvent.setup();
-    const vm = viewModel();
-    vi.mocked(useGroundingViewModel).mockReturnValue(vm);
+  it("offers only the two supported exercises without search or filters", () => {
     render(<GroundingView />);
-
-    await user.click(screen.getByRole("button", { name: "Mindfulness" }));
-    expect(screen.getByRole("button", { name: /Body scan/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Window reset/i })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "All" }));
-    await user.type(screen.getByRole("textbox", { name: "Search exercises" }), "gratitude");
-    expect(screen.getByRole("button", { name: /Gratitude reflection/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Body scan/i })).not.toBeInTheDocument();
-
-    await user.clear(screen.getByRole("textbox", { name: "Search exercises" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Sort exercises" }), "shortest");
-    await user.click(screen.getByRole("button", { name: "Start 2-minute exercise" }));
-    expect(vm.startPractice).toHaveBeenCalledWith("box-breathing", 2);
+    expect(screen.getAllByRole("article")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Start Box breathing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start 5-4-3-2-1 grounding" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Filter grounding practices" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Browse grounding exercises")).not.toBeInTheDocument();
   });
 
   it("shows saved weekly progress rather than a sample count", () => {
     const vm = viewModel();
     vm.history = [{ id: "one", type: "box-breathing", duration: 120, pace: "slow", completedAt: new Date().toISOString(), progress: 100, state: "completed" }];
+    vi.mocked(useGroundingViewModel).mockReturnValue(vm);
+    render(<GroundingView />);
+    expect(screen.getByText("1 / 7")).toBeInTheDocument();
+  });
+
+  it("counts started practices once per local day", () => {
+    const vm = viewModel();
+    vm.history = ["one", "two"].map((id) => ({ id, type: "box-breathing", duration: 120, pace: "slow", startedAt: new Date().toISOString(), completedAt: null, progress: 0, state: "running" }));
     vi.mocked(useGroundingViewModel).mockReturnValue(vm);
     render(<GroundingView />);
     expect(screen.getByText("1 / 7")).toBeInTheDocument();
@@ -98,7 +96,7 @@ describe("GroundingView", () => {
     expect(vm.reset).toHaveBeenCalledTimes(1);
     expect(await axe(container)).toHaveNoViolations();
     await user.click(screen.getByRole("button", { name: /Browse/i }));
-    expect(screen.getByRole("heading", { name: "Browse grounding exercises" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "A gentle place to begin" })).toBeInTheDocument();
   });
 
   it("offers recovery for a failed history request", async () => {

@@ -1,4 +1,6 @@
 "use client";
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
+
 import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import {LocalFaceResult} from "./local-face-result";
@@ -36,6 +38,7 @@ export function NativeAnalysis({
   entryId?: string;
   showHistory?: boolean;
 }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const [retryMessage, setRetryMessage] = useState(""),
     [retrying, setRetrying] = useState(false);
   const [deepSelection,setDeepSelection]=useState<{entryId?:string;enabled:boolean}>({entryId,enabled:false});
@@ -92,14 +95,14 @@ export function NativeAnalysis({
         </dl>
       </div>
       {deep&&<div className="min-w-0 rounded-2xl border border-border bg-background/50 p-4 sm:p-5">
-        <h3 className="flex flex-wrap items-center gap-2 font-semibold"><Activity className="h-4 w-4 text-primary" aria-hidden="true" />Journal category: {result.distressCategory}</h3>
+        <h3 className="flex flex-wrap items-center gap-2 font-semibold"><Activity className="h-4 w-4 text-primary" aria-hidden="true" />Journal category: {analysisLabel(result.distressCategory)}</h3>
         <p className="text-sm text-foreground/75">
           These are the classifier’s dataset labels, not clinical severity.
         </p>
         <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
           {Object.entries(result.categoryScores).map(([name, value]) => (
             <div key={name} className="min-w-0 rounded-xl border border-border bg-card p-3">
-              <dt className="break-words text-xs text-muted-foreground">{name}</dt>
+              <dt className="break-words text-xs text-muted-foreground">{analysisLabel(name)}</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(value * 100)}%</dd>
             </div>
           ))}
@@ -143,7 +146,7 @@ export function NativeAnalysis({
         <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
           {Object.entries(result.goEmotions).map(([name, value]) => (
             <div key={name}>
-              <dt className="capitalize">{name}</dt>
+              <dt className="capitalize">{analysisLabel(name)}</dt>
               <dd className="mt-1 text-lg font-semibold tabular-nums">{Math.round(value * 100)}%</dd>
             </div>
           ))}

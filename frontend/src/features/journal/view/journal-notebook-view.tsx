@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, PenLine, Search } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ImagePlus, PenLine, Search, Trash2, Download } from "lucide-react";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
 import { goEmotionNameSchema, plutchikEmotionSchema, emotionNameSchema } from "@echo/contracts";
 import type { JournalEntry } from "../model/journal.model";
 import { EchoErrorState } from "@/shared/components/feedback/echo-error-state";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
 import { JournalPolaroid } from "../components/journal-polaroid";
+import { JournalDeleteDialog } from "../components/journal-delete-dialog";
+import { JournalExportDialog } from "../components/journal-export-dialog";
 
 const mainEmotions: readonly string[] = plutchikEmotionSchema.options;
 const moreEmotions: string[] = [...new Set([...goEmotionNameSchema.options, ...emotionNameSchema.options])]
@@ -23,6 +25,23 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
 export function JournalNotebookView() {
   const vm = useJournalListViewModel();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<JournalEntry | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [showExport, setShowExport] = useState(false);
+  const confirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError("");
+    try {
+      if (await vm.deleteEntry(deleteTarget.id)) setDeleteTarget(null);
+      else setDeleteError("Could not delete this journal. Please try again.");
+    } catch {
+      setDeleteError("Could not delete this journal. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
   const selected: JournalEntry | undefined = vm.entries.find((entry) => entry.id === selectedId) ?? vm.entries[0];
 
   useEffect(() => {
@@ -50,6 +69,7 @@ export function JournalNotebookView() {
               A space for your thoughts, reflections, and growth.
             </p>
           </div>
+          <div className="flex flex-col items-stretch gap-2">
           <Link
             href="/journal/new"
             className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--landing-primary)] px-4 text-sm font-semibold text-white"
@@ -57,6 +77,10 @@ export function JournalNotebookView() {
             <PenLine size={16} />
             Write reflection
           </Link>
+            <button type="button" onClick={() => setShowExport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--landing-primary-15)] bg-white px-4 text-sm font-semibold text-[var(--landing-primary)] outline-none hover:bg-secondary focus-visible:ring-4 focus-visible:ring-ring/20">
+              <Download size={16} aria-hidden="true" /> Export journal
+            </button>
+          </div>
         </div>
         <form
           onSubmit={(event) => {
@@ -256,12 +280,23 @@ export function JournalNotebookView() {
                   {selected.mood} · {selected.body.trim().split(/\s+/).filter(Boolean).length} words
                 </p>
               </div>
-              <Link
-                href={`/journal/${encodeURIComponent(selected.id)}`}
-                className="inline-flex min-h-11 items-center rounded-full border border-[var(--landing-primary-15)] bg-white px-4 text-sm font-semibold text-[var(--landing-primary)]"
-              >
-                Open full page
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/journal/${encodeURIComponent(selected.id)}`}
+                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--landing-primary-15)] bg-white px-4 text-sm font-semibold text-[var(--landing-primary)]"
+                >
+                  Open full page
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => { setDeleteError(""); setDeleteTarget(selected); }}
+                  disabled={isDeleting}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-danger/25 bg-white px-4 text-sm font-semibold text-danger outline-none hover:bg-danger/10 focus-visible:ring-4 focus-visible:ring-danger/20 disabled:opacity-50"
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                  Delete journal
+                </button>
+              </div>
             </div>
             {selected.images?.length ? (
               <div className="mt-5 max-w-2xl">
@@ -288,7 +323,7 @@ export function JournalNotebookView() {
                 Reflect on this page
               </p>
               <p className="mt-2 text-sm text-[var(--landing-muted)]">
-                Return to the full entry to view completed analysis, export, or delete it.
+                Return to the full entry to view completed analysis or export it.
               </p>
               <Link
                 href={`/journal/${encodeURIComponent(selected.id)}`}
@@ -317,6 +352,15 @@ export function JournalNotebookView() {
           </div>
         )}
       </section>
+      {showExport && <JournalExportDialog onClose={() => setShowExport(false)} />}
+      <JournalDeleteDialog
+        isOpen={Boolean(deleteTarget)}
+        entryTitle={deleteTarget?.title ?? ""}
+        isDeleting={isDeleting}
+        error={deleteError}
+        onDelete={confirmDelete}
+        onClose={() => { if (!isDeleting) setDeleteTarget(null); }}
+      />
     </main>
   );
 }

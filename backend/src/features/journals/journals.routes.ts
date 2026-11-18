@@ -44,9 +44,10 @@ export function createJournalsRouter(
   });
   router.get('/journals/:journalId/export',authenticate,async(req,res)=>{
     if(req.query.format!=='pdf'){res.status(400).json({success:false,error:{message:'Choose PDF export.'}});return;}
-    const entry=await service.get(req.auth!.id,String(req.params.journalId));
+    const data=await service.getExportData(req.auth!.id,String(req.params.journalId));
     const {journalPdf}=await import('./journal-pdf.js');
-    const bytes=await journalPdf(entry);
+    const wording=z.enum(["gentle","original"]).default("gentle").parse(req.query.wording);
+    const bytes=await journalPdf(data.entry, {...data,gentleWording:wording!=="original"});
     res.setHeader('Cache-Control','private, no-store');res.setHeader('Content-Type','application/pdf');
     res.setHeader('Content-Disposition',`attachment; filename="journal-${String(req.params.journalId).replace(/[^a-zA-Z0-9-]/g,'').slice(0,36)}.pdf"`);res.send(bytes);
   });

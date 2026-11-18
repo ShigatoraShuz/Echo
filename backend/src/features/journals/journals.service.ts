@@ -1376,6 +1376,25 @@ export class JournalService {
     };
   }
 
+  async getExportData(userId: string, journalId: string) {
+    const entry = await this.get(userId, journalId);
+    const empty = { entry, analysis: null, face: null, analysisNotice: "No saved analysis is available for this reflection." };
+    if (!entry.analysis_consent) return { ...empty, analysisNotice: "Analysis consent is off for this reflection. Saved results are not included." };
+    try {
+      await this.assertAnalysisGates(userId);
+    } catch (error) {
+      if (error instanceof AppError && error.statusCode === 403)
+        return { ...empty, analysisNotice: "Saved analysis is not available with the current account access." };
+      throw error;
+    }
+    if (!await this.hasGlobalAnalysisConsent(userId))
+      return { ...empty, analysisNotice: "Journal-analysis consent is off. Saved results are not included." };
+    const [analysis, face] = await Promise.all([
+      this.getLatestAnalysis(userId, journalId), this.faceStatus(userId, journalId),
+    ]);
+    return { entry, analysis, face, analysisNotice: analysis ? "" : empty.analysisNotice };
+  }
+
   async getLatestAnalysis(userId: string, journalId: string): Promise<AnalysisResponse | null> {
     await this.get(userId, journalId);
     if(this.localResults){const job=this.localResults.journal(userId,journalId);return job?.result_ciphertext?this.toAnalysisResponse(this.localRow(job)):null;}

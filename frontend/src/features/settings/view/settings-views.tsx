@@ -1,8 +1,9 @@
 "use client";
+import { AnalysisWordingControls } from "../components/analysis-wording-controls";
 import {PhilippineMobileInput} from "@/shared/components/ui/philippine-mobile-input";
 
 import { LocalDataControls } from "../components/local-data-controls";
-import { InterfaceSoundControls } from "@/shared/components/navigation/interface-sound-controls";
+import { BackgroundMusicControls } from "@/shared/components/navigation/background-music-controls";
 import { NotificationSoundControls } from "@/shared/components/navigation/notification-sound-controls";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -610,7 +611,8 @@ export function ProfileSettingsView() {
         )}
           <SettingsSection title="Appearance" description="Choose the look and motion of your space." className="self-start">
             <ThemeControls compact />
-            <InterfaceSoundControls />
+            <BackgroundMusicControls />
+            <AnalysisWordingControls />
           </SettingsSection>
         </div>
       </div>

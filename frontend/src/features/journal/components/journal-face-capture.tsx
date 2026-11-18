@@ -25,6 +25,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
 ) {
   const [state, setState] = useState<CameraState>("idle");
   const [hasFace, setHasFace] = useState(false);
+  const [showMesh, setShowMesh] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [expression, setExpression] = useState("");
   const [expressionFailed,setExpressionFailed]=useState(false);
@@ -390,9 +391,18 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
           <p>PRIVATE FACE STUDIO</p>
           <h3>Live expression mesh</h3>
         </div>
-        <span className="face-studio-mode">MESH + EXPRESSION</span>
+        <button
+          type="button"
+          role="switch"
+          aria-label="Show face mesh"
+          aria-checked={showMesh}
+          onClick={() => setShowMesh((visible) => !visible)}
+          className="face-studio-mode face-studio-mesh-switch"
+        >
+          <span>Face mesh</span>
+          <span className="face-studio-switch-track" aria-hidden="true" />
+        </button>
       </header>
-      <div className="face-studio-viewport" data-tracking={hasFace}>
         <video
           ref={videoRef}
           autoPlay
@@ -402,6 +412,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
           tabIndex={-1}
           className="absolute h-px w-px opacity-0 pointer-events-none"
         />
+      <div className="face-studio-viewport" data-tracking={hasFace} hidden={!showMesh}>
         <canvas
           ref={canvasRef}
           width={960}
@@ -442,6 +453,11 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
           ECHO / LIVE LANDMARKS
         </span>
       </div>
+      {!showMesh && (
+        <p className="px-[18px] py-3 text-xs text-muted-foreground" role="status">
+          Mesh preview hidden. This only changes what you see; automatic facial analysis remains enabled.
+        </p>
+      )}
       <div className="face-studio-result" aria-live="polite">
         <span className={evaluating ? "face-studio-processing" : ""} />
         <div>

@@ -1,3 +1,4 @@
+vi.mock("@/services/audio/background-music", () => ({ setBackgroundMusicVoiceFocus: vi.fn() }));
 import * as runtimeApi from "../../view-model/use-realtime-talk";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";

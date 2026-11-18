@@ -1,23 +1,20 @@
 "use client";
 
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
 import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { useMemo, useState, type ReactNode } from "react";
-import {
-  Leaf,
-  ShieldCheck,
-  Brain,
-  Activity,
-  ClipboardList,
-  ScanFace,
-} from "lucide-react";
-import type {
-  JournalAnalysisAvailability,
-  JournalSubmissionResponse,
-} from "@echo/contracts";
+import { Leaf, ShieldCheck, Brain, Activity, ClipboardList, ScanFace } from "lucide-react";
+import type { JournalAnalysisAvailability, JournalSubmissionResponse } from "@echo/contracts";
 import type { JournalAnalysis } from "../model/journal.model";
 import { AnalysisStatusExperience } from "./analysis-status-experience";
 import dynamic from "next/dynamic";
-const JournalAnalysisPanel = dynamic(() => import("./journal-analysis-panel").then(m => m.JournalAnalysisPanel), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
+const JournalAnalysisPanel = dynamic(() => import("./journal-analysis-panel").then((m) => m.JournalAnalysisPanel), {
+  loading: () => (
+    <p role="status" className="text-sm text-muted-foreground">
+      Loading saved report…
+    </p>
+  ),
+});
 import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import { LocalFaceResult } from "./local-face-result";
 import { JournalPhq8Meter } from "./journal-phq8-meter";
@@ -56,11 +53,13 @@ export function JournalAnalysisDock({
   saving?: boolean;
   finalizing?: boolean;
 }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const [deep, setDeep] = useState(false);
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const submission = useMemo<JournalSubmissionResponse | null>(
     () =>
-      initialSubmission ?? (journalId && availability?.jobId
+      initialSubmission ??
+      (journalId && availability?.jobId
         ? {
             journalId,
             analysisJobId: availability.jobId,
@@ -73,31 +72,20 @@ export function JournalAnalysisDock({
   const result = analysis?.result;
   const native =
     result &&
-    (result.schemaVersion === "echo-journal-analysis-v2" ||
-      result.schemaVersion === "echo-journal-analysis-v3") &&
+    (result.schemaVersion === "echo-journal-analysis-v2" || result.schemaVersion === "echo-journal-analysis-v3") &&
     !result.isSimulated
       ? result
       : null;
-  const screening =
-    native?.schemaVersion === "echo-journal-analysis-v3"
-      ? native.journalScreening
-      : null;
+  const screening = native?.schemaVersion === "echo-journal-analysis-v3" ? native.journalScreening : null;
   return (
-    <aside
-      className="journal-studio-report"
-      aria-label="Journal analysis workspace"
-    >
+    <aside className="journal-studio-report" aria-label="Journal analysis workspace">
       <header className="journal-report-heading">
         <span className="journal-report-emblem">
           <Leaf size={24} aria-hidden="true" />
         </span>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.22em] text-primary">
-            Private reflection studio
-          </p>
-          <h2 className="mt-1 font-[family-name:var(--font-echo-display)] text-3xl">
-            Your ECHO perspective
-          </h2>
+          <p className="text-[10px] font-bold uppercase tracking-[.22em] text-primary">Private reflection studio</p>
+          <h2 className="mt-1 font-[family-name:var(--font-echo-display)] text-3xl">Your ECHO perspective</h2>
         </div>
         <div className="ml-auto shrink-0">
           <JournalDeepAnalysisToggle checked={deep} onChange={setDeep} />
@@ -105,17 +93,24 @@ export function JournalAnalysisDock({
       </header>
       <div className="journal-report-body">
         <AiSupportNotice className="mb-4" />
-        {finalizing && <p role="status" className="mb-4 text-sm text-muted-foreground">Reflection saved. Finishing its optional attachments…</p>}
+        {finalizing && (
+          <p role="status" className="mb-4 text-sm text-muted-foreground">
+            Reflection saved. Finishing its optional attachments…
+          </p>
+        )}
         {saving ? (
           <div className="journal-report-idle" role="status" aria-live="polite">
-            <div className="journal-idle-orbit"><Leaf size={30} aria-hidden="true" /></div>
+            <div className="journal-idle-orbit">
+              <Leaf size={30} aria-hidden="true" />
+            </div>
             <h3 className="font-[family-name:var(--font-echo-display)] text-2xl">Saving your reflection</h3>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground">Your live model progress will appear here as soon as your reflection is saved.</p>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+              Your live model progress will appear here as soon as your reflection is saved.
+            </p>
           </div>
         ) : capture ? (
           capture
-        ) : availability?.reason === "PROCESSOR_DISABLED" ||
-          availability?.reason === "PROCESSING_FAILED" ? (
+        ) : availability?.reason === "PROCESSOR_DISABLED" || availability?.reason === "PROCESSING_FAILED" ? (
           <div className="rounded-2xl border border-border p-5">
             <h3 className="font-semibold">
               {availability.reason === "PROCESSOR_DISABLED"
@@ -123,35 +118,23 @@ export function JournalAnalysisDock({
                 : "Analysis did not finish."}
             </h3>
             <p className="mt-3 text-sm text-muted-foreground">
-              A failed result is not a low distress score. Your reflection
-              remains saved.
+              A failed result is not a low distress score. Your reflection remains saved.
             </p>
-            <button
-              type="button"
-              className="echo-button-secondary mt-4"
-              onClick={onRetry}
-            >
+            <button type="button" className="echo-button-secondary mt-4" onClick={onRetry}>
               Check analysis status
             </button>
           </div>
         ) : native ? (
           <>
             {native.supportReviewRequired && (
-              <p
-                role="status"
-                className="mb-4 rounded-2xl border border-primary/20 bg-secondary p-4 text-sm"
-              >
+              <p role="status" className="mb-4 rounded-2xl border border-primary/20 bg-secondary p-4 text-sm">
                 This reflection included a support flag.{" "}
                 <a className="font-semibold underline" href="/crisis-help">
                   Open support options
                 </a>
               </p>
             )}
-            <div
-              role="tablist"
-              aria-label="Analysis report sections"
-              className="journal-report-tabs"
-            >
+            <div role="tablist" aria-label="Analysis report sections" className="journal-report-tabs">
               {tabs.map((name, i) => (
                 <button
                   key={name}
@@ -194,21 +177,19 @@ export function JournalAnalysisDock({
             >
               {tab === "Overview" && (
                 <>
-                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
-                    Saved model results
-                  </p>
+                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Saved model results</p>
                   <h3 className="mt-2 font-[family-name:var(--font-echo-display)] text-4xl capitalize">
                     {native.dominantEmotion}
                   </h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Strongest emotion signal in this reflection
-                  </p>
-                  <div className={`my-5 grid gap-3 ${deep ? "grid-cols-2" : "grid-cols-1"}`}>
-                    {deep && <div className="journal-report-stat">
-                      <Activity size={17} />
-                      <span>Journal category</span>
-                      <strong>{native.distressCategory}</strong>
-                    </div>}
+                  <p className="mt-2 text-sm text-muted-foreground">Strongest emotion signal in this reflection</p>
+                  <div className={`my-5 grid gap-3 ${deep ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                    {deep && (
+                      <div className="journal-report-stat">
+                        <Activity size={17} aria-hidden="true" />
+                        <span>Journal category</span>
+                        <strong>{analysisLabel(native.distressCategory)}</strong>
+                      </div>
+                    )}
                     <div className="journal-report-stat">
                       <ClipboardList size={17} />
                       <span>PHQ-8 estimate</span>
@@ -228,9 +209,8 @@ export function JournalAnalysisDock({
                   )}
                   <JournalCbtRecommendation result={native} />
                   <p className="mt-5 text-xs leading-6 text-muted-foreground">
-                    Model signals support reflection. They are not diagnoses or
-                    measures of your safety. PHQ-8 estimates are experimental
-                    and separate from questionnaire scores.
+                    Model signals support reflection. They are not diagnoses or measures of your safety. PHQ-8 estimates
+                    are experimental and separate from questionnaire scores.
                   </p>
                 </>
               )}
@@ -256,16 +236,13 @@ export function JournalAnalysisDock({
                       ))}
                   </dl>
                   <p className="mt-5 text-xs text-muted-foreground">
-                    Relative model scores, not a measure of how strongly you
-                    feel.
+                    Relative model scores, not a measure of how strongly you feel.
                   </p>
                 </>
               )}
               {tab === "PHQ-8" && (
                 <>
-                  <h3 className="font-semibold">
-                    Experimental journal estimate
-                  </h3>
+                  <h3 className="font-semibold">Experimental journal estimate</h3>
                   <JournalPhq8Meter estimate={screening ?? undefined} />
                   {screening?.status === "available" && (
                     <p
@@ -284,25 +261,17 @@ export function JournalAnalysisDock({
                           : `${screening.coverage}/8 criteria evidenced`
                       : "No PHQ-8 estimate is available for this entry."}
                   </p>
-                  {screening?.status === "available" &&
-                    screening.coverage < 8 && (
-                      <p className="mb-4 text-xs leading-6 text-muted-foreground">
-                        The model ran successfully. This entry does not
-                        establish all eight symptom frequencies over the last
-                        two weeks, so a complete total cannot be shown. Unknown
-                        items are not scored as zero.
-                      </p>
-                    )}
+                  {screening?.status === "available" && screening.coverage < 8 && (
+                    <p className="mb-4 text-xs leading-6 text-muted-foreground">
+                      The model ran successfully. This entry does not establish all eight symptom frequencies over the
+                      last two weeks, so a complete total cannot be shown. Unknown items are not scored as zero.
+                    </p>
+                  )}
                   <dl className="grid grid-cols-2 gap-2">
                     {screening?.items &&
                       Object.entries(screening.items).map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="rounded-xl border border-border bg-background/50 p-3"
-                        >
-                          <dt className="text-xs text-muted-foreground">
-                            {criteria[key] ?? key}
-                          </dt>
+                        <div key={key} className="rounded-xl border border-border bg-background/50 p-3">
+                          <dt className="text-xs text-muted-foreground">{criteria[key] ?? key}</dt>
                           <dd className="mt-1 text-sm font-semibold">
                             {value === null ? "Not evidenced" : deep ? value : "Evidenced"}
                           </dd>
@@ -310,11 +279,9 @@ export function JournalAnalysisDock({
                       ))}
                   </dl>
                   <p className="mt-4 text-xs leading-6 text-muted-foreground">
-                    Missing evidence stays unscored. Only eight evidenced
-                    criteria produce a total. Frequency estimates: 0 = not at
-                    all; 1 = several days; 2 = more than half the days; 3 =
-                    nearly every day. This is not a completed questionnaire or
-                    diagnosis.
+                    Missing evidence stays unscored. Only eight evidenced criteria produce a total. Frequency estimates:
+                    0 = not at all; 1 = several days; 2 = more than half the days; 3 = nearly every day. This is not a
+                    completed questionnaire or diagnosis.
                   </p>
                 </>
               )}
@@ -353,7 +320,6 @@ export function JournalAnalysisDock({
               {[
                 { icon: ShieldCheck, label: "Safety check" },
                 { icon: Brain, label: "Emotion patterns" },
-                { icon: Activity, label: "Journal category" },
                 { icon: ClipboardList, label: "PHQ-8 estimate" },
                 { icon: ScanFace, label: "Optional face analysis" },
               ].map(({ icon: Icon, label }) => (
@@ -370,8 +336,7 @@ export function JournalAnalysisDock({
         )}
       </div>
       <footer className="journal-report-footer">
-        <ShieldCheck size={14} aria-hidden="true" /> Private results · Saved
-        with your reflection
+        <ShieldCheck size={14} aria-hidden="true" /> Private results · Saved with your reflection
       </footer>
     </aside>
   );

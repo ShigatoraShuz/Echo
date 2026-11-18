@@ -1,4 +1,6 @@
 "use client";
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
+
 const NativeAnalysis = dynamic(() => import("./native-analysis").then(m => m.NativeAnalysis), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 import Link from "next/link";
 import {useEffect,useState} from 'react';
@@ -148,6 +150,7 @@ function EmotionBar({ emotion, value, index }: { emotion: string; value: number;
 
 /* ─── PHQ-8 gauge ─────────────────────────────────────────────────────────── */
 function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const max = 24;
   const midPct = Math.round(((lower + upper) / 2 / max) * 100);
   const rangeColor =
@@ -177,7 +180,7 @@ function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
           }}
         />
       </div>
-      <p className="sr-only">AI-estimated depressive-symptom range: {lower}–{upper} out of 24.</p>
+      <p className="sr-only">{analysisLabel("AI-estimated depressive-symptom range")}: {lower}–{upper} out of 24.</p>
       <p className="text-[11px] leading-5 text-muted-foreground">Not a diagnosis or completed PHQ-8 assessment.</p>
     </div>
   );
@@ -185,6 +188,7 @@ function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
 
 /* ─── Main component ──────────────────────────────────────────────────────── */
 export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPanelProps) {
+  const { label: analysisLabel } = useAnalysisWording();
   const [selection,setSelection]=useState<{id?:string;enabled:boolean}>({enabled:false});
   const deep=selection.id===analysis?.entryId&&selection.enabled;
   useEffect(()=>setSelection({id:analysis?.entryId,enabled:false}),[analysis?.entryId]);
@@ -221,7 +225,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.16em] text-primary">Private journal analysis</p>
             <h2 className="mt-1 font-[family-name:var(--font-echo-display)] text-2xl font-semibold text-foreground">ECHO perspective</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{analysis.perspective}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{analysisLabel(analysis.perspective)}</p>
           </div>
         </div>
       </div>
@@ -285,7 +289,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
           </div>
           <blockquote className="mt-5 flex gap-3 rounded-2xl border border-primary/10 bg-card/70 p-4">
             <Bot className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-            <p className="text-sm leading-6 text-muted-foreground">{analysis.perspective}</p>
+            <p className="text-sm leading-6 text-muted-foreground">{analysisLabel(analysis.perspective)}</p>
           </blockquote>
         </header>
 

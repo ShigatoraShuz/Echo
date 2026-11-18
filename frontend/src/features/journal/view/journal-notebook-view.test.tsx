@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { JournalNotebookView } from "./journal-notebook-view";
 import { useJournalListViewModel } from "../view-model/use-journal-list-view-model";
@@ -81,5 +81,31 @@ describe("JournalNotebookView", () => {
     expect(screen.getByRole("region", { name: "Selected reflection" })).toHaveTextContent("Words from Second page");
     expect(screen.getAllByRole("img", { name: /photo \d from this reflection/i })).toHaveLength(5);
     expect(screen.getByRole("link", { name: "Open full page" })).toHaveAttribute("href", "/journal/second");
+    const remove = vi.mocked(useJournalListViewModel).mock.results[0].value.deleteEntry;
+    let finishDelete!: (success: boolean) => void;
+    remove.mockResolvedValueOnce(false).mockImplementationOnce(() => new Promise<boolean>(resolve => { finishDelete = resolve; }));
+    await user.click(screen.getByRole("button", { name: "Delete journal" }));
+    let dialog = screen.getByRole("dialog", { name: "Delete entry" });
+    expect(dialog).toHaveTextContent("Second page");
+    expect(dialog).toHaveTextContent("This action cannot be undone");
+    expect(remove).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(remove).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete journal" }));
+    dialog = screen.getByRole("dialog", { name: "Delete entry" });
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Could not delete this journal");
+    expect(remove).toHaveBeenCalledWith("second");
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    expect(within(dialog).getByRole("button", { name: "Deleting..." })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(dialog).toBeVisible();
+    expect(remove).toHaveBeenCalledTimes(2);
+    await act(async () => finishDelete(true));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
   });
 });

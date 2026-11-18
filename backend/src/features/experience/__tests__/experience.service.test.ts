@@ -202,7 +202,7 @@ describe("ExperienceService.Buddy privacy", () => {
 });
 
 describe("ExperienceService.groundingHistory", () => {
-  it("returns only completed sessions belonging to the user", async () => {
+  it("returns started and completed sessions belonging to the user", async () => {
     const chain = {
       select: vi.fn(), eq: vi.fn(), order: vi.fn(),
       limit: vi.fn(async () => ({ data: [{ id: "one", exercise_type: "box-breathing", duration_seconds: 120, reflection: "gentle", completed_at: "2026-10-12T00:00:00Z" }], error: null })),
@@ -217,7 +217,7 @@ describe("ExperienceService.groundingHistory", () => {
       { id: "one", type: "box-breathing", duration: 120, pace: "gentle", completedAt: "2026-10-12T00:00:00Z" },
     ]);
     expect(chain.eq).toHaveBeenCalledWith("user_id", "owner-1");
-    expect(chain.eq).toHaveBeenCalledWith("completed", true);
+    expect(chain.eq).not.toHaveBeenCalledWith("completed", true);
     expect(chain.limit).toHaveBeenCalledWith(250);
   });
 });
@@ -246,6 +246,35 @@ describe("ExperienceService.completeGrounding", () => {
     const database = { schema: vi.fn(() => ({ from })) };
     return { service: new ExperienceService(database as never, {} as JournalService, {} as EncryptionService), insert, lookup, from };
   }
+
+  it("persists a start without marking it complete", async () => {
+    const startedAt = "2026-11-18T08:00:00Z";
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: { id: sessionId, started_at: startedAt, completed_at: null }, error: null }) }) }));
+    const count = { select: vi.fn(), eq: vi.fn(), then: (resolve: (value: { count: number; error: null }) => unknown) => Promise.resolve({ count: 0, error: null }).then(resolve) };
+    count.select.mockReturnValue(count); count.eq.mockReturnValue(count);
+    const from = vi.fn().mockReturnValueOnce({ insert }).mockReturnValueOnce(count);
+    const service = new ExperienceService({ schema: () => ({ from }) } as never, {} as JournalService, {} as EncryptionService);
+    expect(await service.completeGrounding("owner-1", { ...input, completed: false })).toEqual({ id: sessionId, startedAt, completedAt: null, completedSessions: 0 });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ completed: false, completed_at: null, user_id: "owner-1" }));
+  });
+
+  it("updates the owned started row on completion rather than creating another session", async () => {
+    const existing = { id: sessionId, user_id: "owner-1", exercise_type: input.technique, completed: false, started_at: "2026-11-18T08:00:00Z", completed_at: null };
+    const { service, from } = duplicateHarness(existing);
+    const updateChain = { eq: vi.fn(), select: vi.fn(), single: vi.fn(async () => ({ data: { ...existing, completed_at: "2026-11-18T08:02:00Z" }, error: null })) };
+    updateChain.eq.mockReturnValue(updateChain); updateChain.select.mockReturnValue(updateChain);
+    const update = vi.fn(() => updateChain);
+    const count = { select: () => count, eq: () => count, then: (resolve: (value: { count: number; error: null }) => unknown) => Promise.resolve({ count: 1, error: null }).then(resolve) };
+    from.mockReset().mockReturnValueOnce({ insert: () => ({ select: () => ({ single: async () => ({ data: null, error: { code: "23505" } }) }) }) })
+      .mockReturnValueOnce({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: existing, error: null }) }) }) }) })
+      .mockReturnValueOnce({ update }).mockReturnValueOnce(count);
+    const result = await service.completeGrounding("owner-1", input);
+    expect(result.id).toBe(sessionId);
+    expect(result.startedAt).toBe(existing.started_at);
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ completed: true }));
+    expect(updateChain.eq).toHaveBeenCalledWith("user_id", "owner-1");
+    expect(updateChain.eq).toHaveBeenCalledWith("completed", false);
+  });
 
   it("returns the same owned completion on a duplicate retry", async () => {
     const completedAt = "2026-10-18T00:00:00Z";
