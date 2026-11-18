@@ -44,7 +44,7 @@ it('uses browser final text without capturing or sending PCM and stops on unmoun
  const hook=renderHook(()=>useRealtimeTalk({...options,sttProvider:'browser'}));await act(async()=>hook.result.current.start());
  await act(async()=>sockets[0].ready());expect(getUserMedia).not.toHaveBeenCalled();expect(contexts[0].audioWorklet.addModule).not.toHaveBeenCalled();
  const recognition=BrowserRecognition.instances[0];
- act(()=>{recognition.onresult({resultIndex:0,results:[{isFinal:true,0:{transcript:'A browser turn.'}}]});recognition.onend();});
+ act(()=>{recognition.onresult({resultIndex:0,results:[{isFinal:true,0:{transcript:'A browser turn.'}}]});hook.result.current.finishVoiceTurn();});
  const messages=sockets[0].send.mock.calls.map(([value])=>JSON.parse(String(value)));
  expect(messages.filter(value=>value.type==='transcript')).toEqual([expect.objectContaining({text:'A browser turn.',generation:1})]);expect(hook.result.current.state).toBe('thinking');
  await act(async()=>sockets[0].onmessage?.({data:JSON.stringify({protocol:'echo-buddy-talk-v2',sessionId:id,generation:1,type:'turn_end'})}));
@@ -57,10 +57,9 @@ it('pauses browser capture during speech and ignores late recognition events',as
  expect(recognition.abort).toHaveBeenCalled();act(()=>{result({resultIndex:0,results:[{isFinal:true,0:{transcript:'stale'}}]});end();});
  expect(sockets[0].send.mock.calls.some(([data])=>JSON.parse(String(data)).type==='transcript')).toBe(false);expect(hook.result.current.state).toBe('preparing_speech');hook.unmount();
 });
-it('requires explicit Resume Talk after browser silence rather than restarting forever',async()=>{
+it('continues browser capture after short recognition ends until the user ends the turn',async()=>{
  browser();media(vi.fn());const hook=renderHook(()=>useRealtimeTalk({...options,sttProvider:'browser'}));await act(async()=>hook.result.current.start());await act(async()=>sockets[0].ready());
- act(()=>BrowserRecognition.instances[0].onend());expect(hook.result.current.state).toBe('paused');expect(BrowserRecognition.instances).toHaveLength(1);
- await act(async()=>hook.result.current.resumeTalk());expect(BrowserRecognition.instances).toHaveLength(2);expect(hook.result.current.state).toBe('listening');hook.unmount();
+ const recognition=BrowserRecognition.instances[0];act(()=>recognition.onend());expect(hook.result.current.state).toBe('listening');expect(recognition.start).toHaveBeenCalledTimes(2);hook.result.current.finishVoiceTurn();hook.unmount();
 });
 it('requests microphone immediately and loads the session while permission is pending; capture waits for ready',async()=>{
  let grant!:(s:MediaStream)=>void;const getUserMedia=vi.fn(()=>new Promise<MediaStream>(r=>grant=r));media(getUserMedia);

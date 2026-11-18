@@ -222,7 +222,7 @@ export function useRealtimeTalk(options: Options) {
         s.startBrowser=()=>{
           if(!isCurrent(s)||s.suspended||s.busy||s.browserCapture)return;
           try{
-            s.browserCapture=startBrowserSpeech({continuous:false,
+            s.browserCapture=startBrowserSpeech({continuous:true,manualStop:true,
               onStart:()=>{if(isCurrent(s)&&!s.busy)setState('listening');},
               onInterim:text=>{if(isCurrent(s)&&!s.busy)setTranscript(text);},
               onFinal:text=>{
@@ -434,6 +434,11 @@ export function useRealtimeTalk(options: Options) {
     setState("preparing_speech");
     send(s, { type: "retry_speech", generation: s.generation, turnId: s.turnId });
   }, [isCurrent, send]);
+  const finishVoiceTurn = useCallback(() => {
+    const s = session.current;
+    if (!s || !isCurrent(s) || s.sttProvider !== 'browser' || s.busy) return;
+    s.browserCapture?.stop();
+  }, [isCurrent]);
 
   const start = useCallback(async () => {
     stop();
@@ -738,6 +743,7 @@ export function useRealtimeTalk(options: Options) {
     transcript,
     start,
     stop,
+    finishVoiceTurn,
     interrupt,
     speechMode,
     setSpeechMode,

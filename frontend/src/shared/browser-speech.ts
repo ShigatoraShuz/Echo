@@ -11,21 +11,23 @@ type SpeechWindow={SpeechRecognition?:new()=>Recognition;webkitSpeechRecognition
 function constructor(){const host=globalThis as typeof globalThis&SpeechWindow;return host.SpeechRecognition??host.webkitSpeechRecognition;}
 export function browserSpeechSupported(){return Boolean(constructor());}
 export type BrowserSpeechCapture={stop:()=>void;cancel:()=>void};
-export function startBrowserSpeech(options:{continuous?:boolean;onStart?:()=>void;onInterim?:(text:string)=>void;onFinal:(text:string)=>void;onError:(message:string)=>void}):BrowserSpeechCapture{
+export function startBrowserSpeech(options:{continuous?:boolean;manualStop?:boolean;onStart?:()=>void;onInterim?:(text:string)=>void;onFinal:(text:string)=>void;onError:(message:string)=>void}):BrowserSpeechCapture{
   const Constructor=constructor();
   if(!Constructor)throw Error('Browser speech is unavailable in this browser. Choose Whisper.');
   const recognition=new Constructor();
   recognition.lang='en-US';recognition.continuous=options.continuous??true;recognition.interimResults=true;recognition.maxAlternatives=1;
   let closed=false,stopping=false;
   const results=new Map<number,string>();
-  let drain:ReturnType<typeof setTimeout>|undefined;
-  const cleanup=()=>{closed=true;clearTimeout(limit);clearTimeout(drain);recognition.onstart=null;recognition.onresult=null;recognition.onerror=null;recognition.onend=null;};
+  let drain:ReturnType<typeof setTimeout>|undefined, silenceTimer:ReturnType<typeof setTimeout>|undefined;
+  const armSilence=()=>{clearTimeout(silenceTimer);silenceTimer=setTimeout(stop,60000);};
+  const cleanup=()=>{closed=true;clearTimeout(drain);clearTimeout(silenceTimer);recognition.onstart=null;recognition.onresult=null;recognition.onerror=null;recognition.onend=null;};
   const fail=(message:string)=>{if(closed)return;cleanup();try{recognition.abort();}catch{}options.onError(message);};
   const finish=()=>{if(closed)return;const text=[...results.entries()].sort((a,b)=>a[0]-b[0]).map(([,text])=>text).join(' ').trim();cleanup();if(text)options.onFinal(text);else options.onError('No speech detected. Press the microphone or Resume Talk to try again.');};
-  const stop=()=>{if(closed||stopping)return;stopping=true;clearTimeout(limit);drain=setTimeout(()=>fail('Browser speech did not finish. Please try again.'),5000);try{recognition.stop();}catch{fail('Browser speech could not finish. Please try again.');}};
-  recognition.onstart=()=>{if(!closed)options.onStart?.();};
+  const stop=()=>{if(closed||stopping)return;stopping=true;clearTimeout(silenceTimer);drain=setTimeout(()=>fail('Browser speech did not finish. Please try again.'),5000);try{recognition.stop();}catch{fail('Browser speech could not finish. Please try again.');}};
+  recognition.onstart=()=>{if(!closed){options.onStart?.();armSilence();}};
   recognition.onresult=event=>{
     if(closed)return;const interim:string[]=[];
+    armSilence();
     for(let i=event.resultIndex;i<event.results.length;i++){
       const result=event.results[i],text=result[0]?.transcript??'';
       if(result.isFinal)results.set(i,text.trim());else interim.push(text);
@@ -45,8 +47,11 @@ export function startBrowserSpeech(options:{continuous?:boolean;onStart?:()=>voi
     };
     fail(messages[event.error]??'Browser speech stopped unexpectedly. Please try again.');
   };
-  recognition.onend=finish;
-  const limit=setTimeout(stop,59000);
+  recognition.onend=()=>{
+    if(closed)return;
+    if(options.manualStop&&!stopping){try{recognition.start();}catch{fail('Browser speech could not continue. Please try again.');}return;}
+    finish();
+  };
   try{recognition.start();}catch(error){cleanup();try{recognition.abort();}catch{}throw error;}
   return {stop,cancel:()=>{if(closed)return;cleanup();try{recognition.abort();}catch{}}};
 }

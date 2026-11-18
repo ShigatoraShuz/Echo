@@ -584,7 +584,7 @@ export function BuddyView() {
             <p className="mb-2 text-xs text-[var(--landing-muted)]">
               {mode === "talk"
                 ? realtime.enabled
-                  ? "Start Talk once. Silence sends your turn. Buddy pauses the microphone while preparing or speaking. Press Stop Talk to finish."
+                  ? "Start Talk once. With browser speech, press End voice turn when finished; one minute of silence also ends it."
                   : "Record a message, then stop to send. Buddy will read the reply aloud."
                 : "Type a message. Your conversation continues when you switch modes."}
             </p>
@@ -602,6 +602,11 @@ export function BuddyView() {
                   {realtime.active && (
                     <button type="button" onClick={realtime.interrupt}>
                       Interrupt Buddy
+                    </button>
+                  )}
+                  {realtime.active && realtime.state === 'listening' && sttProvider === 'browser' && (
+                    <button type="button" onClick={realtime.finishVoiceTurn}>
+                      End voice turn
                     </button>
                   )}
                 </div>

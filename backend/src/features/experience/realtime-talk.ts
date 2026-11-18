@@ -608,7 +608,7 @@ export class RealtimeTalkHub {
         });
         s.speechReply = { text: approved.reply, id: completion.message.id };
         s.speechFailed = false;
-        await this.deliverSpeech(s, approved.reply, controller);
+        await this.deliverSpeechWithRetries(s, approved.reply, controller);
       });
     } catch (error) {
       if (current()) {
@@ -635,6 +635,20 @@ export class RealtimeTalkHub {
       audio.fill(0);
       if (s.abort === controller) s.finalizing = false;
     }
+  }
+  private async deliverSpeechWithRetries(s: Session, reply: string, controller: AbortController) {
+    let last: unknown;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await this.deliverSpeech(s, reply, controller);
+        return;
+      } catch (error) {
+        last = error;
+        if (controller.signal.aborted || s.closed || attempt === 4) throw error;
+        await delay(250 * (attempt + 1));
+      }
+    }
+    throw last instanceof Error ? last : Error("Speech generation failed");
   }
   private async deliverSpeech(s: Session, reply: string, controller: AbortController) {
     const generation = s.generation,
@@ -792,7 +806,7 @@ export class RealtimeTalkHub {
     s.replyId = reply.id;
     this.send(s, { type: "speech_restart", previousGeneration });
     try {
-      await this.context(s, () => this.deliverSpeech(s, reply.text, controller));
+      await this.context(s, () => this.deliverSpeechWithRetries(s, reply.text, controller));
     } catch (error) {
       if (!s.closed && !controller.signal.aborted) {
         s.speechFailed = true;

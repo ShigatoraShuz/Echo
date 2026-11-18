@@ -22,8 +22,8 @@ it('ignores late results after cancellation and releases recognition',()=>{
 it.each(['not-allowed','network','no-speech','audio-capture'])('reports %s without restarting',error=>{
  const f=setup();f.recognition.onerror({error});expect(f.onError).toHaveBeenCalledTimes(1);expect(f.recognition.start).toHaveBeenCalledTimes(1);expect(f.onFinal).not.toHaveBeenCalled();
 });
-it('stops at 59 seconds and waits for the final result',()=>{
- vi.useFakeTimers();const f=setup();vi.advanceTimersByTime(59000);expect(f.recognition.stop).toHaveBeenCalledOnce();f.recognition.result('Complete sentence.');f.recognition.onend();vi.advanceTimersByTime(6000);expect(f.onFinal).toHaveBeenCalledExactlyOnceWith('Complete sentence.');expect(f.onError).not.toHaveBeenCalled();
+it('stops after one minute of silence and waits for the final result',()=>{
+ vi.useFakeTimers();const f=setup();vi.advanceTimersByTime(60000);expect(f.recognition.stop).toHaveBeenCalledOnce();f.recognition.result('Complete sentence.');f.recognition.onend();vi.advanceTimersByTime(6000);expect(f.onFinal).toHaveBeenCalledExactlyOnceWith('Complete sentence.');expect(f.onError).not.toHaveBeenCalled();
 });
 it('times out a browser that never finishes and rejects overlong transcripts',()=>{
  vi.useFakeTimers();const f=setup();f.capture.stop();vi.advanceTimersByTime(5000);expect(f.onError).toHaveBeenCalledWith(expect.stringContaining('did not finish'));
