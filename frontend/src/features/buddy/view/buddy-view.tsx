@@ -45,19 +45,24 @@ import type { ModelPreparation } from "@echo/contracts";
 import type { BuddyConversation } from "../model/buddy.model";
 import { PROMPT_CHIPS } from "../model/buddy.constants";
 
+import type {SttProvider} from '@echo/contracts';
+import {SttProviderSelect} from '@/shared/components/stt-provider-select';
 export function BuddyView() {
+  const [sttProvider,setSttProvider]=useState<SttProvider>('whisper');
   const [historyQuery, setHistoryQuery] = useState("");
   const [showAllRecent, setShowAllRecent] = useState(false);
   const vm = useBuddyViewModel();
   const reducedMotion = usePrefersReducedMotion();
-  const voice = useBuddyVoiceControls();
+  const voice = useBuddyVoiceControls(sttProvider);
   const realtime = useRealtimeTalk({
+    sttProvider,
     conversationId: vm.activeConversationId,
     getTemporarySessionId: vm.getTemporarySessionId,
     onMessage: vm.applyTalkMessage,
     onDelivery: vm.applyTalkDelivery,
   });
   const { speak: speakReply, cancel: cancelVoice } = voice;
+  useEffect(()=>{cancelVoice();},[vm.activeConversationId,cancelVoice]);
   const { stop: stopRealtime } = realtime;
   const [mode, setMode] = useState<"chat" | "talk">("chat");
   const speakNext = useRef(false);
@@ -95,13 +100,14 @@ export function BuddyView() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const initialMessageIds = useRef(new Set<string>());
   const historyReady = useRef(false);
-  const latestBuddyReply = [...vm.messages].reverse().find((message) => message.role === "buddy")?.content ?? "";
+  const latestBuddyMessage = [...vm.messages].reverse().find((message) => message.role === "buddy" && !message.isStreaming && !message.isError);
+  const latestBuddyReply = latestBuddyMessage?.content ?? "";
   useEffect(() => {
     if (mode === "talk" && speakNext.current && !vm.isSending && latestBuddyReply) {
       speakNext.current = false;
-      void speakReply(latestBuddyReply);
+      void speakReply(latestBuddyReply,{messageId:latestBuddyMessage!.id,...(vm.activeConversationId?{conversationId:vm.activeConversationId}:{})});
     }
-  }, [mode, vm.isSending, latestBuddyReply, speakReply]);
+  }, [mode, vm.isSending, latestBuddyReply, latestBuddyMessage?.id, vm.activeConversationId, speakReply]);
   const { accessStatus, selectConversation, clearConversation } = vm;
   const activeConversation = vm.conversations.find((conversation) => conversation.id === vm.activeConversationId);
   const savedChatReadOnly = Boolean(vm.activeConversationId && !vm.historyEnabled);
@@ -558,7 +564,14 @@ export function BuddyView() {
                     : undefined
                 }
               >
-                <BuddyChatBubble message={message} />
+                <BuddyChatBubble message={message}
+                  speechDisabled={realtime.active || !voice.speechSupported}
+                  speechState={voice.activeMessageId===message.id ? voice.isPreparingSpeech?'preparing':voice.isSpeaking?'playing':undefined : undefined}
+                  speechError={voice.activeMessageId===message.id?voice.voiceError:null}
+                  onReadAloud={()=>{
+                    if(voice.activeMessageId===message.id&&(voice.isSpeaking||voice.isPreparingSpeech)){voice.stopSpeaking();return;}
+                    void voice.speak(message.content,{messageId:message.id,...(vm.activeConversationId?{conversationId:vm.activeConversationId}:{})});
+                  }}/>
               </div>
             ))}
             {vm.isSending && <BuddyTypingIndicator />}
@@ -567,6 +580,7 @@ export function BuddyView() {
 
         <div className={`${styles.composerArea} shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 lg:px-8`}>
           <div className="mx-auto max-w-3xl">
+            <SttProviderSelect value={sttProvider} onChange={setSttProvider} disabled={realtime.active||voice.isListening||voice.isTranscribing||voice.isPreparingSpeech||voice.isSpeaking}/>
             <p className="mb-2 text-xs text-[var(--landing-muted)]">
               {mode === "talk"
                 ? realtime.enabled
@@ -581,7 +595,7 @@ export function BuddyView() {
                     type="button"
                     className="font-semibold underline"
                     disabled={savedChatReadOnly || vm.isSending}
-                    onClick={() => (realtime.active ? realtime.stop() : void realtime.start())}
+                    onClick={() => { if(realtime.active)realtime.stop();else{cancelVoice();void realtime.start();} }}
                   >
                     {realtime.active ? "Stop Talk" : "Start Talk"}
                   </button>
@@ -769,7 +783,7 @@ export function BuddyView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => ((voice.isSpeaking || voice.isPreparingSpeech) ? voice.stopSpeaking() : voice.speak(latestBuddyReply))}
+                  onClick={() => ((voice.isSpeaking || voice.isPreparingSpeech) ? voice.stopSpeaking() : voice.speak(latestBuddyReply,{messageId:latestBuddyMessage!.id,...(vm.activeConversationId?{conversationId:vm.activeConversationId}:{})}))}
                   disabled={!voice.speechSupported || !latestBuddyReply || realtime.active}
                   aria-label={voice.isPreparingSpeech ? "Cancel preparing Buddy speech" : voice.isSpeaking ? "Stop speaking Buddy reply" : "Speak latest Buddy reply"}
                   className="grid h-11 w-11 place-items-center rounded-full text-[var(--landing-primary)] outline-none hover:bg-[var(--landing-sage-soft)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)] disabled:opacity-40"
@@ -792,12 +806,14 @@ export function BuddyView() {
                 <span className="ml-1 hidden text-[11px] text-[var(--landing-muted)] sm:inline">
                   Reflective support, not emergency care
                 </span>
-                <button type="button" aria-label="Model loading details" aria-expanded={showRuntimeDetails} aria-controls="buddy-model-details" onClick={()=>setShowRuntimeDetails(value=>!value)} className="ml-auto grid h-8 w-8 place-items-center rounded-full text-[var(--landing-primary)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                <div className="ml-auto flex items-center gap-2">
                   {runtimeStatus==='failed'&&<button type="button" aria-label="Retry Buddy models" className="text-xs font-semibold text-primary underline" onClick={()=>runtimeRecovery.current?.retry()}>Retry</button>}
-                  <span role="status" aria-label={`Buddy models: ${runtimeDisplayStatus}`} title={`Buddy models: ${runtimeDisplayStatus}`}>
-                    {runtimeStatus==='failed'||runtimePreparation?.state==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'||preparingComponent?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
-                  </span>
-                </button>
+                  <button type="button" aria-label="Model loading details" aria-expanded={showRuntimeDetails} aria-controls="buddy-model-details" onClick={()=>setShowRuntimeDetails(value=>!value)} className="grid h-8 w-8 place-items-center rounded-full text-[var(--landing-primary)] focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]">
+                    <span role="status" aria-label={`Buddy models: ${runtimeDisplayStatus}`} title={`Buddy models: ${runtimeDisplayStatus}`}>
+                      {runtimeStatus==='failed'||runtimePreparation?.state==='failed'?<AlertCircle className="h-4 w-4 text-danger" aria-hidden="true"/>:runtimeStatus==='preparing'||preparingComponent?<LoaderCircle className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true"/>:runtimeStatus==='ready'?<CheckCircle2 className="h-4 w-4" aria-hidden="true"/>:<Circle className="h-4 w-4 opacity-40" aria-hidden="true"/>}
+                    </span>
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => void handleSend()}

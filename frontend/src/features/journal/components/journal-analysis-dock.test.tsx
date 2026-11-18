@@ -59,11 +59,16 @@ it.each([0, 1, 8])(
       />,
     );
     expect(screen.getByText("Saved summary")).toBeVisible();
+    expect(screen.queryByText("Journal category")).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("switch", { name: "Deep analysis" }));
+    expect(screen.getByText("Journal category")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("switch", { name: "Deep analysis" }));
     await userEvent.setup().click(screen.getByRole("tab", { name: "PHQ-8" }));
     expect(screen.getByText("PHQ-8 analysis finished")).toBeVisible();
     if (coverage < 8)
       expect(screen.getByText(/The model ran successfully/)).toBeVisible();
     expect(screen.queryAllByText("Not evidenced")).toHaveLength(8 - coverage);
+    if (coverage > 0) expect(screen.getAllByText("Evidenced").length).toBe(coverage);
     if (coverage === 8)
       expect(screen.getByText("Complete estimate: 0 / 24")).toBeVisible();
     else
@@ -73,6 +78,15 @@ it.each([0, 1, 8])(
     expect(document.querySelector("video,canvas")).toBeNull();
   },
 );
+it("reveals PHQ frequency values only with Deep analysis", async () => {
+  render(<JournalAnalysisDock enabled journalId="entry" analysis={analysis(1)} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("tab", { name: "PHQ-8" }));
+  expect(screen.getAllByText("Evidenced")).toHaveLength(1);
+  expect(screen.queryByText("Not at all")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("switch", { name: "Deep analysis" }));
+  expect(screen.getByText("0")).toBeInTheDocument();
+});
 it("does not display simulated results as a saved personal report", () => {
   const value = analysis(0);
   value.result = { ...value.result!, isSimulated: true } as typeof value.result;

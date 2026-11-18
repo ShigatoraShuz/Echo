@@ -612,6 +612,17 @@ class CoreRuntime:
             },
         }
 
+    def dictation(self, payload, cancelled=None):
+        if payload.get('task') not in ('warm_whisper','transcribe','close'):
+            raise ValueError('Invalid dictation task')
+        cancelled=cancelled or getattr(self,'operation_cancelled',None)
+        result=self.buddy.dispatch(payload['sessionId'], {**payload,'audioFormat':'encoded','language':'English'}, cancelled=cancelled)
+        if payload['task']=='warm_whisper':
+            # Cover a full recording plus bounded upload/auth overhead.
+            with self.lock:
+                if self.buddy.owner==payload['sessionId']:self.buddy.deadline=time.monotonic()+120
+        return result
+
     def speech(self, payload, cancelled=None):
         import subprocess,tempfile
         def execute(_):

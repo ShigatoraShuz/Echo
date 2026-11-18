@@ -67,7 +67,7 @@ def test_native_setup_resumes_a_checkpoint_download_with_checksum(tmp_path, monk
   status=206
   headers={"Content-Length":"4","Content-Range":"bytes 5-8/9"}
  def open_request(request,timeout):
-  assert request.get_header('Range')=='bytes=5-33554436'
+  assert request.get_header('Range')=='bytes=5-268435460'
   return Response(b'last')
  monkeypatch.setattr(module.urllib.request,'urlopen',open_request)
  module.fetch('https://example.invalid/model.safetensors',target,hashlib.sha256(b'firstlast').hexdigest())
@@ -103,7 +103,7 @@ def test_native_setup_joins_bounded_download_ranges(tmp_path, monkeypatch):
  target=tmp_path/'checkpoint.safetensors'
  module.fetch('https://example.invalid/checkpoint.safetensors',target,hashlib.sha256(b'abcDEF').hexdigest())
  assert target.read_bytes()==b'abcDEF'
- assert seen==['bytes=0-33554431','bytes=3-33554434']
+ assert seen==['bytes=0-268435455','bytes=3-268435458']
 
 
 def test_native_memory_guard_uses_nvml_without_a_torch_context(monkeypatch):

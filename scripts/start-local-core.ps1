@@ -1,8 +1,16 @@
-param([switch]$LocalJson, [switch]$AllowHostedSupabase, [switch]$EnableBuddy, [string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
+param([switch]$LocalJson, [switch]$AllowHostedSupabase, [switch]$EnableBuddy = $true, [string]$Python, [string]$ModelsRoot = $env:MODELS_ROOT, [switch]$AIOnly,
     [string]$LocalDatabaseWorkspace, [ValidateRange(1024,65535)][int]$AIPort = 8000)
 $ErrorActionPreference = 'Stop'
 if ($LocalJson -and $AllowHostedSupabase) { throw 'Choose LocalJson or AllowHostedSupabase, not both.' }
 $echoRoot = Split-Path $PSScriptRoot -Parent
+$buddyConfigFile = Join-Path $echoRoot 'backend/.local-development/buddy-runtime.json'
+if (Test-Path -LiteralPath $buddyConfigFile) {
+    $buddyConfig = Get-Content -LiteralPath $buddyConfigFile -Raw | ConvertFrom-Json
+    if (!$Python) { $Python = $buddyConfig.corePython }
+    foreach ($mapping in @(@('cbtPython','BUDDY_CBT_PYTHON'),@('nanoPython','BUDDY_NANO_PYTHON'),@('whisperPython','BUDDY_WHISPER_PYTHON'),@('mossPython','BUDDY_MOSS_PYTHON'),@('mossRoot','BUDDY_MOSS_NATIVE_ROOT'))) {
+        if ($buddyConfig.($mapping[0])) { [Environment]::SetEnvironmentVariable($mapping[1], $buddyConfig.($mapping[0]), 'Process') }
+    }
+}
 if (!$Python) { $Python = Join-Path $echoRoot 'ai-service/.venv-core/Scripts/python.exe' }
 if (!$ModelsRoot) { $ModelsRoot = Join-Path $echoRoot 'models' }
 if (!(Test-Path -LiteralPath $Python) -or !(Test-Path -LiteralPath (Join-Path $ModelsRoot 'manifest.json'))) {

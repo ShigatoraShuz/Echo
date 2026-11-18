@@ -4,7 +4,6 @@ import { AiSupportNotice } from "@/shared/components/echo/ai-support-notice";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Leaf,
-  Sparkles,
   ShieldCheck,
   Brain,
   Activity,
@@ -21,6 +20,8 @@ import dynamic from "next/dynamic";
 const JournalAnalysisPanel = dynamic(() => import("./journal-analysis-panel").then(m => m.JournalAnalysisPanel), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import { LocalFaceResult } from "./local-face-result";
+import { JournalPhq8Meter } from "./journal-phq8-meter";
+import { JournalDeepAnalysisToggle } from "./journal-deep-analysis-toggle";
 
 const tabs = ["Overview", "Emotions", "PHQ-8", "Face"] as const;
 const criteria: Record<string, string> = {
@@ -55,6 +56,7 @@ export function JournalAnalysisDock({
   saving?: boolean;
   finalizing?: boolean;
 }) {
+  const [deep, setDeep] = useState(false);
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const submission = useMemo<JournalSubmissionResponse | null>(
     () =>
@@ -97,11 +99,9 @@ export function JournalAnalysisDock({
             Your ECHO perspective
           </h2>
         </div>
-        <Sparkles
-          className="ml-auto shrink-0 text-primary/50"
-          size={20}
-          aria-hidden="true"
-        />
+        <div className="ml-auto shrink-0">
+          <JournalDeepAnalysisToggle checked={deep} onChange={setDeep} />
+        </div>
       </header>
       <div className="journal-report-body">
         <AiSupportNotice className="mb-4" />
@@ -203,12 +203,12 @@ export function JournalAnalysisDock({
                   <p className="mt-2 text-sm text-muted-foreground">
                     Strongest emotion signal in this reflection
                   </p>
-                  <div className="my-5 grid grid-cols-2 gap-3">
-                    <div className="journal-report-stat">
+                  <div className={`my-5 grid gap-3 ${deep ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {deep && <div className="journal-report-stat">
                       <Activity size={17} />
                       <span>Journal category</span>
                       <strong>{native.distressCategory}</strong>
-                    </div>
+                    </div>}
                     <div className="journal-report-stat">
                       <ClipboardList size={17} />
                       <span>PHQ-8 estimate</span>
@@ -266,6 +266,7 @@ export function JournalAnalysisDock({
                   <h3 className="font-semibold">
                     Experimental journal estimate
                   </h3>
+                  <JournalPhq8Meter estimate={screening ?? undefined} />
                   {screening?.status === "available" && (
                     <p
                       role="status"
@@ -280,7 +281,7 @@ export function JournalAnalysisDock({
                         ? `Complete estimate: ${screening.total} / 24`
                         : screening.coverage === 0
                           ? "No criteria evidenced in this entry."
-                          : `Partial subtotal: ${screening.subtotal} (${screening.coverage}/8 criteria)`
+                          : `${screening.coverage}/8 criteria evidenced`
                       : "No PHQ-8 estimate is available for this entry."}
                   </p>
                   {screening?.status === "available" &&
@@ -303,7 +304,7 @@ export function JournalAnalysisDock({
                             {criteria[key] ?? key}
                           </dt>
                           <dd className="mt-1 text-sm font-semibold">
-                            {value === null ? "Not evidenced" : value}
+                            {value === null ? "Not evidenced" : deep ? value : "Evidenced"}
                           </dd>
                         </div>
                       ))}

@@ -8,13 +8,19 @@ import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-to
 import type { BuddyMessage } from "../model/buddy.model";
 
 export const realtimeTalkEnabled = process.env.NEXT_PUBLIC_REALTIME_TALK === "true";
+import type {SttProvider} from '@echo/contracts';
+import {startBrowserSpeech,browserSpeechSupported,type BrowserSpeechCapture} from '@/shared/browser-speech';
 type Options = {
+  sttProvider?:SttProvider;
   conversationId: string | null;
   getTemporarySessionId: () => string;
   onMessage: (message: BuddyMessage, conversationId: string | null) => void;
   onDelivery: (id: string, interrupted: boolean) => void;
 };
 type LocalSession = {
+  sttProvider:SttProvider;
+  browserCapture?:BrowserSpeechCapture;
+  startBrowser?:()=>void;
   id: string;
   ws: WebSocket;
   generation: number;
@@ -55,6 +61,10 @@ type LocalSession = {
 function pauseCapture(s: LocalSession, busy: boolean) {
   busy=busy||s.suspended===true;
   s.busy = busy;
+  if(s.sttProvider==='browser'){
+    if(busy){s.browserCapture?.cancel();s.browserCapture=undefined;}
+    else s.startBrowser?.();
+  }
   s.stream?.getAudioTracks().forEach((track) => {
     track.enabled = !busy;
   });
@@ -164,6 +174,7 @@ export function useRealtimeTalk(options: Options) {
         // Capture cleanup is required even if the final network message fails.
       }
       s.closed = true;
+      s.browserCapture?.cancel();s.browserCapture=undefined;
       s.ws.close();
       if (s.renew) clearInterval(s.renew);
       clearPlayback(s);
@@ -207,6 +218,27 @@ export function useRealtimeTalk(options: Options) {
   }, [send, fail]);
   const microphone = useCallback(
     async (s: LocalSession) => {
+      if(s.sttProvider==='browser'){
+        s.startBrowser=()=>{
+          if(!isCurrent(s)||s.suspended||s.busy||s.browserCapture)return;
+          try{
+            s.browserCapture=startBrowserSpeech({continuous:false,
+              onStart:()=>{if(isCurrent(s)&&!s.busy)setState('listening');},
+              onInterim:text=>{if(isCurrent(s)&&!s.busy)setTranscript(text);},
+              onFinal:text=>{
+                if(!isCurrent(s)||s.suspended||s.busy)return;
+                s.browserCapture=undefined;s.generation++;s.turnId=crypto.randomUUID();s.sequence=0;s.played=0;s.nextSegmentIndex=0;s.firstPlayback=false;s.submittedAt=performance.now();
+                pauseCapture(s,true);setTranscript(text);setState('thinking');
+                try{send(s,{type:'begin',turnId:s.turnId,generation:s.generation});send(s,{type:'transcript',turnId:s.turnId,generation:s.generation,text});}
+                catch(error){fail(error instanceof Error?error.message:'Talk connection failed.');}
+              },
+              onError:message=>{if(!isCurrent(s))return;s.browserCapture=undefined;s.suspended=true;suspended.current=true;pauseCapture(s,true);setError(message);setState('paused');},
+            });
+          }catch(error){if(isCurrent(s)){s.suspended=true;suspended.current=true;pauseCapture(s,true);setError(error instanceof Error?error.message:'Browser speech is unavailable.');setState('paused');}}
+        };
+        if(!s.suspended){setState('listening');pauseCapture(s,false);}
+        return;
+      }
       if(s.suspended||s.node||s.microphoneStarting)return;
       s.microphoneStarting=true;
       const stream = s.stream??await s.microphoneReady;
@@ -294,7 +326,7 @@ export function useRealtimeTalk(options: Options) {
       if(!s.modelReady){setState('preparing');return;}
       await microphone(s);if(!isCurrent(s)||s.suspended)return;
       s.submittedAt=0;
-      if(s.node&&s.ctx.state==='running'){pauseCapture(s,false);setError('');setState('listening');}
+      if((s.node||s.sttProvider==='browser')&&s.ctx.state==='running'){setError('');setState('listening');pauseCapture(s,false);}
       else setState('playback_blocked');
     }catch(error){if(isCurrent(s))fail(error instanceof Error?error.message:'Microphone unavailable.');}
   },[isCurrent,microphone,fail]);
@@ -346,8 +378,8 @@ export function useRealtimeTalk(options: Options) {
         if (!s.plays.size) {
           s.speaking = false;
           if (s.endSequence === s.played) {
-            pauseCapture(s, false);
             setState("listening");
+            pauseCapture(s, false);
           } else setState("buffering");
         }
       };
@@ -374,8 +406,8 @@ export function useRealtimeTalk(options: Options) {
       if (isCurrent(s) && s.ctx.state === "running") {
         setError("");
         if (!s.plays.size && !s.submittedAt) {
-          pauseCapture(s, false);
           setState("listening");
+          pauseCapture(s, false);
           return;
         }
         setState("speaking");
@@ -416,10 +448,13 @@ export function useRealtimeTalk(options: Options) {
     try {
       if (!realtimeTalkEnabled) throw Error("Experimental Talk is disabled.");
       if(document.hidden)throw Error('Return to Buddy before starting microphone capture.');
+      const sttProvider=callbacks.current.sttProvider??'whisper';
+      if(sttProvider==='browser'&&!browserSpeechSupported())throw Error('Browser speech is unavailable in this browser. Choose Whisper.');
+      if(sttProvider==='browser'&&language!=='English')throw Error('Browser speech currently supports English in Echo. Choose English or Whisper.');
       ctx = new AudioContext({ sampleRate: 48000 });
       pendingContext.current=ctx;
       // Request permission from Start Talk; do not capture until the server is ready.
-      const microphoneReady=navigator.mediaDevices.getUserMedia({
+      const microphoneReady=sttProvider==='browser'?Promise.resolve(null):navigator.mediaDevices.getUserMedia({
         audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false,
       }).then(stream=>{
         if(current!==epoch.current){stream.getTracks().forEach(track=>track.stop());return null;}
@@ -438,6 +473,7 @@ export function useRealtimeTalk(options: Options) {
         {
           ...(callbacks.current.conversationId ? { conversationId: callbacks.current.conversationId } : {}),
           temporarySessionId: callbacks.current.getTemporarySessionId(),
+          sttProvider: callbacks.current.sttProvider??'whisper',
           speechMode,
           voiceMode,
           language,
@@ -460,6 +496,7 @@ export function useRealtimeTalk(options: Options) {
       analyserNode.connect(ctx.destination);
       setAnalyser(analyserNode);
       const s: LocalSession = {
+        sttProvider,
         analyser: analyserNode,
         microphoneReady,
         suspended:suspended.current,
@@ -525,9 +562,9 @@ export function useRealtimeTalk(options: Options) {
           if (event.type === "recovered") {
             s.modelReady=true;
             if(s.suspended){setState('paused');return;}
+            setState("listening");
             void microphone(s).catch(error=>{if(isCurrent(s))fail(error instanceof Error?error.message:'Microphone unavailable.');});
             pauseCapture(s, false);
-            setState("listening");
             return;
           }
           if (event.type === "ready") {
@@ -599,8 +636,8 @@ export function useRealtimeTalk(options: Options) {
             s.endSequence = event.sequence;
             if (!s.plays.size) {
               s.speaking = false;
-              pauseCapture(s, false);
               setState("listening");
+              pauseCapture(s, false);
             }
             return;
           }
@@ -611,8 +648,8 @@ export function useRealtimeTalk(options: Options) {
           }
           if (event.type === "turn_end") {
             if (!s.voiceActive && !s.plays.size) {
-              pauseCapture(s, false);
               setState("listening");
+              pauseCapture(s, false);
             }
             return;
           }
@@ -671,6 +708,7 @@ export function useRealtimeTalk(options: Options) {
     const s = session.current;
     if (s && options.conversationId !== s.conversationId) stop();
   }, [options.conversationId, stop]);
+  useEffect(()=>{const s=session.current;if(s&&s.sttProvider!==(options.sttProvider??'whisper'))stop();},[options.sttProvider,stop]);
   useEffect(() => {
     const hide = () => {
       if(!document.hidden)return;

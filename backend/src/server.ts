@@ -271,6 +271,7 @@ function shutdown(signal: string): void {
   void experienceService.closeVoiceOperations();
   void experienceService.closeModelLeases();
   journalService.stopLocalFaceProcessing();
+  void journalService.dictation.close();
   journalService.cancelLocalWork();
   void journalService.closeModelLeases();
   developmentRunner.stop();

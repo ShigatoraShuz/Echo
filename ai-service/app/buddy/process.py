@@ -101,7 +101,7 @@ class Process:
         identity = uuid.uuid4().hex
         last_progress=0
         packet = json.dumps({"id": identity, "request": request}, allow_nan=False).encode() + b"\n"
-        if len(packet) > 3 * 1024 * 1024:
+        if len(packet) > (14 if self.kind=='whisper' else 3) * 1024 * 1024:
             raise ValueError("Buddy packet too large")
         preparation = deadline is not None or request.get("check") is True
         deadline = min(deadline or float("inf"), time.monotonic() + (COMPONENT_SECONDS[self.kind] if request.get("check") else 600))

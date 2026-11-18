@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import { env } from "@/config/environment";
 import {voiceOperationSchema} from '@echo/contracts';
-export function useBuddyVoiceControls() {
+import type {SttProvider} from '@echo/contracts';
+import {startBrowserSpeech,browserSpeechSupported,type BrowserSpeechCapture} from '@/shared/browser-speech';
+export function useBuddyVoiceControls(provider:SttProvider='whisper') {
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const browserCapture=useRef<BrowserSpeechCapture|null>(null);
   const recorder = useRef<MediaRecorder | null>(null),
     tracks = useRef<MediaStream | null>(null),
     audio = useRef<HTMLAudioElement | null>(null),
@@ -18,7 +22,7 @@ export function useBuddyVoiceControls() {
     [isTranscribing, setTranscribing] = useState(false),
     [voiceError, setError] = useState<string | null>(null),
     [interimTranscript, setTranscript] = useState("");
-  const supported =
+  const supported = provider==='browser'?browserSpeechSupported():
     typeof navigator !== "undefined" &&
     Boolean(navigator.mediaDevices?.getUserMedia) &&
     typeof MediaRecorder !== "undefined";
@@ -39,6 +43,8 @@ export function useBuddyVoiceControls() {
     setPreparingSpeech(false);
   }, []);
   const cancel = useCallback(() => {
+    browserCapture.current?.cancel();browserCapture.current=null;
+    setActiveMessageId(null);
     setError(null);
     generation.current++;
     abort.current?.abort();
@@ -50,12 +56,13 @@ export function useBuddyVoiceControls() {
     stopSpeaking();
   }, [stopSpeaking]);
   const stopListening = useCallback(() => {
+    browserCapture.current?.stop();
     if (timer.current) clearTimeout(timer.current);
     if (recorder.current?.state === "recording") recorder.current.stop();
     tracks.current?.getTracks().forEach((t) => t.stop());
     setListening(false);
   }, []);
-  async function request(path: string, body: BodyInit, type: string) {
+  const request=useCallback(async(path: string, body: BodyInit, type: string)=> {
     const epoch = generation.current;
     let token = await supabaseAuthTokenProvider.getAccessToken();
     if (epoch !== generation.current) throw new DOMException("Cancelled", "AbortError");
@@ -82,7 +89,7 @@ export function useBuddyVoiceControls() {
       await wait('complete',600000);
       return await call('jobs/'+jobId+'/result');
     }finally{controller.signal.removeEventListener('abort',cancelJob);cancelJob();}
-  }
+  },[]);
   const startListening = useCallback(
     async (callback: (text: string) => void) => {
       cancel();
@@ -90,6 +97,11 @@ export function useBuddyVoiceControls() {
       setTranscript("");
       const id = generation.current;
       try {
+        if(provider==='browser'){
+          setListening(true);
+          browserCapture.current=startBrowserSpeech({onInterim:text=>{if(id===generation.current)setTranscript(text);},onFinal:text=>{if(id!==generation.current)return;browserCapture.current=null;setListening(false);setTranscript(text);callback(text);},onError:message=>{if(id!==generation.current)return;browserCapture.current=null;setListening(false);setError(message);}});
+          return;
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         if (id !== generation.current) {
           stream.getTracks().forEach((t) => t.stop());
@@ -125,7 +137,7 @@ export function useBuddyVoiceControls() {
           try {
             const response = await request(
               "transcribe",
-              new Blob(chunks, { type: rec.mimeType }),
+              new Blob(chunks,{type:rec.mimeType}),
               "application/octet-stream",
             );
             const result = await response.json();
@@ -153,16 +165,17 @@ export function useBuddyVoiceControls() {
         setError("Microphone permission or recording is unavailable.");
       }
     },
-    [cancel, stopListening],
+    [cancel, stopListening, provider, request],
   );
   const speak = useCallback(
-    async (text: string) => {
+    async (text: string, message?: {messageId:string;conversationId?:string}) => {
       cancel();
+      setActiveMessageId(message?.messageId ?? null);
       const id = generation.current;
       setError(null);
       setPreparingSpeech(true);
       try {
-        const response = await request("speak", JSON.stringify({ text }), "application/json");
+        const response = await request("speak", JSON.stringify(message?.conversationId && message.messageId!=='welcome' ? message : { text }), "application/json");
         const blob = await response.blob();
         if (id !== generation.current) return;
         url.current = URL.createObjectURL(blob);
@@ -190,11 +203,14 @@ export function useBuddyVoiceControls() {
         }
       }
     },
-    [cancel, stopSpeaking],
+    [cancel, stopSpeaking, request],
   );
+  useEffect(()=>{cancel();},[provider,cancel]);
+  useEffect(()=>{window.addEventListener('pagehide',cancel);return()=>window.removeEventListener('pagehide',cancel);},[cancel]);
   useEffect(
     () => () => {
       generation.current++;
+      browserCapture.current?.cancel();browserCapture.current=null;
       abort.current?.abort();
       if (timer.current) clearTimeout(timer.current);
       if (recorder.current?.state === "recording") recorder.current.stop();
@@ -205,6 +221,7 @@ export function useBuddyVoiceControls() {
     [],
   );
   return {
+    activeMessageId,
     voiceSupported: supported,
     speechSupported: true,
     isListening,

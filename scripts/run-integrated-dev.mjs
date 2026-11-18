@@ -3,6 +3,7 @@ import { remoteDevelopmentEnvironment } from './remote-development.mjs';
 import { preparePrivateFrontend } from './prepare-private-frontend.mjs';
 import { loadNativeSettings } from './native-runtime-settings.mjs';
 import { privateGatewayEnvironment } from './private-server-config.mjs';
+import { loadBuddyRuntimeEnvironment } from './buddy-runtime-config.mjs';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { randomBytes } from 'node:crypto';
@@ -39,11 +40,14 @@ try {
   } else {
     if (process.env.NODE_ENV === 'production') throw Error('The integrated model launcher is for local development.');
     await Promise.all([3000, 4200, 8002].map(port => checkPort(port)));
-    const configured = { ...parseEnv(readFileSync(path.join(root, 'backend/.env'), 'utf8')), ...process.env };
+    const buddyRuntime = loadBuddyRuntimeEnvironment(root);
+    const configured = { ECHO_BUDDY_ENABLED: 'true', ...parseEnv(readFileSync(path.join(root, 'backend/.env'), 'utf8')), ...buddyRuntime, ...process.env };
     const privateGateway = privateGatewayEnvironment(process.env.ECHO_REMOTE_API_BASE_URL);
     const python = configured.ECHO_MODEL_PYTHON || path.join(root, 'ai-service/.venv-core/Scripts/python.exe');
     const models = path.resolve(root, configured.MODELS_ROOT || 'models');
-    if (!existsSync(python) || !existsSync(path.join(models, 'manifest.json'))) throw Error('Install the model bundle and ai-service/.venv-core before starting models.');
+    if (!existsSync(python) || !existsSync(path.join(models, 'manifest.json'))) throw Error('Run the local Buddy setup and install the verified model bundle before starting models.');
+    const compatibility = spawnSync(python, ['-I', '-B', '-c', "import torch,transformers,peft,bitsandbytes; assert torch.__version__=='2.12.0+cu130' and transformers.__version__=='5.5.0' and peft.__version__=='0.21.0' and torch.cuda.is_available(), 'Buddy core environment differs from the approved runtime'"], { windowsHide: true, encoding: 'utf8', timeout: 180000 });
+    if (compatibility.status !== 0) throw Error('Buddy core compatibility probe failed. Check the existing Thesis2 environment; setup never changes it.');
     const settingsPath = path.join(root, 'backend/.local-development/native-runtime.json');
     const localJson = process.env.ECHO_AI_LOCAL_JSON !== 'false';
     const settings = localJson ? {projectRef:'',userIds:[],createdAfter:undefined} : loadNativeSettings(settingsPath, configured.SUPABASE_URL);
@@ -60,13 +64,14 @@ try {
       NODE_ENV: 'development', APP_ENV: 'development', HOST: '127.0.0.1', PORT: '4200',
       ECHO_APP_PRESENCE: 'true', NEXT_PUBLIC_APP_PRESENCE: 'true', ECHO_PAGE_MODEL_LEASES:'true', NEXT_PUBLIC_PAGE_MODEL_LEASES:'true',
       CORE_MODELS_ENABLED: 'true', CORE_TRANSPORT: 'text_memory', MODELS_ROOT: models, WORKER_ENABLED: localJson ? 'false' : 'true',
+      ECHO_PRIVATE_FACE_ENABLED: 'false',
       AI_SERVICE_TOKEN: settings.serviceToken, AI_WORKER_TOKEN: settings.workerToken,
       AI_WORKER_ID: 'echo-native-development-v1', BACKEND_URL: 'http://127.0.0.1:4200/api/v1/internal/ai',
       AI_SERVICE_URL: 'http://127.0.0.1:8002', AI_CORE_PROFILE: localJson ? 'local_json' : 'hosted_encrypted_worker',
       AI_HOSTED_PROJECT_REF: settings.projectRef, AI_DEVELOPMENT_USER_IDS: settings.userIds.join(','), AI_NATIVE_CREATED_AFTER: settings.createdAfter,
       AI_ANALYSIS_MODE: localJson ? 'local_json' : 'local_worker', LOCAL_DATA_DIR: path.join(root, 'local-data'), AI_JOB_TIMEOUT_MS: '300000', ECHO_HTTP_ONLY_MODE: '1', PROFESSIONAL_EVENTS_ENABLED: 'false',
-      ECHO_BUDDY_ENABLED: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
-      REALTIME_TALK_ENABLED: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false', ECHO_REALTIME_TALK: 'false', NEXT_PUBLIC_REALTIME_TALK: process.env.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
+      ECHO_BUDDY_ENABLED: configured.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
+      REALTIME_TALK_ENABLED: configured.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false', ECHO_REALTIME_TALK: 'false', NEXT_PUBLIC_REALTIME_TALK: configured.ECHO_BUDDY_ENABLED === 'true' ? 'true' : 'false',
       ECHO_ACTIVE_MODELS: '{}', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', HF_DATASETS_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1',
       FRONTEND_URL: 'http://127.0.0.1:3000', NEXT_PUBLIC_SUPABASE_URL: configured.SUPABASE_URL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configured.SUPABASE_PUBLISHABLE_KEY,

@@ -34,6 +34,7 @@ for line in sys.stdin:
                     "progress": " print(json.dumps({'id':packet['id'],'event':'preparation','progress':{'component':'cbt','state':'loading','attempt':2,'elapsedSeconds':3,'prompt':'private-journal-sentinel','path':'C:/private/model'}}),flush=True); time.sleep(.3); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "foreignprogress": " print(json.dumps({'id':'foreign','event':'preparation','progress':{'component':'cbt','state':'failed','attempt':1}}),flush=True); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "echo": " print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
+                    "dictation": " print(json.dumps({'id':packet['id'],'ok':True,'result':{'text':'Synthetic transcript'}}),flush=True)",
                     "hang": " time.sleep(60)",
                     "delay": " time.sleep(.1); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "notreading": " pass",
@@ -189,7 +190,7 @@ def test_text_only_owner_does_not_preload_models_or_start_optional_workers(tmp_p
     monkeypatch.setattr(CoreRuntime, "release", lambda *_: None)
     monkeypatch.setattr(CoreRuntime, "_load", lambda _, name: calls.append(name))
     runtime = CoreRuntime(SimpleNamespace(models_root=str(tmp_path), queue_limit=1), text_only=True)
-    assert runtime.loaded and not calls and not hasattr(runtime, "talk")
+    assert runtime.loaded and not calls and runtime.talk is None
 
 
 def test_lazy_worker_readiness_does_not_claim_resident_weights():
@@ -284,4 +285,12 @@ def test_foreign_preparation_events_cannot_change_the_active_operation(child):
     try:
         assert runtime._call('buddy','session',{'task':'warm_chat'})==['session',{'task':'warm_chat'}]
         assert runtime.preparation_status()=={'preparation':None}
+    finally:runtime.release()
+
+def test_dictation_accepts_bounded_audio_with_buddy_disabled_without_relaxing_text(child):
+    runtime=child('dictation');runtime.settings.core_request_timeout_seconds=10
+    try:
+        assert not runtime.buddy_enabled
+        assert runtime.dictation({'task':'transcribe','sessionId':'synthetic','audio':'A'*(4*1024*1024)})=={'text':'Synthetic transcript'}
+        with pytest.raises(ValueError,match='payload too large'):runtime.classify('a'*(70*1024))
     finally:runtime.release()

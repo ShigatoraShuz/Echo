@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.security import require_internal_token
 from app.core.exceptions import TalkBusyError, ModelUnavailableError
@@ -20,6 +20,24 @@ class Turn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=20000)
+
+class SafetyClassification(BaseModel):
+    model_config=ConfigDict(extra='allow')
+    distress_category: Literal['Others','Anxious','Depressed','Frustrated','Suicidal']
+    suicidal_language_flag: bool = Field(strict=True)
+    all_category_scores_relative_not_diagnoses: dict[str,float]
+    validation_selected_suicidal_flag_threshold: float = Field(ge=0,le=1)
+    number_of_windows: int = Field(ge=1,strict=True)
+    @field_validator('all_category_scores_relative_not_diagnoses')
+    @classmethod
+    def valid_scores(cls,value):
+        import math
+        if set(value)!={'Others','Anxious','Depressed','Frustrated','Suicidal'} or any(not math.isfinite(v) or not 0<=v<=1 for v in value.values()) or abs(sum(value.values())-1)>.001:
+            raise ValueError('Invalid category distribution')
+        return value
+
+class AnalyzeInput(TextInput):
+    classification: SafetyClassification | None = None
 
 
 class ChatInput(BaseModel):
@@ -82,8 +100,10 @@ async def journal_runtime(payload: JournalRuntimeInput, request: Request):
                 pass
 
 @router.post("/v2/analyze")
-def analyze(payload: TextInput, request: Request):
-    return invoke(lambda: runtime(request).analyze(payload.text, payload.language, **({"owner":payload.owner} if payload.owner else {})))
+def analyze(payload: AnalyzeInput, request: Request):
+    options={"owner":payload.owner} if payload.owner else {}
+    if payload.classification is not None:options['classification']=payload.classification.model_dump()
+    return invoke(lambda: runtime(request).analyze(payload.text, payload.language, **options))
 
 
 @router.post("/v2/classify")
@@ -171,6 +191,30 @@ class FaceInput(BaseModel):
 def face(payload: FaceInput, request: Request):
     return invoke(lambda: runtime(request).face(payload.image))
 
+
+class DictationInput(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    sessionId: str = Field(pattern=r'^[a-f0-9-]{36}$')
+    task: Literal['warm_whisper','transcribe','close']
+    audio: str = Field(default='',max_length=13981016)
+
+@router.post('/v1/dictation')
+async def dictation(payload: DictationInput, request: Request):
+    import asyncio, threading
+    if payload.task=='transcribe' and not payload.audio:raise HTTPException(422,'Audio required')
+    cancelled=threading.Event()
+    engine=runtime(request)
+    task=asyncio.create_task(asyncio.to_thread(engine.dictation,payload.model_dump(),cancelled))
+    try:
+        while not task.done():
+            if await request.is_disconnected():cancelled.set()
+            await asyncio.wait({task},timeout=.1)
+        return invoke(task.result)
+    finally:
+        cancelled.set()
+        if not task.done():
+            try:await task
+            except Exception:pass
 
 class TalkInput(BaseModel):
     model_config = ConfigDict(extra='forbid')

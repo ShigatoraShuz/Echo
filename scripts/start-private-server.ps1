@@ -19,7 +19,8 @@ $taskEnvironment = @{
     ECHO_REMOTE_API_BASE_URL = "https://$taskHostName/api/v1"
     ECHO_FRONTEND_MODE = $(if ($DevelopmentUI) { 'development' } else { 'production' })
     ECHO_AI_LOCAL_JSON = 'false'
-    ECHO_BUDDY_ENABLED = $(if ($EnableBuddy -or $taskConfig.enableBuddy) { 'true' } else { 'false' })
+    ECHO_PRIVATE_FACE_ENABLED = 'true'
+    ECHO_BUDDY_ENABLED = $(if ($EnableBuddy -or $taskConfig.enableBuddy -ne $false) { 'true' } else { 'false' })
     MODELS_ROOT = [IO.Path]::GetFullPath($taskModels)
 }
 foreach ($taskKey in @('BUDDY_CBT_PYTHON','BUDDY_CBT_ADAPTER','BUDDY_NANO_ROOT','BUDDY_NANO_PYTHON','BUDDY_WHISPER_PYTHON','BUDDY_WHISPER_DIR','FACE_PYTHON','FACE_MODEL_DIR','BUDDY_MOSS_PYTHON','BUDDY_MOSS_NATIVE_ROOT')) {

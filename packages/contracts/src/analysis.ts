@@ -611,6 +611,7 @@ export const facialExpressionResultSchema = z.discriminatedUnion("status", [
       modelFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
       inferenceVersion: z.string().min(1),
       generatedAt: z.string().datetime(),
+      journalRevision: z.string().datetime({ offset: true }).optional(),
     })
     .strict()
     .refine(
@@ -628,6 +629,7 @@ export const facialExpressionResultSchema = z.discriminatedUnion("status", [
         .optional(),
       inferenceVersion: z.string().min(1).optional(),
       generatedAt: z.string().datetime().optional(),
+      journalRevision: z.string().datetime({ offset: true }).optional(),
     })
     .strict(),
 ]);

@@ -1,5 +1,5 @@
 {
-  "version": "echo_cbt_mixed_standalone_complete_steps_v3_20261101",
+  "version": "echo_cbt_reviewer_informed_20261117",
   "word_targets": {
     "brief": 25,
     "english": 75,
@@ -13,7 +13,7 @@
     "enabled": true,
     "max_paragraph_words": {
       "brief": 40,
-      "ordinary": 56,
+      "ordinary": 120,
       "professional": 95,
       "steps": 75
     },

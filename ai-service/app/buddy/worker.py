@@ -263,10 +263,11 @@ def main():
     # Keep initial native imports on the input thread, as in the Nano tester:
     # a blocked reader thread can stall native NumPy/DLL initialization.
     while True:
-        line = sys.stdin.buffer.readline(3 * 1024 * 1024 + 1)
+        limit=(14 if KIND=='whisper' else 3)*1024*1024
+        line = sys.stdin.buffer.readline(limit + 1)
         if not line:
             return
-        if len(line) > 3 * 1024 * 1024 or not line.endswith(b"\n"):
+        if len(line) > limit or not line.endswith(b"\n"):
             return
         packet = json.loads(line)
         def progress(stage):

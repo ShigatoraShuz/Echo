@@ -1,5 +1,7 @@
 "use client";
 import type { ModelPipelineResult } from "@echo/contracts";
+import {useState} from 'react';
+import {JournalDeepAnalysisToggle} from './journal-deep-analysis-toggle';
 
 const titles = {
   peak: "Text emotion",
@@ -9,12 +11,14 @@ const titles = {
   face: "Face analysis",
 };
 export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) {
+  const [deep,setDeep]=useState(false);
   return (
     <section
       className="min-w-0 rounded-3xl border border-primary/10 bg-card p-5 text-foreground sm:p-7"
       aria-label="Independent model analysis"
     >
       <h2 className="font-[family-name:var(--font-echo-display)] text-2xl font-semibold">Private journal analysis</h2>
+      <JournalDeepAnalysisToggle checked={deep} onChange={setDeep}/>
       <p className="mt-2 text-sm text-foreground/80">
         {result.isSimulated
           ? "SYNTHETIC E2E FIXTURE — fictional outputs, no trained inference."
@@ -22,7 +26,7 @@ export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) 
       </p>
       <p className="mt-2 text-sm font-semibold">Analysis status: {result.overallStatus}</p>
       <div className="mt-5 grid min-w-0 gap-4 sm:grid-cols-2">
-        {Object.entries(result.stages).map(([key, stage]) => (
+        {Object.entries(result.stages).filter(([key])=>key!=='distress'||deep).map(([key, stage]) => (
           <article key={key} className="min-w-0 rounded-2xl border border-border bg-background p-4">
             <h3 className="text-sm font-semibold">{titles[key as keyof typeof titles]}</h3>
             <p className="mt-1 text-xs capitalize text-foreground/80">
@@ -74,7 +78,7 @@ export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) 
                 <p className="mt-3 text-lg font-semibold">
                   {result.stages.phq8.result.complete
                     ? `Model-estimated total: ${result.stages.phq8.result.total} / 24`
-                    : `Partial subtotal: ${result.stages.phq8.result.subtotal}`}
+                    : `${result.stages.phq8.result.scored_symptom_count}/8 criteria evidenced`}
                 </p>
                 <p className="mt-1 text-sm">{result.stages.phq8.result.scored_symptom_count} of 8 symptoms scored</p>
                 <dl className="mt-3 space-y-1 text-xs">
@@ -108,7 +112,7 @@ export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) 
           </article>
         ))}
       </div>
-      {result.researchDiagnostic ? <section className="mt-5 rounded-2xl border border-border p-4" aria-label="Local fictional research demonstration">
+      {deep&&result.researchDiagnostic ? <section className="mt-5 rounded-2xl border border-border p-4" aria-label="Local fictional research demonstration">
         <h3 className="font-semibold">REAL_PROVISIONAL_MODEL · Local fictional research demonstration</h3>
         <p className="mt-2 text-sm">Unvalidated raw classifier outputs. Dataset class names are not diagnoses or suicide-risk findings. No probabilities, calibration, thresholds, clinical decisions or eligibility decisions are derived from these logits.</p>
         <p className="mt-2 break-words text-xs">{result.researchDiagnostic.modelId} @ {result.researchDiagnostic.modelVersion}</p>

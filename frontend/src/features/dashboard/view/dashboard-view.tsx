@@ -20,7 +20,6 @@ import { ReflectionActivityGraph } from "@/shared/components/ui/reflection-activ
 import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { JournalCbtRecommendation } from "@/features/journal/components/journal-cbt-recommendation";
-import { AnalysisInsightsDashboard } from "../components/analysis-insights-dashboard";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
 import { DailyDistressCheckin } from "../components/daily-distress-checkin";
 import { WellnessCheckin } from "../components/wellness-checkin";
@@ -154,7 +153,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
           </Link>
         </header>
 
-        <AnalysisInsightsDashboard insights={data.analysisInsights} />
         <OverallAnalysis entries={journalEntries} insights={data.analysisInsights} />
       </div>
 

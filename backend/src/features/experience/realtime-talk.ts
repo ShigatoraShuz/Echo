@@ -13,6 +13,7 @@ import { runWithRequestContext } from "../../shared/request-context.js";
 import { ConflictError, NotFoundError, AuthenticationError } from "../../shared/errors/app-error.js";
 
 type Session = {
+  sttProvider:'whisper'|'browser';
   voiceMode: "fast" | "expressive";
   speechMode: "sentences_2_then_3" | "buffered";
   language: "English" | "Filipino" | "Taglish";
@@ -166,6 +167,7 @@ export class RealtimeTalkHub {
     const s: Session = {
       speechMode: args.speechMode,
       voiceMode: args.voiceMode,
+      sttProvider:args.sttProvider,
       language: args.language,
       speechFailed: false,
       finishTail: Promise.resolve(),
@@ -372,6 +374,7 @@ export class RealtimeTalkHub {
               return;
             }
             if (event.type === "begin") {
+              if(s.sttProvider==='browser'&&s.finalizing)throw Error('Finish the current turn first');
               if (event.generation !== s.generation + 1 || s.seen.has(event.turnId) || s.seen.size >= 120)
                 throw Error();
               this.cancel(s);
@@ -392,11 +395,12 @@ export class RealtimeTalkHub {
               return;
             }
             if (
-              event.type === "finish" &&
+              (event.type === "finish" || event.type==='transcript') &&
               event.generation === s.generation &&
               event.turnId === s.turnId &&
               !s.finalizing
             ) {
+              if((event.type==='transcript')!==(s.sttProvider==='browser'))throw Error('Speech provider mismatch');
               if (s.pendingTurns >= 2) throw Error("Too many pending turns");
               s.finalizing = true;
               s.lastActivity = Date.now();
@@ -409,7 +413,7 @@ export class RealtimeTalkHub {
               this.clearFrames(s);
               s.pendingTurns++;
               s.finishTail = s.finishTail
-                .then(() => this.finish(s, generation, turnId, audio, controller))
+                .then(() => this.finish(s, generation, turnId, audio, controller,event.type==='transcript'?event.text:undefined))
                 .catch(() => this.close(s, "unavailable"))
                 .finally(() => {
                   s.pendingTurns--;
@@ -487,6 +491,7 @@ export class RealtimeTalkHub {
     }
   }
   private frame(s: Session, data: Buffer) {
+    if(s.sttProvider!=='whisper')throw Error('Browser sessions accept transcripts only');
     if (!s.ready || !s.turnId || s.finalizing || data.length < 10 || data.length > 16392 || data.length % 2)
       throw Error();
     const generation = data.readUInt32LE(0),
@@ -527,7 +532,7 @@ export class RealtimeTalkHub {
         });
     }
   }
-  private async finish(s: Session, generation: number, turnId: string, audio: Buffer, controller: AbortController) {
+  private async finish(s: Session, generation: number, turnId: string, audio: Buffer, controller: AbortController,browserText?:string) {
     const current = () => !s.closed && !controller.signal.aborted && s.generation === generation;
     if (!current()) return;
     try {
@@ -537,7 +542,7 @@ export class RealtimeTalkHub {
         this.send(s, { type: "state", state: "transcribing" });
         const transcriptionStarted = performance.now();
         const transcription = transcriptSchema.parse(
-          await this.core.talk(
+          s.sttProvider==='browser'?{text:browserText,model:{providerName:'browser-speech',sttProvider:'browser'}}:await this.core.talk(
             { task: "transcribe", sessionId: s.id, language: s.language, audio: audio.toString("base64") },
             controller.signal,
           ),

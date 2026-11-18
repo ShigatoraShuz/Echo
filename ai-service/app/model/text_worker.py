@@ -59,7 +59,7 @@ def main():
             peek.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint32,ctypes.c_void_p,ctypes.POINTER(ctypes.c_uint32),ctypes.c_void_p]
             peek.restype=ctypes.c_int
         try:
-            limit = 3 * 1024 * 1024 if enabled() else 64 * 1024
+            limit = 14 * 1024 * 1024
             buffered=bytearray()
             while True:
                 if os.name == 'nt':
@@ -80,6 +80,8 @@ def main():
                 if not data or len(data) > limit or not data.endswith(b"\n"):
                     break
                 packet = json.loads(data)
+                allowed_limit=limit if packet.get('op')=='dictation' else 3*1024*1024 if enabled() else 64*1024
+                if len(data)>allowed_limit:raise ValueError('Input packet limit')
                 if packet.get('op')=='runtime_status':
                     buddy=getattr(runtime,'buddy',None)
                     workers=dict(buddy.workers) if buddy else {}
@@ -122,7 +124,7 @@ def main():
             runtime.interactive_active=packet['op'] in ('buddy','chat','preload')
             runtime.journal_active=packet['op'] in ('classify','emotions','analyze','screening','screening_phase')
             try:
-                if packet["op"] not in ("preload", "journal_runtime", "classify", "emotions", "analyze", "chat", "screening", "screening_phase", "metrics", "buddy"):
+                if packet["op"] not in ("preload", "journal_runtime", "classify", "emotions", "analyze", "chat", "screening", "screening_phase", "metrics", "buddy", "dictation"):
                     raise ValueError("Unsupported operation")
                 runtime.require_journal_owner(packet.get("journalOwner"))
                 with contextlib.redirect_stdout(sys.stderr):

@@ -105,6 +105,11 @@ frontend/assets/e2d821df-*.png
 /ai-service/.venv-core/
 /ai-service/.venv-speech/
 /ai-service/.venv-face/
+/ai-service/.venv-nano/
+/ai-service/.venv-moss/
+/backend/.local-development/buddy-runtime.json
+/runtime-cache/buddy-audit/
+/frontend/public/vendor/buddy-vad/manifest.json
 
 # Local physical-camera verification captures and biometric mesh screenshots.
 /artifacts/model-integration/face-studio/
@@ -122,4 +127,5 @@ frontend/assets/e2d821df-*.png
 
 # Local llama.cpp binaries, converted checkpoints and evaluation credentials.
 runtime-cache/llama-cpp/
+/runtime-cache/
 /frontend/.next-private/

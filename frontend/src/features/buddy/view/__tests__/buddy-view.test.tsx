@@ -260,6 +260,20 @@ it('shows safe component progress only when opening the Send-adjacent icon',asyn
  }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
 });
 
+it('renders retry separately from loading details after model failure',async()=>{
+ const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValue({id:'lease',profile:'buddy_chat',expiresAt:new Date().toISOString(),state:'failed'});
+ const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});
+ vi.mocked(useBuddyViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);
+ const page=render(<BuddyView/>);
+ try{
+  const retry=await screen.findByRole('button',{name:'Retry Buddy models'});
+  const details=screen.getByRole('button',{name:'Model loading details'});
+  expect(details).not.toContainElement(retry);
+  await userEvent.setup().click(retry);
+  expect(details).toHaveAttribute('aria-expanded','false');
+ }finally{page.unmount();acquire.mockRestore();release.mockRestore();}
+});
+
 it('keeps the loading icon active when Whisper is ready but Nano is still preparing',async()=>{
  const acquire=vi.spyOn(runtimeApi,'acquireBuddyLease').mockResolvedValue({id:'lease',profile:'buddy_chat',expiresAt:new Date().toISOString(),state:'ready',preparation:{component:'whisper',state:'ready',attempt:1,maxAttempts:5,loadingComponents:['nano']}});
  const release=vi.spyOn(runtimeApi,'releaseBuddyLease').mockResolvedValue({released:true});

@@ -14,3 +14,7 @@ it('refuses comparison across a newer journal revision or unverifiable timestamp
  expect(compareJournalSignals({...base,textTime:undefined}).status).toBe('unavailable');
  expect(compareJournalSignals({...base,face:{...base.face,generatedAt:'2026-11-04T00:00:00Z'}}).status).toBe('unavailable');
 });
+it('requires an explicit face result revision when one is provided',()=>{
+ expect(compareJournalSignals({...base,face:{...base.face,journalRevision:'2026-11-04T00:00:00Z'}})).toEqual({status:'unavailable',reason:'stale_revision'});
+ expect(compareJournalSignals({...base,face:{...base.face,journalRevision:base.revision}}).status).toBe('different');
+});

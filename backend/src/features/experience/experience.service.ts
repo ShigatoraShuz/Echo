@@ -22,7 +22,6 @@ type DatabaseRow = Record<string, unknown>;
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
-
 function hasReviewableSource(row: DatabaseRow): boolean {
   const source = asString(row.verification_source);
   const checkedAt = asString(row.last_verified_at);
@@ -119,11 +118,24 @@ export class ExperienceService {
   private temporary=new Map<string,{turns:ChatTurn[];expires:number}>();
   private approvedVoice=new Map<string,{text:string;expires:number}>();
   private voiceJobs=new LocalVoiceJobs(
-    async(session,kind,signal)=>{if(!this.coreClient)throw new NotFoundError('Local voice is unavailable.');return this.coreClient.talk({task:kind==='speak'?'warm_nano':'warm_whisper',sessionId:session},signal);},
+    async(session,kind,signal)=>{if(!this.coreClient)throw new NotFoundError('Local voice is unavailable.');return this.coreClient.talk({task:kind==='speak'?'warm':'warm_whisper',voiceMode:'expressive',sessionId:session},signal);},
     async(session,payload,signal,user)=>{const result=await this.buddyVoiceTask(payload,signal,session);if(!signal.aborted&&payload.task==='speak'&&result.model&&this.localBuddy){const conversation=this.localBuddy.list(user).find(c=>c.messages.some(m=>m.role==='buddy'&&m.content===payload.text));if(conversation)await this.localBuddy.mutate(user,conversation.id,c=>{c.provenance.push({speech:result.model,at:new Date().toISOString()});return c;});}return result;},
     async session=>{if(this.coreClient)await this.coreClient.talk({task:'close',sessionId:session},AbortSignal.timeout(5000));},
   );
-  async createVoiceOperation(user:string,kind:'speak'|'transcribe'){await assertVoiceEnabled();await this.historyEnabled(user);return this.voiceJobs.create(user,kind);}
+  async createVoiceOperation(user:string,kind:'speak'|'transcribe',_provider:'whisper'='whisper'){await assertVoiceEnabled();await this.historyEnabled(user);return this.voiceJobs.create(user,kind);}
+  async resolveSpokenReply(user:string,input:{text?:string;conversationId?:string;messageId?:string}){
+    if(input.conversationId&&input.messageId){
+      const session=await this.buddySession(user,input.conversationId);
+      const message=session.messages.find(m=>m.id===input.messageId&&m.role==='buddy');
+      if(!message||!message.content.trim())throw new NotFoundError('The Buddy reply was not found.');
+      this.rememberReply(user,message.content);
+      return message.content;
+    }
+    if(input.conversationId||input.messageId||!input.text?.trim())throw new AuthorizationError('Select an approved Buddy reply.');
+    const greeting=(await this.buddySession(user)).messages[0];
+    if(input.text===greeting.content)this.rememberReply(user,greeting.content);
+    return input.text;
+  }
   voiceOperationStatus(user:string,id:string){return this.voiceJobs.status(user,id);}
   voiceOperationResult(user:string,id:string){return this.voiceJobs.take(user,id);}
   cancelVoiceOperation(user:string,id:string){return this.voiceJobs.cancel(user,id);}
@@ -137,12 +149,12 @@ export class ExperienceService {
   private async buddyVoiceTask(payload:Record<string,unknown>,signal?:AbortSignal,preparedSession?:string):Promise<{audio?:string;text?:string;model?:Record<string,unknown>}>{
     const sessionId=preparedSession??randomUUID();
     try{
-      if(!preparedSession)await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);
-      else try{await this.coreClient!.talk({task:'pulse',sessionId},signal);}catch(error){if(signal?.aborted)throw error;await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm_nano',sessionId},signal);}
+      if(!preparedSession)await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm',voiceMode:'expressive',sessionId},signal);
+      else try{await this.coreClient!.talk({task:'pulse',sessionId},signal);}catch(error){if(signal?.aborted)throw error;await this.coreClient!.talk({task:payload.task==='transcribe'?'warm_whisper':'warm',voiceMode:'expressive',sessionId},signal);}
       if(payload.task==='transcribe')return z.object({text:z.string(),model:z.record(z.string(),z.unknown()).optional()}).parse(await this.coreClient!.talk({...payload,sessionId},signal));
-      const prepared=z.object({groups:z.array(z.array(z.string()))}).parse(await this.coreClient!.talk({task:'prepare',sessionId,text:payload.text,language:'English',speechMode:'sentences_2_then_3'},signal));
+      const prepared=z.object({groups:z.array(z.array(z.string()))}).parse(await this.coreClient!.talk({task:'prepare',voiceMode:'expressive',deliveryMode:'voice',sessionId,text:payload.text,language:'English',speechMode:'sentences_2_then_3'},signal));
       const chunks:Buffer[]=[];let model:Record<string,unknown>|undefined;let bytes=0;
-      for(const texts of prepared.groups){const result=z.object({segments:z.array(z.object({audio:z.string(),sampleRate:z.literal(48000),channels:z.literal(2)})),model:z.record(z.string(),z.unknown())}).parse(await this.coreClient!.talk({task:'speak',sessionId,texts,language:'English'},signal));model=result.model;for(const segment of result.segments){const data=Buffer.from(segment.audio,'base64');bytes+=data.length;if(!data.length||data.length%4||data.toString('base64')!==segment.audio||bytes>32*1024*1024)throw new ConflictError('BUDDY_AUDIO_LIMIT','Speech exceeded the safe audio limit. The approved text is retained.');chunks.push(data);}}
+      for(const texts of prepared.groups){const result=z.object({segments:z.array(z.object({audio:z.string(),sampleRate:z.literal(48000),channels:z.literal(2)})),model:z.record(z.string(),z.unknown())}).parse(await this.coreClient!.talk({task:'speak',voiceMode:'expressive',sessionId,texts,language:'English'},signal));model=result.model;for(const segment of result.segments){const data=Buffer.from(segment.audio,'base64');bytes+=data.length;if(!data.length||data.length%4||data.toString('base64')!==segment.audio||bytes>32*1024*1024)throw new ConflictError('BUDDY_AUDIO_LIMIT','Speech exceeded the safe audio limit. The approved text is retained.');chunks.push(data);}}
       const pcm=Buffer.concat(chunks);if(pcm.length>32*1024*1024)throw Error('Speech audio limit');
       const h=Buffer.alloc(44);h.write('RIFF');h.writeUInt32LE(36+pcm.length,4);h.write('WAVEfmt ',8);h.writeUInt32LE(16,16);h.writeUInt16LE(1,20);h.writeUInt16LE(2,22);h.writeUInt32LE(48000,24);h.writeUInt32LE(192000,28);h.writeUInt16LE(4,32);h.writeUInt16LE(16,34);h.write('data',36);h.writeUInt32LE(pcm.length,40);
       return {audio:Buffer.concat([h,pcm]).toString('base64'),model};

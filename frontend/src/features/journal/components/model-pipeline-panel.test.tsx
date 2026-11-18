@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { modelPipelineResultSchema } from "@echo/contracts";
 import fixture from "../../../../../packages/contracts/fixtures/model-pipeline-v2.synthetic.json";
@@ -14,6 +14,7 @@ describe("independent model results", () => {
       calibrationApplied: false, calibrationBinding: "mismatch_unresolved", preprocessingVerified: false, classificationSemanticsVerified: false, trainingReferenceParityVerified: false,
       clinicalUseAllowed: false, repeatConsistent: true, validationAndLoadMs: 10, forwardMs: [5, 4] } };
     render(<ModelPipelinePanel result={modelPipelineResultSchema.parse(research)} />);
+    fireEvent.click(screen.getByRole('switch',{name:'Deep analysis'}));
     expect(screen.getByText(/Dataset class names are not diagnoses/)).toBeInTheDocument();
     expect(screen.getByText("5.00000 raw logit")).toBeInTheDocument();
     expect(screen.getByText(/Calibration hash mismatch remains unresolved/)).toBeInTheDocument();
@@ -36,7 +37,7 @@ describe("independent model results", () => {
   it("labels synthetic execution and partial PHQ estimates without severity or full totals", () => {
     render(<ModelPipelinePanel result={modelPipelineResultSchema.parse(fixture)} />);
     expect(screen.getByText(/SYNTHETIC E2E FIXTURE — fictional outputs/)).toBeInTheDocument();
-    expect(screen.getByText("Partial subtotal: 6")).toBeInTheDocument();
+    expect(screen.getByText("4/8 criteria evidenced")).toBeInTheDocument();
     expect(screen.getByText("4 of 8 symptoms scored")).toBeInTheDocument();
     expect(screen.getAllByText("Unknown")).toHaveLength(4);
     expect(screen.queryByText(/Model-estimated total:/)).not.toBeInTheDocument();
@@ -52,6 +53,7 @@ describe("independent model results", () => {
       errorCode: "BASE_WEIGHTS_MISSING",
     } as never;
     render(<ModelPipelinePanel result={modelPipelineResultSchema.parse(partial)} />);
+    fireEvent.click(screen.getByRole('switch',{name:'Deep analysis'}));
     expect(screen.getByText("fixture_emotion_a")).toBeInTheDocument();
     expect(screen.getByText(/Unavailable: base weights missing/)).toBeInTheDocument();
     expect(screen.getByText(/Support mapping unavailable/)).toBeInTheDocument();

@@ -27,6 +27,8 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
   const [hasFace, setHasFace] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [expression, setExpression] = useState("");
+  const [expressionFailed,setExpressionFailed]=useState(false);
+  const faceEpoch=useRef(0);
   const videoRef = useRef<HTMLVideoElement>(null),
     canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null),
@@ -49,6 +51,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
   }, []);
   const release = useCallback(() => {
     ++generation.current;
+    ++faceEpoch.current;
     if (frames.current) clearInterval(frames.current);
     if (evaluations.current) clearInterval(evaluations.current);
     frames.current = null;
@@ -70,6 +73,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
     setHasFace(false);
     setEvaluating(false);
     setExpression("");
+    setExpressionFailed(false);
   }, [release]);
 
   const snapshot = useCallback(async () => {
@@ -171,7 +175,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
       Date.now() - lastAttempt.current < 15000
     )
       return;
-    const current = generation.current;
+    const current = generation.current,trackingEpoch=faceEpoch.current;
     lastAttempt.current = Date.now();
     const abort = new AbortController();
     evaluationAbort.current = abort;
@@ -180,26 +184,31 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
         const image = await snapshot();
         if (!image || current !== generation.current || abort.signal.aborted) return;
         setEvaluating(true);
+        setExpressionFailed(false);
         const token = await supabaseAuthTokenProvider.getAccessToken();
         if (abort.signal.aborted) return;
         const response = await fetch(env.apiBaseUrl + "/journals/face/evaluate", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/jpeg" },
           body: image,
-          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(65000)]),
+          signal: AbortSignal.any([abort.signal, AbortSignal.timeout(240000)]),
         });
         const body = await response.json();
-        if (!response.ok) throw Error("Expression analysis is unavailable. The live mesh is still working.");
+        if (!response.ok) throw Error(body?.error?.code==='FACE_BUSY'?'The expression model is busy. Retry expression analysis.':'Expression analysis is unavailable. The live mesh is still working; retry expression analysis.');
         const result = facialExpressionResultSchema.parse(body.data);
-        if (current === generation.current && !abort.signal.aborted && latest.current)
+        if (current === generation.current && trackingEpoch===faceEpoch.current && !abort.signal.aborted && latest.current){
+          setExpressionFailed(result.status!=='available');
           setExpression(
             result.status === "available"
               ? `${result.prediction} expression signal`
               : "No usable expression result yet. Adjust your lighting.",
           );
+        }
       } catch (error) {
-        if (current === generation.current && !abort.signal.aborted && latest.current)
+        if (current === generation.current && trackingEpoch===faceEpoch.current && !abort.signal.aborted && latest.current){
+          setExpressionFailed(true);
           setExpression(error instanceof Error ? error.message : "Expression analysis is unavailable.");
+        }
       } finally {
         if (current === generation.current) setEvaluating(false);
       }
@@ -309,6 +318,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
             return;
           }
         }
+        if(latest.current){faceEpoch.current++;evaluationAbort.current?.abort();}
         latest.current = undefined;
         stableSince.current = 0;
         setHasFace(false);
@@ -380,7 +390,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
           <p>PRIVATE FACE STUDIO</p>
           <h3>Live expression mesh</h3>
         </div>
-        <span className="face-studio-mode">MESH ONLY</span>
+        <span className="face-studio-mode">MESH + EXPRESSION</span>
       </header>
       <div className="face-studio-viewport" data-tracking={hasFace}>
         <video
@@ -435,7 +445,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
       <div className="face-studio-result" aria-live="polite">
         <span className={evaluating ? "face-studio-processing" : ""} />
         <div>
-          <p>{evaluating ? "Reading your expression…" : expression || "A quiet layer of understanding"}</p>
+          <p>{evaluating ? "Face detected · preparing or reading your expression…" : expression || (hasFace?'Face detected · waiting for an expression result':'Waiting for a usable face')}</p>
           <small>
             {expression
               ? "Uncalibrated model signal, not a measure of how you feel."
@@ -443,6 +453,7 @@ export const JournalFaceCapture = memo(forwardRef<JournalFaceCaptureHandle, Prop
           </small>
         </div>
       </div>
+      {hasFace&&!evaluating&&expressionFailed&&<button type="button" className="echo-button-secondary m-4 mt-0" onClick={()=>{lastAttempt.current=0;evaluate();}}>Retry expression analysis</button>}
       {failed && running && (
         <button type="button" onClick={() => void start()} className="echo-button-secondary m-4 mt-0">
           <RefreshCw size={14} aria-hidden="true" />

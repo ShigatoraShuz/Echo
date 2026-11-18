@@ -7,6 +7,7 @@ import {facialExpressionResultSchema} from "@echo/contracts";
 import { analysisTrends } from "./analysis-insights.js";
 import { sealAnalysisResult, openAnalysisResult } from "../../infrastructure/encryption/analysis-result-encryption.js";
 import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
+import {JournalDictation} from './journal-dictation.js';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertTrustedContact } from "../../infrastructure/supabase/trusted-contact-access.js";
 import { JournalImagesService } from "./journal-images.service.js";
@@ -196,6 +197,7 @@ export class JournalService {
   ) {}
 
   private localControllers=new Map<string,{user:string;controller:AbortController}>();
+  readonly dictation=new JournalDictation(()=>this.coreClient);
   private localStages=new Set<string>();
   localProcessing(user:string){return this.localStages.has(user);}
   cancelLocalWork(user?:string,journal?:string){for(const [id,operation] of this.localControllers)if((!user||operation.user===user)&&(!journal||this.localResults?.get(operation.user,id)?.journal_id===journal))operation.controller.abort();}
@@ -228,7 +230,7 @@ export class JournalService {
       facial_status:job.facial_status};
   }
   async evaluateFace(user:string,image:Buffer){
-    if(this.runtime?.isProduction)throw new NotFoundError('Development face analysis is unavailable in production.');
+    if(this.runtime?.isProduction&&process.env.ECHO_PRIVATE_FACE_ENABLED!=='true')throw new NotFoundError('Local face analysis is not enabled on this server.');
     await this.assertAnalysisGates(user);
     if(!await this.hasGlobalFacialConsent(user)||!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Enable journal and facial analysis consent.');
     if(!this.coreClient)throw new ExternalServiceError('FACE_UNAVAILABLE','Local expression analysis is unavailable. Start the AI service and retry.');
@@ -287,6 +289,7 @@ export class JournalService {
     if(!this.localResults){
       const revision=await this.get(user,journal);
       const result=await this.evaluateFace(user,image);
+      if (result.status === 'available') result.journalRevision = revision.updated_at;
       const current=await this.get(user,journal);await this.assertAnalysisGates(user);
       if(current.updated_at!==revision.updated_at)throw new ConflictError('JOURNAL_EDIT_CONFLICT','The reflection changed during face analysis. Please capture again.');
       const args={p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify(result),this.encryption),p_available:result.status==='available'};
@@ -303,7 +306,7 @@ export class JournalService {
       if(error)throw new ExternalServiceError('FACE_SAVE_FAILED','Face result could not be saved. Please retry.');
       return;
     }
-    if(this.runtime?.isProduction)throw new NotFoundError("This development face model is unavailable in production.");
+    if(this.runtime?.isProduction&&process.env.ECHO_PRIVATE_FACE_ENABLED!=='true')throw new NotFoundError('Local face analysis is not enabled on this server.');
     if(!this.localResults||!this.coreClient)throw new NotFoundError('Local face inference is unavailable.');
     const entry=await this.get(user,journal);
     await this.assertAnalysisGates(user);
@@ -338,7 +341,7 @@ export class JournalService {
           if(Date.now()>deadline)throw new Error('Face wait expired');
           await this.assertAnalysisGates(user);
           if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user)||(await this.get(user,journal)).body!==entry.body)throw new Error('Processing no longer allowed');
-          try{result=await this.coreClient!.face(bytes);break;}
+          try{result=await this.coreClient!.face(bytes);if(result.status==='available')result.journalRevision=entry.updated_at;break;}
           catch(error){if(!(error instanceof AppError)||error.code!=='TALK_BUSY')throw error;await this.localResults!.setFace(user,job.id,'queued');await new Promise(r=>setTimeout(r,1000));}
         }
         inferenceStarted=false;
@@ -384,7 +387,7 @@ export class JournalService {
       if(!this.journalPageActive(job.user_id)){await store.wait(job.user_id,job.id,'page_inactive');return;}
       await store.set(job.user_id,job.id,'analyzing_emotions',25);
       if((await this.get(job.user_id,job.journal_id)).body!==entry.body)throw new ConflictError('JOURNAL_CHANGED','The reflection changed before analysis admission.');
-      const result=await this.coreClient.analyze(entry.body,process.env.ECHO_PAGE_MODEL_LEASES==='true'?this.journalOwner(job.user_id):undefined,controller.signal);
+      const result=await this.coreClient.analyze(entry.body,process.env.ECHO_PAGE_MODEL_LEASES==='true'?this.journalOwner(job.user_id):undefined,controller.signal,classification);
       if(!store.get(job.user_id,job.id))return;
       const current=await this.get(job.user_id,job.journal_id);
       if(current.body!==entry.body)throw new ConflictError('JOURNAL_CHANGED','The reflection changed during local analysis.');

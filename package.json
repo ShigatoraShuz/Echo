@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "node scripts/run-integrated-dev.mjs",
+    "dev:buddy": "node scripts/run-buddy-dev.mjs",
     "dev:core:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-core.ps1",
     "test:core:disposable": "tsx backend/scripts/test-core-disposable.mts",
     "test:core:http": "tsx backend/scripts/test-core-http.mts",

@@ -7,6 +7,7 @@ export * from "./notification.js";
 export * from "./profile.js";
 export * from "./professional.js";
 export * from "./wellness.js";
+export * from './speech.js';
 
 export * from './talk.js';
 

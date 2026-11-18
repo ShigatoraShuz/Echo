@@ -27,3 +27,14 @@ it('reports an unavailable service and bounds captures',async()=>{
  expect(s.coreClient.face).not.toHaveBeenCalled();s.coreClient=undefined;
  await expect(s.evaluateFace('user',Buffer.from('synthetic'))).rejects.toThrow(/unavailable/i);
 });
+it('allows private production face inference only with the server capability and retains consent checks',async()=>{
+ const s=service();s.runtime.isProduction=true;
+ vi.stubEnv('ECHO_PRIVATE_FACE_ENABLED','false');
+ try{
+  await expect(s.evaluateFace('user',Buffer.from('synthetic'))).rejects.toThrow(/not enabled/);
+  expect(s.coreClient.face).not.toHaveBeenCalled();vi.stubEnv('ECHO_PRIVATE_FACE_ENABLED','true');
+  expect(await s.evaluateFace('user',Buffer.from('synthetic'))).toBe(result);
+  s.hasGlobalFacialConsent.mockResolvedValue(false);
+  await expect(s.evaluateFace('user',Buffer.from('synthetic'))).rejects.toThrow(/consent/i);
+ }finally{vi.unstubAllEnvs();}
+});

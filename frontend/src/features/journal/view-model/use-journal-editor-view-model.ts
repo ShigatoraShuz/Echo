@@ -139,6 +139,9 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
   const [state, dispatch] = useReducer(reducer, initialEditorState);
   const service = getJournalService();
   const [draftReady, setDraftReady] = useState(false);
+  const [faceWarning,setFaceWarning]=useState('');
+  const [isRetryingFace,setRetryingFace]=useState(false);
+  const faceRetry=useRef<{epoch:number;run:()=>Promise<boolean>}|null>(null);
   const [autosaveEpoch, setAutosaveEpoch] = useState(0);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
@@ -162,8 +165,9 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
   const lastSavedDraft=useRef<JournalDraft|null>(null);
   const generation=useRef(0);
   const [editorGeneration,setEditorGeneration]=useState(0);
+  useEffect(()=>setFaceWarning(''),[editorGeneration]);
   const [shouldRestorePhotos,setShouldRestorePhotos]=useState(false);
-  useEffect(()=>()=>{generation.current++;},[]);
+  useEffect(()=>()=>{generation.current++;faceRetry.current=null;},[]);
   const draftRead = useRef<ReturnType<NonNullable<typeof service.getDraft>> | null>(null);
   useEffect(() => {
     let active = true;
@@ -483,7 +487,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
               const token = await supabaseAuthTokenProvider.getAccessToken();
               if (epoch !== generation.current) return false;
               try {
-                const deadline = Date.now() + 65000;
+                const deadline = Date.now() + 240000;
                 while (true) {
                   const faceResponse = await fetch(env.apiBaseUrl + "/journals/" + journalId + "/face", {
                     method: "POST",
@@ -512,8 +516,8 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
           const [faceResult, photoResult] = await Promise.allSettled([saveFace(), service.attachDraftImages(journalId)]);
           if (epoch !== generation.current) return;
           if (faceResult.status === "rejected" || !faceResult.value) {
-            dispatch({ type: "SAVE_ERROR", error: "Your reflection is saved, but face analysis was not saved. Check your camera and retry saving." });
-            return;
+            setFaceWarning('Your reflection is saved, but facial analysis could not be saved. Other results remain available.');
+            faceRetry.current={epoch,run:saveFace};
           }
           if (photoResult.status === "rejected") throw photoResult.reason;
           const attached = photoResult.value;
@@ -578,6 +582,12 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
   const clearError = useCallback(() => {
     dispatch({ type: "CLEAR_ERROR" });
   }, []);
+  const retryFace=useCallback(async()=>{
+    const pending=faceRetry.current;if(!pending||pending.epoch!==generation.current||isRetryingFace)return;
+    setRetryingFace(true);
+    try{if(await pending.run()&&pending.epoch===generation.current){faceRetry.current=null;setFaceWarning('');}}
+    finally{if(pending.epoch===generation.current)setRetryingFace(false);}
+  },[isRetryingFace]);
 
   const reset = useCallback(() => {
     if (submitting.current || autosaveInFlight.current) return;
@@ -591,6 +601,7 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
     idempotencyKeyRef.current = null;
     accepted.current = null;
     faceFinalization.current = null;
+    faceRetry.current=null;setRetryingFace(false);
     persistedSubmissionKey.current = null;
     identityContent.current = null;
     finalized.current = false;
@@ -620,6 +631,8 @@ export function useJournalEditorViewModel({resumeDraft=false}:{resumeDraft?:bool
   return {
     previousDraft,discardPreviousDraft,shouldRestorePhotos,editorGeneration,
     draftReady,
+    faceWarning,
+    retryFace,isRetryingFace,
     title: state.title,
     body: state.body,
     emotions: state.emotions,

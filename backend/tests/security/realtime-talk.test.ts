@@ -8,13 +8,20 @@ import { WebSocket } from "ws";
 import { RealtimeTalkHub, speechPhrases } from "../../src/features/experience/realtime-talk.js";
 import { ExperienceService } from "../../src/features/experience/experience.service.js";
 import { LocalBuddyStore } from "../../src/infrastructure/analysis/local-buddy-store.js";
+import {talkSessionInputSchema,talkClientEventSchema} from '@echo/contracts';
 
 const user = randomUUID();
+it('defaults to Whisper, rejects the removed cloud provider and bounds browser turns',()=>{
+ const input={temporarySessionId:randomUUID()};expect(talkSessionInputSchema.parse(input).sttProvider).toBe('whisper');
+ expect(talkSessionInputSchema.safeParse({...input,sttProvider:'google'}).success).toBe(false);
+ expect(talkSessionInputSchema.safeParse({...input,sttProvider:'browser',language:'Taglish',experimentalLanguages:true}).success).toBe(false);
+ expect(talkClientEventSchema.safeParse({type:'transcript',turnId:randomUUID(),generation:1,text:'   '}).success).toBe(false);
+});
 const token =
   "e30." +
   Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url") +
   ".synthetic";
-async function fixture(saving = false, voiceMode: "fast" | "expressive" = "fast") {
+async function fixture(saving = false, voiceMode: "fast" | "expressive" = "fast",sttProvider:'whisper'|'browser'='whisper') {
   const base = resolve("../runtime-cache/talk-tests");
   mkdirSync(base, { recursive: true });
   const dir = mkdtempSync(join(base, "session-"));
@@ -64,7 +71,7 @@ async function fixture(saving = false, voiceMode: "fast" | "expressive" = "fast"
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address() as any;
-  const session = await hub.create(user, token, { temporarySessionId: randomUUID(), voiceMode });
+  const session = await hub.create(user, token, { temporarySessionId: randomUUID(), voiceMode,sttProvider });
   const ws = new WebSocket(`ws://127.0.0.1:${address.port}/api/v1/buddy/voice/stream`, {
     origin: "http://localhost:3000",
   });
@@ -91,6 +98,24 @@ async function fixture(saving = false, voiceMode: "fast" | "expressive" = "fast"
   };
   return { core, service, store, dir, hub, ws, events, access, session, send, wait, close };
 }
+it('treats browser transcripts as user input through the same approved reply pipeline',async()=>{
+ const f=await fixture(false,'fast','browser');
+ try{
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const turnId=randomUUID(),oldTurn=randomUUID();f.send({type:'begin',generation:1,turnId:oldTurn});f.send({type:'begin',generation:2,turnId});f.send({type:'transcript',generation:1,turnId:oldTurn,text:'Stale text'});f.send({type:'transcript',generation:2,turnId:randomUUID(),text:'Wrong turn'});f.send({type:'transcript',generation:2,turnId,text:'Synthetic browser input'});f.send({type:'transcript',generation:2,turnId,text:'Duplicate'});await f.wait('approved_reply');
+  expect(f.core.talk.mock.calls.some(([p])=>p.task==='transcribe')).toBe(false);
+  expect((await f.wait('final_transcript')).message.content).toBe('Synthetic browser input');
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(1);
+ }finally{await f.close();}
+});
+it.each(['whisper','browser'] as const)('rejects transcript/audio provider mismatch for %s',async provider=>{
+ const f=await fixture(false,'fast',provider);
+ try{f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});const closed=once(f.ws,'close');f.send(provider==='whisper'?{type:'transcript',generation:1,turnId,text:'Untrusted input'}:{type:'finish',generation:1,turnId});await closed;expect(f.core.talk.mock.calls.some(([p])=>p.task==='chat'||p.task==='transcribe')).toBe(false);}finally{await f.close();}
+});
+it('rejects oversized browser text without generating a reply',async()=>{
+ const f=await fixture(false,'fast','browser');
+ try{f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});const closed=once(f.ws,'close');f.send({type:'transcript',generation:1,turnId,text:'x'.repeat(4001)});await closed;expect(f.core.talk.mock.calls.some(([p])=>p.task==='chat')).toBe(false);}finally{await f.close();}
+});
 it("streams only approved speech, persists text locally and marks interruption", async () => {
   const f = await fixture(true);
   try {

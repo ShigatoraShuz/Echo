@@ -5,6 +5,7 @@ import { type ChangeEvent, type MouseEvent, useCallback, useEffect, useRef, useS
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, LockKeyhole, Save, Music2, Pause, Play } from "lucide-react";
 import { useJournalMusic } from "../view-model/use-journal-music";
+import {JournalDictationControl} from '../components/journal-dictation-control';
 import journalWriting from "../../../../assets/journal-writing.webp";
 import { env } from "@/config/environment";
 import { settingsService } from "@/services/settings";
@@ -40,6 +41,8 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     error,
     fieldErrors,
     draftReady,
+    faceWarning,
+    retryFace,isRetryingFace,
     previousDraft,discardPreviousDraft,shouldRestorePhotos,editorGeneration,
     savedEntry,
     analysisSubmission,
@@ -54,6 +57,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     reset,
   } = useJournalEditorViewModel({resumeDraft});
   const music = useJournalMusic(Boolean(analysisSubmission || savedEntry));
+  const [dictating,setDictating]=useState(false);
   const activeSubmission = analysisSubmission ?? pendingSubmission;
   const report = useJournalDetailViewModel(activeSubmission?.journalId ?? "");
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
@@ -310,7 +314,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     setPhotoError("");
   };
   const finish = async () => {
-    if (preparingFace || isSaving) return;
+    if (preparingFace || isSaving || dictating) return;
     if (!photosLoaded || photos.some((photo) => photo.status !== "saved")) {
       setPhotoError("Finish uploading or retry each photo before saving this reflection.");
       return;
@@ -430,6 +434,10 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                   {fieldErrors.body[0]}
                 </p>
               )}
+              <JournalDictationControl body={body} onChange={setBody} identity={editorGeneration}
+                disabled={!draftReady||Boolean(previousDraft)||preparingFace||isSaving||Boolean(activeSubmission||savedEntry)}
+                onBusyChange={setDictating} onStart={()=>{if(music.playback==='playing')music.toggle();}}/>
+              {faceWarning&&<div><p role="status" className="text-sm text-muted-foreground">{faceWarning}</p><button type="button" disabled={isRetryingFace} onClick={()=>void retryFace()} className="text-sm underline">{isRetryingFace?'Retrying facial analysis…':'Retry facial analysis'}</button></div>}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 py-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Music2 size={14} aria-hidden="true" className="text-primary" />
@@ -595,7 +603,7 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 variant="primary"
                 size="medium"
                 isLoading={isSaving || preparingFace}
-                disabled={!photosLoaded || pendingPhotos || !privacyReady || preparingFace}
+                disabled={!photosLoaded || pendingPhotos || !privacyReady || preparingFace || dictating}
                 onClick={analysisSubmission || savedEntry ? () => {
                   photosRef.current.forEach((photo) => { if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src); });
                   setPhotos([]);

@@ -9,10 +9,12 @@ export const talkSessionInputSchema = z
     temporarySessionId: z.string().uuid(),
     speechMode: talkSpeechModeSchema.default("sentences_2_then_3"),
     voiceMode: z.enum(["fast", "expressive"]).default("fast"),
+    sttProvider: z.enum(['whisper','browser']).default('whisper'),
     language: talkLanguageSchema.default("English"),
     experimentalLanguages: z.boolean().default(false),
   })
   .strict()
+  .refine(x=>x.sttProvider!=='browser'||x.language==='English',{message:'Browser speech currently supports English in Echo.'})
   .refine((x) => x.language === "English" || x.experimentalLanguages, {
     message: "Filipino and Taglish require experimental language opt-in.",
   });
@@ -21,6 +23,7 @@ export const talkClientEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("authenticate"), ticket: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ type: z.literal("begin"), ...turn }).strict(),
   z.object({ type: z.literal("finish"), ...turn }).strict(),
+  z.object({type:z.literal('transcript'),...turn,text:z.string().trim().min(1).max(4000)}).strict(),
   z.object({ type: z.literal("cancel"), generation: z.number().int().min(0).max(100000) }).strict(),
   z.object({ type: z.literal("retry_speech"), ...turn }).strict(),
   z

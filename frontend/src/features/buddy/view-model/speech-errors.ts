@@ -6,8 +6,8 @@ export function speechErrorMessage(code: unknown): string {
   if (code === 'AI_TRANSPORT_UNAVAILABLE') return 'The local speech runtime is unavailable. Your approved answer is retained; retry speech after recovery.';
   if (code === 'AI_TRANSPORT_CONNECTION_FAILED') return 'Cannot connect to the local speech service. Check that Echo is running.';
   if (code === 'BUDDY_CANCELLED') return 'Speech was cancelled.';
-  if (code === 'AI_TRANSPORT_TIMEOUT' || /^BUDDY_(CBT|NANO|WHISPER)_(LOAD|ENV)_TIMEOUT$/.test(code)) return 'Local model preparation or speech timed out. Your approved answer is retained; retry speech.';
-  if (code === 'BUDDY_MOSS_ASSET_MISSING') return 'MOSS v1.5 is not installed on the server (BUDDY_MOSS_ASSET_MISSING). Choose Fast · MOSS Nano to use the main voice. Your approved answer is retained.';
+  if (code === 'AI_TRANSPORT_TIMEOUT' || /^BUDDY_(CBT|NANO|WHISPER)_(LOAD|ENV)_TIMEOUT$/.test(code) || /^BUDDY_MOSS_[A-Z_]*TIMEOUT$/.test(code)) return 'Local model preparation or speech timed out. Your approved answer is retained; retry speech.';
+  if (code === 'BUDDY_MOSS_ASSET_MISSING') return 'MOSS v1.5 is not installed on the server (BUDDY_MOSS_ASSET_MISSING). Your approved answer is retained; restore MOSS and retry speech.';
   if (/^BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8}$/.test(code)) return 'Expressive speech stopped with native code ' + code.slice(-8) + '. Your approved answer is retained; retry speech after recovery.';
   if (/^BUDDY_MOSS_[A-Z_]{1,60}$/.test(code)) return 'Expressive speech preparation or synthesis failed (' + code + '). Your approved answer is retained; retry speech.';
   if (/^BUDDY_NANO_[A-Z_]{1,60}$/.test(code)) return 'Nano speech preparation or synthesis failed (' + code + '). Your approved answer is retained; retry speech.';

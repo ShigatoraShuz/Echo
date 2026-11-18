@@ -192,7 +192,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/buddy/:path*",
+        source: "/(buddy|journal)/:path*",
         headers: [
           {
             key: "Permissions-Policy",

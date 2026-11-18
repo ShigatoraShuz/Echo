@@ -11,7 +11,7 @@ def main():
  shared=ROOT.parent/'models';nano=ROOT.parent/'TTS_INFERENCE_NANO_PRELOAD'
  adapter=Path('E:/Python Project/PROJECTS/Thesis2/CBT_RESPONSE/CBT_BASE_MODEL/outputs/quality_tuning/mixed_epochs_2/final_adapter')
  base=Path(json.loads((adapter/'adapter_config.json').read_text())['base_model_name_or_path'])
- sources=[(shared/x,x) for x in ['cbt','e4-c','xlmr-v2','phq8-seallms','face_model','voice/whisper']]
+sources=[(shared/x,x) for x in ['cbt','e4-c','xlmr-v2','phq8-seallms','face_model','voice/whisper']]
  sources += [(adapter,'buddy/adapter'),(base,'buddy/base'),(nano/'models/nano','buddy/models/nano'),(nano/'models/codec','buddy/models/codec'),(nano/'voices/buddy','buddy/voices/buddy')]
  items=[]
  for source,dest in sources:

@@ -7,6 +7,12 @@ const token = "synthetic-core-contract-token-32-characters";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native core HTTP ownership", () => {
+  it('forwards the existing classifier result with the unchanged analysis text',async()=>{
+    const classification={distress_category:'Others',suicidal_language_flag:false,all_category_scores_relative_not_diagnoses:{Others:1,Anxious:0,Depressed:0,Frustrated:0,Suicidal:0},number_of_windows:1,validation_selected_suicidal_flag_threshold:.4};
+    const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify(native)));vi.stubGlobal('fetch',fetcher);
+    await new CoreClient('http://127.0.0.1:8000',token).analyze('Fictional',undefined,undefined,classification);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toMatchObject({text:'Fictional',classification});
+  });
   it("uses only the native route and contract, without redirects or caching", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify(native)));
     vi.stubGlobal("fetch", fetcher);

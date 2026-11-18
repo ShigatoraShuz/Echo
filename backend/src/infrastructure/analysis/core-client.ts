@@ -74,7 +74,7 @@ export class CoreClient {
     try {
       const encoded = JSON.stringify(body);
       const limit =
-        path === "/v2/speech"
+        path === "/v2/speech" || path === '/v1/dictation'
           ? 14 * 1024 * 1024
           : path === "/v1/face" || path === "/v1/talk"
             ? 3 * 1024 * 1024
@@ -139,6 +139,9 @@ export class CoreClient {
       }
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
     }
+  }
+  async dictation(payload:{task:'warm_whisper'|'transcribe'|'close';sessionId:string;audio?:string},signal?:AbortSignal){
+    return z.object({text:z.string().max(4000).optional(),model:z.record(z.string(),z.unknown()).optional()}).passthrough().parse(await this.request('/v1/dictation',payload,signal));
   }
   async speech(payload: { task: "speak" | "transcribe"; audio?: string; text?: string }, signal?: AbortSignal) {
     const value = z
@@ -250,13 +253,14 @@ export class CoreClient {
   async classify(text: string, owner?:string, signal?:AbortSignal) {
     return z
       .object({ suicidal_language_flag: z.boolean() })
+      .passthrough()
       .parse(await this.request("/v2/classify", { text, language: "unknown", ...(owner?{owner}:{}) },signal));
   }
-  async analyze(text: string, owner?:string,signal?:AbortSignal) {
+  async analyze(text: string, owner?:string,signal?:AbortSignal,classification?:Record<string,unknown>) {
     try {
       return z
         .union([journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema])
-        .parse(await this.request("/v2/analyze", { text, language: "unknown", ...(owner?{owner}:{}) },signal));
+        .parse(await this.request("/v2/analyze", { text, language: "unknown", ...(owner?{owner}:{}),...(classification?{classification}:{}) },signal));
     } catch (error) {
       if (error instanceof ExternalServiceError) throw error;
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");

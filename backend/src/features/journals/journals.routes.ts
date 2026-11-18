@@ -1,5 +1,6 @@
 import {z} from 'zod';
-import { Router, raw } from "express";
+import { Router, raw, type RequestHandler } from "express";
+import {PayloadTooLargeError} from '../../shared/errors/app-error.js';
 import type { AccessTokenVerifier } from "../../shared/middleware/auth.middleware.js";
 import { createAuthMiddleware } from "../../shared/middleware/auth.middleware.js";
 import { createVerifiedAiAccessMiddleware } from "../../shared/middleware/verified-ai-access.middleware.js";
@@ -18,6 +19,17 @@ export function createJournalsRouter(
   const authenticate = createAuthMiddleware(verifier);
   const requireVerifiedAi = createVerifiedAiAccessMiddleware(verificationService);
   const writeLimit = endpointLimiter(30);
+  const dictationAudio:RequestHandler=(req,res,next)=>raw({type:'application/octet-stream',limit:'10mb'})(req,res,error=>next(error?.type==='entity.too.large'?new PayloadTooLargeError():error));
+  router.post('/journals/dictation/jobs',authenticate,requireVerifiedAi,writeLimit,async(req,res)=>{
+    const input=z.strictObject({provider:z.literal('whisper').default('whisper')}).parse(req.body);res.setHeader('Cache-Control','no-store');res.status(202).json({success:true,data:await service.dictation.create(req.auth!.id,input.provider)});
+  });
+  router.get('/journals/dictation/jobs/:id',authenticate,requireVerifiedAi,async(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({success:true,data:service.dictation.status(req.auth!.id,z.string().uuid().parse(req.params.id))});});
+  router.get('/journals/dictation/jobs/:id/result',authenticate,requireVerifiedAi,async(req,res)=>{res.setHeader('Cache-Control','no-store');res.json({success:true,data:service.dictation.result(req.auth!.id,z.string().uuid().parse(req.params.id))});});
+  router.delete('/journals/dictation/jobs/:id',authenticate,async(req,res)=>{await service.dictation.cancel(req.auth!.id,z.string().uuid().parse(req.params.id));res.json({success:true,data:{cancelled:true}});});
+  router.post('/journals/dictation/jobs/:id/audio',authenticate,requireVerifiedAi,writeLimit,dictationAudio,async(req,res)=>{
+    if(!Buffer.isBuffer(req.body)||!req.body.length){res.status(422).json({error:{message:'Audio required'}});return;}
+    try{res.setHeader('Cache-Control','no-store');res.status(202).json({success:true,data:await service.dictation.submit(req.auth!.id,z.string().uuid().parse(req.params.id),req.body)});}finally{req.body.fill(0);}
+  });
   router.use(["/journals", "/analysis-jobs", "/buddy/handoffs", "/support-contact-requests"], authenticate, (req, res, next) => {
     if (["GET", "HEAD"].includes(req.method)) return next();
     return writeLimit(req, res, next);

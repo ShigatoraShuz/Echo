@@ -4,7 +4,10 @@ import { JournalCbtRecommendation } from "./journal-cbt-recommendation";
 import {LocalFaceResult} from "./local-face-result";
 import { Brain, Activity, ClipboardList, ChevronDown, LockKeyhole } from "lucide-react";
 import { analysisSummary } from "../model/analysis-summary";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {JournalPhq8Meter} from './journal-phq8-meter';
+import {JournalDeepAnalysisToggle} from './journal-deep-analysis-toggle';
+import {journalPhq8Reading,phq8ReadingLabel} from '@echo/contracts';
 import { createApiClient } from "@/infrastructure/api/api-client";
 import { supabaseAuthTokenProvider } from "@/infrastructure/api/supabase-auth-token-provider";
 import { env } from "@/config/environment";
@@ -35,6 +38,9 @@ export function NativeAnalysis({
 }) {
   const [retryMessage, setRetryMessage] = useState(""),
     [retrying, setRetrying] = useState(false);
+  const [deepSelection,setDeepSelection]=useState<{entryId?:string;enabled:boolean}>({entryId,enabled:false});
+  const deep=deepSelection.entryId===entryId&&deepSelection.enabled;
+  useEffect(()=>setDeepSelection({entryId,enabled:false}),[entryId]);
   async function retry() {
     if (!entryId) return;
     setRetrying(true);
@@ -66,6 +72,8 @@ export function NativeAnalysis({
         <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-secondary-foreground">{summary.status === "partial" ? "Partial analysis" : "Complete analysis"}</span>
       </header>
       <AiSupportNotice />
+      <JournalDeepAnalysisToggle checked={deep} onChange={enabled=>setDeepSelection({entryId,enabled})}/>
+      <JournalPhq8Meter estimate={result.schemaVersion==='echo-journal-analysis-v3'?result.journalScreening:undefined}/>
       {entryId && <LocalFaceResult entryId={entryId}/>}
       <div className="min-w-0 rounded-2xl border border-border bg-background/50 p-4 sm:p-5">
         <h3 className="flex items-center gap-2 font-semibold"><Brain className="h-4 w-4 text-primary" aria-hidden="true" />Emotion patterns</h3>
@@ -83,7 +91,7 @@ export function NativeAnalysis({
           ))}
         </dl>
       </div>
-      <div className="min-w-0 rounded-2xl border border-border bg-background/50 p-4 sm:p-5">
+      {deep&&<div className="min-w-0 rounded-2xl border border-border bg-background/50 p-4 sm:p-5">
         <h3 className="flex flex-wrap items-center gap-2 font-semibold"><Activity className="h-4 w-4 text-primary" aria-hidden="true" />Journal category: {result.distressCategory}</h3>
         <p className="text-sm text-foreground/75">
           These are the classifier’s dataset labels, not clinical severity.
@@ -96,32 +104,18 @@ export function NativeAnalysis({
             </div>
           ))}
         </dl>
-      </div>
+      </div>}
       {result.schemaVersion === "echo-journal-analysis-v3" && (
         <section className="min-w-0 rounded-2xl border border-primary/15 bg-secondary/25 p-4 sm:p-5" aria-label="Journal screening estimate">
           <h3 className="flex items-center gap-2 font-semibold"><ClipboardList className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />Experimental journal PHQ-8 estimate</h3>
-          <p className="text-xs text-foreground/75">
-            {result.journalScreening.generatedAt
-              ? `${result.journalScreening.status === "available" ? "Estimated" : "Attempted"} on ${new Date(result.journalScreening.generatedAt).toLocaleString()}`
-              : "Estimate date unavailable for this saved result."}
-          </p>
-          {result.journalScreening.status !== "available" ? (
-            <p className="mt-3 text-sm font-medium">{result.journalScreening.status === "failed" ? "Journal estimate failed." : "Journal estimate unavailable."} Other results remain available.</p>
-          ) : (
+          {result.journalScreening.status !== "available" ? null : (
             <>
-              <p className="mt-4 text-lg font-semibold tabular-nums">
-                {result.journalScreening.coverage === 8
-                  ? `Complete model estimate: ${result.journalScreening.total}`
-                  : result.journalScreening.coverage === 0
-                    ? "No criteria evidenced in this entry"
-                    : `Partial subtotal: ${result.journalScreening.subtotal}  -  ${result.journalScreening.coverage} of 8 criteria estimated`}
-              </p>
-              <p className="mt-1 text-xs text-foreground/75">Only eight evidenced criteria produce a complete total. Missing evidence is never scored as zero.</p>
+              <p className="mt-1 text-xs text-foreground/75">Partial ranges account for unknown criteria. Missing evidence is never scored as zero.</p>
               <dl className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2">
                 {Object.entries(result.journalScreening.items!).map(([key, value]) => (
                   <div key={key} className="min-w-0 rounded-xl border border-border bg-card p-3">
                     <dt className="text-xs font-medium text-foreground/75">{criterionLabels[key] ?? key}</dt>
-                    <dd className="mt-1 break-words text-sm font-semibold">{value === null ? "Not evidenced in this journal" : value}</dd>
+                    <dd className="mt-1 break-words text-sm font-semibold">{value === null ? "Not evidenced in this journal" : deep ? ['Not at all','Several days','More than half the days','Nearly every day'][value] : 'Evidenced'}</dd>
                   </div>
                 ))}
               </dl>
@@ -190,18 +184,12 @@ export function NativeAnalysis({
       {showHistory && insights?.journalScreeningTrend?.length ? (
         <section aria-label="Experimental journal estimate history">
           <h3>Experimental journal estimates</h3>
-          <p>Separate from questionnaire scores. Partial subtotals are not complete PHQ-8 totals.</p>
+          <p>Separate from questionnaire scores. Partial ranges reflect unknown criteria.</p>
           <ul>
             {insights.journalScreeningTrend.map((p, i) => (
               <li key={p.date + ":" + i}>
                 {p.date}:{" "}
-                {p.status !== "available"
-                  ? "Unavailable"
-                  : p.coverage === 8
-                    ? `Model total ${p.total}`
-                    : p.coverage === 0
-                      ? "No criteria evidenced"
-                      : `Partial subtotal ${p.subtotal} (${p.coverage}/8 criteria)`}
+                {phq8ReadingLabel(journalPhq8Reading(p))} ({p.coverage}/8 items estimated)
               </li>
             ))}
           </ul>

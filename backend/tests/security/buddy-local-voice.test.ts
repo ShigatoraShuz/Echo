@@ -30,8 +30,21 @@ it('shares bounded temporary context and only speaks approved replies for their 
   expect(talk).not.toHaveBeenCalled();
   const voice = await service.speakVoice('user-a', 'Synthetic reply 1');
   expect(Buffer.from(voice.audio, 'base64').subarray(0, 4).toString()).toBe('RIFF');
-  expect(talk).toHaveBeenCalledWith(expect.objectContaining({ task: 'prepare', text: 'Synthetic reply 1' }), undefined);
+  expect(talk).toHaveBeenCalledWith(expect.objectContaining({ task: 'prepare', text: 'Synthetic reply 1',deliveryMode:'voice' }), undefined);
+  expect(talk.mock.calls.filter(([p])=>['warm','prepare','speak'].includes(p.task)).every(([p])=>p.voiceMode==='expressive')).toBe(true);
   expect(talk).toHaveBeenCalledWith(expect.objectContaining({ task: 'close' }));
+  const welcome=(await service.buddySession('user-a')).messages[0].content;
+  await service.resolveSpokenReply('user-a',{text:welcome});
+  await expect(service.speakVoice('user-a',welcome)).resolves.toHaveProperty('audio');
+});
+
+it('resolves saved replies through the owned conversation and ignores supplied replacement text',async()=>{
+ const service:any=new ExperienceService({} as any,{} as any,{} as any);
+ service.buddySession=vi.fn(async(user:string,id:string)=>{if(user!=='owner'||id!=='conversation')throw Error('not found');return {messages:[{id:'reply',role:'buddy',content:'Stored approved text'},{id:'user-message',role:'user',content:'User text'}]};});
+ expect(await service.resolveSpokenReply('owner',{conversationId:'conversation',messageId:'reply',text:'Tampered'})).toBe('Stored approved text');
+ await expect(service.resolveSpokenReply('other',{conversationId:'conversation',messageId:'reply'})).rejects.toThrow();
+ await expect(service.resolveSpokenReply('owner',{conversationId:'conversation',messageId:'user-message'})).rejects.toThrow();
+ await expect(service.resolveSpokenReply('owner',{messageId:'reply'})).rejects.toThrow();
 });
 
 it('isolates temporary sessions within the same account', async () => {

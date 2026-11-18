@@ -48,6 +48,7 @@ vi.mock("@/shared/components/feedback/echo-inline-message", () => ({
 
 function setupMock() {
   return {
+    faceWarning:'',retryFace:vi.fn(),isRetryingFace:false,
     draftReady: true,
     previousDraft:null,discardPreviousDraft:vi.fn().mockResolvedValue(true),shouldRestorePhotos:false,editorGeneration:0,
     analysisSubmission:null,fixture:'standard_low_distress' as const,setFixture:vi.fn(),

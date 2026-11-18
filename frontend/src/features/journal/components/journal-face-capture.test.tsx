@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-this-alias -- Worker test doubles expose their instance for lifecycle assertions. */
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createRef } from "react";
 import { JournalFaceCapture, type JournalFaceCaptureHandle } from "./journal-face-capture";
@@ -141,4 +141,34 @@ it("captures immediately at Save even when the live preview request never comple
   expect((pending.mock.calls[0] as unknown as [string,RequestInit])[1].signal?.aborted).toBe(true);
   expect(ref.current!.getCapture()?.landmarks).toHaveLength(478);
   view.unmount();
+});
+it('shows a validated expression after retry without restarting the detected face',async()=>{
+ const image=new Blob(['synthetic capture'],{type:'image/jpeg'});
+ vi.spyOn(HTMLVideoElement.prototype,'videoWidth','get').mockReturnValue(640);
+ vi.spyOn(HTMLVideoElement.prototype,'videoHeight','get').mockReturnValue(480);
+ vi.spyOn(HTMLMediaElement.prototype,'readyState','get').mockReturnValue(4);
+ vi.spyOn(HTMLCanvasElement.prototype,'toBlob').mockImplementation(callback=>callback(image));
+ const clock=vi.spyOn(Date,'now').mockReturnValue(20000);
+ let worker!:FakeWorker;
+ class FakeWorker {onmessage:((event:MessageEvent)=>void)|null=null;postMessage=vi.fn();terminate=vi.fn();constructor(){worker=this;}}
+ vi.stubGlobal('Worker',FakeWorker);
+ const getUserMedia=vi.fn(async()=>({getTracks:()=>[{stop:vi.fn()}]}));
+ Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia}});
+ const probabilities=Object.fromEntries(['joy','trust','fear','surprise','sadness','disgust','anger','anticipation'].map(key=>[key,key==='joy'?.65:.05]));
+ const result={schemaVersion:'echo-face-expression-v1',status:'available',experimental:true,prediction:'joy',scoreType:'uncalibrated_class_probability',classProbabilities:probabilities,quality:{warning_flags:''},modelFingerprint:'a'.repeat(64),inferenceVersion:'synthetic-unit',generatedAt:'2026-11-18T00:00:00Z'};
+ const fetcher=vi.fn().mockResolvedValueOnce(Response.json({error:{code:'FACE_BUSY'}},{status:503})).mockResolvedValueOnce(Response.json({data:result}));vi.stubGlobal('fetch',fetcher);
+ const view=render(<JournalFaceCapture running/>);await waitFor(()=>expect(worker).toBeDefined());
+ const timers=new Map<number,()=>void>();vi.spyOn(globalThis,'setInterval').mockImplementation(((callback:()=>void,delay:number)=>{timers.set(delay,callback);return 12345;}) as typeof setInterval);
+ await act(async()=>{worker.onmessage?.({data:{type:'ready',connections:[]}} as MessageEvent);worker.onmessage?.({data:{type:'result',landmarks:Array.from({length:478},()=>[.5,.5,0]),blendshapes:Array.from({length:52},()=>({name:'test',score:0}))}} as MessageEvent);});
+ clock.mockReturnValue(21000);await act(async()=>timers.get(1000)?.());
+ const retry=await screen.findByRole('button',{name:'Retry expression analysis'});fireEvent.click(retry);
+ expect(await screen.findByText('joy expression signal')).toBeVisible();expect(getUserMedia).toHaveBeenCalledOnce();
+  let delayed!:(response:Response)=>void;fetcher.mockImplementationOnce(()=>new Promise<Response>(resolve=>delayed=resolve));
+  clock.mockReturnValue(37000);
+  const detected={type:'result',landmarks:Array.from({length:478},()=>[.5,.5,0]),blendshapes:Array.from({length:52},()=>({name:'test',score:0}))};
+  await act(async()=>{worker.onmessage?.({data:detected} as MessageEvent);timers.get(1000)?.();});
+  await waitFor(()=>expect(delayed).toBeDefined());
+ await act(async()=>worker.onmessage?.({data:{type:'result',landmarks:[],blendshapes:[]}} as MessageEvent));
+  await act(async()=>{worker.onmessage?.({data:detected} as MessageEvent);delayed(Response.json({data:result}));});
+  expect(screen.queryByText('joy expression signal')).not.toBeInTheDocument();view.unmount();
 });

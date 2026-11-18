@@ -1,5 +1,6 @@
 """Explicit pinned MOSS v1.5 native setup; isolated from existing Python environments."""
 import argparse,hashlib,http.client,json,os,re,shutil,sys,time,urllib.request,zipfile,subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 FORK='b785003ba497794ecfa337c3e47f01af79489888'
@@ -17,9 +18,15 @@ def fetch(url,path,sha=None):
  path.parent.mkdir(parents=True,exist_ok=True)
  if path.is_file() and (sha is None or digest(path)==sha):return
  temporary=path.with_suffix(path.suffix+'.partial')
+ if os.environ.get('ECHO_MOSS_HTTP_CLIENT')=='curl':
+  if not (temporary.is_file() and sha and digest(temporary)==sha):
+   subprocess.run(['curl.exe','-sS','-L','--fail','--retry','5','--connect-timeout','30','--speed-time','60','--speed-limit','1024','-C','-','--output',str(temporary),url],check=True,timeout=3600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+  if sha and digest(temporary)!=sha:raise ValueError('Native asset integrity mismatch')
+  os.replace(temporary,path)
+  return
  while True:
   offset=temporary.stat().st_size if temporary.exists() else 0
-  request=urllib.request.Request(url,headers={'Range':f'bytes={offset}-{offset+32*1024**2-1}'})
+  request=urllib.request.Request(url,headers={'Range':f'bytes={offset}-{offset+256*1024**2-1}'})
   with urllib.request.urlopen(request,timeout=90) as response:
    total=None
    if response.status==206:
@@ -39,10 +46,9 @@ def fetch(url,path,sha=None):
 def download(repo,revision,folder):
  api=json.load(urllib.request.urlopen(f'https://huggingface.co/api/models/{repo}/revision/{revision}?blobs=true',timeout=30))
  if api['sha']!=revision:raise ValueError('Revision differs')
- records=[]
- for entry in api['siblings']:
+ def download_entry(entry):
   name=entry['rfilename']
-  if not (name.endswith(('.json','.safetensors','.model','.txt','.md')) or name in ('LICENSE','NOTICE')):continue
+  if not (name.endswith(('.json','.safetensors','.model','.txt','.md')) or name in ('LICENSE','NOTICE')):return None
   path=(folder/name).resolve()
   if not path.is_relative_to(folder.resolve()):raise ValueError('Invalid asset path')
   expected=entry.get('lfs',{}).get('sha256')
@@ -56,8 +62,9 @@ def download(repo,revision,folder):
     print(json.dumps({'stage':'download_retry','file':name,'attempt':attempt+1}),flush=True)
     time.sleep(min(2**attempt,10))
   if entry.get('size') is not None and path.stat().st_size!=entry['size']:raise ValueError('Asset size differs')
-  records.append({'path':name,'bytes':path.stat().st_size,'sha256':digest(path)})
- return records
+  return {'path':name,'bytes':path.stat().st_size,'sha256':digest(path)}
+ with ThreadPoolExecutor(max_workers=4) as pool:
+  return [record for record in pool.map(download_entry,api['siblings']) if record is not None]
 
 def patch(source):
  context=source/'src/llama-context.cpp'
@@ -109,6 +116,7 @@ def main():
  sys.path.insert(0,str(ROOT/'scripts'));from windows_resource_limits import run_limited,assert_current_limits
  if not args.limited:return run_limited([sys.executable,str(Path(__file__).resolve()),'--setup','--limited'])
  assert_current_limits();os.environ.update(HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',PYTHONDONTWRITEBYTECODE='1')
+ if os.name=='nt' and shutil.which('curl.exe'):os.environ.setdefault('ECHO_MOSS_HTTP_CLIENT','curl')
  root=ROOT/'models/moss-native';root.mkdir(exist_ok=True)
  if shutil.disk_usage(root).free<60*1024**3:raise ValueError('At least 60 GiB staging space required')
  archive=root/(FORK+'.zip');fetch('https://codeload.github.com/OpenMOSS/llama.cpp/zip/'+FORK,archive,ARCHIVE_SHA)

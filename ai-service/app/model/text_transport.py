@@ -265,7 +265,7 @@ class TextRuntime:
                 )
                 + b"\n"
             )
-            if len(packet) > (3 * 1024 * 1024 if operation == "buddy" and self.buddy_enabled else 64 * 1024):
+            if len(packet) > (14 * 1024 * 1024 if operation == 'dictation' else 3 * 1024 * 1024 if operation == "buddy" and self.buddy_enabled else 64 * 1024):
                 raise ValueError("Text payload too large.")
             try:
                 # Include a stalled pipe write in the same hard request deadline.
@@ -398,6 +398,9 @@ class TextRuntime:
 
     def metrics(self):
         return self._call("metrics")
+
+    def dictation(self, payload, cancelled=None):
+        return self._call('dictation',payload,cancelled=cancelled)
 
     def speech(self, *_):
         raise ModelUnavailableError("Speech transport is not approved in text-memory mode.")

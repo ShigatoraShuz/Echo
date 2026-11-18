@@ -91,7 +91,13 @@ def format_chat_response(text: str, *, role: str, config: dict) -> str:
     limit=bounds.get(role)
     if type(limit) is not int or not 20<=limit<=220:
         raise ValueError('Invalid chat paragraph limit')
-    result=format_existing(text,max_paragraph_words=limit)
+    prepared=text
+    if role=='steps':
+        markers=list(INLINE_NUMBER.finditer(text))
+        if len(markers)==1 and markers[0].group('num')=='1':
+            index=markers[0].start()
+            if index:prepared=text[:index].rstrip()+'\n'+text[index:]
+    result=format_existing(prepared,max_paragraph_words=limit)
     if not _preserved(text.strip(),result):raise RuntimeError('Chat formatter changed advice')
     return result
 

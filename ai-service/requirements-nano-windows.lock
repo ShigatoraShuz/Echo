@@ -1,0 +1,33 @@
+# Windows x64 / CPython 3.12; isolated MOSS Nano CUDA environment.
+torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-win_amd64.whl#sha256=ef8beae16d781c3244ef28dc7bee6d8871c26bbde65d5bf66e902cb61972c4ab
+torchaudio @ https://download-r2.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp312-cp312-win_amd64.whl#sha256=f74949f9ace1e4a6cf9468bdb3211b9cfa0af6ea348125471ac71c8621d6c77d
+certifi==2026.10.23
+cffi==2.1.1
+charset-normalizer==3.5.2
+colorama==0.4.6
+filelock==4.2.4
+fsspec==2026.9.0
+huggingface-hub==0.36.2
+idna==3.20
+jinja2==3.1.6
+markupsafe==3.0.3
+mpmath==1.3.0
+networkx==3.7
+numpy==2.5.4
+packaging==26.3
+pycparser==3.12
+pyyaml==6.0.3
+regex==2026.9.29
+requests==2.34.2
+safetensors==0.8.0
+scipy==1.18.1
+sentencepiece==0.2.2
+setuptools==78.1.0
+soundfile==0.14.0
+sympy==1.14.0
+tokenizers==0.22.2
+torchcodec==0.17.0
+tqdm==4.70.1
+transformers==4.57.1
+typing-extensions==4.16.0
+urllib3==2.8.0

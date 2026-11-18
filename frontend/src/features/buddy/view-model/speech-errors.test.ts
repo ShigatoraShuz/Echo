@@ -14,5 +14,6 @@ it('preserves a bounded Expressive native exit code without exposing arbitrary d
 });
 
 it('explains that missing expressive assets need the main Nano voice', () => {
- expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).toContain('Choose Fast · MOSS Nano');
+ expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).toContain('restore MOSS and retry');
+ expect(speechErrorMessage('BUDDY_MOSS_ASSET_MISSING')).not.toContain('Choose Fast');
 });

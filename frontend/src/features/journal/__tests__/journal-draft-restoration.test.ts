@@ -177,12 +177,14 @@ it("retains the temporary frame for retry if face saving fails and never duplica
   await waitFor(() => expect(result.current.draftReady).toBe(true));
   const image=new Blob(["synthetic frame"]);
   await act(async () => result.current.save({requested:true,image}));
-  expect(result.current.error).toContain("face analysis was not saved");
-  expect(service.deleteDraft).not.toHaveBeenCalled();
-  await act(async () => result.current.save({requested:true}));
+  expect(result.current.error).toBeNull();
+  expect(result.current.faceWarning).toContain('facial analysis could not be saved');
+  expect(result.current.analysisSubmission?.journalId).toBe('saved-id');
+  await act(async () => result.current.retryFace());
   expect(service.createEntry).toHaveBeenCalledOnce();
   expect(face.mock.calls[1][1].body).toBe(image);
   expect(result.current.analysisSubmission?.journalId).toBe("saved-id");
+  expect(result.current.faceWarning).toBe('');
 });
 
 it("persists a changed draft and fresh retry identity before creating the journal", async () => {

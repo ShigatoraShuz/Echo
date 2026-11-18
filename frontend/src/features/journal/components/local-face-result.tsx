@@ -51,7 +51,7 @@ export function LocalFaceResult({ entryId }: { entryId: string }) {
       </p>
       <div aria-label="Text and facial expression comparison" className="mt-3 rounded-xl border border-border p-3">
         <h4 className="text-sm font-semibold">Text and facial expression comparison</h4>
-        <p className="text-sm">{comparison?.status==='same'?'Same leading label':comparison?.status==='different'?'Different leading labels':'Comparison unavailable'}</p>
+        <p className={comparison?.status==='different'?'text-sm font-semibold text-primary':'text-sm'}>{comparison?.status==='same'?'Same leading label':comparison?.status==='different'?'Different leading labels':'Comparison unavailable'}</p>
         {comparison?.textEmotion&&<p className="text-sm capitalize">Written text: {comparison.textEmotion} · Facial expression: {comparison.faceEmotion}</p>}
         {comparison?.reason==='stale_revision'&&<p className="text-xs">These saved signals cannot be verified against the current journal revision.</p>}
         <p className="mt-1 text-xs text-muted-foreground">Writing and facial expression can show different signals. This comparison does not establish how you feel.</p>

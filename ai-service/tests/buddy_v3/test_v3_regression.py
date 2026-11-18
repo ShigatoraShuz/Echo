@@ -53,10 +53,12 @@ class TestV3Policy(unittest.TestCase):
    self.assertEqual(e.response_role(text,'voice'),'steps')
    self.assertIn('SHORT readable numbered list',e.system_prompt(text,delivery_mode='voice'))
   with self.assertRaises(ValueError):e.response_role(ordinary,'invalid')
- def test_original_policy_retained(self):
+ def test_generation_settings_and_professional_policy_retained(self):
   p=e.policy()['generationPolicy']
-  self.assertTrue(e.system_prompt(USER2).startswith(p['V41_SYSTEM']))
-  self.assertTrue(e.system_prompt(USER2,retry=True).startswith(p['REWRITE_SYSTEM']))
+  professional='What CBT protocol can I use for my client?'
+  self.assertTrue(e.system_prompt(professional).startswith(p['V41_SYSTEM']))
+  self.assertTrue(e.system_prompt(professional,retry=True).startswith(p['REWRITE_SYSTEM']))
+  self.assertTrue(e.system_prompt(USER2).startswith('You are Buddy'))
   self.assertIn('SHORT readable numbered list',e.system_prompt(USER2))
   self.assertIn('AMBIGUOUS LANGUAGE',e.system_prompt(USER1))
   self.assertNotIn('AMBIGUOUS LANGUAGE',e.system_prompt(USER2))
@@ -135,7 +137,7 @@ class TestV3Delivery(unittest.TestCase):
  def dummy(self, first, second=None):
   model=e.LocalCBT.__new__(e.LocalCBT);model.template_state='mock'
   calls=[]
-  def fake(h,*,retry=False,allow_drops=True):
+  def fake(h,*,retry=False,allow_drops=True,repair_issues=()):
    calls.append(retry)
    return dict(second if retry else first)
   model._attempt=fake

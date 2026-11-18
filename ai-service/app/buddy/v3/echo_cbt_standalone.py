@@ -20,7 +20,7 @@ from formatting import format_existing, format_chat_response, wrap_for_console, 
 HERE = Path(__file__).resolve().parent
 POLICY_PATH = HERE / "reference" / "cbt-settings.json"
 STYLE_PATH = HERE / "style_config.json"
-VERSION = "echo_cbt_mixed_standalone_complete_steps_v3_20261101"
+VERSION = "echo_cbt_reviewer_informed_20261117"
 
 # Local, read-only model path fallbacks. User may override using CLI or env vars.
 BASE_CANDIDATES = [
@@ -192,9 +192,48 @@ def language(latest: str) -> str:
     return 'filipino'
 
 
+COUNT_WORDS = dict(zip('one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(), range(1,21)))
+COUNT_WORDS.update(dict(zip('isa dalawa tatlo apat lima anim pito walo siyam sampu'.split(),range(1,11))))
+COUNT_WORDS.update(dict(zip('isang dalawang tatlong apat limang anim pitong walong siyam sampung'.split(),range(1,11))))
+COUNT_WORDS.update(dict(zip('twenty thirty forty fifty sixty seventy eighty ninety'.split(),range(20,100,10))))
+LIST_NOUNS = r'(?:steps?|tips?|examples?|reasons?|items?|things|ways?|strategies|suggestions?|ideas?|hakbang|paraan|halimbawa|dahilan)'
+
+def requested_item_count(latest):
+    units='one|two|three|four|five|six|seven|eight|nine'
+    numbers=r'(?:\d+|(?:(?:'+units+r')\s+)?hundred|(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[-\s](?:'+units+r'))?|'+'|'.join(COUNT_WORDS)+r')'
+    match=re.search(r'\b('+numbers+r')(?:\s+(?:practical|simple|helpful|different|specific|useful|easy|small|coping|CBT|mga)){0,2}\s+'+LIST_NOUNS+r'\b',latest,re.I)
+    if not match:
+        match=re.search(r'\b(?:list|give me|show me|provide|suggest|name|recommend)\s+(?:all\s+)?('+numbers+r')\s+(?!(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b)\w+',latest,re.I)
+    if not match:return None
+    if re.search(r'\b(?:tried|have|received|got|read|gave me)\s*$',latest[:match.start()],re.I):return None
+    value=match[1].lower()
+    if value.isdigit():return int(value)
+    if value.endswith('hundred'):return (COUNT_WORDS.get(value.split()[0],1) if value!='hundred' else 1)*100
+    return sum(COUNT_WORDS[word] for word in re.split(r'[-\s]+',value))
+
+def list_target(latest):
+    count=requested_item_count(latest)
+    return max(1,min(10,count)) if count is not None else 3
+
+def list_limit_notice(answer, latest):
+    requested=requested_item_count(latest)
+    if requested is None or requested<=10:return answer
+    first=re.search(r'(?<!\S)1[.)]\s+\S',answer)
+    if not first:raise ValueError('Missing approved list')
+    intro,items=answer[:first.start()],answer[first.start():]
+    labels=[re.escape(str(requested)),*[re.escape(word) for word,value in COUNT_WORDS.items() if value==requested]]
+    if 20<requested<100 and requested%10:
+        tens=next(word for word,value in COUNT_WORDS.items() if value==requested//10*10)
+        unit=next(word for word,value in COUNT_WORDS.items() if value==requested%10)
+        labels.append(re.escape(tens)+r'[-\s]'+re.escape(unit))
+    intro=re.sub(r'\b(?:'+'|'.join(labels)+r')\b(?=\s+(?:[\w-]+\s+){0,2}'+LIST_NOUNS+r'\b)','ten',intro,flags=re.I)
+    return 'I can provide a maximum of ten items per reply.\n\n'+intro+items
+
 def role(latest: str) -> str:
     if SIMPLE_BRIEF.fullmatch(latest.strip()):
         return 'brief'
+    if requested_item_count(latest) is not None or STEP_REQUEST.search(latest) or re.search(r'\b(?:list|give me|suggest|provide)\b.{0,35}\b'+LIST_NOUNS+r'\b',latest,re.I):
+        return 'steps'
     if PROFESSIONAL.search(latest):
         return 'professional'
     if STEP_REQUEST.search(latest):
@@ -264,11 +303,18 @@ def system_prompt(latest: str, *, retry=False, delivery_mode='chat') -> str:
     if lang=='filipino':selected += p['FILIPINO_STYLE_GUIDE']
     elif lang=='taglish':selected += p['TAGLISH_STYLE_GUIDE']
     request=response_role(latest,delivery_mode)
+    if request in ('ordinary','brief','steps'):
+        selected=('You are Buddy, a warm, practical CBT-informed support assistant. Reply directly to the latest user message, using the earlier conversation only when relevant. Speak like a thoughtful person, not a worksheet or lecture. Do not invent experiences or facts, diagnose, prescribe medication, promise improvement, minimize distress, or claim to be a therapist. Preserve appropriate safety and professional-help guidance. Persistent or worsening distress and impaired functioning deserve appropriate real-world support. Do not infer a diagnosis from a metaphor or assume that ambiguous task-related frustration is a suicide disclosure. When the person shares writing, respond to their experience rather than rewriting or continuing it. Output only the reply. ')
+        if request=='steps':selected+='The user requested a list. Answer that task as distinct numbered items with concrete, concise, complete sentences. The explicit list count overrides ordinary advice and length preferences. '
+        else:selected+='Answer in three or four complete sentences across one or two natural paragraphs. Briefly acknowledge the specific feeling, then explain one doable starting action. Do not retell the whole message, stack strategies, add headings or lists, or finish with generic encouragement. One relevant reflection or question is optional. '
+        if retry:selected+='The previous draft failed quality checks. Give a new complete reply to the same user, preserving the conversation and following these instructions carefully. '
+        if lang=='filipino':selected+=p['FILIPINO_STYLE_GUIDE']
+        elif lang=='taglish':selected+=p['TAGLISH_STYLE_GUIDE']
     extra=''
     if request=='steps':
         extra=('\n\nEXPLICIT STEP-BY-STEP USER REQUEST: The user asked for instructions, '
                'so respond to their specific latest question with a SHORT readable numbered list '
-               '(usually 2-4 practical steps; only more if requested and justified). '
+               f'with exactly {list_target(latest)} complete items. '
                'Put each step on a separate line as "1. Action: short explanation.". '
                'Keep an optional one-sentence lead-in and brief close. '
                'Do not start a step you cannot finish. '
@@ -286,7 +332,20 @@ def system_prompt(latest: str, *, retry=False, delivery_mode='chat') -> str:
                 'Reflect the specific concern and offer one manageable idea if useful. '
                 'Avoid filler and long introductions. At most one gentle question. '
                 'Keep all safety boundaries. Do not cut off an unfinished thought.')
-    return selected + '\n\n' + STYLE_APPENDIX + extra
+    if request!='steps':
+        extra+=('\n\nREVIEWER-INFORMED CONVERSATION: Preserve specific emotional validation and appropriate boundaries. Explain how to start one relevant action rather than naming techniques. Encourage reflection without forcing a question. Do not force questions. Complete every thought and recommendation, including how to finish an exercise. Do not use stock reassurance, minimize symptoms, diagnose, or promise improvement. Persistent or worsening symptoms or impaired functioning warrant professional support.')
+    if request=='steps':
+        count=list_target(latest)
+        extra+=f'\nLIST REQUIREMENT OVERRIDES SHORTNESS TARGETS: Provide exactly {count} distinct, relevant, complete numbered items, numbered 1 through {count}. Use one concise complete sentence per item, with concrete detail. Do not stop early or add another item. Unspecified list counts default to three.'
+        if (requested_item_count(latest) or 0)>10:extra+=' Briefly explain that you are limiting this reply to ten items.'
+    if persistent_concern(latest):
+        extra+='\nCURRENT PERSISTENT CONCERN: First acknowledge the weeks of reduced enjoyment and the impact on self-worth. In the SECOND sentence recommend speaking with a counselor or mental-health professional because this has already persisted; do not postpone support until other strategies fail. Then explain ONE small observable starting action, such as briefly noting a change in energy or enjoyment during a daily activity to help describe the pattern. Keep the entire reply to three or four sentences. No hobby suggestions or menu of self-care activities. Do not diagnose.'
+    if request in ('ordinary','brief'):
+        if not persistent_concern(latest) and re.search(r'\b(?:assignment|school|deadline|requirements|academic|procrastinat)\w*\b',latest,re.I):
+            extra+='\nFor this schoolwork concern, explain how to select ONE task (for example the nearest deadline), then begin its smallest concrete part for a short time. Do not add a new daily/weekly planning program or tell them simply to prioritize or break tasks down. Keep this as prose, with no numbered substeps or unfinished introduction.'
+        elif re.search(r'\b(?:future|family|disappoint|failure|fail|expectations)\b',latest,re.I):
+            extra+='\nConnect the exercise to their feared outcome: distinguish the prediction about failure or disappointing family from what they actually know, then identify one controllable action. Explain the exercise in plain words instead of merely naming mindfulness or grounding. Avoid unrelated generic relaxation advice.'
+    return selected + '\n\n' + (STYLE_APPENDIX if request=='professional' else '') + extra
 
 
 def seed_for(messages: list[dict[str,str]], system: str) -> int:
@@ -347,8 +406,21 @@ def sentence_boundary(text: str, role_name: str) -> bool:
     t=text.strip()
     if not t or t[-1] not in '.!?。”！？':return False
     if t.count('```')%2 or dangling_structure(t):return False
-    if role_name not in ('professional','steps') and t.count('?')>1:return False
     return True
+
+def practical_help_requested(text):
+    return bool(re.search(r'\b(?:how (?:can|do|could|should) I|what can I do|where (?:can|do) I start|paano|anong (?:gagawin|puwede))\b',text,re.I))
+
+def usable_start(text):
+    # A structural specificity check, not a clinical or semantic quality score.
+    if re.search(r'\b(?:reflect(?:ing)? on|list(?:ing)?|writ(?:e|ing)|select(?:ing)?|identif(?:y|ying)|observ(?:e|ing)|pay(?:ing)? attention to|notic(?:e|ing)|start by|begin by)\b',text,re.I):return True
+    return bool(re.search(r'\b(?:write|choose|pick|set|name|identify|list|note|jot|notice|schedule|contact|walk|breathe|open|spend|ask yourself|start with|begin with|take (?:one|a|three)|try (?:one|a|this)|focus on (?:one|a|the)|talk (?:to|with)|reach out)\b',text,re.I))
+
+def persistent_concern(text):
+    return bool(re.search(r'\b(?:weeks?|months?|for a while)\b',text,re.I) and re.search(r'\b(?:empty|emptiness|worth|worthless|lost interest|loss of interest|lost enjoyment|no longer|don.t feel exciting)\b',text,re.I))
+
+def persistent_support_covered(answer):
+    return bool(re.search(r'\b(?:counsel[lo]+r|therapist|mental.health professional|healthcare|doctor|professional (?:help|support))\b',answer,re.I) and re.search(r'\b(?:weeks?|months?|persist\w*|ongoing|lasting|prolonged|extended period|for a while)\b',answer,re.I))
 
 
 def quality_issues(answer: str, latest: str, role_name: str, was_limited: bool) -> list[str]:
@@ -356,20 +428,30 @@ def quality_issues(answer: str, latest: str, role_name: str, was_limited: bool) 
     issues=[]
     if not a: issues.append('empty')
     if was_limited:issues.append('hard_token_limit')
+    if persistent_concern(latest) and not persistent_support_covered(a):issues.append('persistent_distress_support_missing')
+    if role_name in ('ordinary','brief') and practical_help_requested(latest) and not usable_start(a):issues.append('generic_advice_without_starting_action')
+    if role_name in ('ordinary','brief'):
+        if re.search(r"\b(?:you(?:'re| are) not alone|seeking help is a sign of strength|everyone has their own unique journey)\b",a,re.I):issues.append('stock_reassurance')
+        if re.search(r'\b(?:another (?:idea|strategy)|experiment with different (?:forms|activities)|(?:engaging in|forms of) self.care activities|remember to prioritize (?:sleep|nutrition))\b',a,re.I):issues.append('stacked_generic_advice')
     if a and dangling_structure(a): issues.append('dangling_list_or_clause')
     if a and not sentence_boundary(a,role_name):issues.append('unfinished_structure_or_clause')
     if role_name!='professional' and a.count('?')>=4:issues.append('excessive_questions_4plus')
-    if role_name in ('ordinary','steps') and word_count(a)>(210 if role_name=='steps' else 170):issues.append('extreme_response_length')
+    if role_name in ('ordinary','steps') and word_count(a)>(max(210,list_target(latest)*40) if role_name=='steps' else 240 if persistent_concern(latest) else 170):issues.append('extreme_response_length')
     if role_name=='brief' and word_count(a)>95:issues.append('extreme_response_length')
     if role_name not in ('professional','steps') and re.search(r'(?m)^\s*(?:#|\d+[.)]\s|[-*]\s)',a):issues.append('extreme_structural_overload')
+    if role_name not in ('professional','steps') and re.search(r'(?<!\S)\d{1,2}[.)]\s+\S',a) and 'extreme_structural_overload' not in issues:issues.append('extreme_structural_overload')
+    if persistent_concern(latest) and re.search(r'\b(?:activities|hobbies|small goals)\b',a,re.I) and not re.search(r'\b(?:write|note|record|track|jot|minute|minutes|open|one task|one activity|one change|pay attention to|observe|notice)\b',a,re.I):issues.append('persistent_advice_without_concrete_start')
     if role_name=='steps':
         markers=[int(x) for x in re.findall(r'(?<!\S)(\d{1,2})[.)]\s+\S',a)]
-        # An explicit request for a list should yield at least two coherent steps.
-        if len(markers)<2:issues.append('requested_step_list_missing')
-        elif markers!=list(range(1, len(markers)+1)):
+        if not markers:issues.append('requested_step_list_missing')
+        # Explicit counts include a single complete item.
+        if len(markers)!=list_target(latest):issues.append('requested_step_count_mismatch')
+        if markers!=list(range(1, len(markers)+1)):
             issues.append('nonconsecutive_step_numbering')
-        elif len(markers)>6 and not re.search(r'\b(?:[7-9]|1\d|20)\s+(?:steps?|things|items)\b',latest,re.I):
-            issues.append('excessive_step_count')
+        if len(markers)>10:issues.append('excessive_step_count')
+        items=re.split(r'(?<!\S)\d{1,2}[.)]\s+',a)[1:]
+        if any(not sentence_boundary(item.strip(),'steps') for item in items):issues.append('incomplete_list_item')
+        if len({re.sub(r'\W+','',item).casefold() for item in items})!=len(items):issues.append('duplicate_list_item')
     if word_count(latest)>=20 and a.casefold()==latest.casefold():issues.append('near_verbatim_user_copy')
     if re.search(r'\b(?:this,\s+(?:you|one|we)|pinpointinging|pahingap|orong)\b',a,re.I):issues.append('malformed_discourse_transition')
     return issues
@@ -428,29 +510,38 @@ class LocalCBT:
                 selected.pop(0);dropped+=1
         return {k:v.to(self.device) for k,v in inputs.items()},dropped
 
-    def _attempt(self,history,*,retry=False,allow_drops=True,delivery_mode="chat"):
+    def _attempt(self,history,*,retry=False,allow_drops=True,delivery_mode="chat",repair_issues=()):
         torch=self.torch
         latest=history[-1]['content']
         typ=response_role(latest,delivery_mode)
         lang=language(latest)
         prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode)
+        if repair_issues:
+            prompt+='\nREPAIR THESE OUTPUT PROBLEMS: '
+            if typ=='steps':prompt+=f'Use exactly {list_target(latest)} items, each on its own numbered line, with one complete sentence per item. Do not restart numbering or add extra items. '
+            else:prompt+='Write three fluent complete sentences in one paragraph: one specific acknowledgement, one concrete starting action with how to begin, and one relevant reflection or support suggestion. No bullets, numbering, menus of strategies, or filler transitions. '
+            if persistent_concern(latest):prompt+='Keep this to three sentences: acknowledge the weeks of difficulty; recommend counselor/professional support now without diagnosing; explain one concrete observation to note today and why it helps. Do not add other strategies. Example of concise structure, to adapt rather than copy: "Having so little energy for weeks can make even familiar routines feel heavy. Since this has lasted, consider speaking with a counselor about the changes and their effect on daily life. Today, jot down one activity that felt harder and when your energy shifted, so you have a concrete example to discuss." '
         max_new=policy()['runtime']['rewriteMaxNewTokens'] if retry else policy()['runtime']['maxNewTokens']
         inp,dropped=self._input(history,prompt,max_new,allow_drops=allow_drops)
         n_prompt=int(inp['input_ids'].shape[1])
         target=style()['word_targets'][typ if typ in ('brief','professional','steps') else lang]
         requested_steps=None
-        if delivery_mode=='voice' and typ=='steps':
-            match=re.search(r'\b([2-6]|two|three|four|five|six)(?:\s+\w+){0,2}\s+steps?\b',latest,re.I)
-            if match:requested_steps={'two':2,'three':3,'four':4,'five':5,'six':6}.get(match[1].lower(),int(match[1]) if match[1].isdigit() else None)
+        if typ=='steps':
+            requested_steps=list_target(latest)
+            target=requested_steps*18
         owner=self
         class CompleteSentenceStop(owner.StoppingCriteria):
             def __init__(self):
                 self.triggered=False
             def __call__(self, input_ids, scores, **kwargs):
                 extra=int(input_ids.shape[1])-n_prompt
-                if extra < max(35,target//2) or ((delivery_mode!="voice" or typ!="brief") and extra % 4 != 0):return False
+                if requested_steps:
+                    if extra<8:return False
+                elif extra < max(35,target//2):return False
                 text=owner.tokenizer.decode(input_ids[0,n_prompt:],skip_special_tokens=True)
-                if word_count(text)<target:return False
+                if not requested_steps and word_count(text)<target:return False
+                if not requested_steps and practical_help_requested(latest) and not usable_start(text):return False
+                if persistent_concern(latest) and not persistent_support_covered(text):return False
                 if not sentence_boundary(text,typ):return False
                 if requested_steps and len(re.findall(r'(?<!\S)\d{1,2}[.)]\s+\S',text))<requested_steps:return False
                 self.triggered=True
@@ -536,11 +627,12 @@ class LocalCBT:
                 return {'reply':None,'needs_review':True,'attempts':1,
                         'issues':['auto_format_failed'],
                         'warning':str(err),'inference_version':VERSION}
+            ready['reply']=list_limit_notice(ready['reply'],turns[-1]['content'])
             ready.update(attempts=1,rewrite_attempted=False,template_check=self.template_state)
             return ready
         try:
             # Context-preserving second attempt; rejected raw draft not provided.
-            second=self._attempt(turns,retry=True,allow_drops=False,**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
+            second=self._attempt(turns,retry=True,allow_drops=False,repair_issues=first['issues'],**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
             if not second['needs_review']:
                 try:
                     ready=self._approved_for_output(second)
@@ -548,6 +640,7 @@ class LocalCBT:
                     return {'reply':None,'needs_review':True,'attempts':2,'rewrite_attempted':True,
                             'issues':['auto_format_failed'],
                             'warning':str(err),'inference_version':VERSION}
+                ready['reply']=list_limit_notice(ready['reply'],turns[-1]['content'])
                 ready.update(attempts=2,rewrite_attempted=True,first_attempt_issues=first['issues'],template_check=self.template_state)
                 return ready
             return {'reply':None,'needs_review':True,'attempts':2,'rewrite_attempted':True,

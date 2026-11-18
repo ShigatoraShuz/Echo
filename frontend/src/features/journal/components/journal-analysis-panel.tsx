@@ -1,6 +1,8 @@
 "use client";
 const NativeAnalysis = dynamic(() => import("./native-analysis").then(m => m.NativeAnalysis), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 import Link from "next/link";
+import {useEffect,useState} from 'react';
+import {JournalDeepAnalysisToggle} from './journal-deep-analysis-toggle';
 import dynamic from "next/dynamic";
 const ModelPipelinePanel=dynamic(()=>import("./model-pipeline-panel").then(m=>m.ModelPipelinePanel));
 
@@ -183,6 +185,9 @@ function Phq8Gauge({ lower, upper }: { lower: number; upper: number }) {
 
 /* ─── Main component ──────────────────────────────────────────────────────── */
 export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPanelProps) {
+  const [selection,setSelection]=useState<{id?:string;enabled:boolean}>({enabled:false});
+  const deep=selection.id===analysis?.entryId&&selection.enabled;
+  useEffect(()=>setSelection({id:analysis?.entryId,enabled:false}),[analysis?.entryId]);
   if (isLoading) return <AnalysisSkeleton />;
 
   const panelBg = "hsl(var(--card))";
@@ -205,7 +210,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
   }
 
   const result = analysis.result;
-  if(result?.schemaVersion==="echo-model-pipeline-v2") return <ModelPipelinePanel result={result} />;
+  if(result?.schemaVersion==="echo-model-pipeline-v2") return <ModelPipelinePanel key={analysis.entryId} result={result} />;
   if (!result) {
     return (
       <div className="rounded-[2rem] border border-primary/10 p-6 sm:p-7" style={{ background: panelBg }}>
@@ -306,7 +311,8 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
           </article>
 
           {/* 2. Journal distress */}
-          <article
+          <JournalDeepAnalysisToggle checked={deep} onChange={enabled=>setSelection({id:analysis.entryId,enabled})}/>
+          {deep&&<article
             className={`rounded-2xl border p-5 ${distressMeta.bgClass} ${distressMeta.borderClass}`}
             style={{ backdropFilter: "blur(8px)" }}
           >
@@ -322,7 +328,7 @@ export function JournalAnalysisPanel({ analysis, isLoading }: JournalAnalysisPan
             <p className="mt-1 text-[11px] text-foreground/60">
               Estimated with {Math.round(result.distressConfidence * 100)}% model confidence.
             </p>
-          </article>
+          </article>}
 
           {/* 3. PHQ-8 */}
           <article className="rounded-2xl border border-primary/10 bg-card/80 p-5" style={{ backdropFilter: "blur(8px)" }}>

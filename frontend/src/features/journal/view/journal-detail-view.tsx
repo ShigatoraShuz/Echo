@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Trash2, Tag, Info, ImagePlus, Pencil, Check, X } from "lucide-react";
 import { useJournalDetailViewModel } from "../view-model/use-journal-detail-view-model";
 import { JournalAnalysisDock } from "../components/journal-analysis-dock";
+import {JournalDictationControl} from '../components/journal-dictation-control';
 import { JournalDeleteDialog } from "../components/journal-delete-dialog";
 import { JournalPhotoStack } from "../components/journal-photo-stack";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
@@ -43,6 +44,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [dictating,setDictating]=useState(false);
   useEffect(() => { setEditing(false); }, [id]);
   const editGuard = useJournalEditGuard(id, entry?.updatedAt,
     editing && Boolean(entry) && (editTitle !== entry?.title || editBody !== entry?.body), editTitle, editBody,
@@ -120,7 +122,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
         <div className="flex flex-wrap items-center gap-2">
           {editing ? <>
             <EchoButton variant="outline" className="rounded-full" disabled={isSavingEdit} onClick={() => { editGuard.forget(); setEditing(false); }}><X size={16} aria-hidden="true" /> Cancel edit</EchoButton>
-            <EchoButton className="rounded-full" isLoading={isSavingEdit} disabled={!editBody.trim() || !editTitle.trim() || editTitle.length > 200 || editBody.length > 10000}
+            <EchoButton className="rounded-full" isLoading={isSavingEdit} disabled={dictating || !editBody.trim() || !editTitle.trim() || editTitle.length > 200 || editBody.length > 10000}
               onClick={async () => { if (await saveEdit(editTitle, editBody)) { editGuard.forget(); setEditing(false); } }}><Check size={16} aria-hidden="true" /> Save changes</EchoButton>
           </> : <EchoButton variant="outline" className="rounded-full bg-card/75" onClick={() => { setEditTitle(entry.title); setEditBody(entry.body); setEditing(true); }}><Pencil size={16} aria-hidden="true" /> Edit entry</EchoButton>}
           <EchoButton
@@ -191,6 +193,7 @@ export function JournalDetailView({ id }: JournalDetailViewProps) {
               <div className="mt-9 max-w-[68ch] border-t border-[#e6e0d3] pt-8 sm:mt-12 sm:pt-10">
                 {editing ? <label className="block text-xs font-semibold uppercase tracking-wider text-primary">Your reflection
                   <textarea aria-label="Edit journal reflection" value={editBody} onChange={event => setEditBody(event.target.value)} maxLength={10000} disabled={isSavingEdit} rows={14} className="mt-3 min-h-80 w-full resize-y rounded-2xl border border-primary/20 bg-background p-5 font-serif text-lg font-normal normal-case leading-8 tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
+                  <JournalDictationControl body={editBody} onChange={setEditBody} identity={id} disabled={isSavingEdit} onBusyChange={setDictating}/>
                 </label> : (                <p className="journal-ink-arrive whitespace-pre-wrap break-words text-[1.08rem] leading-[1.9] text-foreground/90 sm:text-[1.2rem] [font-family:var(--font-echo-display)]">
                   {entry.body}
                 </p>)}
