@@ -55,6 +55,10 @@ function validateOrigin(allowedOrigin: string) {
     allowedOrigin.replace("localhost", "127.0.0.1"),
     allowedOrigin.replace("127.0.0.1", "localhost"),
   ]);
+  if (process.env.NODE_ENV !== "production") {
+    allowed.add("http://127.0.0.1:3000");
+    allowed.add("http://localhost:3000");
+  }
   return (request: Request, _response: Response, next: NextFunction) => {
     const origin = request.header("origin");
     if (request.method !== "GET" && (!origin || !allowed.has(origin)))
