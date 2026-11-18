@@ -1,3 +1,4 @@
+import { analysisWordingPreference } from "@/shared/hooks/use-analysis-wording";
 import type { JournalService } from "@/services/journal/journal.service";
 import type {
   JournalDraft,
@@ -276,7 +277,7 @@ export function createJournalHttpAdapter(): JournalService {
     },
     async exportEntry(id) {
       try {
-        const pdf=await client.get<Blob>(`/journals/${encodeURIComponent(id)}/export?format=pdf`);
+        const pdf=await client.get<Blob>(`/journals/${encodeURIComponent(id)}/export?format=pdf&wording=${analysisWordingPreference()?"gentle":"original"}`);
         if(!(pdf instanceof Blob)||!pdf.size||!pdf.type.includes('application/pdf'))throw Error('Invalid PDF response');
         return {success:true,data:{pdf,filename:`journal-${id.replace(/[^a-zA-Z0-9-]/g,'').slice(0,36)}.pdf`}};
       } catch(error){return {success:false,error:toServiceError(error)};}

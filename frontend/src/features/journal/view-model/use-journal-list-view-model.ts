@@ -142,10 +142,12 @@ export function useJournalListViewModel() {
       const result = await service.deleteEntry(id);
       if (result.success) {
         dispatch({ type: "DELETE_ENTRY", id });
+        window.dispatchEvent(new Event("echo:journal-changed"));
         const nextPage = state.entries.length === 1 && state.pagination.page > 1 ? state.pagination.page - 1 : state.pagination.page;
         if (nextPage !== state.pagination.page) dispatch({ type: "SET_PAGE", page: nextPage });
         else void loadEntries(state.filters, nextPage);
       }
+      return result.success;
     },
     [service, loadEntries, state.entries.length, state.filters, state.pagination.page]
   );

@@ -1,4 +1,6 @@
 "use client";
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
+
 
 import { useState } from "react";
 import { EchoDialog } from "@/shared/components/ui/echo-dialog";
@@ -15,6 +17,7 @@ import { AnalysisRequestStatus } from "@/features/journal/components/analysis-re
 const NativeAnalysis = dynamic(() => import("@/features/journal/components/native-analysis").then(m => m.NativeAnalysis), { loading: () => <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> });
 
 export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardInsights }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const [detailOpen, setDetailOpen] = useState(false);
   if (!insights?.latest || insights.latest.isSimulated)
     return (
@@ -40,7 +43,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
               <h2 className="dashboard-eyebrow">Journal analysis</h2>
               <p className="mt-2 text-lg font-semibold capitalize text-foreground">
                 {summary.emotion ?? "Emotion unavailable"} <span className="text-primary/30">·</span>{" "}
-                {summary.distress ?? "Category unavailable"}
+                {analysisLabel(summary.distress ?? "Category unavailable")}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 {summary.status === "complete" ? "Complete" : "Partial"} saved analysis · not a diagnosis
@@ -164,7 +167,7 @@ export function AnalysisInsightsDashboard({ insights }: { insights?: DashboardIn
           <article className="border-t border-border/70 pt-4 lg:col-span-4">
             <div className="flex items-center gap-3">
               <HeartPulse className="h-5 w-5 text-primary" aria-hidden="true" />
-              <h3 className="font-semibold">AI-estimated depressive-symptom range</h3>
+              <h3 className="font-semibold">{analysisLabel("AI-estimated depressive-symptom range")}</h3>
             </div>
             <p className="mt-5 font-[family-name:var(--font-echo-display)] text-4xl font-semibold">
               {result.depressiveSymptomRange.lower}–{result.depressiveSymptomRange.upper}

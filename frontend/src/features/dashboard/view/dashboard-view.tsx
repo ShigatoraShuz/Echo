@@ -21,7 +21,6 @@ import { useDashboardViewModel } from "../view-model/use-dashboard-view-model";
 import { dashboardPreviewService } from "../model/dashboard-preview.service";
 import { JournalCbtRecommendation } from "@/features/journal/components/journal-cbt-recommendation";
 import { DominantEmotionWheel } from "../components/dominant-emotion-wheel";
-import { DailyDistressCheckin } from "../components/daily-distress-checkin";
 import { WellnessCheckin } from "../components/wellness-checkin";
 import { analysisSummary } from "@/features/journal/model/analysis-summary";
 import { OverallAnalysis } from "../components/overall-analysis";
@@ -124,7 +123,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
       {isLoading && <p role="status" className="sr-only">Updating your dashboard…</p>}
 
       <div className="dashboard-top-grid grid gap-4 lg:grid-cols-2 xl:grid-cols-12">
-        <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 lg:col-span-2 xl:col-span-6">
+        <header className="echo-dashboard-hero flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-3xl bg-[linear-gradient(120deg,rgba(251,247,238,0.94),rgba(220,232,214,0.72))] px-5 py-4 sm:px-6 xl:col-span-8">
           <div className="min-w-0">
             <p className="dashboard-eyebrow mb-3">YOUR QUIET CORNER</p>
             <h1 className="break-words text-[clamp(1.75rem,2.5vw,2.5rem)] font-medium leading-tight tracking-[-0.035em] text-[var(--landing-ink)] [font-family:var(--font-echo-display)]">
@@ -161,8 +160,6 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
       (data.analysisInsights.latest.cbtRecommendation || data.analysisInsights.latest.supportReviewRequired) ? (
         <JournalCbtRecommendation result={data.analysisInsights.latest} heading="Latest reflection recommendation" />
       ) : null}
-
-      {!preview && <DailyDistressCheckin />}
 
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">

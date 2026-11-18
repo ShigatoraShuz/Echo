@@ -1,4 +1,5 @@
 "use client";
+import { setBackgroundMusicVoiceFocus } from "@/services/audio/background-music";
 import { startModelLease } from "@/shared/lib/model-lease-session";
 import styles from "./buddy-studio.module.css";
 import Link from "next/link";
@@ -29,7 +30,7 @@ import {
   Wind,
 } from "lucide-react";
 import { useBuddyViewModel } from "../view-model/use-buddy-view-model";
-import { BuddyTalkAvatar } from "../components/buddy-talk-avatar";
+import { BuddyVoiceStudio } from "../components/buddy-voice-studio";
 import { useRealtimeTalk, acquireBuddyLease, heartbeatBuddyLease, getBuddyLease, releaseBuddyLease } from "../view-model/use-realtime-talk";
 import { useBuddyVoiceControls } from "../view-model/use-buddy-voice-controls";
 import { BuddyTypingIndicator } from "../components/buddy-typing-indicator";
@@ -88,6 +89,10 @@ export function BuddyView() {
     window.addEventListener('pagehide',leave);window.addEventListener('focus',session.retry);
     return ()=>{window.removeEventListener('pagehide',leave);window.removeEventListener('focus',session.retry);leave();};
   },[vm.accessStatus,vm.historyStore,stopRealtime,cancelVoice]);
+
+  const voiceBusy = realtime.active || ["preparing", "preparing_speech"].includes(realtime.state) || voice.isListening || voice.isTranscribing || voice.isPreparingSpeech || voice.isSpeaking;
+  useEffect(() => { setBackgroundMusicVoiceFocus(voiceBusy); }, [voiceBusy]);
+  useEffect(() => () => setBackgroundMusicVoiceFocus(false), []);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
@@ -546,7 +551,7 @@ export function BuddyView() {
           tabIndex={0}
           aria-label="Conversation messages"
           aria-busy={vm.isLoadingMessages || vm.isSending}
-          className={`${styles.messages} echo-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-primary)] sm:px-8`}
+          className={`${mode === "talk" && realtime.enabled ? "!hidden" : ""} ${styles.messages} echo-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--landing-primary)] sm:px-8`}
         >
           <div className={`${styles.thread} space-y-5`}>
             {vm.isLoadingMessages && vm.messages.length === 0 && (
@@ -578,7 +583,16 @@ export function BuddyView() {
           </div>
         </div>
 
-        <div className={`${styles.composerArea} shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 lg:px-8`}>
+        {mode === "talk" && realtime.enabled && (
+          <div className="echo-panel-scroll min-h-0 flex-1 overflow-y-auto">
+            <BuddyVoiceStudio talk={realtime} disabled={savedChatReadOnly || vm.isSending} messages={vm.messages}
+              onStart={() => { cancelVoice(); void realtime.start(); }}
+              speechProvider={<SttProviderSelect value={sttProvider} onChange={setSttProvider} disabled={realtime.active} />}
+            />
+          </div>
+        )}
+
+        <div className={`${mode === "talk" && realtime.enabled ? "!hidden" : ""} ${styles.composerArea} shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 lg:px-8`}>
           <div className="mx-auto max-w-3xl">
             <SttProviderSelect value={sttProvider} onChange={setSttProvider} disabled={realtime.active||voice.isListening||voice.isTranscribing||voice.isPreparingSpeech||voice.isSpeaking}/>
             <p className="mb-2 text-xs text-[var(--landing-muted)]">
@@ -588,108 +602,6 @@ export function BuddyView() {
                   : "Record a message, then stop to send. Buddy will read the reply aloud."
                 : "Type a message. Your conversation continues when you switch modes."}
             </p>
-            {mode === "talk" && realtime.enabled && (
-              <div className="mb-3 space-y-2 rounded-xl border border-[var(--landing-primary-20)] p-3">
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="font-semibold underline"
-                    disabled={savedChatReadOnly || vm.isSending}
-                    onClick={() => { if(realtime.active)realtime.stop();else{cancelVoice();void realtime.start();} }}
-                  >
-                    {realtime.active ? "Stop Talk" : "Start Talk"}
-                  </button>
-                  {realtime.active && (
-                    <button type="button" onClick={realtime.interrupt}>
-                      Interrupt Buddy
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <BuddyTalkAvatar state={realtime.state} analyser={realtime.analyser} />
-                  <p role="status" className="text-xs capitalize">
-                    {realtime.state.replaceAll("_", " ")}
-                  </p>
-                </div>
-                {realtime.active&&realtime.state==='paused'&&<button type="button" onClick={()=>void realtime.resumeTalk()}>Resume Talk</button>}
-                {realtime.state === "playback_blocked" && (
-                  <button type="button" onClick={() => void realtime.resumePlayback()}>
-                    Play Buddy reply
-                  </button>
-                )}
-                {realtime.state === "speech_failed" && (
-                  <button type="button" onClick={realtime.retrySpeech}>
-                    Retry approved speech
-                  </button>
-                )}
-                <label className="block text-xs">
-                  Talk voice
-                  <select value={realtime.voiceMode} disabled={realtime.active}
-                    onChange={(e) => realtime.setVoiceMode(e.target.value as "fast" | "expressive")}>
-                    <option value="fast">Fast · MOSS Nano</option>
-                    <option value="expressive">More expressive tone in Talk (slower) · MOSS v1.5</option>
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  Microphone sensitivity
-                  <select value={realtime.sensitivity} disabled={realtime.active} onChange={e=>realtime.setSensitivity(e.target.value as 'normal'|'sensitive')}>
-                    <option value="normal">Normal</option><option value="sensitive">Sensitive (quiet speech)</option>
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  Speech delivery
-                  <select
-                    value={realtime.speechMode}
-                    disabled={realtime.active}
-                    onChange={(e) => realtime.setSpeechMode(e.target.value as "sentences_2_then_3" | "buffered")}
-                  >
-                    <option value="sentences_2_then_3">First two sentences, then batches of three</option>
-                    <option value="buffered">Generate whole speech before playback</option>
-                  </select>
-                </label>
-                {realtime.readiness?.freeGpuBytes !== undefined && (
-                  <p className="text-xs">
-                    GPU free after warm-up: {(realtime.readiness.freeGpuBytes / 1024 ** 3).toFixed(1)} GiB.
-                    {realtime.readiness.loadAndWarmSeconds !== undefined &&
-                      ` Model loading and warm-up: ${realtime.readiness.loadAndWarmSeconds.toFixed(1)} s.`}
-                  </p>
-                )}
-                {realtime.transcript && <p className="text-sm">Transcript: {realtime.transcript}</p>}
-                {realtime.error && (
-                  <p role="alert" className="text-sm">
-                    {realtime.error}
-                  </p>
-                )}
-                <label className="flex gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={realtime.experimentalLanguages}
-                    disabled={realtime.active}
-                    onChange={(e) => {
-                      realtime.setExperimentalLanguages(e.target.checked);
-                      if (!e.target.checked) realtime.setLanguage("English");
-                    }}
-                  />
-                  Experimental languages (Filipino and Taglish are unsupported/unverified)
-                </label>
-                <label className="block text-xs">
-                  Language
-                  <select
-                    value={realtime.language}
-                    disabled={realtime.active}
-                    onChange={(e) => realtime.setLanguage(e.target.value as "English" | "Filipino" | "Taglish")}
-                  >
-                    <option value="English">English</option>
-                    {realtime.experimentalLanguages && <option value="Filipino">Filipino (experimental)</option>}
-                    {realtime.experimentalLanguages && <option value="Taglish">Taglish (experimental)</option>}
-                  </select>
-                </label>
-                <p className="text-xs">
-                  Audio stays temporary. Buddy reuses its saved generated voice reference. Animation shows speech
-                  activity. It is not phoneme-accurate lip synchronization.
-                </p>
-              </div>
-            )}
             {voice.isTranscribing && <p role="status">Transcribing locally...</p>}
             {mode === "talk" && (voice.isTranscribing || voice.isPreparingSpeech || voice.isSpeaking || vm.isSending) && (
               <button

@@ -147,6 +147,7 @@ export function useRealtimeTalk(options: Options) {
     [language, setLanguage] = useState<TalkLanguage>("English"),
     [experimentalLanguages, setExperimentalLanguages] = useState(false),
     [analyser, setAnalyser] = useState<AnalyserNode | null>(null),
+    [callerAnalyser, setCallerAnalyser] = useState<AnalyserNode | null>(null),
     [readiness, setReadiness] = useState<{ freeGpuBytes?: number; loadAndWarmSeconds?: number } | null>(null);
 
   const isCurrent = useCallback((s: LocalSession) => !s.closed && s.epoch === epoch.current, []);
@@ -186,6 +187,7 @@ export function useRealtimeTalk(options: Options) {
       s.ring = [];
     }
     setAnalyser(null);
+    setCallerAnalyser(null);
     setReadiness(null);
     setActive(false);
     setState("idle");
@@ -305,6 +307,10 @@ export function useRealtimeTalk(options: Options) {
           if (isCurrent(s)) fail(error instanceof Error ? error.message : "Voice capture failed.");
         }
       };
+      const caller = s.ctx.createAnalyser();
+      caller.fftSize = 512;
+      source.connect(caller);
+      setCallerAnalyser(caller);
       source.connect(node);
       node.connect(s.ctx.destination);
       if (s.ctx.state === "running") {
@@ -750,6 +756,7 @@ export function useRealtimeTalk(options: Options) {
     experimentalLanguages,
     setExperimentalLanguages,
     analyser,
+    callerAnalyser,
     readiness,
     resumePlayback,resumeTalk,
     retrySpeech,

@@ -7,6 +7,7 @@ import { EchoIntroGate } from "@/shared/components/branding/echo-intro-gate";
 
 import "lenis/dist/lenis.css";
 import "./globals.css";
+import { BackgroundMusicController } from "@/shared/components/navigation/background-music-controller";
 
 export const metadata: Metadata = {
   title: "ECHO",
@@ -69,7 +70,7 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <EchoIntroGate>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider><BackgroundMusicController />{children}</ThemeProvider>
         </EchoIntroGate>
       </body>
     </html>

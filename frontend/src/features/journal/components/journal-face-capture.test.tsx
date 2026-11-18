@@ -110,7 +110,7 @@ it("shows a recoverable camera denial without starting a worker", async () => {
   expect(WorkerMock).not.toHaveBeenCalled();
 });
 
-it("captures immediately at Save even when the live preview request never completes", async () => {
+it("keeps tracking, expression evaluation, and Save capture working with the mesh hidden", async () => {
   const image = new Blob(["synthetic frame"], {type:"image/jpeg"});
   vi.spyOn(HTMLVideoElement.prototype,"videoWidth","get").mockReturnValue(640);
   vi.spyOn(HTMLMediaElement.prototype,"readyState","get").mockReturnValue(4);
@@ -128,6 +128,15 @@ it("captures immediately at Save even when the live preview request never comple
   const ref=createRef<JournalFaceCaptureHandle>();
   const view=render(<JournalFaceCapture ref={ref} running />);
   await waitFor(()=>expect(worker).toBeDefined());
+  const video=document.querySelector("video");
+  const mesh=screen.getByRole("img",{name:/Live face landmark mesh/});
+  const toggle=screen.getByRole("switch",{name:"Show face mesh"});
+  expect(toggle).toHaveAttribute("aria-checked","true");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-checked","false");
+  expect(mesh).not.toBeVisible();
+  expect(document.querySelector("video")).toBe(video);
+  expect(worker.terminate).not.toHaveBeenCalled();
   const timers=new Map<number,()=>void>();
   vi.spyOn(globalThis,"setInterval").mockImplementation(((callback:()=>void,delay:number)=>{timers.set(delay,callback);return 12345;}) as typeof setInterval);
   await act(async()=>{
@@ -140,6 +149,11 @@ it("captures immediately at Save even when the live preview request never comple
   await act(async()=>expect(await ref.current!.getStill()).toBe(image));
   expect((pending.mock.calls[0] as unknown as [string,RequestInit])[1].signal?.aborted).toBe(true);
   expect(ref.current!.getCapture()?.landmarks).toHaveLength(478);
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-checked","true");
+  expect(mesh).toBeVisible();
+  expect(document.querySelector("video")).toBe(video);
+  expect(worker.terminate).not.toHaveBeenCalled();
   view.unmount();
 });
 it('shows a validated expression after retry without restarting the detected face',async()=>{

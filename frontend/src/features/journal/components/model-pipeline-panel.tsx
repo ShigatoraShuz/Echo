@@ -1,4 +1,6 @@
 "use client";
+import { useAnalysisWording } from "@/shared/hooks/use-analysis-wording";
+
 import type { ModelPipelineResult } from "@echo/contracts";
 import {useState} from 'react';
 import {JournalDeepAnalysisToggle} from './journal-deep-analysis-toggle';
@@ -11,6 +13,7 @@ const titles = {
   face: "Face analysis",
 };
 export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) {
+  const { label: analysisLabel } = useAnalysisWording();
   const [deep,setDeep]=useState(false);
   return (
     <section
@@ -53,7 +56,7 @@ export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) 
                       <ul className="mt-3 space-y-2" aria-label={`${titles[key]} top five`}>
                         {output.topFive.map((score) => (
                           <li key={score.label} className="flex min-w-0 justify-between gap-3 text-sm">
-                            <span className="break-words">{score.label}</span>
+                            <span className="break-words">{analysisLabel(score.label)}</span>
                             <span className="shrink-0 tabular-nums">{(score.probability * 100).toFixed(1)}%</span>
                           </li>
                         ))}
@@ -84,7 +87,7 @@ export function ModelPipelinePanel({ result }: { result: ModelPipelineResult }) 
                 <dl className="mt-3 space-y-1 text-xs">
                   {Object.entries(result.stages.phq8.result.items).map(([name, value]) => (
                     <div key={name} className="flex justify-between gap-2">
-                      <dt className="break-words">{name.replaceAll("_", " ")}</dt>
+                      <dt className="break-words">{analysisLabel(name.replaceAll("_", " "))}</dt>
                       <dd>{value === null ? "Unknown" : value}</dd>
                     </div>
                   ))}
