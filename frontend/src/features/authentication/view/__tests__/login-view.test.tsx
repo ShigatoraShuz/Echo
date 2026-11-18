@@ -65,6 +65,12 @@ describe("LoginView", () => {
     expect(mock.submit).toHaveBeenCalled();
   });
 
+  it("offers email verification recovery after an unconfirmed login", () => {
+    vi.mocked(useLoginViewModel).mockReturnValue({ ...setupMock(), email: "mira@example.com", status: "error", error: { code: "EMAIL_NOT_CONFIRMED", message: "Verify your email address before logging in." } });
+    render(<LoginView title="Log in" description="Welcome back" />);
+    expect(screen.getByRole("button", { name: "Resend verification email" })).toBeEnabled();
+  });
+
   it("explains why a signed-out user was sent to the login page", () => {
     navigation.searchParams = new URLSearchParams("error=login_required&next=%2Fdashboard");
     vi.mocked(useLoginViewModel).mockReturnValue(setupMock() as ReturnType<typeof setupMock>);

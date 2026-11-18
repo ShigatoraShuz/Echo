@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { type ChangeEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ImagePlus, LockKeyhole, Save, Music2, Pause, Play } from "lucide-react";
-import { useJournalMusic } from "../view-model/use-journal-music";
+import { ArrowLeft, ImagePlus, LockKeyhole, Save } from "lucide-react";
+import { setBackgroundMusicVoiceFocus } from "@/services/audio/background-music";
 import {JournalDictationControl} from '../components/journal-dictation-control';
 import journalWriting from "../../../../assets/journal-writing.webp";
 import { env } from "@/config/environment";
@@ -56,8 +56,11 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
     saveDraftNow,
     reset,
   } = useJournalEditorViewModel({resumeDraft});
-  const music = useJournalMusic(Boolean(analysisSubmission || savedEntry));
   const [dictating,setDictating]=useState(false);
+  useEffect(() => {
+    setBackgroundMusicVoiceFocus(dictating);
+    return () => setBackgroundMusicVoiceFocus(false);
+  }, [dictating]);
   const activeSubmission = analysisSubmission ?? pendingSubmission;
   const report = useJournalDetailViewModel(activeSubmission?.journalId ?? "");
   const [photos, setPhotos] = useState<JournalPhotoPreview[]>([]);
@@ -423,7 +426,6 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
                 value={body}
                 onChange={(event) => {
                   setBody(event.target.value);
-                  if (event.target.value.trim()) void music.start();
                 }}
                 onBlur={() => void saveDraftNow()}
                 placeholder="Start writing…"
@@ -436,21 +438,9 @@ export function JournalEditorView({resumeDraft=false}:{resumeDraft?:boolean}={})
               )}
               <JournalDictationControl body={body} onChange={setBody} identity={editorGeneration}
                 disabled={!draftReady||Boolean(previousDraft)||preparingFace||isSaving||Boolean(activeSubmission||savedEntry)}
-                onBusyChange={setDictating} onStart={()=>{if(music.playback==='playing')music.toggle();}}/>
+                onBusyChange={setDictating}/>
               {faceWarning&&<div><p role="status" className="text-sm text-muted-foreground">{faceWarning}</p><button type="button" disabled={isRetryingFace} onClick={()=>void retryFace()} className="text-sm underline">{isRetryingFace?'Retrying facial analysis…':'Retry facial analysis'}</button></div>}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Music2 size={14} aria-hidden="true" className="text-primary" />
-                  {music.playback === "idle" ? <span>Music begins as you write</span> : music.playback === "unavailable" ? <span>Journal music unavailable</span> : (
-                    <>
-                      <button type="button" onClick={music.toggle} disabled={music.playback === "loading"} aria-label={music.playback === "playing" ? "Pause journal music" : "Resume journal music"} className="inline-flex min-h-9 items-center gap-2 rounded-full px-2 text-primary outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-primary">
-                        {music.playback === "playing" ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
-                        {music.playback === "loading" ? "Preparing music…" : music.playback === "playing" ? "Journal music" : "Music paused"}
-                      </button>
-                      <input type="range" aria-label="Journal music volume" min="0" max="100" value={Math.round(music.volume * 100)} onChange={event => music.changeVolume(Number(event.target.value) / 100)} className="w-20 accent-[var(--landing-primary)]" />
-                    </>
-                  )}
-                </div>
                 <p className="text-xs text-muted-foreground">{wordCount} words · {charCount} characters</p>
               </div>
             </div>

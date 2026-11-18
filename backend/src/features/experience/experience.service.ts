@@ -1,3 +1,5 @@
+import { resettingAccounts } from "../../shared/account-activity-reset.js";
+import { shouldOfferBuddyInvitation } from "./buddy-invitation.js";
 import {ModelPageLeases} from '../../infrastructure/analysis/model-page-leases.js';
 import {LocalVoiceJobs} from './local-voice-jobs.js';
 import {appPresence} from '../../infrastructure/security/app-presence.js';
@@ -176,8 +178,45 @@ export class ExperienceService {
   async cancelLocal(user:string,journal:string){await this.journals.get(user,journal);this.journals.cancelLocalWork(user,journal);await this.journals.localResults?.remove(user,journal);}
   async archiveLocal(user:string,id:string,archived:boolean){if(!this.localBuddy)throw new NotFoundError('Local storage is disabled.');return this.localBuddy.mutate(user,id,c=>({...c,archived}));}
   async exportLocal(user:string){if(!this.localBuddy||!this.journals.localResults)throw new NotFoundError('Local storage is disabled.');return {format:'echo-local-v1',...await this.journals.localResults.exportAccount(user)};}
-  async clearLocal(user:string){this.journals.cancelLocalWork(user);await this.realtime?.endUser(user);await this.voiceJobs.clear(user);for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);if(this.journals.localResults)await this.journals.localResults.clear(user);else await this.localBuddy?.clear(user);}
+  async clearLocal(user:string){this.journals.cancelLocalWork(user);await this.realtime?.endUser(user);await this.voiceJobs.clear(user);for(const key of this.temporary.keys())if(key.startsWith(user+':'))this.temporary.delete(key);for(const key of this.approvedVoice.keys())if(key.startsWith(user+':'))this.approvedVoice.delete(key);for(const key of this.hostedTurns.keys())if(key.startsWith(user+':'))this.hostedTurns.delete(key);if(this.journals.localResults)await this.journals.localResults.clear(user);else await this.localBuddy?.clear(user);}
   async retryLocal(user:string,journal:string){return this.journals.retryLocalAnalysis(user,journal);}
+  private readonly activityResetting = resettingAccounts;
+  async resetActivity(user: string, requestId: string) {
+    if (this.activityResetting.has(user)) throw new ConflictError("RESET_BUSY", "Your reset is already running. Please wait.");
+    this.activityResetting.add(user);
+    try {
+      const reset = await this.database.schema("user_service").rpc("reset_account_activity", { p_user_id: user, p_request_id: requestId });
+      if (reset.error) throw new ExternalServiceError("RESET_UNAVAILABLE", "Your activity reset could not be completed. Retry with the same request.");
+      if (reset.data.completed) return { reset: true };
+      const receiptId = reset.data.requestId ?? requestId;
+      await this.clearLocal(user);
+      const paths = reset.data.imagePaths as string[];
+      if (!Array.isArray(paths) || paths.some(path => !path.startsWith(user + "/") || path.split("/").includes("..")))
+        throw new ExternalServiceError("RESET_UNAVAILABLE", "Photo cleanup could not be verified.");
+      for (let index = 0; index < paths.length; index += 100) {
+        const batch = paths.slice(index, index + 100);
+        const removed = await this.database.storage.from("journal-images").remove(batch);
+        if (removed.error) throw new ExternalServiceError("RESET_CLEANUP_PENDING", "Your activity was cleared, but photo cleanup is still pending. Retry to finish.");
+        const cleaned = await this.database.schema("journal_service").from("image_deletion_queue").delete().in("storage_path", batch);
+        if (cleaned.error) throw new ExternalServiceError("RESET_CLEANUP_PENDING", "Photo cleanup needs another retry.");
+      }
+      const finished = await this.database.schema("user_service").from("activity_reset_receipts")
+        .update({ completed: true, image_paths: [] }).eq("request_id", receiptId).eq("user_id", user);
+      if (finished.error) throw new ExternalServiceError("RESET_UNAVAILABLE", "Reset completion could not be confirmed. Retry safely.");
+      return { reset: true };
+    } finally { this.activityResetting.delete(user); }
+  }
+
+  async buddyInvitation(user: string) {
+    if (this.activityResetting.has(user)) return { show: false };
+    const insights = await this.journals.dashboardInsights(user, { range: "7d" });
+    if (!shouldOfferBuddyInvitation(insights.emotionTrend)) return { show: false };
+    if ((await this.journals.blockedLocalReflections(user)).length) return { show: false };
+    const claim = await this.database.schema("insights_service").rpc("claim_buddy_invitation", { p_user_id: user });
+    if (claim.error) throw new ExternalServiceError("NOTIFICATIONS_UNAVAILABLE", "Buddy invitations are temporarily unavailable.");
+    return { show: claim.data === true };
+  }
+
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
   private async historyEnabled(userId: string): Promise<boolean> {
@@ -329,7 +368,8 @@ export class ExperienceService {
   }
 
   async deleteBuddyConversation(userId: string, conversationId: string) {
-    if(this.localBuddy){await this.realtime?.endConversation(userId,conversationId);return await this.localBuddy.remove(userId,conversationId);}
+    await this.realtime?.endConversation(userId,conversationId);
+    if(this.localBuddy){return await this.localBuddy.remove(userId,conversationId);}
     await this.ownedConversation(userId, conversationId);
     const { data, error } = await this.database.schema("buddy_service").from("buddy_conversations")
       .delete().eq("id", conversationId).eq("user_id", userId).select("id").maybeSingle();

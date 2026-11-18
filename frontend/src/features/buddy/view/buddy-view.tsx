@@ -95,6 +95,10 @@ export function BuddyView() {
   useEffect(() => () => setBackgroundMusicVoiceFocus(false), []);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
+  const deleteOpenTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(deleteOpenTimer.current), []);
+  const [deleteTarget, setDeleteTarget] = useState<BuddyConversation | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [renameTarget, setRenameTarget] = useState<BuddyConversation | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -373,6 +377,14 @@ export function BuddyView() {
                             className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg text-xs font-semibold text-[var(--landing-primary)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--landing-primary)]"
                           >
                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Rename
+                          </button>
+                          <button type="button" onClick={() => {
+                            setActionsId(null);
+                            setHistoryOpen(false);
+                            window.clearTimeout(deleteOpenTimer.current);
+                            deleteOpenTimer.current = window.setTimeout(() => setDeleteTarget(conversation), reducedMotion ? 0 : 190);
+                          }} className="flex min-h-11 flex-1 items-center justify-center rounded-lg text-xs font-semibold text-danger hover:bg-crisis-soft">
+                            Delete
                           </button>
                           {pinsAvailable && (
                             <button
@@ -786,6 +798,21 @@ export function BuddyView() {
       >
         {renderHistoryPanel(true)}
       </EchoSheet>
+      <EchoDialog dismissible={!deleting} open={Boolean(deleteTarget)} onClose={() => { if (!deleting) setDeleteTarget(null); }}
+        title="Delete conversation?" description="This permanently removes this conversation and its messages. This cannot be undone.">
+        <p className="text-sm text-muted-foreground">Delete “{deleteTarget?.title}”?</p>
+        {vm.error && <p role="alert" className="mt-3 text-sm text-danger">{vm.error}</p>}
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" disabled={deleting} onClick={() => setDeleteTarget(null)} className="min-h-11 rounded-full border border-border px-4 text-sm">Cancel</button>
+          <button type="button" disabled={deleting} className="min-h-11 rounded-full bg-danger px-4 text-sm font-semibold text-white disabled:opacity-50" onClick={async () => {
+            if (!deleteTarget || deleting) return;
+            if (deleteTarget.id === vm.activeConversationId) { realtime.stop(); voice.cancel(); }
+            setDeleting(true);
+            try { if (await vm.deleteConversation(deleteTarget.id)) setDeleteTarget(null); }
+            finally { setDeleting(false); }
+          }}>{deleting ? "Deleting..." : "Delete conversation"}</button>
+        </div>
+      </EchoDialog>
       <EchoDialog
         open={Boolean(renameTarget)}
         onClose={() => {

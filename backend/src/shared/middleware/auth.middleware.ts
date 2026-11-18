@@ -1,6 +1,7 @@
 import {appPresence} from '../../infrastructure/security/app-presence.js';
 import type { NextFunction, Request, Response } from "express";
-import { AuthenticationError } from "../errors/app-error.js";
+import { resettingAccounts } from "../account-activity-reset.js";
+import { AuthenticationError, ConflictError } from "../errors/app-error.js";
 import type { AuthenticatedUser } from "../types/authenticated-user.js";
 import { setVerifiedAccessToken } from "../request-context.js";
 
@@ -47,6 +48,8 @@ export function createAuthMiddleware(verifier: AccessTokenVerifier) {
 
       console.info(JSON.stringify({ requestId: request.requestId, authDiagnostic: "accepted" }));
       if(user.sessionId && appPresence()?.isClosed(user.id,user.sessionId))throw new AuthenticationError('APP_SESSION_CLOSED','Your app session ended. Please log in again.');
+      if (resettingAccounts.has(user.id) && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !request.path.endsWith("/settings/activity-reset"))
+        throw new ConflictError("RESET_BUSY", "Your activity reset is running. Please wait before making changes.");
       request.auth = { ...user, accessToken };
       verifiedRequests.set(request, { token: accessToken, verifier, user });
       setVerifiedAccessToken(accessToken);

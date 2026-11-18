@@ -310,6 +310,17 @@ describe("clean recent chats", () => {
     mock.conversations = Array.from({ length: 10 }, (_, index) => ({ id: `recent-${index}`, title: `Reflection ${index + 1}`, lastMessage: `Private preview ${index}`, lastMessageAt: "Nov 8", messageCount: 2, mood: "neutral", createdAt: "2026-11-08T00:00:00Z", pinnedAt: null } as BuddyConversation));
     return mock;
   }
+  it("confirms deletion from the recent-conversation menu", async () => {
+    const mock=recentMock();mock.deleteConversation.mockResolvedValue(true);
+    vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);
+    const user=userEvent.setup();render(<BuddyView/>);
+    await user.click(screen.getByRole("button",{name:"Actions for Reflection 1"}));
+    await user.click(screen.getByRole("button",{name:"Delete"}));
+    const dialog=await screen.findByRole("dialog",{name:"Delete conversation?"});
+    expect(mock.deleteConversation).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button",{name:"Delete conversation"}));
+    expect(mock.deleteConversation).toHaveBeenCalledWith("recent-0");
+  });
   it("keeps the initial list compact without deleting chats and expands all loaded recent chats", async () => {
     const mock = recentMock();
     vi.mocked(useBuddyViewModel).mockReturnValue(mock as ReturnType<typeof setupMock>);

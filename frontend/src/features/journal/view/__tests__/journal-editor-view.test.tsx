@@ -1,3 +1,4 @@
+vi.mock("@/services/audio/background-music", () => ({ setBackgroundMusicVoiceFocus: vi.fn() }));
 import { describe, expect, it, vi, beforeEach, afterAll } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -12,11 +13,6 @@ vi.mock("@/services/settings", () => ({
 }));
 vi.mock("next/image", () => ({
   default: (props: { alt: string }) => <img alt={props.alt} />,
-}));
-
-const startMusic = vi.hoisted(() => vi.fn());
-vi.mock("@/features/journal/view-model/use-journal-music", () => ({
-  useJournalMusic: () => ({ playback: "idle", volume: 1, start: startMusic, toggle: vi.fn(), changeVolume: vi.fn() }),
 }));
 
 const push = vi.hoisted(() => vi.fn());
@@ -84,16 +80,14 @@ function setupMock() {
 }
 
 describe("JournalEditorView", () => {
-  it("starts music only from body input, never from a restored draft or title", async () => {
+  it("does not start a second music track while writing", async () => {
     const mock = { ...setupMock(), body: "Restored writing" };
     vi.mocked(useJournalEditorViewModel).mockReturnValue(mock as unknown as ReturnType<typeof useJournalEditorViewModel>);
     render(<JournalEditorView />);
     const user = userEvent.setup();
-    expect(startMusic).not.toHaveBeenCalled();
     await user.type(screen.getByPlaceholderText("Title your reflection"), "A title");
-    expect(startMusic).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText("Start writing", { exact: true }), "Hello");
-    expect(startMusic).toHaveBeenCalled();
+    expect(screen.queryByRole("slider", { name: "Journal music volume" })).not.toBeInTheDocument();
   });
 
   it("shows saved analysis inline without navigating or replacing the workspace", async () => {

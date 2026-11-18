@@ -353,9 +353,21 @@ export class JournalService {
       finally{bytes.fill(0);this.faceActive.delete(job.id);}
     })();
   }
+  private async recordLocalNotification(job:LocalAnalysisJob) {
+    if(job.notificationRecorded || !this.localResults?.get(job.user_id,job.id))return;
+    const {error}=await this.database.schema("notification_service").rpc("record_activity_notice",{
+      p_user_id:job.user_id,p_type:job.status==='completed'?'analysis_completed':'analysis_failed',p_journal_id:job.journal_id,
+    });
+    if(error)throw new ExternalServiceError('NOTIFICATION_UNAVAILABLE','Analysis notification could not be recorded.');
+    if(this.localResults.get(job.user_id,job.id))await this.localResults.markNotificationRecorded(job.user_id,job.id);
+  }
   async recoverLocalJobs():Promise<void> {
     await this.localResults?.ready;
-    if(!this.localResults || !this.coreClient || !await this.coreClient.ready() || await this.coreClient.talkBusy?.())return;
+    if(!this.localResults)return;
+    for(const user of this.localResults.users())for(const job of this.localResults.terminal(user))
+      if(['completed','failed'].includes(job.status)&&!job.notificationRecorded)
+        await this.recordLocalNotification(job).catch(()=>console.warn('Local analysis notification will retry.'));
+    if(!this.coreClient || !await this.coreClient.ready() || await this.coreClient.talkBusy?.())return;
     for(const user of this.localResults.users())for(const job of this.localResults.completed(user))if((['queued','analyzing'].includes(job.facial_status)||(job.facial_status==='captured_pending_provider'&&Date.now()-Date.parse(job.updated_at)>60000))&&!this.faceActive.has(job.id))await this.localResults.setFace(user,job.id,'unavailable',{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:'interrupted'});
     for(const job of this.localResults.pending()){if(this.journalPageActive(job.user_id))this.enqueueLocal(job);else await this.localResults.wait(job.user_id,job.id,'page_inactive');}
   }
@@ -395,6 +407,7 @@ export class JournalService {
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent was revoked.');
       if(!this.journalPageActive(job.user_id)){await store.wait(job.user_id,job.id,'page_inactive');return;}
       await store.set(job.user_id,job.id,'completed',100,JSON.stringify(result));
+      await this.recordLocalNotification({...job,status:'completed'}).catch(()=>console.warn('Local analysis notification will retry.'));
     } catch(error) {
       if(controller.signal.aborted)return;
       if(!this.journalPageActive(job.user_id)){await store.wait(job.user_id,job.id,'page_inactive');return;}

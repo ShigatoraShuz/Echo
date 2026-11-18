@@ -27,6 +27,7 @@ export interface LocalAnalysisJob {
     updated_at: string;
     approved: number;
     storageGeneration?:number;
+    notificationRecorded?:boolean;
 }
 /** Readable local JSON. Never uploaded. One backend owns the writer lock. */
 export class LocalAnalysisStore {
@@ -64,6 +65,7 @@ export class LocalAnalysisStore {
     async set(user: string, id: string, status: AnalysisStatus, progress: number, result?: string) { const j = this.get(user, id); if (!j || j.status === 'completed')
         return false; await this.update(user,id,current=>current.status==='completed'?current:({ ...current, status, waitReason:status==='waiting_for_provider'?current.waitReason:undefined, progress: Math.max(current.progress, progress), updated_at: new Date().toISOString(), result_ciphertext: result ?? current.result_ciphertext })); return true; }
     pending() { return this.rows().filter(x => !['completed', 'failed', 'cancelled', 'safety_action_required'].includes(x.status)); }
+    terminal(user:string){return this.rows().filter(x=>x.user_id===user&&['completed','failed'].includes(x.status));}
     completed(user: string) { return this.rows().filter(x => x.user_id === user && x.status === 'completed').sort((a, b) => a.created_at.localeCompare(b.created_at)); }
     async remove(user: string, journal: string) { const j = this.journal(user, journal); if (j)
         await this.repo.remove(user,'analysis',j.id); }
@@ -98,5 +100,6 @@ export class LocalAnalysisStore {
     async replaceScreening(user:string,id:string,result:unknown){if(this.get(user,id))await this.update(user,id,j=>({...j,result_ciphertext:JSON.stringify(journalAnalysisResultSchema.parse(result)),updated_at:new Date().toISOString()}));}
     async wait(user:string,id:string,reason:'page_inactive'|'buddy_priority'|'gpu_capacity'){const job=this.get(user,id);if(job&&!(job.status==='waiting_for_provider'&&job.waitReason===reason)&&!['completed','failed','cancelled','safety_action_required'].includes(job.status))await this.update(user,id,j=>['completed','failed','cancelled','safety_action_required'].includes(j.status)?j:({...j,status:'waiting_for_provider',waitReason:reason,updated_at:new Date().toISOString()}));}
     async setFace(user:string,id:string,status:FacialAnalysisStatus,result?:unknown){if(this.get(user,id))await this.update(user,id,j=>({...j,facial_status:status,...(result?{face_result:facialExpressionResultSchema.parse(result)}:{}),updated_at:new Date().toISOString()}));}
+    async markNotificationRecorded(user:string,id:string){await this.update(user,id,job=>({...job,notificationRecorded:true}));}
     async clear(user: string) {await this.repo.clear(user);}
 }

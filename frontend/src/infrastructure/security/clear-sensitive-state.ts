@@ -1,8 +1,8 @@
 // Remove obsolete draft caches without reading their plaintext. Current drafts
 // are encrypted on the server. Do not clear theme or accessibility preferences.
-export function clearSensitiveBrowserState(): void {
+export function clearSensitiveBrowserState(options: { unsubscribePush?: boolean } = {}): void {
   if (typeof window === "undefined") return;
-  if ("serviceWorker" in navigator) {
+  if (options.unsubscribePush !== false && "serviceWorker" in navigator) {
     void navigator.serviceWorker.getRegistration("/")
       .then((registration) => registration?.pushManager?.getSubscription())
       .then((subscription) => subscription?.unsubscribe())

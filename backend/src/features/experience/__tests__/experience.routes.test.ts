@@ -5,8 +5,10 @@ import type { ExperienceService } from "../experience.service.js";
 import type { VerificationService } from "../../verification/verification.service.js";
 import { VerificationRequiredError } from "../../../shared/errors/app-error.js";
 
-function createHarness(verified = true) {
+function createHarness(verified = true, recentAuthentication = true) {
   const service = {
+    resetActivity: vi.fn().mockResolvedValue({reset:true}),
+    buddyInvitation: vi.fn().mockResolvedValue({show:true}),
     dashboard: vi.fn().mockResolvedValue({ journalEntries: [] }),
     buddySession: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
     sendBuddyMessage: vi.fn().mockResolvedValue({ conversationId: "conversation-1", messages: [] }),
@@ -27,7 +29,7 @@ function createHarness(verified = true) {
   };
   const verifier = {
     getUser: vi.fn(async (token: string) =>
-      token === "valid-token" ? { id: "user-1", email: "user@example.com" } : null,
+      token === "valid-token" ? { id: "user-1", email: "user@example.com", authenticatedAt: recentAuthentication ? Math.floor(Date.now()/1000) : 1 } : null,
     ),
   };
   const verificationService = {
@@ -216,4 +218,20 @@ describe("experience routes", () => {
     });
     expect(service.emotionInsights).toHaveBeenCalledWith("user-1");
   });
+});
+
+describe("activity reset and invitation routes",()=>{
+ const body={confirmation:"START CLEAN",requestId:"cccccccc-cccc-4ccc-8ccc-cccccccccccc"};
+ it("requires a recent sign-in before resetting",async()=>{
+  const h=createHarness(true,false);expect((await request(h.app).post("/api/v1/settings/activity-reset").set("Authorization","Bearer valid-token").send(body)).status).toBe(403);expect(h.service.resetActivity).not.toHaveBeenCalled();
+ });
+ it("uses only the authenticated owner, including accounts without AI approval",async()=>{
+  const h=createHarness(false);expect((await request(h.app).post("/api/v1/settings/activity-reset").set("Authorization","Bearer valid-token").send(body)).status).toBe(200);expect(h.service.resetActivity).toHaveBeenCalledWith("user-1",body.requestId);
+ });
+ it("rejects an owner supplied in the request body",async()=>{
+  const h=createHarness();expect((await request(h.app).post("/api/v1/settings/activity-reset").set("Authorization","Bearer valid-token").send({...body,userId:"other"})).status).toBe(400);expect(h.service.resetActivity).not.toHaveBeenCalled();
+ });
+ it("does not claim Buddy invitations for an unapproved account",async()=>{
+  const h=createHarness(false);expect((await request(h.app).post("/api/v1/buddy/wellbeing-invitation").set("Authorization","Bearer valid-token").send({})).status).toBe(403);expect(h.service.buddyInvitation).not.toHaveBeenCalled();
+ });
 });
