@@ -644,7 +644,7 @@ export function BuddyView() {
                     onChange={(e) => realtime.setSpeechMode(e.target.value as "sentences_2_then_3" | "buffered")}
                   >
                     <option value="sentences_2_then_3">First two sentences, then batches of three</option>
-                    <option value="buffered">Buffered short segments</option>
+                    <option value="buffered">Generate whole speech before playback</option>
                   </select>
                 </label>
                 {realtime.readiness?.freeGpuBytes !== undefined && (

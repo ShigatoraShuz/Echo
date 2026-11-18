@@ -690,12 +690,26 @@ export class RealtimeTalkHub {
         ),
       );
     };
-    let pending = generate(prepared.groups[0]);
-    // Attach immediately: cancellation must not create an unhandled rejection.
-    void pending.catch(() => undefined);
     this.send(s, { type: "state", state: "preparing_speech" });
+    const bufferedSpoken: Array<z.infer<typeof speechSchema>> = [];
+    let pending: Promise<z.infer<typeof speechSchema>> | undefined;
+    if (s.speechMode === "buffered") {
+      // In buffered mode synthesize every segment before sending any audio.
+      // This avoids audible pauses caused by later batches still rendering.
+      for (const group of prepared.groups) {
+        const spoken = await generate(group);
+        if (spoken.segments.length !== group.length || spoken.segments.some((x, i) => x.text !== group[i]))
+          throw Error("Speech batch mismatch");
+        bufferedSpoken.push(spoken);
+        if (!current()) return;
+      }
+    } else {
+      pending = generate(prepared.groups[0]);
+      // Attach immediately: cancellation must not create an unhandled rejection.
+      void pending.catch(() => undefined);
+    }
     for (let groupIndex = 0; groupIndex < prepared.groups.length; groupIndex++) {
-      const spoken = await pending;
+      const spoken = bufferedSpoken[groupIndex] ?? await pending!;
       totalSynthesisMs += (spoken.seconds ?? 0) * 1000;
       if (!firstSegmentReadyMs) firstSegmentReadyMs = performance.now() - started;
       if (!current()) return;
@@ -703,7 +717,7 @@ export class RealtimeTalkHub {
       if (spoken.segments.length !== group.length || spoken.segments.some((x, i) => x.text !== group[i]))
         throw Error("Speech batch mismatch");
       // GPU produces at most one following batch while the current batch is delivered.
-      if (groupIndex + 1 < prepared.groups.length) {
+      if (s.speechMode !== "buffered" && groupIndex + 1 < prepared.groups.length) {
         pending = generate(prepared.groups[groupIndex + 1]);
         void pending.catch(() => undefined);
       }
