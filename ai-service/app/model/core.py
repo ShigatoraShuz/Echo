@@ -499,7 +499,7 @@ class CoreRuntime:
             ". This is not a diagnosis. My journal (JSON-quoted): " + json.dumps(text, ensure_ascii=False)
         )
         try:
-            value = self.chat([{"role": "user", "content": prompt}])
+            value = self.chat([{"role": "user", "content": prompt}], strict_review=True)
             if value.get("supportRequired"):
                 return {"status": "support_required"}
             reply = value.get("reply")
@@ -569,9 +569,9 @@ class CoreRuntime:
             "models": {"xlmr": self.provenance("xlmr"), "e4": self.provenance("e4")},
         }
 
-    def chat(self, messages):
+    def chat(self, messages, generation_attempt=0, strict_review=False):
         if getattr(self, "buddy", None):
-            return self.buddy.generate(messages, cancelled=getattr(self, "operation_cancelled", None))
+            return self.buddy.generate(messages, cancelled=getattr(self, "operation_cancelled", None), generation_attempt=generation_attempt, **({'strict_review':True} if strict_review else {}))
         text = messages[-1]["content"]
         classification = self.classify(text)
         if classification["suicidal_language_flag"]:

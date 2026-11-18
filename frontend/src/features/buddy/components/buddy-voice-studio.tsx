@@ -12,17 +12,18 @@ type Talk = ReturnType<typeof useRealtimeTalk>;
 export function buddyOrbState(state: string): OrbState {
   if (state === "speaking") return "talking";
   if (state === "listening") return "listening";
-  if (["preparing", "preparing_speech", "thinking", "transcribing", "buffering", "recovering"].includes(state)) return "connecting";
+  if (["preparing", "preparing_speech", "generating_audio", "thinking", "transcribing", "buffering", "recovering"].includes(state)) return "connecting";
   if (["paused", "playback_blocked", "speech_failed", "unavailable"].includes(state)) return "settled";
   return "ready";
 }
 const copy: Record<string, [string, string]> = {
   idle: ["A little space to be heard", "Start when you feel ready. There is no rush."],
   preparing: ["Getting ready for you", "Preparing your voice session. This can take a moment."],
-  listening: ["I'm listening", "Speak naturally. A short pause sends your turn."],
+  listening: ["Ready to listen", "Speak naturally. A short pause sends your turn."],
   transcribing: ["Taking in your words", "Your microphone pauses while Buddy prepares a reply."],
   thinking: ["A moment to reflect", "Buddy is putting a thoughtful response together."],
-  preparing_speech: ["Preparing your reply", "Your microphone is paused until Buddy finishes speaking."],
+  preparing_speech: ["Preparing speech", "Your approved reply is being prepared for reading aloud."],
+  generating_audio: ["Generating audio", "Your microphone stays paused while Buddy creates the voice reply."],
   buffering: ["Your reply is on its way", "Preparing the next part of Buddy's response."],
   speaking: ["Buddy is speaking", "Take your time. You can interrupt whenever you need."],
   paused: ["Your conversation is paused", "Resume when you are ready to continue."],
@@ -31,23 +32,24 @@ const copy: Record<string, [string, string]> = {
   recovering: ["Reconnecting your conversation", "Hold on while the voice connection recovers."],
   unavailable: ["Talk is unavailable right now", "You can keep writing to Buddy in Chat."],
 };
-export function BuddyVoiceStudio({ talk, disabled, onStart, speechProvider, messages }: {
-  talk: Talk; disabled: boolean; onStart: () => void; speechProvider: ReactNode; messages: BuddyMessage[];
+export function BuddyVoiceStudio({ talk, disabled, modelLoading, onStart, speechProvider, messages }: {
+  talk: Talk; disabled: boolean; modelLoading?: boolean; onStart: () => void; speechProvider: ReactNode; messages: BuddyMessage[];
 }) {
+  const loading = Boolean(modelLoading);
   const voice = useMemo(() => talk.analyser ? new AnalyserLevels(talk.analyser) : null, [talk.analyser]);
   const caller = useMemo(() => talk.callerAnalyser ? new AnalyserLevels(talk.callerAnalyser) : null, [talk.callerAnalyser]);
-  const [title, description] = copy[talk.state] || ["A moment with Buddy", "Your conversation moves at your pace."];
+  const [title, description] = loading ? ["Preparing Buddy", "Voice models are loading. Talk will be available when preparation finishes."] : copy[talk.state] || ["A moment with Buddy", "Your conversation moves at your pace."];
   return <section className={styles.studio} aria-label="Buddy voice conversation">
     <div className={styles.hero}>
       <p className={styles.eyebrow}><span /> ECHO · VOICE SPACE</p>
       <h2 className={styles.heading}>Talk with Buddy</h2>
       <div className={styles.orbStage}>
         <div className={styles.halo} aria-hidden="true" />
-        <VoiceOrb palette="forest" variant="silk" size="clamp(210px, 26vw, 310px)" state={buddyOrbState(talk.state)} voice={voice} caller={caller} label="Buddy voice orb" params={{ grain: .08, highlight: .65, fluid: .65 }} />
+        <VoiceOrb palette="forest" variant="silk" size="clamp(210px, 26vw, 310px)" state={loading ? "connecting" : buddyOrbState(talk.state)} voice={voice} caller={caller} label={loading ? "Buddy voice models loading" : "Buddy voice orb"} params={{ grain: .08, highlight: .65, fluid: .65 }} />
       </div>
       <div className={styles.status} role="status" aria-live="polite"><h3>{title}</h3><p>{description}</p></div>
       <div className={styles.actions}>
-        <button type="button" onClick={talk.active ? talk.stop : onStart} disabled={!talk.active && disabled} className={`${styles.primary} ${talk.active ? styles.stop : ""}`}>
+        <button type="button" onClick={talk.active ? talk.stop : onStart} disabled={!talk.active && (disabled || loading)} className={`${styles.primary} ${talk.active ? styles.stop : ""}`}>
           {talk.active ? <Square size={16} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}{talk.active ? "Stop Talk" : "Start Talk"}
         </button>
         {talk.active && talk.state === "speaking" && <button type="button" className={styles.secondary} onClick={talk.interrupt}><Pause size={16} aria-hidden="true" />Interrupt Buddy</button>}

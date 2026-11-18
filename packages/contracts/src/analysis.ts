@@ -640,6 +640,8 @@ export const journalSignalComparisonSchema=z.object({
  status:z.enum(['same','different','unavailable']),
  textEmotion:plutchikEmotionSchema.optional(),faceEmotion:plutchikEmotionSchema.optional(),
  reason:z.enum(['missing_signal','stale_revision','consent_required']).optional(),
+ textState:z.enum(['current','missing','stale','unverified']).optional(),
+ faceState:z.enum(['current','missing','stale','unverified']).optional(),
  journalId:z.string().uuid().optional(),journalRevision:z.string().datetime({offset:true}).optional(),
  textResultId:z.string().optional(),faceResultId:z.string().optional(),
 }).strict().superRefine((value,context)=>{

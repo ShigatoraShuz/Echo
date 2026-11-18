@@ -14,6 +14,13 @@ it('focuses the idle view on the orb and Start Talk with settings collapsed',asy
  await user.click(screen.getByText('Voice settings'));expect(screen.getByLabelText('Voice style')).toBeVisible();
  await user.selectOptions(screen.getByLabelText('Voice style'),'expressive');expect(value.setVoiceMode).toHaveBeenCalledWith('expressive');
 });
+it('keeps Start Talk disabled while voice models are loading',()=>{
+ const value=talk();
+ render(<BuddyVoiceStudio talk={value} disabled={false} modelLoading onStart={vi.fn()} messages={[]} speechProvider={null}/>);
+ expect(screen.getByRole('img',{name:'Buddy voice models loading'})).toHaveAttribute('data-state','connecting');
+ expect(screen.getByRole('button',{name:'Start Talk'})).toBeDisabled();
+ expect(screen.getByText('Preparing Buddy')).toBeVisible();
+});
 it('connects the speaking, interrupt, and stop controls to the existing Talk session',async()=>{
  const value={...talk(),active:true,state:'speaking'};const user=userEvent.setup();
  render(<BuddyVoiceStudio talk={value} disabled onStart={vi.fn()} messages={[]} speechProvider={null}/>);

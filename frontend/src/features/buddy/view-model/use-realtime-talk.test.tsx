@@ -6,8 +6,11 @@ vi.mock('@/config/environment',()=>({env:{apiBaseUrl:'http://localhost:4200/api/
 vi.mock('@/infrastructure/api/supabase-auth-token-provider',()=>({supabaseAuthTokenProvider:{getAccessToken:async()=> 'synthetic'}}));
 import {useRealtimeTalk} from './use-realtime-talk';
 const id='11111111-1111-4111-8111-111111111111';
-let contexts:Context[]=[];let sockets:Socket[]=[];
+let contexts:Context[]=[];let sockets:Socket[]=[];let players:any[]=[];
 class Context{
+ currentTime=0;
+ createBuffer=()=>({copyToChannel:vi.fn()});
+ createBufferSource=()=>{const player={buffer:null,onended:null as null|(()=>void),connect:vi.fn(),disconnect:vi.fn(),start:vi.fn(),stop:vi.fn()};players.push(player);return player;};
  state='running';destination={};createAnalyser=()=>({fftSize:0,connect:vi.fn()});
  audioWorklet={addModule:vi.fn().mockResolvedValue(undefined)};
  createMediaStreamSource=vi.fn(()=>({connect:vi.fn(),disconnect:vi.fn()}));
@@ -26,7 +29,7 @@ const options={conversationId:null,getTemporarySessionId:()=>id,onMessage:vi.fn(
 function stream(){const track={enabled:true,readyState:'live',stop:vi.fn(),onended:null};return {track,value:{getTracks:()=>[track],getAudioTracks:()=>[track]} as unknown as MediaStream};}
 function sessionResponse(){return new Response(JSON.stringify({data:{sessionId:id,expiresAt:new Date(Date.now()+600000).toISOString(),webSocketPath:'/api/v1/buddy/voice/stream',ticket:'a'.repeat(64)}}));}
 beforeEach(()=>{
- contexts=[];sockets=[];
+ contexts=[];sockets=[];players=[];
  vi.stubGlobal('AudioContext',Context);vi.stubGlobal('AudioWorkletNode',vi.fn(function(){return node();}));vi.stubGlobal('WebSocket',Socket);
  vi.stubGlobal('fetch',vi.fn(async()=>sessionResponse()));
 });
@@ -49,6 +52,19 @@ it('uses browser final text without capturing or sending PCM and stops on unmoun
  expect(messages.filter(value=>value.type==='transcript')).toEqual([expect.objectContaining({text:'A browser turn.',generation:1})]);expect(hook.result.current.state).toBe('thinking');
  await act(async()=>sockets[0].onmessage?.({data:JSON.stringify({protocol:'echo-buddy-talk-v2',sessionId:id,generation:1,type:'turn_end'})}));
  expect(BrowserRecognition.instances).toHaveLength(2);hook.unmount();expect(BrowserRecognition.instances[1].abort).toHaveBeenCalled();
+});
+it.each([true,false])('waits for playback and server completion before resuming capture (server first: %s)',async serverFirst=>{
+ browser();media(vi.fn());const hook=renderHook(()=>useRealtimeTalk({...options,sttProvider:'browser'}));
+ await act(async()=>hook.result.current.start());await act(async()=>sockets[0].ready());
+ const receive=(event:Record<string,unknown>)=>act(()=>sockets[0].onmessage?.({data:JSON.stringify({protocol:'echo-buddy-talk-v2',sessionId:id,generation:1,turnId:sockets[0].send.mock.calls.map(([value])=>JSON.parse(String(value))).find(value=>value.type==='begin')?.turnId,...event})}));
+ act(()=>{BrowserRecognition.instances[0].onresult({resultIndex:0,results:[{isFinal:true,0:{transcript:'A complete turn.'}}]});hook.result.current.finishVoiceTurn();});
+ receive({type:'audio',sequence:0,sampleRate:48000,channels:2,audio:Buffer.alloc(8000).toString('base64')});
+ receive({type:'audio_end',sequence:1});
+ if(serverFirst)receive({type:'turn_end'});
+ expect(BrowserRecognition.instances).toHaveLength(1);
+ act(()=>players[0].onended?.());
+ if(!serverFirst){expect(BrowserRecognition.instances).toHaveLength(1);receive({type:'turn_end'});}
+ expect(BrowserRecognition.instances).toHaveLength(2);expect(hook.result.current.state).toBe('listening');hook.unmount();
 });
 it('pauses browser capture during speech and ignores late recognition events',async()=>{
  browser();media(vi.fn());const hook=renderHook(()=>useRealtimeTalk({...options,sttProvider:'browser'}));await act(async()=>hook.result.current.start());await act(async()=>sockets[0].ready());

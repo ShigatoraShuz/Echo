@@ -116,6 +116,35 @@ it('rejects oversized browser text without generating a reply',async()=>{
  const f=await fixture(false,'fast','browser');
  try{f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});const closed=once(f.ws,'close');f.send({type:'transcript',generation:1,turnId,text:'x'.repeat(4001)});await closed;expect(f.core.talk.mock.calls.some(([p])=>p.task==='chat')).toBe(false);}finally{await f.close();}
 });
+it('retries withheld Talk with fresh attempt IDs and accepts the transcript only once',async()=>{
+ const f=await fixture(true,'fast','browser');
+ try {
+  const original=f.core.talk.getMockImplementation()!;let calls=0;
+  f.core.talk.mockImplementation(async(p,signal)=>{
+   if(p.task==='chat'&&++calls<3)throw Object.assign(Error('withheld'),{code:'BUDDY_RESPONSE_WITHHELD'});
+   return original(p,signal);
+  });
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});f.send({type:'transcript',generation:1,turnId,text:'Synthetic retry input'});
+  const reply=await f.wait('approved_reply');
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat').map(([p])=>p.generationAttempt)).toEqual([1,2,3]);
+  expect(f.store.get(user,reply.conversationId).messages.map(m=>m.role)).toEqual(['user','buddy']);
+ } finally {await f.close();}
+});
+it('does not retry a safety withholding decision',async()=>{
+ const f=await fixture(false,'fast','browser');
+ try {
+  const original=f.core.talk.getMockImplementation()!;
+  f.core.talk.mockImplementation(async(p,signal)=>{
+   if(p.task==='chat')throw Object.assign(Error('withheld'),{code:'BUDDY_RESPONSE_WITHHELD',safetyWithheld:true});
+   return original(p,signal);
+  });
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});f.send({type:'transcript',generation:1,turnId,text:'Synthetic safety gate input'});
+  expect((await f.wait('error')).code).toBe('TURN_UNAVAILABLE');
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(1);
+ } finally {await f.close();}
+});
 it("streams only approved speech, persists text locally and marks interruption", async () => {
   const f = await fixture(true);
   try {
@@ -320,11 +349,55 @@ it("keeps an approved reply when the speech provider returns malformed audio", a
     await f.wait('audio_end');
     expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(1);
     expect(f.core.talk.mock.calls.filter(([p])=>p.task==='transcribe')).toHaveLength(1);
+    // Invalid audio is permanent: one failed attempt, then a successful manual retry.
     expect(f.core.talk.mock.calls.filter(([p])=>p.task==='speak')).toHaveLength(2);
     expect(f.store.get(user,reply.conversationId).messages[1].content).toBe('Take one small step.');
   } finally {
     await f.close();
   }
+});
+it.each([['BUDDY_SPEECH_TEXT_AMBIGUOUS',1],['AI_TRANSPORT_UNAVAILABLE',5]] as const)('bounds preparation retries for %s',async(code,expected)=>{
+ const f=await fixture(true,'fast','browser');
+ try{
+  const original=f.core.talk.getMockImplementation()!;
+  f.core.talk.mockImplementation(async(p,signal)=>{if(p.task==='prepare')throw Object.assign(Error('private preparation detail'),{code});return original(p,signal);});
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});f.send({type:'transcript',generation:1,turnId,text:'Synthetic'});
+  const reply=await f.wait('approved_reply'),failure=await f.wait('error');
+  expect(failure.code).toBe('SPEECH_UNAVAILABLE');expect(failure.causeCode).toBe(code);
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='prepare')).toHaveLength(expected);
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(1);
+  expect(f.store.get(user,reply.conversationId).messages).toHaveLength(2);
+ }finally{await f.close();}
+});
+it.each([false,true])('completes consecutive turns when delivery metadata fails: %s',async failMetadata=>{
+ const f=await fixture(true,'fast','browser');
+ try{
+  if(failMetadata)f.service.talkDelivery=vi.fn().mockRejectedValue(Error('metadata unavailable'));
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  for(const generation of [1,2]){
+   f.events.length=0;const turnId=randomUUID();
+   f.send({type:'begin',generation,turnId});f.send({type:'transcript',generation,turnId,text:'Synthetic next turn'});
+   await f.wait('audio_end');
+   for(const event of f.events.filter(e=>e.type==='audio'))f.send({type:'played',generation,turnId,sequence:event.sequence,samples:Buffer.from(event.audio,'base64').length/2});
+   await f.wait('turn_end');
+  }
+  expect(f.core.talk.mock.calls.filter(([p])=>p.task==='chat')).toHaveLength(2);
+ }finally{await f.close();}
+});
+it('retains Retry speech after a transient failure with partially delivered audio',async()=>{
+ const f=await fixture(true,'fast','browser');
+ try{
+  f.service.talkProvenance=vi.fn(async(_user:any,_conversation:any,_turn:any,field:string)=>{
+   if(field==='speechTiming')throw Object.assign(Error('temporary failure'),{code:'AI_TRANSPORT_UNAVAILABLE'});
+  });
+  f.send({type:'authenticate',ticket:f.session.ticket});await f.wait('ready');
+  const turnId=randomUUID();f.send({type:'begin',generation:1,turnId});f.send({type:'transcript',generation:1,turnId,text:'Synthetic'});
+  const failure=await f.wait('error');
+  expect(failure.code).toBe('SPEECH_UNAVAILABLE');expect(failure.generation).toBe(5);
+  expect(f.events.filter(event=>event.type==='speech_restart')).toHaveLength(4);
+  expect(f.events.filter(event=>event.type==='approved_reply')).toHaveLength(1);
+ }finally{await f.close();}
 });
 
 it.each([true, false])("shares Talk and typed Chat context when saving is %s", async (saving) => {

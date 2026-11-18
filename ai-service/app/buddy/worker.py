@@ -70,7 +70,7 @@ def cbt(request):
     require_headroom(torch)
     started = time.perf_counter()
     try:
-        result = ENGINE.reply(request["messages"], **({"delivery_mode":"voice"} if request.get("deliveryMode")=="voice" else {}))
+        result = ENGINE.reply(request["messages"], delivery_mode=request.get('deliveryMode','chat'), generation_attempt=request.get('generationAttempt',0), **({'strict_review':True} if request.get('strictReview') else {}))
     except ValueError as error:
         if 'exceeds token budget' in str(error):raise RuntimeError('BUDDY_CBT_CONTEXT_LIMIT') from None
         raise
@@ -78,12 +78,16 @@ def cbt(request):
     require_headroom(torch)
     # Do not deliver raw drafts, rejected attempts, prompts, or local paths.
     if result.get("needs_review") or not result.get("reply"):
+        from app.buddy.diagnostics import diagnostics
         return {"reply": None, "withheld": True, "issues": result.get("issues", []),
-                "model": MODEL_IDENTITY, "seconds": time.perf_counter() - started}
+                "diagnostics":diagnostics(result), "model": MODEL_IDENTITY, "seconds": time.perf_counter() - started}
     quality = {key: result[key] for key in ("attempts", "rewrite_attempted", "dropped_history_turns",
                "auto_format_preserved_content", "inference_version", "prompt_tokens", "generated_tokens", "stop") if key in result}
     quality["deliveryProfile"] = "spoken-v1" if request.get("deliveryMode")=="voice" else "chat-v3"
-    return {"reply": result["reply"], "withheld": False, "model": MODEL_IDENTITY,
+    from app.buddy.diagnostics import diagnostics
+    quality.update(diagnostics(result));quality['deliveryProfile']='spoken-counselor-v2' if request.get('deliveryMode')=='voice' else 'chat-counselor-v2'
+    if request.get('strictReview'):quality['deliveryProfile']='journal-reviewed-v1'
+    return {"reply": result["reply"], "withheld": False, "model": {**MODEL_IDENTITY, 'inferenceVersion':result['inference_version']},
             "quality": quality, "seconds": time.perf_counter() - started}
 
 def moss(request):
@@ -142,14 +146,15 @@ def nano(request):
     if request.get('prepareTexts') is not None:
         from app.buddy.nano_segments import bounded_sentences
         parts=request['prepareTexts']
-        if not isinstance(parts,list) or len(parts)>500 or any(not isinstance(t,str) for t in parts) or sum(map(len,parts))>20000:raise ValueError('Invalid speech segmentation')
-        return {'parts':bounded_sentences(parts,lambda t:len(ENGINE[4].encode(t,add_special_tokens=False)))}
+        if not isinstance(parts,list) or len(parts)>500 or any(not isinstance(t,str) for t in parts) or sum(map(len,parts))>20000:raise RuntimeError('BUDDY_SPEECH_SEGMENT_INVALID')
+        try:return {'parts':bounded_sentences(parts,lambda t:len(ENGINE[4].encode(t,add_special_tokens=False)))}
+        except ValueError:raise RuntimeError('BUDDY_SPEECH_SEGMENT_INVALID') from None
     texts = request["texts"]
     if not 1 <= len(texts) <= 3 or any(not isinstance(t, str) or not t.strip() for t in texts):
         raise ValueError("Invalid sentence batch")
     service, model, codec, prompt, tokenizer, nq = ENGINE
     if any(len(tokenizer.encode(t, add_special_tokens=False)) > 512 for t in texts):
-        raise ValueError("Sentence exceeds Nano token budget")
+        raise RuntimeError('BUDDY_SPEECH_SEGMENT_INVALID')
     from app.buddy.nano_batch import generate
     waves = generate(service, model, codec, prompt, tokenizer, nq, texts)
     segments = []

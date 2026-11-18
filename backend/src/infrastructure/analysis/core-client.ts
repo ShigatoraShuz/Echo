@@ -3,6 +3,7 @@ import { z } from "zod";
 import { journalAnalysisV2ResultSchema, journalAnalysisV3ResultSchema } from "@echo/contracts";
 import { ExternalServiceError } from "../../shared/errors/app-error.js";
 import {randomUUID} from 'node:crypto';
+import {setTimeout as retryDelay} from 'node:timers/promises';
 
 /** Transport includes cold-loading retries; workers separately bound ordinary inference. */
 export function coreRequestTimeout(path:string,body:unknown){
@@ -21,6 +22,26 @@ const responseSchema = z.object({
   model: z.record(z.string(), z.unknown()).optional(),
   quality: z.record(z.string(), z.unknown()).optional(),
 });
+const talkIssueCodes = new Set('empty hard_token_limit persistent_distress_support_missing generic_advice_without_starting_action stock_reassurance stacked_generic_advice dangling_list_or_clause unfinished_structure_or_clause excessive_questions_4plus extreme_response_length extreme_structural_overload persistent_advice_without_concrete_start requested_step_list_missing requested_step_count_mismatch nonconsecutive_step_numbering excessive_step_count incomplete_list_item duplicate_list_item near_verbatim_user_copy malformed_discourse_transition auto_format_failed rewrite_context_modified_or_invalid potential_safety_language_requires_Echo_support_routing unqualified_give_up_requires_human_safety_review'.split(' '));
+function talkDiagnostics(value: unknown) {
+  const raw = value && typeof value === 'object' ? value as Record<string,unknown> : {};
+  const codes=(items:unknown)=>Array.isArray(items)?[...new Set(items.filter((item):item is string=>typeof item==='string'&&talkIssueCodes.has(item)))]:[];
+  return {blockingIssues:codes(raw.blockingIssues),advisoryIssues:codes(raw.advisoryIssues),
+    attempts:typeof raw.attempts==='number'&&Number.isInteger(raw.attempts)&&raw.attempts>=0&&raw.attempts<=2?raw.attempts:0,
+    attemptDiagnostics:Array.isArray(raw.attemptDiagnostics)?raw.attemptDiagnostics.slice(0,2).map(row=>{
+      const item=row&&typeof row==='object'?row as Record<string,unknown>:{};
+      return {blockingIssues:codes(item.blockingIssues),advisoryIssues:codes(item.advisoryIssues)};
+    }):[]};
+}
+function normalizeTalkResponse(value: unknown): z.infer<typeof responseSchema> {
+  if (!value || typeof value !== "object") throw new Error("Invalid Buddy talk response");
+  const raw = value as Record<string, unknown>;
+  const candidate = [raw.reply, raw.text, raw.response, raw.content].find((entry) => typeof entry === "string") as string | undefined;
+  const support = raw.supportRequired;
+  const supportRequired = typeof support === "boolean" ? support : support === "true" ? true : support === "false" ? false : undefined;
+  if (supportRequired === undefined) throw new Error("Buddy talk safety result was ambiguous");
+  return responseSchema.parse({ reply: candidate?.trim() || null, supportRequired, model: raw.model, quality: raw.quality });
+}
 const warmResponseSchema = z
   .object({
     ready: z.literal(true),
@@ -71,6 +92,7 @@ export class CoreClient {
   private async request(path: string, body: unknown, signal?: AbortSignal) {
     const started=performance.now();
     const correlationId=randomUUID();
+    let httpStatus:number|undefined;
     try {
       const encoded = JSON.stringify(body);
       const limit =
@@ -90,14 +112,22 @@ export class CoreClient {
           ? AbortSignal.any([signal, AbortSignal.timeout(coreRequestTimeout(path,body))])
           : AbortSignal.timeout(coreRequestTimeout(path,body)),
       });
+      httpStatus=response.status;
       if (!response.ok) {
         if ([401,403].includes(response.status))
           throw new ExternalServiceError('AI_TRANSPORT_AUTH_FAILED','The private AI service rejected its connection credential. Restart Echo using one coordinated launcher.');
         if (response.status===429)
           throw new ExternalServiceError('AI_TRANSPORT_RATE_LIMITED','The local AI service is receiving too many requests. Wait briefly, then retry speech.');
         if (response.status === 503) {
-          const value = (await this.readResponse(response).catch(() => null)) as { detail?: { code?: string } } | null;
+          const value = (await this.readResponse(response).catch(() => null)) as { detail?: { code?: string; diagnostics?: unknown } } | null;
           const code = value?.detail?.code;
+          if ((path==='/v1/talk'||path==='/v2/chat') && code==='BUDDY_RESPONSE_WITHHELD') {
+            const diagnostics=talkDiagnostics(value?.detail?.diagnostics);
+            console.warn(JSON.stringify({service:'private-ai',operation:'chat',correlationId,
+              code,deliveryMode:path==='/v2/chat'?'chat':'voice',generationAttempt:(body as {generationAttempt?:number}).generationAttempt,...diagnostics}));
+            throw Object.assign(new ExternalServiceError(code,'Buddy could not approve a complete reply. Please try again.'),
+              {safetyWithheld:diagnostics.blockingIssues.some(issue=>issue==='potential_safety_language_requires_Echo_support_routing'||issue==='unqualified_give_up_requires_human_safety_review')});
+          }
           if (typeof code === "string" && (/^(BUDDY|FACE|NATIVE)_[A-Z_]{1,70}$/.test(code)||/^BUDDY_MOSS_NATIVE_EXIT_[A-F0-9]{8}$/.test(code)))
             throw new ExternalServiceError(
               code,
@@ -111,8 +141,10 @@ export class CoreClient {
           if (value?.detail?.code === "TALK_BUSY")
             throw new ExternalServiceError("TALK_BUSY", "Journal inference is waiting while Talk is active.");
         }
-        if(path==='/v1/talk'||path==='/v2/speech')
-          throw new ExternalServiceError('AI_TRANSPORT_UNAVAILABLE','The local speech runtime is unavailable. Your approved answer is retained; retry speech after recovery.');
+        if(path==='/v1/talk'||path==='/v2/speech') {
+          const code=[400,413,422].includes(response.status)?'BUDDY_SPEECH_REQUEST_INVALID':response.status===404?'BUDDY_SPEECH_ENDPOINT_MISSING':'AI_TRANSPORT_UNAVAILABLE';
+          throw new ExternalServiceError(code,'Speech preparation could not finish. Your approved answer is retained.');
+        }
         throw new Error();
       }
       return await this.readResponse(
@@ -120,11 +152,11 @@ export class CoreClient {
         path === "/v1/talk" ? 40 * 1024 * 1024 : path === "/v2/speech" ? 32 * 1024 * 1024 : 1024 * 1024,
       );
     } catch (error) {
-      const operation=path==='/v1/talk'?String((body as {task?:unknown})?.task??'unknown'):'transport';
+      const operation=path==='/v1/talk'?String((body as {task?:unknown})?.task??'unknown'):path==='/v2/chat'?'chat':'transport';
       const code=(error as {code?:string})?.code;
       console.warn(JSON.stringify({service:'private-ai',operation:['pulse','warm','warm_chat','warm_nano','warm_whisper','speak','transcribe','chat','support_check','prepare','close','unload'].includes(operation)?operation:'transport',
         correlationId,sessionId:typeof (body as {sessionId?:unknown})?.sessionId==='string'&&/^[a-f0-9-]{36}$/.test((body as {sessionId:string}).sessionId)?(body as {sessionId:string}).sessionId:undefined,
-        elapsedMs:Math.round(performance.now()-started),deadlineMs:coreRequestTimeout(path,body),
+        elapsedMs:Math.round(performance.now()-started),deadlineMs:coreRequestTimeout(path,body),httpStatus,
         cancellationSource:signal?.aborted?'caller':(error as {name?:string})?.name==='TimeoutError'?'deadline':'transport',
         code:typeof code==='string'&&/^[A-Z0-9_]{1,80}$/.test(code)?code:'AI_TRANSPORT_FAILED'}));
       if (error instanceof ExternalServiceError) throw error;
@@ -171,7 +203,7 @@ export class CoreClient {
   async talk(payload: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
   async talk(payload: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     const value = await this.request("/v1/talk", payload, signal);
-    if (payload.task === "chat") return responseSchema.parse(value);
+    if (payload.task === "chat") return normalizeTalkResponse(value);
     if (payload.task === "warm") return warmResponseSchema.parse(value);
     return value;
   }
@@ -266,15 +298,27 @@ export class CoreClient {
       throw new ExternalServiceError("AI_UNAVAILABLE", "Local analysis is temporarily unavailable.");
     }
   }
-  async chat(messages: ChatTurn[]) {
-    try {
-      const value = responseSchema.parse(await this.request("/v2/chat", { messages }));
-      if (!value.supportRequired && !value.reply) throw new Error();
-      return value;
-    } catch (error) {
-      if (error instanceof ExternalServiceError && (error.code.startsWith("BUDDY_")||error.code.startsWith("NATIVE_"))) throw error;
-      throw new ExternalServiceError("AI_UNAVAILABLE", "Buddy is temporarily unavailable. Please try again later.");
+  async chat(messages: ChatTurn[], signal?:AbortSignal) {
+    for(let generationAttempt=1;generationAttempt<=5;generationAttempt++){
+      if(signal?.aborted)throw new ExternalServiceError('BUDDY_CANCELLED','Buddy generation was cancelled.');
+      try {
+        const value=normalizeTalkResponse(await this.request('/v2/chat',{messages,generationAttempt},signal));
+        if(!value.supportRequired&&!value.reply)throw new Error();
+        return value;
+      } catch(error) {
+        if(signal?.aborted)throw new ExternalServiceError('BUDDY_CANCELLED','Buddy generation was cancelled.');
+        const code=(error as {code?:string}).code??'';
+        const retryable=['BUDDY_RESPONSE_WITHHELD','AI_TRANSPORT_TIMEOUT','AI_TRANSPORT_UNAVAILABLE','AI_TRANSPORT_RATE_LIMITED','TALK_BUSY'].includes(code);
+        if(generationAttempt<5&&retryable&&!(error as {safetyWithheld?:boolean}).safetyWithheld){
+          try {await retryDelay(250*generationAttempt,undefined,{signal});}
+          catch {throw new ExternalServiceError('BUDDY_CANCELLED','Buddy generation was cancelled.');}
+          continue;
+        }
+        if(error instanceof ExternalServiceError)throw error;
+        throw new ExternalServiceError('AI_UNAVAILABLE','Buddy is temporarily unavailable. Please try again later.');
+      }
     }
+    throw new ExternalServiceError('AI_UNAVAILABLE','Buddy is temporarily unavailable. Please try again later.');
   }
   async journalRuntime(action:'prepare'|'owners'|'unload',owners:string[],faceOwners:string[]=[],signal?:AbortSignal){return this.request('/v2/journal-runtime',{action,owners,faceOwners},signal);}
   async ready(): Promise<boolean> {

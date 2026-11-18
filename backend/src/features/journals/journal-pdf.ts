@@ -148,6 +148,12 @@ export async function journalPdf(entry: Entry, saved: ExportResults = {}) {
     const comparison = face.comparison;
     if (comparison && comparison.status !== 'unavailable')
       text(`${comparison.status === 'same' ? 'Same leading label' : 'Different leading labels'} - writing: ${comparison.textEmotion}; face: ${comparison.faceEmotion}.`, 10);
+    else if(comparison){
+      text('Comparison unavailable.',10);
+      if(comparison.reason==='consent_required')text('Journal and facial analysis consent are required.',9,muted);
+      else for(const [name,state] of [['Text analysis',comparison.textState],['Face capture',comparison.faceState]])
+        if(state&&state!=='current')text(`${name}: ${state}. ${name==='Text analysis'?'Analyze the current journal text again.':'Capture your facial expression again.'}`,9,muted);
+    }
     text(`Captured estimate: ${face.result.generatedAt}`, 8.5, muted);
   } else text(`No available facial result is included. Saved status: ${face?.status || 'not available'}.`);
   section('About this export');

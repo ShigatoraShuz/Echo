@@ -2,10 +2,10 @@
   "policy": "echo_cbt_mixed_standalone_complete_steps_v3_20261101",
   "origin": "ECHO_CBT_Mixed_Standalone_Complete_Steps_V3 as copied into the current Nano Buddy",
   "files": {
-    "echo_cbt_standalone.py": "b4a4fded1defd22b581eb211a128889f0dfdc389b2654930339799cd5b401ba8",
+    "echo_cbt_standalone.py": "cd2c9f4941a82eb8c13b9801892f46095c1fa783d6101c785658f4fbaeb2992f",
     "formatting.py": "0e1d3b762ad9b4e5ef7a0a7b4c7457e0d8cb1963faeb075658b2f9ddcb496c2a",
     "style_config.json": "ca7f9e6a09f0e2a83411330ce1e7bbadeb4f123a26f19261105e3e9fae8eaec9",
     "reference/cbt-settings.json": "57d30307e1b78e65fa8959848c52637467d2be296470a46f52d670d8803663f9"
   },
-  "localAdaptation": "echo_cbt_reviewer_informed_20261117: reviewer-informed specificity and reflection, exact list counts capped at ten in chat and voice; existing safety/output approval retained."
+  "localAdaptation": "echo_cbt_chat_counselor_20261118 and echo_cbt_spoken_counselor_20261118: chat and Talk share 1536-token budgets, advisory style checks with bounded improvement, fresh retry seeds and sanitized rejection diagnostics. Safety, completeness, exact lists and counselor guidance retained. Journal recommendations explicitly retain strict review."
 }

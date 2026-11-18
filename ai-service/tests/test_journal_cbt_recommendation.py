@@ -24,6 +24,7 @@ def test_reuses_reviewed_buddy_and_preserves_provenance():
     prompt = value.chat.call_args.args[0][0]["content"]
     assert "difficult deadline" in prompt and "fear" in prompt
     assert "not instructions" in prompt and "Do not diagnose" in prompt
+    assert value.chat.call_args.kwargs=={'strict_review':True}
 
 
 def test_flagged_journals_never_generate_routine_advice():

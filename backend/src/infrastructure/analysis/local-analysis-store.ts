@@ -6,7 +6,14 @@ import { facialExpressionResultSchema, analysisStatusSchema, journalAnalysisResu
 import { randomUUID } from "node:crypto";
 import type { AnalysisStatus, FacialAnalysisStatus } from "@echo/contracts";
 import { ConflictError, NotFoundError, AppError } from "../../shared/errors/app-error.js";
+function publicJournalSnapshot(value:unknown):unknown{
+ if(Array.isArray(value))return value.map(publicJournalSnapshot);
+ if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([key])=>!['sourceTextIdentity','faceTextIdentity','_journalTextIdentity'].includes(key)).map(([key,item])=>[key,publicJournalSnapshot(item)]));
+ return value;
+}
 export interface LocalAnalysisJob {
+    sourceTextIdentity?: string;
+    faceTextIdentity?: string;
     id: string;
     user_id: string;
     journal_id: string;
@@ -92,11 +99,24 @@ export class LocalAnalysisStore {
     readHandoff(user: string, id: string) { const j = this.get(user, id); const expires = j ? new Date(Date.parse(j.created_at) + 90 * 86400000).toISOString() : ''; return j?.result_ciphertext && expires > new Date().toISOString() ? { job_id: id, expires_at: expires } : undefined; }
     async retry(user: string, id: string) { const j = this.get(user, id); if (!j || j.status !== 'failed' || (j.attempts ?? 0) >= 3)
         throw new ConflictError('RETRY_LIMIT', 'Local analysis retry is unavailable.'); await this.save({ ...j, status: 'queued', attempts: (j.attempts ?? 0) + 1 }); }
-    async export(user: string) { return (await this.repo.accountSnapshot(user)).analysis; }
-    exportAccount(user:string){return this.repo.accountSnapshot(user);}
+    async export(user: string) { return (await this.exportAccount(user)).analysis; }
+    async exportAccount(user:string){const snapshot=await this.repo.accountSnapshot(user);return publicJournalSnapshot(snapshot) as typeof snapshot;}
     async reserveScreening(user:string,id:string){await this.update(user,id,j=>{if(j.status!=='completed'||(j.screeningAttempts??0)>=3)throw new ConflictError('RETRY_LIMIT','Screening retry unavailable.');return {...j,screeningAttempts:(j.screeningAttempts??0)+1};});}
     async replaceScreening(user:string,id:string,result:unknown){if(this.get(user,id))await this.update(user,id,j=>({...j,result_ciphertext:JSON.stringify(journalAnalysisResultSchema.parse(result)),updated_at:new Date().toISOString()}));}
     async wait(user:string,id:string,reason:'page_inactive'|'buddy_priority'|'gpu_capacity'){const job=this.get(user,id);if(job&&!(job.status==='waiting_for_provider'&&job.waitReason===reason)&&!['completed','failed','cancelled','safety_action_required'].includes(job.status))await this.update(user,id,j=>['completed','failed','cancelled','safety_action_required'].includes(j.status)?j:({...j,status:'waiting_for_provider',waitReason:reason,updated_at:new Date().toISOString()}));}
-    async setFace(user:string,id:string,status:FacialAnalysisStatus,result?:unknown){if(this.get(user,id))await this.update(user,id,j=>({...j,facial_status:status,...(result?{face_result:facialExpressionResultSchema.parse(result)}:{}),updated_at:new Date().toISOString()}));}
+    async setFace(user:string,id:string,status:FacialAnalysisStatus,result?:unknown,sourceIdentity?:string){if(this.get(user,id))await this.update(user,id,j=>{
+      const parsed=result?facialExpressionResultSchema.parse(result):undefined;
+      const previous=(j as LocalAnalysisJob&{previousFaces?:unknown[]}).previousFaces??[];
+      const replaced=parsed&&j.face_result&&JSON.stringify(parsed)!==JSON.stringify(j.face_result);
+      return {...j,facial_status:status,...(parsed?{face_result:parsed}:{}),...(sourceIdentity?{faceTextIdentity:sourceIdentity}:{}),
+        ...(replaced?{previousFaces:[...previous,{result:j.face_result,sourceTextIdentity:j.faceTextIdentity}]}:{}),updated_at:new Date().toISOString()};
+    });}
+    async setSourceIdentity(user:string,id:string,sourceTextIdentity:string){await this.update(user,id,j=>({...j,sourceTextIdentity}));}
+    async refreshJournal(user:string,id:string){await this.update(user,id,j=>{
+      if(!['completed','failed','cancelled'].includes(j.status))throw new ConflictError('ANALYSIS_BUSY','Journal analysis is already in progress.');
+      const prior=j as LocalAnalysisJob&{previousResults?:unknown[]};
+      return {...j,status:'queued',progress:0,sourceTextIdentity:undefined,result_ciphertext:null,
+        previousResults:[...(prior.previousResults??[]),...(j.result_ciphertext?[{result:JSON.parse(j.result_ciphertext),sourceTextIdentity:j.sourceTextIdentity}]:[])]} as LocalAnalysisJob;
+    });}
     async clear(user: string) {await this.repo.clear(user);}
 }

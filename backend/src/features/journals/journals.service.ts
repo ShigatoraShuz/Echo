@@ -1,4 +1,5 @@
 import {compareJournalSignals} from './journal-signal-comparison.js';
+import {journalSourceIdentity,validJournalSource,withoutJournalSource} from './journal-source-identity.js';
 import {createHash} from 'node:crypto';
 import {ModelPageLeases} from '../../infrastructure/analysis/model-page-leases.js';
 import {appPresence} from '../../infrastructure/security/app-presence.js';
@@ -256,7 +257,7 @@ export class JournalService {
       const ids = new Set((owned.data ?? []).map(row => row.id));
       return data.filter(row => ids.has(row.journal_id)).map(row => ({
         journalId: row.journal_id,
-        result: facialExpressionResultSchema.parse(JSON.parse(decryptText(row.result_ciphertext, this.encryption))),
+        result: facialExpressionResultSchema.parse(withoutJournalSource(JSON.parse(decryptText(row.result_ciphertext, this.encryption)))),
       }));
     }
     if(!this.localResults||!await this.hasGlobalFacialConsent(user))return [];
@@ -267,23 +268,29 @@ export class JournalService {
     }
     return results;
   }
-  async faceStatus(user:string,journal:string){
+  async faceStatus(user:string,journal:string):Promise<{status:string;result:import('@echo/contracts').FacialExpressionResult|null;comparison:import('@echo/contracts').JournalSignalComparison}>{
     const entry=await this.get(user,journal);
-    const compare=async(result:import('@echo/contracts').FacialExpressionResult|null)=>{
+    const compare=async(result:import('@echo/contracts').FacialExpressionResult|null,faceSource?:string)=>{
       if(!await this.hasGlobalAnalysisConsent(user))return {status:'unavailable' as const,reason:'consent_required' as const};
       const analysis=await this.latestAnalysis(journal,user);
-      return compareJournalSignals({journalId:journal,revision:entry.updated_at,textEmotion:this.detectedEmotion(analysis),textTime:analysis?asString(analysis.created_at):undefined,textId:analysis?asString(analysis.id):undefined,face:result});
+      const job=this.localResults?.journal(user,journal);
+      let textSource=job?.sourceTextIdentity;
+      if(!this.localResults&&analysis?.result_payload){
+        try{textSource=JSON.parse(decryptText((analysis.result_payload as {ciphertext:string}).ciphertext,this.encryption))._journalTextIdentity;}catch{/* Legacy results remain unverified. */}
+      }
+      return compareJournalSignals({journalId:journal,revision:entry.updated_at,textEmotion:this.detectedEmotion(analysis),textTime:analysis?asString(analysis.created_at):undefined,textId:analysis?asString(analysis.id):undefined,face:result,currentSource:journalSourceIdentity(journal,entry.body),textSource,faceSource});
     };
     if(!this.localResults){
-      if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
+      if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null,comparison:{status:'unavailable',reason:'consent_required'}};
       const {data,error}=await this.database.schema('ai_analysis').from('journal_face_results').select('result_ciphertext').eq('user_id',user).eq('journal_id',journal).maybeSingle();
       if(error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Face result could not be loaded.');
-      const result=data?facialExpressionResultSchema.parse(JSON.parse(decryptText(data.result_ciphertext,this.encryption))):null;
-      return {status:result?.status==='available'?'completed':result?.status??'not_requested',result,comparison:await compare(result)};
+      const stored=data?JSON.parse(decryptText(data.result_ciphertext,this.encryption)):null;
+      const result=stored?facialExpressionResultSchema.parse(withoutJournalSource(stored)):null;
+      return {status:result?.status==='available'?'completed':result?.status??'not_requested',result,comparison:await compare(result,stored?._journalTextIdentity)};
     }
     const job=this.localResults.journal(user,journal);
-    if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null};
-    return {status:job?.facial_status??'not_requested',result:job?.face_result??null,comparison:await compare(job?.face_result??null)};
+    if(!await this.hasGlobalFacialConsent(user))return {status:'unavailable',result:null,comparison:{status:'unavailable',reason:'consent_required'}};
+    return {status:job?.facial_status??'not_requested',result:job?.face_result??null,comparison:await compare(job?.face_result??null,job?.faceTextIdentity)};
   }
   async submitFace(user:string,journal:string,image:Buffer){
     if(!this.localResults){
@@ -291,9 +298,9 @@ export class JournalService {
       const result=await this.evaluateFace(user,image);
       if (result.status === 'available') result.journalRevision = revision.updated_at;
       const current=await this.get(user,journal);await this.assertAnalysisGates(user);
-      if(current.updated_at!==revision.updated_at)throw new ConflictError('JOURNAL_EDIT_CONFLICT','The reflection changed during face analysis. Please capture again.');
-      const args={p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify(result),this.encryption),p_available:result.status==='available'};
-      let {error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result_for_revision',{...args,p_expected_updated_at:revision.updated_at});
+      if(current.body!==revision.body)throw new ConflictError('JOURNAL_EDIT_CONFLICT','The reflection changed during face analysis. Please capture again.');
+      const args={p_user_id:user,p_journal_id:journal,p_ciphertext:encryptText(JSON.stringify({...result,_journalTextIdentity:journalSourceIdentity(journal,revision.body)}),this.encryption),p_available:result.status==='available'};
+      let {error}=await this.database.schema('ai_analysis').rpc('save_journal_face_result_for_revision',{...args,p_expected_updated_at:current.updated_at});
       // Preserve the existing face workflow on installations without journal-edit support.
       // Once the migration is present, every face save uses its atomic revision fence.
       if(error?.code==='PGRST202'){
@@ -313,7 +320,7 @@ export class JournalService {
     if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user))throw new AnalysisGateError('Enable journal and facial analysis consent.');
     const job=this.localResults.journal(user,journal);
     if(!job)throw new NotFoundError('Local journal analysis is required.');
-    if(this.faceStopped||this.faceActive.has(job.id)||job.face_result)throw new ConflictError('FACE_ALREADY_SUBMITTED','Face capture already submitted.');
+    if(this.faceStopped||this.faceActive.has(job.id)||(job.face_result?.status==='available'&&job.faceTextIdentity===journalSourceIdentity(journal,entry.body)))throw new ConflictError('FACE_ALREADY_SUBMITTED','A current face capture is already available or processing.');
     if(this.faceActive.size>=4)throw new ConflictError('FACE_QUEUE_FULL','Local face queue is full.');
     if(!image.length||image.length>2*1024*1024)throw new ConflictError('INVALID_CAPTURE','Image must be at most 2 MiB.');
     await this.localResults.setFace(user,job.id,'queued');this.faceActive.add(job.id);
@@ -348,7 +355,7 @@ export class JournalService {
         if(this.faceStopped)return;
         await this.assertAnalysisGates(user);
         if(!await this.hasGlobalAnalysisConsent(user)||!await this.hasGlobalFacialConsent(user)||(await this.get(user,journal)).body!==entry.body)throw new Error('Publishing no longer allowed');
-        await this.localResults!.setFace(user,job.id,result.status==='available'?'completed':'unavailable',result);
+        await this.localResults!.setFace(user,job.id,result.status==='available'?'completed':'unavailable',result,journalSourceIdentity(journal,entry.body));
       }catch{if(!this.faceStopped)await this.localResults?.setFace(user,job.id,'unavailable',{schemaVersion:'echo-face-expression-v1',status:'unavailable',reason:inferenceStarted?'model_unavailable':'processing_not_allowed'});}
       finally{bytes.fill(0);this.faceActive.delete(job.id);}
     })();
@@ -376,6 +383,7 @@ export class JournalService {
       if(!await this.hasGlobalAnalysisConsent(job.user_id))throw new AnalysisGateError('Journal-analysis consent is required.');
       await this.assertAnalysisGates(job.user_id);
       const entry=await this.get(job.user_id,job.journal_id);
+      await store.setSourceIdentity(job.user_id,job.id,journalSourceIdentity(job.journal_id,entry.body));
       await store.set(job.user_id,job.id,'safety_checking',10);
       const classification=await this.coreClient.classify(entry.body,process.env.ECHO_PAGE_MODEL_LEASES==='true'?this.journalOwner(job.user_id):undefined,controller.signal);
       if(!store.get(job.user_id,job.id))return;
@@ -464,7 +472,11 @@ export class JournalService {
 
   private get reader(): SupabaseClient { return this.userDatabase?.() ?? this.database; }
 
-  encryptAnalysisResult(value: unknown) { return sealAnalysisResult(value, this.encryption); }
+  encryptAnalysisResult(value: unknown,sourceIdentity?:string) {
+    const sealed=sealAnalysisResult(value,this.encryption);
+    if(validJournalSource(sourceIdentity))sealed.encryptedPayload=encryptText(JSON.stringify({...journalAnalysisResultSchema.parse(value),_journalTextIdentity:sourceIdentity}),this.encryption);
+    return sealed;
+  }
 
   private readAnalysisResult(value: unknown) { if(this.localResults && value && typeof value === "object" && "ciphertext" in value && typeof value.ciphertext === "string" && !value.ciphertext.startsWith("echo:encrypted:v1:"))return journalAnalysisResultSchema.parse(JSON.parse(value.ciphertext));
     return openAnalysisResult(value, this.encryption); }
@@ -1075,7 +1087,7 @@ export class JournalService {
       await this.setJobStatus(jobId, "aggregating_week", attempt);
       const { error } = await this.database
         .schema("ai_analysis")
-        .rpc("complete_journal_analysis", { p_job_id: jobId, p_result: this.encryptAnalysisResult(validated.data) });
+        .rpc("complete_journal_analysis", { p_job_id: jobId, p_result: this.encryptAnalysisResult(validated.data,journalSourceIdentity(journalId,body)) });
       if (error) throw new ExternalServiceError("DATABASE_UNAVAILABLE", "The analysis result could not be committed.");
     } catch {
       if (this.runner.signal.aborted) return; // Startup recovery owns abandoned stub work.
@@ -1154,7 +1166,7 @@ export class JournalService {
     }
   }
 
-  async update(userId: string, journalId: string, input: Partial<JournalInput> & { expectedUpdatedAt?: string }): Promise<JournalResponse> {
+  async update(userId: string, journalId: string, input: Partial<JournalInput> & { expectedUpdatedAt?: string },forceAnalysis=false): Promise<JournalResponse> {
     const current = await this.get(userId, journalId);
     const next: JournalInput = {
       title: input.title ?? current.title, body: input.body ?? current.body,
@@ -1167,9 +1179,17 @@ export class JournalService {
       throw new ConflictError("JOURNAL_EDIT_CONFLICT", "This reflection changed in another tab. Reload it before editing again.");
     const changed = next.title !== current.title || next.body !== current.body || next.analysisConsent !== current.analysis_consent
       || next.privacyStatus !== current.privacy_status || JSON.stringify(next.tags) !== JSON.stringify(current.tags) || JSON.stringify(next.emotions) !== JSON.stringify(current.emotions);
-    if (!changed) return current;
+    if (!changed&&!forceAnalysis) return current;
     const analyze = next.analysisConsent && await this.hasGlobalAnalysisConsent(userId);
     if (analyze) await this.assertAnalysisGates(userId);
+    if(!forceAnalysis&&next.body===current.body&&next.title===current.title&&next.analysisConsent===current.analysis_consent){
+      // Metadata edits must not rewrite encrypted content and trigger analysis invalidation.
+      const saved=await this.reader.schema('journal_service').from('journals').update({tags:next.tags,emotions:next.emotions,privacy_status:next.privacyStatus,updated_at:new Date().toISOString()})
+        .eq('id',journalId).eq('user_id',userId).eq('updated_at',input.expectedUpdatedAt??current.updated_at).is('deleted_at',null).select('*').maybeSingle();
+      if(saved.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','Journal metadata could not be saved.');
+      if(!saved.data)throw new ConflictError('JOURNAL_EDIT_CONFLICT','The journal changed. Reload before saving.');
+      return this.toJournalResponse(saved.data as JournalRow,await this.latestAnalysis(journalId,userId));
+    }
     const encrypted = this.encryptJournal(next);
     const initial = analyze ? await this.initialAnalysisStatus() : "saved";
     const { data, error } = await this.database.schema("journal_service").rpc("edit_journal", {
@@ -1188,15 +1208,16 @@ export class JournalService {
       if (error?.message?.includes("ANALYSIS_GATE_FAILED")) throw new AnalysisGateError("Analysis access changed. Review your settings and retry.");
       throw new ExternalServiceError("DATABASE_UNAVAILABLE", "We could not confirm the edit was saved. Keep your writing and reload the saved reflection before retrying.");
     }
-    this.cancelLocalWork(userId,journalId);
-    if (this.localResults) {
+    const preserveLocalSignals=!forceAnalysis&&Boolean(this.localResults)&&next.body===current.body&&next.analysisConsent===current.analysis_consent;
+    if(!preserveLocalSignals)this.cancelLocalWork(userId,journalId);
+    if (this.localResults && !preserveLocalSignals) {
       await this.localResults.remove(userId,journalId);
       if (analyze) {
         const identity=this.idempotency!.identify(`edit:${journalId}:${data.entry.updated_at}`,next);
         const job=await this.localResults.create(userId,journalId,identity.keyHmac,identity.requestHash,"not_requested");
         this.enqueueLocal(job);
       }
-    } else if (analyze && this.runtime.mode === "development_stub" && data.status === "queued") {
+    } else if (!this.localResults && analyze && this.runtime.mode === "development_stub" && data.status === "queued") {
       this.runner.enqueue(() => this.processDevelopmentJob(userId,journalId,data.jobId,next.body,"standard_low_distress"));
     }
     return this.toJournalResponse(data.entry as JournalRow, null);
@@ -1312,6 +1333,25 @@ export class JournalService {
     await this.assertAnalysisGates(userId);
     const job=this.localResults.journal(userId,journalId);if(!job)throw new NotFoundError('Local analysis job unavailable.');
     await this.localResults.retry(userId,job.id);this.enqueueLocal(this.localResults.get(userId,job.id)!);
+    return {queued:true};
+  }
+  async refreshJournalComparison(user:string,journal:string){
+    const entry=await this.get(user,journal);
+    await this.assertAnalysisGates(user);
+    if(!await this.hasGlobalAnalysisConsent(user))throw new AnalysisGateError('Enable journal-analysis consent.');
+    if(this.localResults){
+      const job=this.localResults.journal(user,journal);if(!job)throw new NotFoundError('Save this journal with analysis enabled first.');
+      await this.localResults.refreshJournal(user,job.id);this.enqueueLocal(this.localResults.get(user,job.id)!);
+    }else{
+      const previous=await this.hasGlobalFacialConsent(user)?await this.database.schema('ai_analysis').from('journal_face_results').select('result_ciphertext').eq('user_id',user).eq('journal_id',journal).maybeSingle():null;
+      if(previous?.error)throw new ExternalServiceError('DATABASE_UNAVAILABLE','The saved face result could not be preserved.');
+      const saved=await this.update(user,journal,{expectedUpdatedAt:entry.updated_at,analysisConsent:true},true);
+      if(previous?.data){
+        const prior=facialExpressionResultSchema.parse(withoutJournalSource(JSON.parse(decryptText(previous.data.result_ciphertext,this.encryption))));
+        const restored=await this.database.schema('ai_analysis').rpc('save_journal_face_result_for_revision',{p_user_id:user,p_journal_id:journal,p_expected_updated_at:saved.updated_at,p_ciphertext:previous.data.result_ciphertext,p_available:prior.status==='available'});
+        if(restored.error)return {queued:true,requiresFaceCapture:true};
+      }
+    }
     return {queued:true};
   }
   async analyze(userId: string, journalId: string): Promise<AnalysisResponse> {

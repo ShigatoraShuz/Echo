@@ -6,6 +6,9 @@ import { ValidationError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/utils/response.js";
 
 const COOKIE_PATH = "/api/v1/registration";
+function draftCookiePath(): string {
+  return process.env.NODE_ENV === "development" ? "/" : COOKIE_PATH;
+}
 const limiter = rateLimit({ windowMs: 60_000, limit: 12, standardHeaders: "draft-8", legacyHeaders: false });
 
 function cookies(request: Request): Record<string, string> {
@@ -43,9 +46,11 @@ function cookieSecurity(request: Request, maxAge: number): string {
 
 function setCredentials(request: Request, response: Response, value: DraftCredentials): void {
   const security = cookieSecurity(request, 1800);
+  if (process.env.NODE_ENV === "development")
+    response.append("Set-Cookie", `echo_signup_draft=; Path=${COOKIE_PATH}; ${security}; Max-Age=0; HttpOnly`);
   response.append(
     "Set-Cookie",
-    `echo_signup_draft=${encodeURIComponent(value.token)}; Path=${COOKIE_PATH}; ${security}; HttpOnly`,
+    `echo_signup_draft=${encodeURIComponent(value.token)}; Path=${draftCookiePath()}; ${security}; HttpOnly`,
   );
   response.append("Set-Cookie", `echo_signup_csrf=${encodeURIComponent(value.csrf)}; Path=/; ${security}`);
 }
@@ -128,7 +133,7 @@ export function createRegistrationRouter(service: RegistrationService, allowedOr
       if (nextCredentials) setCredentials(request, response, nextCredentials);
       else {
         const security = cookieSecurity(request, 0);
-        response.append("Set-Cookie", `echo_signup_draft=; Path=${COOKIE_PATH}; ${security}; HttpOnly`);
+        response.append("Set-Cookie", `echo_signup_draft=; Path=${draftCookiePath()}; ${security}; HttpOnly`);
         response.append("Set-Cookie", `echo_signup_csrf=; Path=/; ${security}`);
       }
       sendSuccess(response, { nextStep: nextCredentials ? "verify" : "sign-in", verificationPending: Boolean(nextCredentials) }, 201);

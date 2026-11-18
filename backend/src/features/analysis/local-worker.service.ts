@@ -1,4 +1,5 @@
 import { assertAiEnabled } from "../../infrastructure/security/runtime-controls.js";
+import {journalSourceIdentity} from '../journals/journal-source-identity.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { journalAnalysisResultSchema } from "@echo/contracts";
@@ -46,6 +47,7 @@ export function workerDatabaseError(error: { message?: string }): never {
 
 /** External protocol only. No in-process model inference or analyze() adapter. */
 export class LocalWorkerService implements LocalWorkerProtocol {
+  private journalSources=new Map<string,{user:string;journal:string;identity:string;expires:number}>();
   constructor(
     private readonly database: SupabaseClient,
     private readonly journals: JournalService,
@@ -145,6 +147,8 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     if (error) workerDatabaseError(error);
     if (!data) return null;
     const journal = await this.journals.get(String(data.userId), String(data.journalId));
+    for(const [key,value] of this.journalSources)if(value.expires<Date.now())this.journalSources.delete(key);
+    this.journalSources.set(String(data.jobId)+':'+hash(leaseToken),{user:String(data.userId),journal:String(data.journalId),identity:journalSourceIdentity(String(data.journalId),journal.body),expires:Date.parse(String(data.leaseExpiresAt))||Date.now()+1800000});
     return {
       jobId: data.jobId,
       userId: data.userId,
@@ -234,9 +238,12 @@ export class LocalWorkerService implements LocalWorkerProtocol {
     const receipt = await this.probe("final_result", jobId, workerId, leaseToken, identity);
     if (receipt?.replay) return receipt.outcome;
     await assertAiEnabled();
+    const source=this.journalSources.get(jobId+':'+hash(leaseToken));
+    if(source&&journalSourceIdentity(source.journal,(await this.journals.get(source.user,source.journal)).body)!==source.identity)
+      throw new ConflictError('JOURNAL_CHANGED','This journal changed during analysis. Analyze the current text again.');
     const { data, error } = await this.database.schema("ai_analysis").rpc("complete_worker_callback", {
       p_job_id: jobId,
-      p_result: this.journals.encryptAnalysisResult(result),
+      p_result: this.journals.encryptAnalysisResult(result,source?.identity),
       p_callback_type: "final_result",
       p_key_hmac: identity.keyHmac,
       p_payload_hash: identity.payloadHash,

@@ -93,7 +93,9 @@ class BuddyRuntime:
                 started=time.monotonic();attempt=self.status.get('attempt',1);generation=self.loading_generation
                 options['progress']=lambda stage:self._publish('moss','loading',attempt,_generation=generation,stage=stage,elapsedSeconds=time.monotonic()-started)
             return self.workers[kind].call(request, cancelled, **options)
-        except Exception:
+        except Exception as error:
+            if str(error) in ('BUDDY_SPEECH_TEXT_AMBIGUOUS','BUDDY_SPEECH_SEGMENT_INVALID'):
+                raise
             failed = self.workers.pop(kind, None)
             if failed:
                 failed.close()
@@ -200,7 +202,7 @@ class BuddyRuntime:
             self.cpu_classifier = ClassifierProxy()
         return self.cpu_classifier
 
-    def generate(self, messages, cancelled=None, delivery_mode="chat"):
+    def generate(self, messages, cancelled=None, delivery_mode="chat", generation_attempt=0, strict_review=False):
         with self.core.lock:
             # Same frozen classifier/calibration as main, before any Buddy generation.
             classification = self._classifier().classify(messages[-1]["content"])
@@ -208,11 +210,11 @@ class BuddyRuntime:
                 return {"reply": None, "supportRequired": True, "model": self.core.provenance("xlmr")}
             self.core.release() if self.core.instance is not None and not getattr(self.core,"hf_enabled",False) else None
             if getattr(self.core,"hf_enabled",False):self.core.ensure_buddy_capacity()
-            value = self._worker("cbt", {"messages": messages, "deliveryMode": delivery_mode}, cancelled)
+            value = self._worker("cbt", {"messages": messages, "deliveryMode": delivery_mode, 'generationAttempt':generation_attempt, **({'strictReview':True} if strict_review else {})}, cancelled)
             if cancelled and cancelled.is_set():
                 raise TalkCancelledError("Cancelled")
             if value.get("withheld") or not value.get("reply"):
-                raise ModelUnavailableError("BUDDY_RESPONSE_WITHHELD")
+                return {'reply':None,'supportRequired':False,'withheld':True,'diagnostics':value.get('diagnostics',{})}
             return {"reply": value["reply"], "supportRequired": False, "model": value["model"],
                     "quality": {**value.get("quality", {}), "generationSeconds": value["seconds"]}}
 
@@ -285,13 +287,13 @@ class BuddyRuntime:
                 self.status = {"ready": False, "code": code if code.startswith(("BUDDY_","NATIVE_")) else "BUDDY_PREFLIGHT_FAILED"}
                 raise ModelUnavailableError(self.status["code"]) from None
 
-    def chat(self, session, messages, cancelled=None, delivery_mode="chat"):
+    def chat(self, session, messages, cancelled=None, delivery_mode="chat", generation_attempt=0):
         self.require(session)
         with self.core.lock:
             self.require(session)
             if not self.ready:
                 self.start(session, cancelled, speech=False)
-            result = self.generate(messages, cancelled, **({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
+            result = self.generate(messages, cancelled, **({"delivery_mode":delivery_mode,'generation_attempt':generation_attempt} if delivery_mode=="voice" else {}))
             self.require(session)
             return result
 
@@ -362,7 +364,7 @@ class BuddyRuntime:
                 raise ModelUnavailableError("BUDDY_WORKER_LOST")
             return {"active": True}
         if task == "chat":
-            return self.chat(session, payload["messages"], cancelled, **({"delivery_mode":"voice"} if payload.get("deliveryMode")=="voice" else {}))
+            return self.chat(session, payload["messages"], cancelled, **({"delivery_mode":"voice",'generation_attempt':payload.get('generationAttempt',0)} if payload.get("deliveryMode")=="voice" else {}))
         if task == "support_check":
             with self.core.lock:
                 return self._classifier().classify(payload["text"])
@@ -370,7 +372,10 @@ class BuddyRuntime:
             from app.buddy.text_audio import prepare
             from app.buddy.sentences import sentences, batches, spoken_sentences
             from app.buddy.segmenting import speech_segments
-            text = prepare(payload["text"], payload.get("language", "English"), spoken=payload.get("deliveryMode")=="voice")
+            try:
+                text = prepare(payload["text"], payload.get("language", "English"), spoken=payload.get("deliveryMode")=="voice")
+            except ValueError:
+                raise ModelUnavailableError('BUDDY_SPEECH_TEXT_AMBIGUOUS') from None
             split = spoken_sentences if payload.get("deliveryMode")=="voice" else sentences
             parts = split(text) if payload.get("speechMode") == "sentences_2_then_3" else speech_segments(text)
             if payload.get('voiceMode','fast')=='fast':
@@ -379,7 +384,7 @@ class BuddyRuntime:
                     parts=self._worker('nano',{'prepareTexts':parts},cancelled)['parts']
             groups = list(batches(parts)) if payload.get("speechMode") == "sentences_2_then_3" else [[part] for part in parts]
             if "".join(parts) != text:
-                raise ValueError("Speech coverage failed")
+                raise ModelUnavailableError('BUDDY_SPEECH_COVERAGE_FAILED')
             return {"preparedText": text, "groups": groups}
         if task in ("transcribe", "speak"):
             return self.speech(session, payload, cancelled)

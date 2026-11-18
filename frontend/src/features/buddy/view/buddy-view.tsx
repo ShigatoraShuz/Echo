@@ -585,7 +585,7 @@ export function BuddyView() {
 
         {mode === "talk" && realtime.enabled && (
           <div className="echo-panel-scroll min-h-0 flex-1 overflow-y-auto">
-            <BuddyVoiceStudio talk={realtime} disabled={savedChatReadOnly || vm.isSending} messages={vm.messages}
+            <BuddyVoiceStudio talk={realtime} disabled={savedChatReadOnly || vm.isSending} modelLoading={runtimeStatus !== 'ready' || Boolean(preparingComponent)} messages={vm.messages}
               onStart={() => { cancelVoice(); void realtime.start(); }}
               speechProvider={<SttProviderSelect value={sttProvider} onChange={setSttProvider} disabled={realtime.active} />}
             />

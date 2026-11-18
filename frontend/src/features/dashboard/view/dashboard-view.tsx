@@ -66,6 +66,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
   );
 
   const [activityWeeks, setActivityWeeks] = useState(26);
+  const [urgentJournalId, setUrgentJournalId] = useState<string | null>(null);
 
   if (isLoading && !data) {
     return (
@@ -161,6 +162,14 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
         <JournalCbtRecommendation result={data.analysisInsights.latest} heading="Latest reflection recommendation" />
       ) : null}
 
+      {urgentJournalId ? (
+        <section className="rounded-2xl border border-primary/25 bg-secondary p-4" role="status">
+          <p className="font-semibold">Support is available right now.</p>
+          <p className="mt-1 text-sm">A safety signal paused your journal analysis. This is not a diagnosis. If you feel unsafe, reach someone who can stay with you.</p>
+          <Link className="mt-3 inline-flex font-semibold underline" href="/crisis">Open crisis support</Link>
+        </section>
+      ) : null}
+
       {/* DASHBOARD GRID */}
       <div className="echo-card-motion-grid dashboard-main-grid grid gap-4 lg:grid-cols-12">
         {/* EMOTION WHEEL */}
@@ -170,7 +179,7 @@ export function DashboardView({ preview = false }: { preview?: boolean }) {
 
         {/* USER-COMPLETED PHQ-8 CHECK-IN */}
         <DashboardCard className="dashboard-signal-card echo-immediate-card bg-[linear-gradient(155deg,rgba(255,253,247,0.94),rgba(237,242,240,0.88))] lg:col-span-3">
-          <WellnessCheckin preview={preview} showGauge />
+          <WellnessCheckin preview={preview} showGauge onUrgentChange={setUrgentJournalId} />
         </DashboardCard>
 
         {/* REFLECTION SPACE */}

@@ -43,7 +43,10 @@ class TestV3Policy(unittest.TestCase):
   self.assertNotIn('SPOKEN CONVERSATION',e.system_prompt(ordinary))
   for text in (USER2,'Explain in detail how to manage school stress.', 'Ipaliwanag ang pagharap sa stress.', 'What CBT protocol can I use for my client?'):
    self.assertEqual(e.response_role(text,'voice'),e.role(text))
-   self.assertEqual(e.system_prompt(text,delivery_mode='voice'),e.system_prompt(text))
+   if e.role(text) in ('steps','professional'):
+    self.assertEqual(e.system_prompt(text,delivery_mode='voice'),e.system_prompt(text))
+   else:
+    self.assertIn('concise, complete conversation',e.system_prompt(text,delivery_mode='voice'))
   for text in ('I want to kill myself','I wanna give up'):
    model=e.LocalCBT.__new__(e.LocalCBT)
    model._attempt=lambda *a,**k:self.fail('Unsafe request reached generation')
@@ -137,7 +140,7 @@ class TestV3Delivery(unittest.TestCase):
  def dummy(self, first, second=None):
   model=e.LocalCBT.__new__(e.LocalCBT);model.template_state='mock'
   calls=[]
-  def fake(h,*,retry=False,allow_drops=True,repair_issues=()):
+  def fake(h,*,retry=False,allow_drops=True,repair_issues=(),**kwargs):
    calls.append(retry)
    return dict(second if retry else first)
   model._attempt=fake

@@ -60,7 +60,7 @@ function setStorageFlag(scope: "local" | "session", key: string): void {
   }
 }
 
-export function WellnessCheckin({ preview = false, showGauge = false }: { preview?: boolean; showGauge?: boolean }) {
+export function WellnessCheckin({ preview = false, showGauge = false, onUrgentChange }: { preview?: boolean; showGauge?: boolean; onUrgentChange?: (journalId: string | null) => void }) {
   const [status, setStatus] = useState<WellnessStatus | null>(preview ? previewStatus : null);
 
   const [prompt, setPrompt] = useState<Prompt>(null);
@@ -81,6 +81,7 @@ export function WellnessCheckin({ preview = false, showGauge = false }: { previe
   const urgent = useRef(false);
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => { onUrgentChange?.(status?.urgentJournalId ?? null); }, [onUrgentChange, status?.urgentJournalId]);
 
   const refresh = useCallback(async () => {
     if (preview) return previewStatus;
@@ -275,21 +276,6 @@ export function WellnessCheckin({ preview = false, showGauge = false }: { previe
         partial={status.assessment.selfReports?.[0]?.complete === false} due={status.assessment.due}
         onOpen={() => { setSaved(status.assessment.selfReports?.[0] ?? null); closeDock(); setPrompt("phq8"); }}
         onStart={() => { setSaved(null); closeDock(); setPrompt("phq8"); }} /> : null}
-      {status.urgentJournalId ? (
-        <section className="rounded-2xl border border-primary/25 bg-secondary p-4" role="status">
-          <p className="font-semibold">Support is available right now.</p>
-
-          <p className="mt-1 text-sm">
-            A safety signal paused your journal analysis. This is not a diagnosis. If you feel unsafe, reach someone
-            who can stay with you.
-          </p>
-
-          <Link className="mt-3 inline-flex font-semibold underline" href="/crisis">
-            Open crisis support
-          </Link>
-        </section>
-      ) : null}
-
       {mounted && !status.urgentJournalId ? createPortal(
         <aside
           className="echo-checkin-dock fixed right-0 top-28 z-[250] flex max-h-[calc(100dvh-8rem)] w-[min(22rem,calc(100vw-0.75rem))] rounded-l-2xl border border-primary/15 bg-card shadow-xl transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:top-1/3 sm:max-h-[calc(66dvh-1rem)]"

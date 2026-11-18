@@ -120,7 +120,41 @@ def test_api_forwards_spoken_profile_and_rejects_unknown_profile(monkeypatch):
     monkeypatch.setattr(routes,'runtime',lambda request:SimpleNamespace(talk=SimpleNamespace(chat=chat)))
     fields={'sessionId':'00000000-0000-0000-0000-000000000000','task':'chat','messages':[{'role':'user','content':'Synthetic'}]}
     assert asyncio.run(routes.talk(routes.TalkInput(**fields,deliveryMode='voice'),Request()))['reply']
-    assert seen[-1][1]=={'delivery_mode':'voice'}
+    assert seen[-1][1]=={'delivery_mode':'voice','generation_attempt':0}
+    asyncio.run(routes.talk(routes.TalkInput(**fields,deliveryMode='voice',generationAttempt=5),Request()))
+    assert seen[-1][1]['generation_attempt']==5
     asyncio.run(routes.talk(routes.TalkInput(**fields),Request()))
     assert seen[-1][1]=={}
     with pytest.raises(ValidationError):routes.TalkInput(**fields,deliveryMode='unknown')
+    with pytest.raises(ValidationError):routes.TalkInput(**fields,generationAttempt=6)
+
+
+def test_talk_withholding_retains_sanitized_diagnostics(monkeypatch):
+    import asyncio
+    from fastapi import HTTPException
+    from app.api.routes import core as routes
+    from app.core import config
+    class Request:
+        async def is_disconnected(self): return False
+    result={'reply':None,'withheld':True,'diagnostics':{'blockingIssues':['incomplete_list_item'],'attempts':2}}
+    monkeypatch.setattr(config,'get_settings',lambda:SimpleNamespace(realtime_talk_enabled=True))
+    monkeypatch.setattr(routes,'runtime',lambda request:SimpleNamespace(talk=SimpleNamespace(chat=lambda *a,**kw:result)))
+    payload=routes.TalkInput(sessionId='00000000-0000-0000-0000-000000000000',task='chat',deliveryMode='voice',messages=[{'role':'user','content':'Synthetic'}])
+    with pytest.raises(HTTPException) as error: asyncio.run(routes.talk(payload,Request()))
+    assert error.value.status_code==503
+    assert error.value.detail=={'code':'BUDDY_RESPONSE_WITHHELD','diagnostics':result['diagnostics']}
+
+
+def test_chat_forwards_retry_identity_and_preserves_withholding_reasons(monkeypatch):
+    from fastapi import HTTPException
+    from app.api.routes import core as routes
+    seen=[]
+    def chat(messages,**kwargs):
+        seen.append(kwargs)
+        return {'reply':None,'withheld':True,'diagnostics':{'blockingIssues':['incomplete_list_item'],'attempts':2}}
+    monkeypatch.setattr(routes,'runtime',lambda request:SimpleNamespace(chat=chat))
+    payload=routes.ChatInput(messages=[{'role':'user','content':'Synthetic'}],generationAttempt=3)
+    with pytest.raises(HTTPException) as error:routes.chat(payload,None)
+    assert seen==[{'generation_attempt':3}]
+    assert error.value.status_code==503
+    assert error.value.detail['diagnostics']['blockingIssues']==['incomplete_list_item']

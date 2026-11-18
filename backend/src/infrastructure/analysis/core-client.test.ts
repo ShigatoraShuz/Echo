@@ -7,6 +7,60 @@ const token = "synthetic-core-contract-token-32-characters";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native core HTTP ownership", () => {
+  it('distinguishes invalid speech requests and logs their actual status without private text',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('private text and traceback',{status:422})));
+    try{
+      await expect(new CoreClient('http://127.0.0.1:8000',token).talk({task:'prepare',text:'private approved text'})).rejects.toMatchObject({code:'BUDDY_SPEECH_REQUEST_INVALID'});
+      const logs=warn.mock.calls.map(([value])=>String(value)).join(' ');
+      expect(logs).toContain('"httpStatus":422');expect(logs).not.toContain('private text');expect(logs).not.toContain('private approved text');
+    }finally{warn.mockRestore();}
+  });
+  it('retries typed Chat with fresh IDs and the same conversation',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    const fetcher=vi.fn()
+      .mockResolvedValueOnce(Response.json({detail:{code:'BUDDY_RESPONSE_WITHHELD',diagnostics:{blockingIssues:['unfinished_structure_or_clause'],attempts:2}}},{status:503}))
+      .mockResolvedValueOnce(Response.json({text:'Open the document and write one heading.',supportRequired:'false'}));
+    vi.stubGlobal('fetch',fetcher);
+    const messages=[{role:'user' as const,content:'Synthetic assignment concern'}];
+    try {
+      const reply=await new CoreClient('http://127.0.0.1:8000',token).chat(messages);
+      expect(reply.reply).toBe('Open the document and write one heading.');
+      expect(fetcher.mock.calls.map(([,options])=>JSON.parse(options.body))).toEqual([{messages,generationAttempt:1},{messages,generationAttempt:2}]);
+      expect(warn.mock.calls.map(([value])=>String(value)).join(' ')).toContain('unfinished_structure_or_clause');
+    } finally {warn.mockRestore();}
+  });
+  it('stops typed Chat after five withholding responses',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    const fetcher=vi.fn(async()=>Response.json({detail:{code:'BUDDY_RESPONSE_WITHHELD',diagnostics:{blockingIssues:['incomplete_list_item'],attempts:2}}},{status:503}));
+    vi.stubGlobal('fetch',fetcher);
+    try {
+      await expect(new CoreClient('http://127.0.0.1:8000',token).chat([{role:'user',content:'Synthetic'}])).rejects.toMatchObject({code:'BUDDY_RESPONSE_WITHHELD'});
+      expect(fetcher).toHaveBeenCalledTimes(5);
+    } finally {warn.mockRestore();}
+  });
+  it('does not retry typed Chat safety withholding or rejected authentication',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    const fetcher=vi.fn().mockResolvedValueOnce(Response.json({detail:{code:'BUDDY_RESPONSE_WITHHELD',diagnostics:{blockingIssues:['unqualified_give_up_requires_human_safety_review']}}},{status:503}));
+    vi.stubGlobal('fetch',fetcher);
+    const client=new CoreClient('http://127.0.0.1:8000',token);
+    try {
+      await expect(client.chat([{role:'user',content:'Synthetic'}])).rejects.toMatchObject({code:'BUDDY_RESPONSE_WITHHELD'});
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      fetcher.mockClear();fetcher.mockResolvedValueOnce(new Response('',{status:401}));
+      await expect(client.chat([{role:'user',content:'Synthetic'}])).rejects.toMatchObject({code:'AI_TRANSPORT_AUTH_FAILED'});
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally {warn.mockRestore();}
+  });
+  it('logs allowlisted Talk withholding reasons without exposing drafts',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({detail:{code:'BUDDY_RESPONSE_WITHHELD',diagnostics:{blockingIssues:['unfinished_structure_or_clause','private draft'],advisoryIssues:['stock_reassurance'],attempts:2,rawReply:'private draft'}}}),{status:503})));
+    try {
+      await expect(new CoreClient('http://127.0.0.1:8000',token).talk({task:'chat',deliveryMode:'voice',generationAttempt:2})).rejects.toMatchObject({code:'BUDDY_RESPONSE_WITHHELD'});
+      const logs=warn.mock.calls.map(([value])=>String(value)).join(' ');
+      expect(logs).toContain('unfinished_structure_or_clause');expect(logs).toContain('stock_reassurance');expect(logs).not.toContain('private draft');
+    } finally {warn.mockRestore();}
+  });
   it('forwards the existing classifier result with the unchanged analysis text',async()=>{
     const classification={distress_category:'Others',suicidal_language_flag:false,all_category_scores_relative_not_diagnoses:{Others:1,Anxious:0,Depressed:0,Frustrated:0,Suicidal:0},number_of_windows:1,validation_selected_suicidal_flag_threshold:.4};
     const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify(native)));vi.stubGlobal('fetch',fetcher);

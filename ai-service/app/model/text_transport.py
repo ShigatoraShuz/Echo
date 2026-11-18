@@ -390,8 +390,8 @@ class TextRuntime:
                 self.face_runtime.prepare()
         return result
 
-    def chat(self, messages):
-        return self._call("chat", messages)
+    def chat(self, messages, generation_attempt=0):
+        return self._call("chat", messages, generation_attempt) if generation_attempt else self._call("chat", messages)
 
     def screening(self, text):
         return self._call("screening", text)

@@ -453,12 +453,12 @@ export class ExperienceService {
     if(this.temporary.size>=1000&&!this.temporary.has(key))this.temporary.delete(this.temporary.keys().next().value!);
     this.temporary.set(key,{turns,expires:Date.now()+1800000});return {conversationId:null,message,messages:[...turns]};
   }
-  async generateTalk(user:string,sessionId:string,messages:ChatTurn[],signal:AbortSignal){
+  async generateTalk(user:string,sessionId:string,messages:ChatTurn[],signal:AbortSignal,generationAttempt=0){
     await this.validateTalk(user);let urgent=requiresUrgentBuddySupport(messages.at(-1)!.content);
     let generated:any;
     const context=prepareBuddyContext(messages);
     messages=context.messages;
-    if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages,deliveryMode:'voice'},signal);urgent=generated.supportRequired;}
+    if(!urgent){generated=await this.coreClient!.talk({task:'chat',sessionId,messages,deliveryMode:'voice',generationAttempt},signal);urgent=generated.supportRequired;}
     if(signal.aborted)throw new Error('Cancelled');
     const reply=urgent?buddyReply(messages.at(-1)!.content,true):generated?.reply;
     if(typeof reply!=='string'||!reply.trim()||reply.length>12000)throw new Error('No approved response');

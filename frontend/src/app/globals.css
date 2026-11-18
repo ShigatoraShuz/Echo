@@ -2479,6 +2479,18 @@
   }
 }
 @media (max-width: 639px) {
+  /* Keep dashboard cards in normal flow on narrow screens. The desktop entry
+     transform can briefly paint later cards over the PHQ-8 card while the
+     viewport is still settling, which is especially visible in embedded/mobile
+     layouts. */
+  .dashboard-premium .dashboard-main-grid {
+    min-width: 0;
+  }
+  .dashboard-premium .dashboard-main-grid > .echo-motion-card,
+  .dashboard-premium .dashboard-main-grid > .echo-immediate-card {
+    animation: none;
+    transform: none !important;
+  }
   .dashboard-premium .echo-dashboard-hero {
     padding: 24px;
     gap: 20px;

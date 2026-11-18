@@ -1,5 +1,6 @@
 import {appPresence} from '../../infrastructure/security/app-presence.js';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from "node:crypto";
+import {setTimeout as abortableDelay} from 'node:timers/promises';
 import type { Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
@@ -81,6 +82,11 @@ const transcriptSchema = z.object({
 });
 const hash = (value: string) => createHash("sha256").update(value).digest();
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export function retryableSpeechFailure(error:unknown) {
+  const code=(error as {code?:string})?.code??'';
+  return ['AI_TRANSPORT_UNAVAILABLE','AI_TRANSPORT_CONNECTION_FAILED','AI_TRANSPORT_TIMEOUT','AI_TRANSPORT_RATE_LIMITED','TALK_BUSY','BUDDY_TALK_BUSY','BUDDY_WORKER_LOST'].includes(code)
+    || /^BUDDY_(?:NANO|MOSS|WHISPER)_.*(?:TIMEOUT|WORKER_UNAVAILABLE)$/.test(code);
+}
 
 export function speechPhrases(text: string): Array<{ text: string; language: "eng" | "tgl" }> {
   const spans = text.match(/[^.!?]+[.!?]*\s*|[.!?]+\s*/gu) ?? [];
@@ -533,7 +539,8 @@ export class RealtimeTalkHub {
     }
   }
   private async finish(s: Session, generation: number, turnId: string, audio: Buffer, controller: AbortController,browserText?:string) {
-    const current = () => !s.closed && !controller.signal.aborted && s.generation === generation;
+    // Speech retries can advance playback generation while retaining this turn's controller.
+    const current = () => !s.closed && !controller.signal.aborted && s.abort === controller;
     if (!current()) return;
     try {
       await this.context(s, async () => {
@@ -574,7 +581,7 @@ export class RealtimeTalkHub {
           message: accepted.message,
         });
         this.send(s, { type: "state", state: "thinking" });
-        const approved = await this.service.generateTalk(s.user, s.id, accepted.messages, controller.signal);
+        const approved = await this.generateTalkWithRetries(s, accepted.messages, controller, current);
         if (!current()) return;
         await this.authorize(s);
         if (!current()) return;
@@ -636,16 +643,40 @@ export class RealtimeTalkHub {
       if (s.abort === controller) s.finalizing = false;
     }
   }
+  private async generateTalkWithRetries(s: Session, messages: Parameters<ExperienceService['generateTalk']>[2], controller: AbortController, current: () => boolean) {
+    let last: unknown;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        if (!current()) throw Error('Cancelled');
+        return await this.service.generateTalk(s.user, s.id, messages, controller.signal, attempt);
+      } catch (error) {
+        last = error;
+        const code=(error as {code?:string}).code??'';
+        const status=(error as {statusCode?:number}).statusCode;
+        if (controller.signal.aborted || !current() || attempt === 5 || error instanceof AuthenticationError || error instanceof ConflictError || error instanceof NotFoundError || (status!==undefined&&status>=400&&status<500&&status!==429) || /AUTH|FORBIDDEN|CANCELLED|CONTEXT_LIMIT/.test(code) || (error as {safetyWithheld?:boolean}).safetyWithheld) throw error;
+        this.send(s, { type: "state", state: "recovering", attempt, maxAttempts: 5 });
+        await delay(250 * attempt);
+        if (current()) this.send(s, { type: "state", state: "thinking" });
+      }
+    }
+    throw last instanceof Error ? last : Error("Buddy talk generation failed");
+  }
   private async deliverSpeechWithRetries(s: Session, reply: string, controller: AbortController) {
     let last: unknown;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
+        if(controller.signal.aborted||s.closed)throw Object.assign(Error('Cancelled'),{code:'BUDDY_CANCELLED'});
         await this.deliverSpeech(s, reply, controller);
         return;
       } catch (error) {
         last = error;
-        if (controller.signal.aborted || s.closed || attempt === 4) throw error;
-        await delay(250 * (attempt + 1));
+        if (controller.signal.aborted || s.closed || attempt === 4 || !retryableSpeechFailure(error)) throw error;
+        if(s.sent>0){
+          const previousGeneration=s.generation;
+          s.generation++;s.inflight.clear();s.finalSequence=undefined;
+          this.send(s,{type:'speech_restart',previousGeneration});
+        }
+        await abortableDelay(250 * (attempt + 1),undefined,{signal:controller.signal});
       }
     }
     throw last instanceof Error ? last : Error("Speech generation failed");
@@ -655,6 +686,8 @@ export class RealtimeTalkHub {
       turnId = s.turnId!;
     const current = () => !s.closed && !controller.signal.aborted && s.generation === generation;
     const started = performance.now();
+    s.sent=0;
+    this.send(s,{type:'state',state:'preparing_speech'});
     const prepared = z
       .object({
         preparedText: z.string().min(1).max(20000),
@@ -678,7 +711,7 @@ export class RealtimeTalkHub {
         ),
       );
     if(!current())return;
-    if (prepared.groups.flat().join("") !== prepared.preparedText) throw Error("Speech coverage failed");
+    if (prepared.groups.flat().join("") !== prepared.preparedText) throw Object.assign(Error("Speech coverage failed"),{code:'BUDDY_SPEECH_COVERAGE_FAILED'});
     s.sent = 0;
     s.acked = 0;
     s.inflight.clear();
@@ -704,7 +737,7 @@ export class RealtimeTalkHub {
         ),
       );
     };
-    this.send(s, { type: "state", state: "preparing_speech" });
+    this.send(s, { type: "state", state: "generating_audio" });
     const bufferedSpoken: Array<z.infer<typeof speechSchema>> = [];
     let pending: Promise<z.infer<typeof speechSchema>> | undefined;
     if (s.speechMode === "buffered") {
@@ -788,6 +821,8 @@ export class RealtimeTalkHub {
       });
       if(!current())return;
       s.finalSequence = s.sent;
+      // Release the previous turn before the browser is allowed to submit another.
+      s.finalizing = false;
       this.send(s, { type: "audio_end", sequence: s.sent, synthesisAndDeliveryMs: performance.now() - started });
       if (s.acked === s.sent) await this.markDelivery(s, "played");
     }
@@ -806,7 +841,10 @@ export class RealtimeTalkHub {
     s.replyId = reply.id;
     this.send(s, { type: "speech_restart", previousGeneration });
     try {
-      await this.context(s, () => this.deliverSpeechWithRetries(s, reply.text, controller));
+      await this.context(s, async () => {
+        await this.core.talk({task:'warm',sessionId:s.id,voiceMode:s.voiceMode},controller.signal);
+        await this.deliverSpeechWithRetries(s, reply.text, controller);
+      });
     } catch (error) {
       if (!s.closed && !controller.signal.aborted) {
         s.speechFailed = true;
@@ -839,9 +877,8 @@ export class RealtimeTalkHub {
       this.send(s,{type:'delivery',messageId:identity.replyId,state,playedMs});
     } catch {
       if(current())this.send(s,{type:'error',code:'DELIVERY_UNAVAILABLE',stage:'storage',retryable:true,correlationId:randomUUID(),message:'Playback metadata could not be saved. The approved reply is retained.'});
-      return;
     }
-    if(state==='played'&&current()){s.replyId=undefined;this.send(s,{type:'turn_end'});}
+    if(state==='played'&&current()){s.finalizing=false;s.replyId=undefined;this.send(s,{type:'turn_end'});}
   }
   private cancel(s: Session) {
     s.abort.abort();

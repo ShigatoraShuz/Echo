@@ -36,6 +36,7 @@ type LocalSession = {
   ctx: AudioContext;
   analyser: AnalyserNode;
   busy: boolean;
+  serverTurnEnded: boolean;
   submittedAt: number;
   firstPlayback: boolean;
   nextSegmentIndex: number;
@@ -59,7 +60,7 @@ type LocalSession = {
 };
 
 function pauseCapture(s: LocalSession, busy: boolean) {
-  busy=busy||s.suspended===true;
+  busy=busy||s.suspended===true||(!busy&&(!s.serverTurnEnded||s.plays.size>0));
   s.busy = busy;
   if(s.sttProvider==='browser'){
     if(busy){s.browserCapture?.cancel();s.browserCapture=undefined;}
@@ -229,7 +230,7 @@ export function useRealtimeTalk(options: Options) {
               onInterim:text=>{if(isCurrent(s)&&!s.busy)setTranscript(text);},
               onFinal:text=>{
                 if(!isCurrent(s)||s.suspended||s.busy)return;
-                s.browserCapture=undefined;s.generation++;s.turnId=crypto.randomUUID();s.sequence=0;s.played=0;s.nextSegmentIndex=0;s.firstPlayback=false;s.submittedAt=performance.now();
+                s.browserCapture=undefined;s.serverTurnEnded=false;s.endSequence=undefined;s.generation++;s.turnId=crypto.randomUUID();s.sequence=0;s.played=0;s.nextSegmentIndex=0;s.firstPlayback=false;s.submittedAt=performance.now();
                 pauseCapture(s,true);setTranscript(text);setState('thinking');
                 try{send(s,{type:'begin',turnId:s.turnId,generation:s.generation});send(s,{type:'transcript',turnId:s.turnId,generation:s.generation,text});}
                 catch(error){fail(error instanceof Error?error.message:'Talk connection failed.');}
@@ -277,6 +278,7 @@ export function useRealtimeTalk(options: Options) {
             s.speechFrames = energy >= threshold ? s.speechFrames + 1 : 0;
             if (s.speechFrames < 6) return; // 192 ms; retain pre-roll for short conversational replies.
             s.generation++;
+            s.serverTurnEnded=false;s.endSequence=undefined;
             s.turnId = crypto.randomUUID();
             s.sequence = 0;
             s.frameCount = 0;
@@ -383,7 +385,7 @@ export function useRealtimeTalk(options: Options) {
         }
         if (!s.plays.size) {
           s.speaking = false;
-          if (s.endSequence === s.played) {
+          if (s.serverTurnEnded && s.endSequence === s.played) {
             setState("listening");
             pauseCapture(s, false);
           } else setState("buffering");
@@ -513,6 +515,7 @@ export function useRealtimeTalk(options: Options) {
         suspended:suspended.current,
         modelReady:false,
         busy: true,
+        serverTurnEnded: true,
         submittedAt: 0,
         firstPlayback: false,
         nextSegmentIndex: 0,
@@ -558,6 +561,7 @@ export function useRealtimeTalk(options: Options) {
           if (event.protocol !== TALK_PROTOCOL || event.sessionId !== s.id) throw Error("Invalid Talk protocol");
           if(s.suspended&&!['ready','recovered','pong','delivery','error','approved_reply','final_transcript'].includes(event.type))return;
           if (event.type === "speech_restart" && event.previousGeneration === s.generation) {
+            s.serverTurnEnded=false;
             clearPlayback(s);
             pauseCapture(s, true);
             s.generation = event.generation;
@@ -571,6 +575,7 @@ export function useRealtimeTalk(options: Options) {
           }
           if (event.generation !== s.generation && !["ready", "pong", "delivery"].includes(event.type)) return;
           if (event.type === "recovered") {
+            s.serverTurnEnded=true;setError('');
             s.modelReady=true;
             if(s.suspended){setState('paused');return;}
             setState("listening");
@@ -579,6 +584,7 @@ export function useRealtimeTalk(options: Options) {
             return;
           }
           if (event.type === "ready") {
+            s.serverTurnEnded=true;
             s.modelReady=true;
             if(s.suspended)setState('paused');
             setReadiness(talkModelReadinessSchema.parse(event.runtime ?? {}));
@@ -597,7 +603,7 @@ export function useRealtimeTalk(options: Options) {
               return;
             }
             if (
-              ["preparing", "transcribing", "thinking", "preparing_speech", "recovering", "speech_failed"].includes(
+              ["preparing", "transcribing", "thinking", "preparing_speech", "generating_audio", "recovering", "speech_failed"].includes(
                 event.state,
               )
             ) {
@@ -645,7 +651,7 @@ export function useRealtimeTalk(options: Options) {
           }
           if (event.type === "audio_end") {
             s.endSequence = event.sequence;
-            if (!s.plays.size) {
+            if (!s.plays.size && s.serverTurnEnded) {
               s.speaking = false;
               setState("listening");
               pauseCapture(s, false);
@@ -658,6 +664,7 @@ export function useRealtimeTalk(options: Options) {
             return;
           }
           if (event.type === "turn_end") {
+            s.serverTurnEnded=true;setError('');
             if (!s.voiceActive && !s.plays.size) {
               setState("listening");
               pauseCapture(s, false);

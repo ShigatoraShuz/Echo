@@ -1,0 +1,5 @@
+# Read-only metadata inventory captured 2026-11-18 (Asia/Taipei).
+# Python 3.13.5. Inventory, not a deployment/install lock.
+# Do not install into or upgrade the existing research environment.
+# CUDA wheels require the appropriate publisher source; use Echo's Windows locks for Echo.
+pip==25.1.1

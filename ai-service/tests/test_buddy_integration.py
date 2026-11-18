@@ -36,8 +36,8 @@ def test_support_screen_runs_before_any_generation():
 def test_withheld_draft_never_becomes_an_answer():
     runtime = stub()
     runtime._worker = lambda *args: {"withheld": True, "reply": None, "issues": ["incomplete"]}
-    with pytest.raises(ModelUnavailableError, match="WITHHELD"):
-        runtime.generate([{"role": "user", "content": "Synthetic"}])
+    result=runtime.generate([{"role": "user", "content": "Synthetic"}])
+    assert result['withheld'] and result['reply'] is None
 
 def test_chat_and_talk_share_approval_and_context():
     runtime = stub()
@@ -93,7 +93,7 @@ def test_no_production_payload_file_writes():
 def test_v3_delivery_strips_rejected_drafts(monkeypatch):
     from app.buddy import worker, gpu_memory
     monkeypatch.setattr(gpu_memory,"require_headroom",lambda *a,**kw:{"freeBytes":8*1024**3})
-    engine = SimpleNamespace(model=SimpleNamespace(set_adapter=lambda name: None, eval=lambda: None), reply=lambda messages: {"needs_review": True, "reply": None,
+    engine = SimpleNamespace(model=SimpleNamespace(set_adapter=lambda name: None, eval=lambda: None), reply=lambda messages,**kwargs: {"needs_review": True, "reply": None,
         "_raw_reply": "Rejected private draft", "issues": ["incomplete"]})
     monkeypatch.setattr(worker, "ENGINE", engine)
     monkeypatch.setattr(worker, "MODEL_IDENTITY", {"modelVersion": ADAPTER_SHA})
@@ -304,10 +304,20 @@ def test_voice_profile_reaches_same_resident_cbt_with_full_history():
         return {'reply':'Approved complete response.','model':{'modelVersion':ADAPTER_SHA},'seconds':.1}
     runtime._worker=worker
     history=[{'role':'user','content':'First'},{'role':'assistant','content':'Prior.'},{'role':'user','content':'Next'}]
-    runtime.dispatch('session',{'task':'chat','messages':history,'deliveryMode':'voice'})
-    assert seen==[('cbt',{'messages':history,'deliveryMode':'voice'})]
+    runtime.dispatch('session',{'task':'chat','messages':history,'deliveryMode':'voice','generationAttempt':3})
+    assert seen==[('cbt',{'messages':history,'deliveryMode':'voice','generationAttempt':3})]
     runtime.chat('session',history)
-    assert seen[-1]==('cbt',{'messages':history,'deliveryMode':'chat'})
+    assert seen[-1]==('cbt',{'messages':history,'deliveryMode':'chat','generationAttempt':0})
+
+
+def test_voice_withholding_keeps_issue_metadata_without_delivering_a_draft():
+    runtime=stub();runtime.owner='session';runtime.ready=True
+    findings={'blockingIssues':['incomplete_list_item'],'advisoryIssues':[],'attempts':2}
+    runtime._worker=lambda *args:{'reply':None,'withheld':True,'diagnostics':findings}
+    result=runtime.chat('session',[{'role':'user','content':'Synthetic'}],delivery_mode='voice')
+    assert result['withheld'] and result['reply'] is None
+    assert result['diagnostics']==findings
+    assert runtime.ready
 
 
 def test_spoken_tiny_intro_keeps_full_text_and_default_sentence_schedule():
@@ -324,8 +334,21 @@ def test_spoken_tiny_intro_keeps_full_text_and_default_sentence_schedule():
 def test_spoken_duration_ranges_preserve_numbers_without_relaxing_ambiguous_values():
     from app.buddy.text_audio import prepare
     assert prepare('Try 15–20 minutes.','English',spoken=True)=='Try fifteen to twenty minutes.'
+    assert prepare('Try a 5-10-minute break.','English',spoken=True)=='Try a five to ten minute break.'
     assert prepare('Subukan ang 5–10 minuto.','Filipino',spoken=True)=='Subukan ang lima hanggang sampu minuto.'
     for text in ('Try 15–20 minutes.','Use -20 minutes.','Pay $20.','Meet at 12:30.','2026-11-11','Try 20–15 minutes.'):
         if text!='Try 15–20 minutes.':
             with pytest.raises(ValueError):prepare(text,'English',spoken=True)
         with pytest.raises(ValueError):prepare(text,'English')
+
+
+def test_speech_prepare_preserves_ten_markdown_items_and_reports_ambiguous_text():
+    from app.buddy.text_audio import prepare
+    runtime=stub();runtime.owner='session'
+    text='\n'.join(f'{i}. **Action {i}**: Take a 2–5-minute break.' for i in range(1,11))
+    result=runtime.dispatch('session',{'task':'prepare','text':text,'deliveryMode':'voice','voiceMode':'expressive','speechMode':'sentences_2_then_3'})
+    assert ''.join(part for group in result['groups'] for part in group)==prepare(text,'English',spoken=True)==result['preparedText']
+    assert result['preparedText'].count('two to five minute')==10
+    for expression in ('Meet at 12:30.','Pay $20.','Use -20 minutes.'):
+        with pytest.raises(ModelUnavailableError,match='BUDDY_SPEECH_TEXT_AMBIGUOUS'):
+            runtime.dispatch('session',{'task':'prepare','text':expression,'deliveryMode':'voice'})

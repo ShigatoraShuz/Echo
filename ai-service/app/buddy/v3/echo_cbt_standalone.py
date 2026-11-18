@@ -21,6 +21,25 @@ HERE = Path(__file__).resolve().parent
 POLICY_PATH = HERE / "reference" / "cbt-settings.json"
 STYLE_PATH = HERE / "style_config.json"
 VERSION = "echo_cbt_reviewer_informed_20261117"
+TALK_VERSION = "echo_cbt_spoken_counselor_20261118"
+CHAT_VERSION = "echo_cbt_chat_counselor_20261118"
+TALK_ADVISORY_ISSUES = frozenset({
+    'hard_token_limit', 'extreme_response_length', 'extreme_structural_overload',
+    'stock_reassurance', 'excessive_questions_4plus', 'stacked_generic_advice',
+    'malformed_discourse_transition',
+})
+
+
+def talk_issue_groups(issues):
+    """Unknown issues remain blocking; only explicit style checks are advisory."""
+    unique = list(dict.fromkeys(issues))
+    return ([item for item in unique if item not in TALK_ADVISORY_ISSUES],
+            [item for item in unique if item in TALK_ADVISORY_ISSUES])
+
+
+def generation_budget(delivery_mode, retry=False):
+    if delivery_mode not in ('chat','voice'):raise ValueError('Invalid delivery mode')
+    return 1536
 
 # Local, read-only model path fallbacks. User may override using CLI or env vars.
 BASE_CANDIDATES = [
@@ -296,7 +315,7 @@ def response_role(latest: str, delivery_mode='chat') -> str:
     return 'brief' if delivery_mode=='voice' and request=='ordinary' and not DETAIL_REQUEST.search(latest) else request
 
 
-def system_prompt(latest: str, *, retry=False, delivery_mode='chat') -> str:
+def system_prompt(latest: str, *, retry=False, delivery_mode='chat', strict_review=False) -> str:
     p=policy()['generationPolicy']
     selected = p['REWRITE_SYSTEM'] if retry else p['V41_SYSTEM']
     lang = language(latest)
@@ -345,6 +364,12 @@ def system_prompt(latest: str, *, retry=False, delivery_mode='chat') -> str:
             extra+='\nFor this schoolwork concern, explain how to select ONE task (for example the nearest deadline), then begin its smallest concrete part for a short time. Do not add a new daily/weekly planning program or tell them simply to prioritize or break tasks down. Keep this as prose, with no numbered substeps or unfinished introduction.'
         elif re.search(r'\b(?:future|family|disappoint|failure|fail|expectations)\b',latest,re.I):
             extra+='\nConnect the exercise to their feared outcome: distinguish the prediction about failure or disappointing family from what they actually know, then identify one controllable action. Explain the exercise in plain words instead of merely naming mindfulness or grounding. Avoid unrelated generic relaxation advice.'
+    if not strict_review:
+        # Remove conflicting sentence-count templates while retaining concern-specific advice.
+        selected=selected.replace('Answer in three or four complete sentences across one or two natural paragraphs.', 'Prefer concise, complete conversation, usually around 60 words; use more detail when needed.')
+        extra=extra.replace('Respond naturally in one or two short, complete sentences.', 'Respond naturally with complete thoughts, using roughly 60 words as a soft target.')
+        extra=extra.replace('In the SECOND sentence recommend', 'When appropriate, recommend')
+        extra=extra.replace('Keep the entire reply to three or four sentences.', 'Use enough detail to make the suggestion usable.')
     return selected + '\n\n' + (STYLE_APPENDIX if request=='professional' else '') + extra
 
 
@@ -354,6 +379,11 @@ def seed_for(messages: list[dict[str,str]], system: str) -> int:
                'temperature':base['CREATIVE_TEMPERATURE'],'top_p':base['CREATIVE_TOP_P'],
                'top_k':base['CREATIVE_TOP_K']}
     return int(hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:8],16)
+
+
+def generation_seed(messages, prompt, delivery_mode='chat', generation_attempt=0):
+    seed=seed_for(messages,prompt)
+    return (seed+int(generation_attempt)*104729) % (2**32)
 
 
 def verify_template(tokenizer) -> str:
@@ -510,21 +540,27 @@ class LocalCBT:
                 selected.pop(0);dropped+=1
         return {k:v.to(self.device) for k,v in inputs.items()},dropped
 
-    def _attempt(self,history,*,retry=False,allow_drops=True,delivery_mode="chat",repair_issues=()):
+    def _attempt(self,history,*,retry=False,allow_drops=True,delivery_mode="chat",repair_issues=(),generation_attempt=0,strict_review=False):
         torch=self.torch
         latest=history[-1]['content']
         typ=response_role(latest,delivery_mode)
         lang=language(latest)
-        prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode)
+        prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode,strict_review=strict_review)
         if repair_issues:
             prompt+='\nREPAIR THESE OUTPUT PROBLEMS: '
             if typ=='steps':prompt+=f'Use exactly {list_target(latest)} items, each on its own numbered line, with one complete sentence per item. Do not restart numbering or add extra items. '
             else:prompt+='Write three fluent complete sentences in one paragraph: one specific acknowledgement, one concrete starting action with how to begin, and one relevant reflection or support suggestion. No bullets, numbering, menus of strategies, or filler transitions. '
             if persistent_concern(latest):prompt+='Keep this to three sentences: acknowledge the weeks of difficulty; recommend counselor/professional support now without diagnosing; explain one concrete observation to note today and why it helps. Do not add other strategies. Example of concise structure, to adapt rather than copy: "Having so little energy for weeks can make even familiar routines feel heavy. Since this has lasted, consider speaking with a counselor about the changes and their effect on daily life. Today, jot down one activity that felt harder and when your energy shifted, so you have a concrete example to discuss." '
-        max_new=policy()['runtime']['rewriteMaxNewTokens'] if retry else policy()['runtime']['maxNewTokens']
+        if repair_issues and not strict_review:
+            # Repair content without imposing a scripted sentence count or order.
+            prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode)
+            prompt+='\nImprove this response: acknowledge the specific concern, explain how to begin one relevant action, and finish each thought. Include relevant reflection or professional support when warranted. '
+            if typ=='steps':prompt+=f'Provide exactly {list_target(latest)} distinct complete numbered items. '
+        max_new=policy()['runtime']['rewriteMaxNewTokens' if retry else 'maxNewTokens'] if strict_review else generation_budget(delivery_mode,retry)
         inp,dropped=self._input(history,prompt,max_new,allow_drops=allow_drops)
         n_prompt=int(inp['input_ids'].shape[1])
         target=style()['word_targets'][typ if typ in ('brief','professional','steps') else lang]
+        if not strict_review and typ in ('ordinary','brief'):target=60
         requested_steps=None
         if typ=='steps':
             requested_steps=list_target(latest)
@@ -547,7 +583,7 @@ class LocalCBT:
                 self.triggered=True
                 return True
         stopper=CompleteSentenceStop()
-        random_seed=seed_for(history,prompt)
+        random_seed=seed_for(history,prompt) if strict_review else generation_seed(history,prompt,delivery_mode,generation_attempt)
         settings=policy()['generationPolicy']
         # HF generate() does not reliably accept a `generator` kwarg across
         # releases. Seed a temporary forked Torch RNG context instead.
@@ -580,7 +616,7 @@ class LocalCBT:
                 'needs_review':bool(quality),'issues':quality,
                 'stop':'sentence_boundary' if stopper.triggered else 'eos' if ended_eos else 'limit_or_unknown',
                 'prompt_tokens':n_prompt,'generated_tokens':len(new_ids),'dropped_history_turns':dropped,
-                'inference_version':VERSION,
+                'inference_version':VERSION if strict_review else TALK_VERSION if delivery_mode=='voice' else CHAT_VERSION,
                 'source_model':'SeaLLMs-v3-7B-Chat + mixed_lr_1e4',
                 'original_policy_version':settings['VERSION'],
                 'safety_disposition':safety_disposition(history)}
@@ -613,44 +649,48 @@ class LocalCBT:
         attempt['raw_response_sha256']=hashlib.sha256(original.encode('utf-8')).hexdigest()
         return attempt
 
-    def reply(self,history,*,delivery_mode="chat"):
+    def _conversational_reply(self, turns, generation_attempt, delivery_mode, strict_review=False):
+        version=VERSION if strict_review else TALK_VERSION if delivery_mode=='voice' else CHAT_VERSION
+        candidates=[]
+        for retry in (False, True):
+            repair=candidates[0]['issues'] if candidates else ()
+            try:
+                attempt=self._attempt(turns,retry=retry,delivery_mode=delivery_mode,
+                                      generation_attempt=generation_attempt,repair_issues=repair,
+                                      **({'strict_review':True,'allow_drops':not retry} if strict_review else {}))
+            except ValueError:
+                if candidates and not candidates[0]['blocking_issues']:break
+                raise
+            blocking, advisory=(list(attempt['issues']),[]) if strict_review else talk_issue_groups(attempt['issues'])
+            attempt.update(blocking_issues=blocking,advisory_issues=advisory)
+            candidates.append(attempt)
+            if not blocking and not advisory:break
+        eligible=[candidate for candidate in candidates if not candidate['blocking_issues']]
+        diagnostics=[{'blockingIssues':c['blocking_issues'],'advisoryIssues':c['advisory_issues']} for c in candidates]
+        if not eligible:
+            return {'reply':None,'needs_review':True,'attempts':len(candidates),
+                    'issues':list(dict.fromkeys(i for c in candidates for i in c['blocking_issues'])),
+                    'advisory_issues':list(dict.fromkeys(i for c in candidates for i in c['advisory_issues'])),
+                    'attempt_diagnostics':diagnostics,'inference_version':version}
+        selected=min(eligible,key=lambda c:len(c['advisory_issues']))
+        # Advisory findings are preserved separately; formatter still enforces exact content.
+        selected['issues']=[];selected['needs_review']=False
+        try:ready=self._approved_for_output(selected)
+        except (ValueError, RuntimeError, TypeError, KeyError):
+            return {'reply':None,'needs_review':True,'attempts':len(candidates),
+                    'issues':['auto_format_failed'],'attempt_diagnostics':diagnostics,'inference_version':version}
+        ready['reply']=list_limit_notice(ready['reply'],turns[-1]['content'])
+        ready.update(attempts=len(candidates),rewrite_attempted=len(candidates)>1,
+                     attempt_diagnostics=diagnostics,template_check=self.template_state)
+        return ready
+
+    def reply(self,history,*,delivery_mode="chat",generation_attempt=0,strict_review=False):
         turns=validate_history(history)
         response_role(turns[-1]["content"],delivery_mode)
         disposition=safety_disposition(turns)
         if disposition in ('explicit_urgent','ambiguous_unqualified'):
             return safety_withhold(disposition)
-        first=self._attempt(turns,retry=False,**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
-        if not first['needs_review']:
-            try:
-                ready=self._approved_for_output(first)
-            except (ValueError, RuntimeError, TypeError, KeyError) as err:
-                return {'reply':None,'needs_review':True,'attempts':1,
-                        'issues':['auto_format_failed'],
-                        'warning':str(err),'inference_version':VERSION}
-            ready['reply']=list_limit_notice(ready['reply'],turns[-1]['content'])
-            ready.update(attempts=1,rewrite_attempted=False,template_check=self.template_state)
-            return ready
-        try:
-            # Context-preserving second attempt; rejected raw draft not provided.
-            second=self._attempt(turns,retry=True,allow_drops=False,repair_issues=first['issues'],**({"delivery_mode":delivery_mode} if delivery_mode=="voice" else {}))
-            if not second['needs_review']:
-                try:
-                    ready=self._approved_for_output(second)
-                except (ValueError, RuntimeError, TypeError, KeyError) as err:
-                    return {'reply':None,'needs_review':True,'attempts':2,'rewrite_attempted':True,
-                            'issues':['auto_format_failed'],
-                            'warning':str(err),'inference_version':VERSION}
-                ready['reply']=list_limit_notice(ready['reply'],turns[-1]['content'])
-                ready.update(attempts=2,rewrite_attempted=True,first_attempt_issues=first['issues'],template_check=self.template_state)
-                return ready
-            return {'reply':None,'needs_review':True,'attempts':2,'rewrite_attempted':True,
-                    'issues':list(dict.fromkeys(first['issues']+second['issues'])),
-                    'warning':'Both generated responses failed incomplete/quality checks; no fallback injected.',
-                    'inference_version':VERSION}
-        except ValueError as err:
-            return {'reply':None,'needs_review':True,'attempts':1,'rewrite_attempted':False,
-                    'issues':first['issues']+['rewrite_context_modified_or_invalid'],
-                    'warning':str(err),'inference_version':VERSION}
+        return self._conversational_reply(turns,generation_attempt,delivery_mode,strict_review)
 
 
 def main(argv: list[str] | None=None) -> int:

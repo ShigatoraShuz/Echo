@@ -43,6 +43,7 @@ class AnalyzeInput(TextInput):
 class ChatInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     messages: list[Turn] = Field(min_length=1, max_length=20)
+    generationAttempt: int = Field(default=0, ge=0, le=5)
 
 
 def runtime(request):
@@ -139,7 +140,10 @@ def chat(payload: ChatInput, request: Request):
         raise HTTPException(422, "Conversation must end with a user message.")
     if sum(len(x.content) for x in payload.messages) > 20000:
         raise HTTPException(422, "Conversation is too long.")
-    return invoke(lambda: runtime(request).chat([t.model_dump() for t in payload.messages]))
+    result=invoke(lambda: runtime(request).chat([t.model_dump() for t in payload.messages], **({'generation_attempt':payload.generationAttempt} if payload.generationAttempt else {})))
+    if result.get('withheld'):
+        raise HTTPException(503,detail={'code':'BUDDY_RESPONSE_WITHHELD','diagnostics':result.get('diagnostics',{})})
+    return result
 
 
 class SpeechInput(BaseModel):
@@ -227,6 +231,7 @@ class TalkInput(BaseModel):
     speechMode: Literal['sentences_2_then_3','buffered'] = 'sentences_2_then_3'
     voiceMode: Literal['fast','expressive'] = 'fast'
     deliveryMode: Literal['chat','voice'] = 'chat'
+    generationAttempt: int = Field(default=0, ge=0, le=5)
     preserveStartup: bool = False
     language: Literal['English','Filipino','Taglish','eng','tgl'] = 'English'
     messages: list[Turn] = Field(default_factory=list,max_length=20)
@@ -255,7 +260,7 @@ async def talk(payload: TalkInput, request: Request):
         if payload.task=='support_check':
             engine.require(payload.sessionId)
             with engine.core.lock:return engine.cpu_classifier.classify(payload.text)
-        if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled,**({'delivery_mode':'voice'} if payload.deliveryMode=='voice' else {}))
+        if payload.task=='chat':return engine.chat(payload.sessionId,[x.model_dump() for x in payload.messages],cancelled,**({'delivery_mode':'voice','generation_attempt':payload.generationAttempt} if payload.deliveryMode=='voice' else {}))
         return engine.speech(payload.sessionId,{'task':payload.task,'audio':payload.audio,'audioFormat':payload.audioFormat,'text':payload.text,'texts':payload.texts or [payload.text],'language':payload.language,'speechMode':payload.speechMode,'voiceMode':payload.voiceMode,'deliveryMode':payload.deliveryMode,'preserveStartup':payload.preserveStartup},cancelled)
     task=asyncio.create_task(asyncio.to_thread(execute))
     try:
@@ -263,6 +268,8 @@ async def talk(payload: TalkInput, request: Request):
             if await request.is_disconnected():cancelled.set()
             await asyncio.wait({task},timeout=.1)
         result=invoke(task.result)
+        if payload.task=='chat' and payload.deliveryMode=='voice' and result.get('withheld'):
+            raise HTTPException(503,detail={'code':'BUDDY_RESPONSE_WITHHELD','diagnostics':result.get('diagnostics',{})})
         if cancelled.is_set() and payload.task=='warm':await asyncio.to_thread(engine.stop,payload.sessionId)
         return result
     finally:
