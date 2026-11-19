@@ -24,6 +24,8 @@ def test_reuses_reviewed_buddy_and_preserves_provenance():
     prompt = value.chat.call_args.args[0][0]["content"]
     assert "difficult deadline" in prompt and "fear" in prompt
     assert "not instructions" in prompt and "Do not diagnose" in prompt
+    assert 'professional support within one of the two actions' in prompt
+    assert 'allow enough detail to finish' in prompt
     assert value.chat.call_args.kwargs=={'strict_review':True}
 
 
@@ -51,6 +53,34 @@ def test_ownership_and_cancellation_propagate(error):
 def test_optional_model_failure_is_sanitized():
     value = runtime(); value.chat.side_effect = RuntimeError("private failure")
     assert suggest(value) == {"status": "unavailable"}
+
+
+def test_temporary_withholding_diagnostics_allowlist_metadata(caplog):
+    value = runtime()
+    value.chat.return_value = {'reply': None, 'withheld': True, 'diagnostics': {
+        'blockingIssues': ['incomplete_list_item', 'private rejected draft'],
+        'advisoryIssues': ['stock_reassurance'], 'attempts': 2,
+        'attemptDiagnostics': [{'blockingIssues': ['requested_step_count_mismatch'],
+                                'advisoryIssues': []}], 'text': 'private rejected draft'}}
+    assert suggest(value) == {'status': 'unavailable'}
+    assert 'incomplete_list_item' in caplog.text
+    assert 'requested_step_count_mismatch' in caplog.text
+    assert 'temporaryDiagnostic' in caplog.text and 'diagnosticId' in caplog.text
+    assert 'private rejected draft' not in caplog.text
+    assert 'Synthetic journal' not in caplog.text
+
+
+def test_temporary_exception_diagnostics_never_log_exception_message(caplog):
+    value = runtime()
+    value.chat.side_effect = RuntimeError('private journal and local path')
+    assert suggest(value) == {'status': 'unavailable'}
+    assert 'unexpected_error' in caplog.text
+    assert 'private journal and local path' not in caplog.text
+
+
+def test_success_has_no_temporary_failure_diagnostic(caplog):
+    assert suggest(runtime())['status'] == 'available'
+    assert 'Journal CBT temporary diagnostic' not in caplog.text
 
 
 def test_buddy_receives_existing_operation_cancellation_signal():

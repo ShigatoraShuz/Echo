@@ -133,6 +133,25 @@ class TextRuntime:
                 if not line or len(line) > self.max_packet or not line.endswith(b"\n"):
                     break
                 value = json.loads(line)
+                if isinstance(value, dict) and value.get('event') == 'journal_cbt_diagnostic':
+                    # TEMP: forward only sanitized journal diagnostics, never worker stderr.
+                    from app.buddy.diagnostics import codes
+                    import logging
+                    details = value.get('details')
+                    if isinstance(details, dict) and details.get('reason') in ('withheld', 'invalid_or_empty_reply', 'generation_error'):
+                        attempts = details.get('attempts')
+                        safe = {'operation': 'journal_cbt_recommendation', 'temporaryDiagnostic': True,
+                                'reason': details['reason'], 'blockingIssues': codes(details.get('blockingIssues')),
+                                'advisoryIssues': codes(details.get('advisoryIssues')),
+                                'attempts': attempts if type(attempts) is int and 0 <= attempts <= 2 else 0}
+                        error_type = details.get('errorType')
+                        if error_type in ('model_unavailable', 'missing_model_identity', 'invalid_type', 'invalid_value', 'timeout', 'connection', 'unexpected_error'):
+                            safe['errorType'] = error_type
+                        correlation = value.get('id')
+                        if isinstance(correlation, str) and len(correlation) == 32 and all(c in '0123456789abcdef' for c in correlation):
+                            safe['correlationId'] = correlation
+                        logging.getLogger('uvicorn.error').warning('Journal CBT temporary diagnostic: %s', json.dumps(safe))
+                    continue
                 if isinstance(value,dict) and value.get('event')=='control':
                     with self.control_lock:
                         pending=self.control_replies.get(value.get('id'))

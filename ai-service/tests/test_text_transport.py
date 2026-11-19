@@ -12,6 +12,18 @@ from app.core.exceptions import ModelUnavailableError
 from app.model.text_transport import TextRuntime
 
 
+def test_journal_diagnostic_reaches_parent_without_private_content(child, caplog):
+    runtime = child('journaldiagnostic')
+    try:
+        assert runtime._call('metrics') == []
+        assert 'Journal CBT temporary diagnostic' in caplog.text
+        assert 'incomplete_list_item' in caplog.text
+        assert 'correlationId' in caplog.text
+        assert 'private-journal-sentinel' not in caplog.text
+    finally:
+        runtime.release()
+
+
 @pytest.fixture
 def child(monkeypatch, tmp_path):
     real = subprocess.Popen
@@ -34,6 +46,7 @@ for line in sys.stdin:
                     "progress": " print(json.dumps({'id':packet['id'],'event':'preparation','progress':{'component':'cbt','state':'loading','attempt':2,'elapsedSeconds':3,'prompt':'private-journal-sentinel','path':'C:/private/model'}}),flush=True); time.sleep(.3); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "foreignprogress": " print(json.dumps({'id':'foreign','event':'preparation','progress':{'component':'cbt','state':'failed','attempt':1}}),flush=True); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "echo": " print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
+                    "journaldiagnostic": " print(json.dumps({'id':packet['id'],'event':'journal_cbt_diagnostic','details':{'reason':'withheld','blockingIssues':['incomplete_list_item','private-journal-sentinel'],'attempts':2,'text':'private-journal-sentinel'}}),flush=True); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",
                     "dictation": " print(json.dumps({'id':packet['id'],'ok':True,'result':{'text':'Synthetic transcript'}}),flush=True)",
                     "hang": " time.sleep(60)",
                     "delay": " time.sleep(.1); print(json.dumps({'id':packet['id'],'ok':True,'result':packet['args']}),flush=True)",

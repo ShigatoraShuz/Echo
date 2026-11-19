@@ -1,5 +1,4 @@
 "use client";
-import { setBackgroundMusicVoiceFocus } from "@/services/audio/background-music";
 import { startModelLease } from "@/shared/lib/model-lease-session";
 import styles from "./buddy-studio.module.css";
 import Link from "next/link";
@@ -90,9 +89,6 @@ export function BuddyView() {
     return ()=>{window.removeEventListener('pagehide',leave);window.removeEventListener('focus',session.retry);leave();};
   },[vm.accessStatus,vm.historyStore,stopRealtime,cancelVoice]);
 
-  const voiceBusy = realtime.active || ["preparing", "preparing_speech"].includes(realtime.state) || voice.isListening || voice.isTranscribing || voice.isPreparingSpeech || voice.isSpeaking;
-  useEffect(() => { setBackgroundMusicVoiceFocus(voiceBusy); }, [voiceBusy]);
-  useEffect(() => () => setBackgroundMusicVoiceFocus(false), []);
 
   const [recentJournal, setRecentJournal] = useState<JournalEntry | null>(null);
   const deleteOpenTimer = useRef<number | undefined>(undefined);

@@ -30,6 +30,52 @@ def test_spoken_accepts_complete_long_formatted_reply_and_keeps_findings():
     assert 'extreme_structural_overload' in result['advisory_issues']
 
 
+def test_journal_length_is_advisory_but_support_and_completeness_still_block():
+    prompt='Give me exactly two steps for my deadline.'
+    text='1. Open your document and write one heading.\n2. Set a timer and draft one sentence.'
+    draft={'_raw_reply':text,'role':'steps','issues':['extreme_response_length'],'needs_review':True}
+    result=engine(dict(draft),dict(draft)).reply([{'role':'user','content':prompt}],strict_review=True)
+    assert result['reply'] and not result['needs_review']
+    assert result['advisory_issues']==['extreme_response_length']
+    for issue in ('persistent_distress_support_missing','incomplete_list_item','requested_step_count_mismatch'):
+        bad={**draft,'issues':['extreme_response_length',issue]}
+        result=engine(dict(bad),dict(bad)).reply([{'role':'user','content':prompt}],strict_review=True)
+        assert result['needs_review'] and issue in result['issues']
+
+
+def test_real_journal_prompt_keeps_two_complete_items_and_removes_unfinished_third():
+    from app.model.core import CoreRuntime
+    runtime=CoreRuntime.__new__(CoreRuntime)
+    runtime.chat=Mock(return_value={'reply':None})
+    runtime.journal_recommendation('A synthetic difficult deadline.',
+        {'suicidal_language_flag':False},{'dominant_plutchik':'sadness'})
+    prompt=runtime.chat.call_args.args[0][0]['content']
+    assert e.response_role(prompt)=='steps'
+    assert e.list_target(prompt)==2
+    bad='1. Track your energy in a notebook.\n2. Set a timer for a short break.\n3. **Create a “self-compassion cue”'
+    draft=candidate(bad,prompt,'steps')
+    assert 'requested_step_count_mismatch' in draft['issues']
+    result=engine(dict(draft),dict(draft)).reply([{'role':'user','content':prompt}],strict_review=True)
+    assert not result['needs_review'] and result['reply']
+    assert 'self-compassion' not in result['reply']
+    assert 'Track your energy in a notebook.' in result['reply']
+    assert result['unfinished_journal_tail_removed']
+
+
+def test_journal_tail_removal_preserves_one_item_but_never_empty_or_missing_support():
+    prompt='Give me exactly two steps.'
+    text='1. Open your notebook and write one task.\n2. Start with'
+    result=engine(candidate(text,prompt,'steps')).reply([{'role':'user','content':prompt}],strict_review=True)
+    assert result['reply']=='1. Open your notebook and write one task.'
+    bad=candidate('1. Start with',prompt,'steps')
+    result=engine(dict(bad),dict(bad)).reply([{'role':'user','content':prompt}],strict_review=True)
+    assert result['needs_review'] and not result['reply']
+    persistent=prompt+' For weeks I feel empty and no longer enjoy things.'
+    bad=candidate(text,persistent,'steps')
+    result=engine(dict(bad),dict(bad)).reply([{'role':'user','content':persistent}],strict_review=True)
+    assert result['needs_review'] and 'persistent_distress_support_missing' in result['issues']
+
+
 def test_voice_selects_fewer_advisories_but_never_selects_incomplete_rewrite():
     prompt='How can I start my assignment?'
     first=candidate("You're not alone. Open the document and write the first heading.",prompt)

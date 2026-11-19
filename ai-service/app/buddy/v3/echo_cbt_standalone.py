@@ -20,7 +20,7 @@ from formatting import format_existing, format_chat_response, wrap_for_console, 
 HERE = Path(__file__).resolve().parent
 POLICY_PATH = HERE / "reference" / "cbt-settings.json"
 STYLE_PATH = HERE / "style_config.json"
-VERSION = "echo_cbt_reviewer_informed_20261117"
+VERSION = "echo_cbt_journal_counselor_20261119"
 TALK_VERSION = "echo_cbt_spoken_counselor_20261118"
 CHAT_VERSION = "echo_cbt_chat_counselor_20261118"
 TALK_ADVISORY_ISSUES = frozenset({
@@ -40,6 +40,19 @@ def talk_issue_groups(issues):
 def generation_budget(delivery_mode, retry=False):
     if delivery_mode not in ('chat','voice'):raise ValueError('Invalid delivery mode')
     return 1536
+
+
+def trim_unfinished_journal_tail(text):
+    """Remove whole trailing unfinished items; never rewrite a retained action."""
+    markers=list(re.finditer(r'(?m)^\s*\d{1,2}[.)]\s+',text))
+    if not markers:return text, False
+    end=len(text)
+    for marker in reversed(markers):
+        item=text[marker.end():end].strip()
+        complete=bool(item) and item.count('**')%2==0 and item.rstrip('*\"\u201d\u2019\u300d\u300f').rstrip().endswith(('.', '!', '?', '\u3002', '\uff01', '\uff1f')) and not dangling_structure(item)
+        if complete:break
+        end=marker.start()
+    return text[:end].rstrip(), end<len(text)
 
 # Local, read-only model path fallbacks. User may override using CLI or env vars.
 BASE_CANDIDATES = [
@@ -550,7 +563,11 @@ class LocalCBT:
             prompt+='\nREPAIR THESE OUTPUT PROBLEMS: '
             if typ=='steps':prompt+=f'Use exactly {list_target(latest)} items, each on its own numbered line, with one complete sentence per item. Do not restart numbering or add extra items. '
             else:prompt+='Write three fluent complete sentences in one paragraph: one specific acknowledgement, one concrete starting action with how to begin, and one relevant reflection or support suggestion. No bullets, numbering, menus of strategies, or filler transitions. '
-            if persistent_concern(latest):prompt+='Keep this to three sentences: acknowledge the weeks of difficulty; recommend counselor/professional support now without diagnosing; explain one concrete observation to note today and why it helps. Do not add other strategies. Example of concise structure, to adapt rather than copy: "Having so little energy for weeks can make even familiar routines feel heavy. Since this has lasted, consider speaking with a counselor about the changes and their effect on daily life. Today, jot down one activity that felt harder and when your energy shifted, so you have a concrete example to discuss." '
+            if persistent_concern(latest):
+                if strict_review and typ=='steps':
+                    prompt+='Within the requested numbered actions, include appropriate counselor or professional support for persistent difficulties without diagnosing, and a concrete starting action. Preserve the requested item count and complete each item. '
+                else:
+                    prompt+='Acknowledge the persistent difficulty, recommend counselor or professional support without diagnosing, and explain one concrete observation to note today and why it helps. '
         if repair_issues and not strict_review:
             # Repair content without imposing a scripted sentence count or order.
             prompt=system_prompt(latest,retry=retry,delivery_mode=delivery_mode)
@@ -661,7 +678,22 @@ class LocalCBT:
             except ValueError:
                 if candidates and not candidates[0]['blocking_issues']:break
                 raise
-            blocking, advisory=(list(attempt['issues']),[]) if strict_review else talk_issue_groups(attempt['issues'])
+            if strict_review and attempt.get('role')=='steps':
+                trimmed, changed=trim_unfinished_journal_tail(attempt.get('_raw_reply',''))
+                if changed and trimmed:
+                    checks=quality_issues(trimmed,turns[-1]['content'],'steps',False)
+                    count=len(re.findall(r'(?m)^\s*\d{1,2}[.)]\s+',trimmed))
+                    if 1<=count<=list_target(turns[-1]['content']):
+                        checks=[i for i in checks if i!='requested_step_count_mismatch']
+                    attempt.update(_raw_reply=trimmed,issues=checks,needs_review=bool(checks),
+                                   unfinished_journal_tail_removed=True)
+            blocking, advisory=([i for i in attempt['issues'] if i!='extreme_response_length'],
+                                [i for i in attempt['issues'] if i=='extreme_response_length']) if strict_review else talk_issue_groups(attempt['issues'])
+            if strict_review and attempt.get('role')=='steps':
+                items=re.split(r'(?<!\S)\d{1,2}[.)]\s+',attempt.get('_raw_reply',''))[1:]
+                # A closing quote or unmatched Markdown is not a completed action.
+                if any(item.count('**')%2 or not item.strip().rstrip('*\"\u201d\u2019\u300d\u300f').rstrip().endswith(('.', '!', '?', '\u3002', '\uff01', '\uff1f')) for item in items):
+                    if 'incomplete_list_item' not in blocking:blocking.append('incomplete_list_item')
             attempt.update(blocking_issues=blocking,advisory_issues=advisory)
             candidates.append(attempt)
             if not blocking and not advisory:break

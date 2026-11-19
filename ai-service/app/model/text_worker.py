@@ -141,12 +141,14 @@ def main():
                     else:
                         runtime.operation_cancelled = cancelled
                         runtime.native_progress = lambda value: emit({"id":identity,"event":"preparation","progress":value})
+                        runtime.journal_diagnostic = lambda value: emit({'id': identity, 'event': 'journal_cbt_diagnostic', 'details': value})
                         if packet['op'] in ('chat','preload'):runtime.buddy.progress=runtime.native_progress
                         try:
                             result = getattr(runtime, packet["op"])(*packet["args"])
                         finally:
                             runtime.operation_cancelled = None
                             runtime.native_progress = None
+                            runtime.journal_diagnostic = None
                             if packet['op'] in ('chat','preload'):runtime.buddy.progress=None
                 emit({"id": identity, "ok": True, "result": result,
                       "modelLoaded": runtime.instance is not None or bool(getattr(runtime, "buddy", None) and runtime.buddy.workers.get("cbt")) or bool(getattr(runtime,"hf_runtime",None) and runtime.hf_runtime.worker and runtime.hf_runtime.worker.process.poll() is None)})

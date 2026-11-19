@@ -4,6 +4,27 @@ import pytest
 from app.buddy.loading import safe_progress,retryable
 
 
+def test_incomplete_audio_retries_exact_segment_once_with_larger_budget():
+ from unittest.mock import Mock,call
+ from app.buddy.native_moss import NativeMoss
+ runtime=NativeMoss.__new__(NativeMoss)
+ runtime._synthesize=Mock(side_effect=[RuntimeError('BUDDY_MOSS_AUDIO_INCOMPLETE'),'complete audio'])
+ assert runtime.synthesize('Synthetic approved reply.')=='complete audio'
+ assert runtime._synthesize.call_args_list==[call('Synthetic approved reply.','English',512),call('Synthetic approved reply.','English',1024)]
+
+
+def test_incomplete_audio_retry_is_bounded_and_other_failures_do_not_retry():
+ from unittest.mock import Mock
+ from app.buddy.native_moss import NativeMoss
+ runtime=NativeMoss.__new__(NativeMoss)
+ runtime._synthesize=Mock(side_effect=RuntimeError('BUDDY_MOSS_AUDIO_INCOMPLETE'))
+ with pytest.raises(RuntimeError,match='AUDIO_INCOMPLETE'):runtime.synthesize('Synthetic reply.')
+ assert runtime._synthesize.call_count==2
+ runtime._synthesize=Mock(side_effect=RuntimeError('BUDDY_MOSS_INSUFFICIENT_MEMORY'))
+ with pytest.raises(RuntimeError,match='INSUFFICIENT_MEMORY'):runtime.synthesize('Synthetic reply.')
+ assert runtime._synthesize.call_count==1
+
+
 def test_missing_expressive_assets_fail_clearly_without_fallback(tmp_path,monkeypatch):
  from app.buddy.native_moss import NativeMoss
  monkeypatch.setenv('BUDDY_MOSS_NATIVE_ROOT',str(tmp_path))

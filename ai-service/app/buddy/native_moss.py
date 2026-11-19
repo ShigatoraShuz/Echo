@@ -47,11 +47,20 @@ class NativeMoss:
   if rate!=24000 or actual.ndim!=1 or len(actual)!=len(expected) or not np.allclose(actual,expected,atol=1/32768+1e-6):raise RuntimeError('BUDDY_MOSS_REFERENCE_INVALID')
   self.identity={'runtimeManifestSHA256':lock['manifestSHA256'],'artifactSHA256':next(x['sha256'] for x in self.manifest['files'] if x['path']=='artifacts/moss-v15-q4_k_m.gguf'),'codecRevision':self.manifest['codecRevision'],'runtimeRevision':self.manifest['forkRevision'],'derivedReferenceSHA256':digest(self.reference),'providerName':'MOSS-TTS-v1.5','modelVersion':self.manifest['modelRevision'],'inferenceVersion':'openmoss-native-memory-io-v1','engine':'OpenMOSS-llama.cpp','quantization':'Q4_K_M','voiceReferenceSHA256':VOICE_SHA,'nativeSampleRate':24000,'nativeChannels':1,'sampleRate':48000,'channels':2}
  def synthesize(self,text,language="English"):
+  try:return self._synthesize(text,language,512)
+  except RuntimeError as error:
+   if str(error)!='BUDDY_MOSS_AUDIO_INCOMPLETE':raise
+   # The native generator reached its frame ceiling without an end marker.
+   # Discard that attempt and retry the exact text once; never play partial WAVs.
+   import logging
+   logging.getLogger('uvicorn.error').warning('MOSS incomplete audio: retrying segment with max_new_tokens=1024')
+   return self._synthesize(text,language,1024)
+ def _synthesize(self,text,language,max_new_tokens):
   from app.buddy.gpu_memory import native_headroom
   # Native encoder, backbone and decoder run sequentially inside one process.
   required=max(self.model.stat().st_size,self.encoder.stat().st_size,self.decoder.stat().st_size)+1024**3
   native_headroom(additional_bytes=required)
-  arguments=[str(self.binary),'-m',str(self.model),'--audio-encoder-model',str(self.encoder),'--audio-decoder-model',str(self.decoder),'--reference-audio',str(self.reference),'--language',{'English':'en','Filipino':'tl','Taglish':''}[language],'--text-file','-','--wav-out','-','--max-new-tokens','512','-ngl','-1','--seed','42']
+  arguments=[str(self.binary),'-m',str(self.model),'--audio-encoder-model',str(self.encoder),'--audio-decoder-model',str(self.decoder),'--reference-audio',str(self.reference),'--language',{'English':'en','Filipino':'tl','Taglish':''}[language],'--text-file','-','--wav-out','-','--max-new-tokens',str(max_new_tokens),'-ngl','-1','--seed','42']
   env={key:os.environ[key] for key in ('SYSTEMROOT','WINDIR','PATH','TEMP','TMP','CUDA_VISIBLE_DEVICES') if key in os.environ}
   process=spawn_owned(arguments,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,cwd=str(self.binary.parent),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0),resource_limits={'memory_bytes':28_000_000_000,'cpu_percent':60})
   output=[];errors=[];offloads=[];overflow=threading.Event()
